@@ -12,6 +12,7 @@ export interface SystemMaintenanceConfig {
   mode: 'IMMEDIATE' | 'GRACEFUL';
   scheduledStartTime?: string;
   scheduledEndTime?: string;
+  scheduledMode?: 'IMMEDIATE' | 'GRACEFUL';
   drainDurationMinutes: number;
   drainStartedAt?: string;
   reason: string;
@@ -97,6 +98,11 @@ class MaintenanceService {
         }
       }
     });
+
+    // Background interval check for scheduled auto-maintenance (every 1 second)
+    setInterval(() => {
+      this.checkScheduledMaintenance();
+    }, 1000);
   }
 
   public async syncFromServer(): Promise<SystemMaintenanceConfig> {
@@ -290,6 +296,120 @@ class MaintenanceService {
     });
 
     return updated;
+  }
+
+  /**
+   * Schedule future auto-maintenance with timer countdown
+   */
+  public scheduleMaintenance(params: {
+    scheduledStartTime: string;
+    scheduledEndTime?: string;
+    drainMinutes?: number;
+    reason?: string;
+    mode?: 'IMMEDIATE' | 'GRACEFUL';
+    updatedBy?: string;
+  }): SystemMaintenanceConfig {
+    const updated = this.updateConfig(
+      {
+        scheduledStartTime: params.scheduledStartTime,
+        scheduledEndTime: params.scheduledEndTime || new Date(new Date(params.scheduledStartTime).getTime() + 2 * 3600 * 1000).toISOString(),
+        drainDurationMinutes: params.drainMinutes || this.config.drainDurationMinutes || 5,
+        reason: params.reason || this.config.reason,
+        scheduledMode: params.mode || 'GRACEFUL',
+      },
+      params.updatedBy || 'Super Admin'
+    );
+
+    const startTimeFormatted = new Date(params.scheduledStartTime).toLocaleTimeString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+    });
+
+    // Broadcast upcoming scheduled maintenance notification
+    adminNotificationService.createNotification({
+      title: 'LỊCH HẸN BẢO TRÌ NÂNG CẤP HỆ THỐNG',
+      summary: `Hệ thống HUKI sẽ tạm dừng phục vụ để bảo trì vào lúc ${startTimeFormatted}.`,
+      content: `Kính gửi Quý Khách Hàng và Quý Đối Tác,\n\nBan Quản Trị HUKI xin thông báo kế hoạch bảo trì hệ thống hạ tầng:\n- Thời điểm bắt đầu: ${startTimeFormatted}\n- Chế độ: ${params.mode === 'IMMEDIATE' ? 'Ngắt tức thì' : `Xả êm dịu (${params.drainMinutes || 5} phút)`}\n- Lý do: ${updated.reason}\n\nQuý khách vui lòng chủ động hoàn tất giao dịch và lưu trữ dữ liệu trước thời điểm trên. Trân trọng!`,
+      category: 'MAINTENANCE',
+      severity: 'WARNING',
+      targetRole: 'ALL',
+      targetType: 'ALL',
+      channels: ['TOP_BAR', 'BELL'],
+      scheduleType: 'INSTANT',
+      status: 'ACTIVE',
+      authorName: params.updatedBy || 'Super Admin',
+      isPinnedTop: true,
+      isDismissible: true,
+    });
+
+    return updated;
+  }
+
+  /**
+   * Cancel active scheduled maintenance
+   */
+  public cancelScheduledMaintenance(updatedBy: string = 'Super Admin'): SystemMaintenanceConfig {
+    const updated = this.updateConfig(
+      {
+        scheduledStartTime: undefined,
+        scheduledEndTime: undefined,
+        scheduledMode: undefined,
+      },
+      updatedBy
+    );
+
+    adminNotificationService.createNotification({
+      title: 'HỦY LỊCH BẢO TRÌ HỆ THỐNG',
+      summary: 'Kế hoạch bảo trì đã được hủy bỏ. Hệ thống hoạt động bình thường liên tục 24/7.',
+      content: 'Kế hoạch bảo trì dự kiến đã được hủy bỏ. Hệ thống HuKi tiếp tục hoạt động ổn định và phục vụ quý khách hàng, độc giả và đối tác bình thường.',
+      category: 'MAINTENANCE',
+      severity: 'INFO',
+      targetRole: 'ALL',
+      targetType: 'ALL',
+      channels: ['TOP_BAR', 'BELL'],
+      scheduleType: 'INSTANT',
+      status: 'ACTIVE',
+      authorName: updatedBy,
+      isPinnedTop: false,
+      isDismissible: true,
+    });
+
+    return updated;
+  }
+
+  public getRemainingScheduleSeconds(): number {
+    const conf = this.getConfig();
+    if (conf.isActive || !conf.scheduledStartTime) return 0;
+    const targetMs = new Date(conf.scheduledStartTime).getTime();
+    return Math.max(0, Math.floor((targetMs - Date.now()) / 1000));
+  }
+
+  private checkScheduledMaintenance() {
+    if (typeof window === 'undefined') return;
+    const conf = this.getConfig();
+    if (conf.isActive || !conf.scheduledStartTime) return;
+
+    const targetMs = new Date(conf.scheduledStartTime).getTime();
+    if (Date.now() >= targetMs) {
+      // Auto trigger maintenance!
+      const targetMode = conf.scheduledMode || 'GRACEFUL';
+      if (targetMode === 'IMMEDIATE') {
+        this.activateInstantBlackout({
+          reason: conf.reason,
+          scheduledEndTime: conf.scheduledEndTime,
+          updatedBy: 'Hẹn Giờ Tự Động',
+        });
+      } else {
+        this.activateGracefulDrain({
+          drainDurationMinutes: conf.drainDurationMinutes || 5,
+          reason: conf.reason,
+          scheduledEndTime: conf.scheduledEndTime,
+          updatedBy: 'Hẹn Giờ Tự Động',
+        });
+      }
+    }
   }
 
   public deactivateMaintenance(updatedBy: string = 'Super Admin'): SystemMaintenanceConfig {

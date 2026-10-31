@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { featureFlagsService, SellerFeature } from '@/ui/services/featureFlagsService';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { businessApi, BusinessData } from '@/ui/api/businessApi';
@@ -10,11 +10,26 @@ import CustomModal from '@/ui/components/common/CustomModal';
 const CATEGORY_MAP: Record<string, { label: string; icon: string; color: string }> = {
   all: { label: 'Tất Cả Tính Năng', icon: 'apps', color: 'bg-slate-100 text-slate-700' },
   marketing: { label: 'Marketing & Khuyến Mãi', icon: 'campaign', color: 'bg-amber-100 text-amber-800' },
-  finance: { label: 'Tài Chính & Escrow', icon: 'account_balance_wallet', color: 'bg-emerald-100 text-emerald-800' },
   inventory: { label: 'Kho Hàng & DRM', icon: 'auto_stories', color: 'bg-blue-100 text-blue-800' },
+  finance: { label: 'Tài Chính & Escrow', icon: 'account_balance_wallet', color: 'bg-emerald-100 text-emerald-800' },
   operations: { label: 'Vận Hành & Đổi Trả', icon: 'settings_suggest', color: 'bg-purple-100 text-purple-800' },
   customer: { label: 'CSKH & Tương Tác', icon: 'chat', color: 'bg-rose-100 text-rose-800' },
+  expansion: { label: 'Mở Rộng & Công Nghệ AI', icon: 'smart_toy', color: 'bg-indigo-100 text-indigo-800' },
 };
+
+function formatCountdown(targetIso?: string): string {
+  if (!targetIso) return '';
+  const diffMs = new Date(targetIso).getTime() - Date.now();
+  if (diffMs <= 0) return 'Đang xử lý...';
+  const totalSec = Math.floor(diffMs / 1000);
+  const hours = Math.floor(totalSec / 3600);
+  const minutes = Math.floor((totalSec % 3600) / 60);
+  const seconds = totalSec % 60;
+  if (hours > 0) {
+    return `${hours}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`;
+  }
+  return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+}
 
 export default function AdminSellerFeaturesView() {
   const [features, setFeatures] = useState<SellerFeature[]>([]);
@@ -24,9 +39,26 @@ export default function AdminSellerFeaturesView() {
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebounce(searchQuery, 250);
 
+  // Live timer tick for real-time countdown display
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTick((t) => (t + 1) % 1000000);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Modal States
   const [maintenanceModalFeature, setMaintenanceModalFeature] = useState<SellerFeature | null>(null);
   const [maintenanceReasonInput, setMaintenanceReasonInput] = useState('');
+
+  // Scheduled Timer Modal
+  const [timerModalFeature, setTimerModalFeature] = useState<SellerFeature | null>(null);
+  const [timerMode, setTimerMode] = useState<'DISABLE' | 'ENABLE'>('DISABLE');
+  const [timerPresetMinutes, setTimerPresetMinutes] = useState<number>(15);
+  const [customDateTime, setCustomDateTime] = useState<string>('');
+  const [autoReopenMinutes, setAutoReopenMinutes] = useState<number>(0);
+  const [timerReasonInput, setTimerReasonInput] = useState<string>('Bảo trì nâng cấp hệ thống định kỳ');
 
   const [overrideModalFeature, setOverrideModalFeature] = useState<SellerFeature | null>(null);
   const [overrideSearch, setOverrideSearch] = useState('');
@@ -37,6 +69,12 @@ export default function AdminSellerFeaturesView() {
   const [isBulkOverrideOpen, setIsBulkOverrideOpen] = useState(false);
   const [bulkSelectedBusinessIds, setBulkSelectedBusinessIds] = useState<string[]>([]);
   const [bulkActionType, setBulkActionType] = useState<'BLOCK' | 'UNBLOCK'>('BLOCK');
+
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  }, []);
 
   // Load features & businesses
   useEffect(() => {
@@ -90,20 +128,20 @@ export default function AdminSellerFeaturesView() {
     const total = features.length;
     const active = features.filter((f) => f.isEnabledGlobally).length;
     const maintenance = total - active;
+    const scheduled = features.filter((f) => f.scheduledDisableAt || f.scheduledEnableAt).length;
     const totalRestrictedBusinesses = new Set(features.flatMap((f) => f.disabledBusinesses || [])).size;
-    return { total, active, maintenance, totalRestrictedBusinesses };
+    return { total, active, maintenance, scheduled, totalRestrictedBusinesses };
   }, [features]);
 
   // Toggle Global Feature Switch
   const handleToggleGlobal = (feature: SellerFeature) => {
     if (feature.isEnabledGlobally) {
-      // Prompt for maintenance reason
       setMaintenanceModalFeature(feature);
       setMaintenanceReasonInput(feature.maintenanceReason || 'Đang bảo trì nâng cấp hệ thống');
     } else {
-      // Turn back ON
       featureFlagsService.toggleGlobalFeature(feature.id, true, '');
       setFeatures(featureFlagsService.getAllFeatures());
+      showToast(`Đã kích hoạt mở lại tính năng: ${feature.name}`);
     }
   };
 
@@ -115,7 +153,62 @@ export default function AdminSellerFeaturesView() {
       maintenanceReasonInput.trim() || 'Hệ thống đang bảo trì'
     );
     setFeatures(featureFlagsService.getAllFeatures());
+    showToast(`Đã tắt tính năng: ${maintenanceModalFeature.name}`);
     setMaintenanceModalFeature(null);
+  };
+
+  // Open Timer Modal
+  const openTimerModal = (feature: SellerFeature) => {
+    setTimerModalFeature(feature);
+    setTimerMode(feature.isEnabledGlobally ? 'DISABLE' : 'ENABLE');
+    setTimerPresetMinutes(15);
+    setCustomDateTime('');
+    setAutoReopenMinutes(0);
+    setTimerReasonInput(feature.maintenanceReason || 'Bảo trì nâng cấp hệ thống định kỳ');
+  };
+
+  // Confirm Timer Schedule
+  const handleSaveTimerSchedule = () => {
+    if (!timerModalFeature) return;
+
+    let targetDisableAt: string | undefined = undefined;
+    let targetEnableAt: string | undefined = undefined;
+
+    const baseMs = Date.now();
+    let scheduledMs: number;
+
+    if (customDateTime) {
+      scheduledMs = new Date(customDateTime).getTime();
+    } else {
+      scheduledMs = baseMs + timerPresetMinutes * 60 * 1000;
+    }
+
+    if (timerMode === 'DISABLE') {
+      targetDisableAt = new Date(scheduledMs).toISOString();
+      if (autoReopenMinutes > 0) {
+        targetEnableAt = new Date(scheduledMs + autoReopenMinutes * 60 * 1000).toISOString();
+      }
+    } else {
+      targetEnableAt = new Date(scheduledMs).toISOString();
+    }
+
+    featureFlagsService.scheduleFeature(timerModalFeature.id, {
+      disableAt: targetDisableAt,
+      enableAt: targetEnableAt,
+      reason: timerReasonInput.trim(),
+      updatedBy: 'Admin HuKi',
+    });
+
+    setFeatures(featureFlagsService.getAllFeatures());
+    setTimerModalFeature(null);
+    showToast(`Đã thiết lập hẹn giờ cho tính năng: ${timerModalFeature.name}`);
+  };
+
+  // Cancel Scheduled Timer
+  const handleCancelSchedule = (featureId: string) => {
+    featureFlagsService.cancelFeatureSchedule(featureId);
+    setFeatures(featureFlagsService.getAllFeatures());
+    showToast('Đã hủy lịch hẹn giờ thành công!');
   };
 
   // Toggle Business Tenant Override
@@ -136,6 +229,7 @@ export default function AdminSellerFeaturesView() {
     setIsBulkOverrideOpen(false);
     setSelectedFeatureIds([]);
     setBulkSelectedBusinessIds([]);
+    showToast(`Đã áp dụng ${selectedFeatureIds.length} tính năng cho ${bulkSelectedBusinessIds.length} doanh nghiệp`);
   };
 
   const filteredBusinessesForOverride = useMemo(() => {
@@ -150,15 +244,26 @@ export default function AdminSellerFeaturesView() {
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
+      {/* Toast */}
+      {toastMessage && (
+        <div className="fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl bg-slate-900 text-white shadow-2xl border border-slate-700 animate-in fade-in text-xs font-bold">
+          <span className="material-symbols-outlined text-emerald-400 text-base">task_alt</span>
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       {/* 1. Header & Summary Cards */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
         <div>
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[#003B2B] text-2xl">toggle_on</span>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">Quản Lý Tính Năng & Phân Quyền Seller</h1>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+              BẢN MỚI NHẤT 2026
+            </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Kiểm soát bật/tắt tính năng toàn hệ thống (Global Kill Switch) hoặc khóa chủ đích theo từng Doanh nghiệp (Tenant Override) khi phát sinh sự cố.
+            Kiểm soát bật/tắt toàn sàn (Global Switch), hẹn giờ bảo trì tự động và phân quyền theo từng Doanh nghiệp (Tenant Override).
           </p>
         </div>
 
@@ -166,15 +271,15 @@ export default function AdminSellerFeaturesView() {
           {selectedFeatureIds.length > 0 && (
             <button
               onClick={() => setIsBulkOverrideOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#003B2B] text-white rounded-xl text-xs font-bold hover:bg-[#00281D] transition-colors shadow-2xs active:scale-95"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#003B2B] text-white rounded-xl text-xs font-bold hover:bg-[#00281D] transition-colors shadow-2xs active:scale-95 cursor-pointer"
             >
               <span className="material-symbols-outlined text-[16px]">domain_disabled</span>
-              <span>Áp dụng {selectedFeatureIds.length} tính năng cho Doanh Nghiệp</span>
+              <span>Áp dụng {selectedFeatureIds.length} tính năng cho DN</span>
             </button>
           )}
           <button
             onClick={loadData}
-            className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors"
+            className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors cursor-pointer"
             title="Tải lại dữ liệu"
           >
             <span className="material-symbols-outlined text-[18px]">sync</span>
@@ -182,8 +287,8 @@ export default function AdminSellerFeaturesView() {
         </div>
       </div>
 
-      {/* 2. Top Stats Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* 2. Top Stats Grid (5 Cards) */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700 shrink-0">
             <span className="material-symbols-outlined text-xl">tune</span>
@@ -200,7 +305,7 @@ export default function AdminSellerFeaturesView() {
           </div>
           <div>
             <div className="text-lg font-black text-emerald-700 leading-tight">{stats.active}</div>
-            <div className="text-[11px] font-semibold text-slate-500">Đang Hoạt Động (ON)</div>
+            <div className="text-[11px] font-semibold text-slate-500">Đang Bật (ON)</div>
           </div>
         </div>
 
@@ -210,17 +315,27 @@ export default function AdminSellerFeaturesView() {
           </div>
           <div>
             <div className="text-lg font-black text-rose-700 leading-tight">{stats.maintenance}</div>
-            <div className="text-[11px] font-semibold text-slate-500">Bảo Trì Hệ Thống (OFF)</div>
+            <div className="text-[11px] font-semibold text-slate-500">Bảo Trì (OFF)</div>
           </div>
         </div>
 
         <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-700 shrink-0">
+            <span className="material-symbols-outlined text-xl">alarm</span>
+          </div>
+          <div>
+            <div className="text-lg font-black text-amber-700 leading-tight">{stats.scheduled}</div>
+            <div className="text-[11px] font-semibold text-slate-500">Đang Hẹn Giờ</div>
+          </div>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-700 shrink-0">
             <span className="material-symbols-outlined text-xl">shield_person</span>
           </div>
           <div>
-            <div className="text-lg font-black text-amber-700 leading-tight">{stats.totalRestrictedBusinesses}</div>
-            <div className="text-[11px] font-semibold text-slate-500">DN Bị Giới Hạn Riêng</div>
+            <div className="text-lg font-black text-purple-700 leading-tight">{stats.totalRestrictedBusinesses}</div>
+            <div className="text-[11px] font-semibold text-slate-500">DN Bị Giới Hạn</div>
           </div>
         </div>
       </div>
@@ -231,6 +346,7 @@ export default function AdminSellerFeaturesView() {
         <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 scrollbar-none">
           {Object.entries(CATEGORY_MAP).map(([key, info]) => {
             const isActive = activeCategory === key;
+            const count = key === 'all' ? features.length : features.filter((f) => f.category === key).length;
             return (
               <button
                 key={key}
@@ -243,39 +359,35 @@ export default function AdminSellerFeaturesView() {
               >
                 <span className="material-symbols-outlined text-[16px]">{info.icon}</span>
                 <span>{info.label}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${isActive ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-600'}`}>
+                  {count}
+                </span>
               </button>
             );
           })}
         </div>
 
-        {/* Debounced Search */}
+        {/* Search */}
         <div className="relative w-full md:w-72 shrink-0">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
             search
           </span>
           <input
             type="text"
-            placeholder="Tìm tên tính năng, mã, mô tả..."
+            placeholder="Tìm theo tên hoặc mã tính năng..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-8 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#003B2B] focus:bg-white transition-all shadow-2xs"
+            className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:border-[#003B2B] focus:bg-white transition-all"
           />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-            >
-              <span className="material-symbols-outlined text-[15px]">close</span>
-            </button>
-          )}
         </div>
       </div>
 
-      {/* 4. Features Grid / List */}
+      {/* 4. Features Grid */}
       {loading ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-500">
-          <span className="material-symbols-outlined animate-spin text-3xl text-[#003B2B]">progress_activity</span>
-          <p className="text-xs font-semibold mt-2">Đang tải cấu hình tính năng...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} className="h-44 bg-slate-100 animate-pulse rounded-2xl border border-slate-200" />
+          ))}
         </div>
       ) : filteredFeatures.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-500">
@@ -289,11 +401,13 @@ export default function AdminSellerFeaturesView() {
             const isSelected = selectedFeatureIds.includes(feature.id);
             const catInfo = CATEGORY_MAP[feature.category] || CATEGORY_MAP.all;
             const disabledCount = (feature.disabledBusinesses || []).length;
+            const hasScheduledDisable = Boolean(feature.scheduledDisableAt);
+            const hasScheduledEnable = Boolean(feature.scheduledEnableAt);
 
             return (
               <div
                 key={feature.id}
-                className={`bg-white rounded-2xl border transition-all duration-200 p-4 flex flex-col justify-between shadow-2xs ${
+                className={`bg-white rounded-2xl border transition-all duration-200 p-4 flex flex-col justify-between shadow-2xs hover:shadow-md ${
                   !feature.isEnabledGlobally
                     ? 'border-rose-300 bg-rose-50/20'
                     : isSelected
@@ -350,6 +464,42 @@ export default function AdminSellerFeaturesView() {
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">{feature.description}</p>
                   </div>
 
+                  {/* Scheduled Timer Badge: Auto Disable */}
+                  {hasScheduledDisable && (
+                    <div className="mb-2.5 p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between shadow-2xs">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <span className="material-symbols-outlined text-[16px] text-amber-600 animate-spin">alarm</span>
+                        <span>Sẽ tắt sau: {formatCountdown(feature.scheduledDisableAt)}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCancelSchedule(feature.id)}
+                        className="text-[10px] font-bold text-rose-700 hover:text-rose-900 px-1.5 py-0.5 rounded bg-amber-100 hover:bg-amber-200 cursor-pointer"
+                        title="Hủy lịch hẹn giờ này"
+                      >
+                        Hủy hẹn
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Scheduled Timer Badge: Auto Enable */}
+                  {hasScheduledEnable && !feature.isEnabledGlobally && (
+                    <div className="mb-2.5 p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between shadow-2xs">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <span className="material-symbols-outlined text-[16px] text-emerald-600 animate-pulse">schedule</span>
+                        <span>Tự mở sau: {formatCountdown(feature.scheduledEnableAt)}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCancelSchedule(feature.id)}
+                        className="text-[10px] font-bold text-rose-700 hover:text-rose-900 px-1.5 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 cursor-pointer"
+                        title="Hủy lịch hẹn mở lại"
+                      >
+                        Hủy hẹn
+                      </button>
+                    </div>
+                  )}
+
                   {/* Maintenance Alert if Disabled */}
                   {!feature.isEnabledGlobally && (
                     <div className="mb-3 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
@@ -366,7 +516,7 @@ export default function AdminSellerFeaturesView() {
                   )}
                 </div>
 
-                {/* Footer Controls */}
+                {/* Footer Controls: Phân quyền DN + Hẹn Giờ Tự Động */}
                 <div className="pt-3 mt-2 border-t border-slate-100 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 text-xs">
                     <span className="text-slate-500 text-[11px]">Chặn riêng:</span>
@@ -377,20 +527,35 @@ export default function AdminSellerFeaturesView() {
                           : 'bg-slate-100 text-slate-600'
                       }`}
                     >
-                      {disabledCount} Doanh nghiệp
+                      {disabledCount} DN
                     </span>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      setOverrideModalFeature(feature);
-                      setOverrideSearch('');
-                    }}
-                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#003B2B] bg-[#003B2B]/5 hover:bg-[#003B2B]/10 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[15px]">tune</span>
-                    <span>Phân quyền DN</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    {/* Nút Hẹn Giờ */}
+                    <button
+                      type="button"
+                      onClick={() => openTimerModal(feature)}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 rounded-lg transition-colors cursor-pointer"
+                      title="Thiết lập hẹn giờ tự động tắt hoặc mở lại"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">alarm</span>
+                      <span>Hẹn Giờ</span>
+                    </button>
+
+                    {/* Nút Phân quyền */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOverrideModalFeature(feature);
+                        setOverrideSearch('');
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#003B2B] bg-[#003B2B]/5 hover:bg-[#003B2B]/10 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">tune</span>
+                      <span>Phân quyền DN</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -398,7 +563,7 @@ export default function AdminSellerFeaturesView() {
         </div>
       )}
 
-      {/* 5. Modal: Nhập lý do bảo trì khi TẮT tính năng */}
+      {/* 5. Modal: Nhập lý do bảo trì khi TẮT tính năng ngay lập tức */}
       {maintenanceModalFeature && (
         <CustomModal
           isOpen={true}
@@ -433,13 +598,13 @@ export default function AdminSellerFeaturesView() {
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 onClick={() => setMaintenanceModalFeature(null)}
-                className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+                className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
               >
                 Hủy bỏ
               </button>
               <button
                 onClick={handleConfirmMaintenance}
-                className="px-4 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors shadow-2xs"
+                className="px-4 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors shadow-2xs cursor-pointer"
               >
                 Xác Nhận Ngắt Tính Năng
               </button>
@@ -448,88 +613,216 @@ export default function AdminSellerFeaturesView() {
         </CustomModal>
       )}
 
-      {/* 6. Modal: Cấu hình Khóa / Mở riêng cho từng Doanh nghiệp (Tenant Override) */}
+      {/* 6. Modal: Hẹn Giờ Tự Động Tắt / Mở Tính Năng (Scheduler Timer) */}
+      {timerModalFeature && (
+        <CustomModal
+          isOpen={true}
+          onClose={() => setTimerModalFeature(null)}
+          title={`Hẹn Giờ Tự Động: ${timerModalFeature.name}`}
+          size="md"
+        >
+          <div className="p-4 flex flex-col gap-4 font-sans text-xs">
+            {/* Mode Selector */}
+            <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setTimerMode('DISABLE')}
+                className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  timerMode === 'DISABLE'
+                    ? 'bg-rose-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">power_settings_new</span>
+                <span>Hẹn Giờ Tạm Tắt</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTimerMode('ENABLE')}
+                className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  timerMode === 'ENABLE'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                <span>Hẹn Giờ Mở Lại</span>
+              </button>
+            </div>
+
+            {/* Quick Presets */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Chọn Thời Gian Hẹn Giờ Nhanh:
+              </label>
+              <div className="grid grid-cols-4 gap-2">
+                {[15, 30, 60, 120].map((mins) => (
+                  <button
+                    key={mins}
+                    type="button"
+                    onClick={() => {
+                      setTimerPresetMinutes(mins);
+                      setCustomDateTime('');
+                    }}
+                    className={`py-2 px-1 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                      !customDateTime && timerPresetMinutes === mins
+                        ? 'bg-[#003B2B] text-white border-[#003B2B] shadow-2xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {mins < 60 ? `+${mins} Phút` : `+${mins / 60} Giờ`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom Datetime */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Hoặc Chọn Ngày & Giờ Cụ Thể:
+              </label>
+              <input
+                type="datetime-local"
+                value={customDateTime}
+                onChange={(e) => setCustomDateTime(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:border-[#003B2B] focus:bg-white"
+              />
+            </div>
+
+            {/* Optional Auto Re-open if Disabling */}
+            {timerMode === 'DISABLE' && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Tự Động Mở Lại Sau Khi Tắt (Tùy chọn):
+                </label>
+                <select
+                  value={autoReopenMinutes}
+                  onChange={(e) => setAutoReopenMinutes(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:border-[#003B2B] focus:bg-white"
+                >
+                  <option value={0}>Không tự mở lại (Admin tự mở thủ công)</option>
+                  <option value={30}>Tự mở lại sau 30 phút</option>
+                  <option value={60}>Tự mở lại sau 1 giờ</option>
+                  <option value={120}>Tự mở lại sau 2 giờ</option>
+                  <option value={240}>Tự mở lại sau 4 giờ</option>
+                  <option value={480}>Tự mở lại sau 8 giờ</option>
+                </select>
+              </div>
+            )}
+
+            {/* Reason */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Lý Do / Thông Báo Lên Lịch Gửi Cho Seller:
+              </label>
+              <textarea
+                rows={2}
+                value={timerReasonInput}
+                onChange={(e) => setTimerReasonInput(e.target.value)}
+                placeholder="VD: Bảo trì hạ tầng máy chủ định kỳ..."
+                className="w-full p-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-[#003B2B]"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+              {timerModalFeature.scheduledDisableAt || timerModalFeature.scheduledEnableAt ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleCancelSchedule(timerModalFeature.id);
+                    setTimerModalFeature(null);
+                  }}
+                  className="px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl cursor-pointer"
+                >
+                  Hủy Lịch Đang Hẹn
+                </button>
+              ) : (
+                <span />
+              )}
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTimerModalFeature(null)}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveTimerSchedule}
+                  className="px-4 py-1.5 text-xs font-bold text-white bg-[#003B2B] hover:bg-[#00281D] rounded-xl shadow-xs transition-all cursor-pointer"
+                >
+                  Lưu Lịch Hẹn Giờ
+                </button>
+              </div>
+            </div>
+          </div>
+        </CustomModal>
+      )}
+
+      {/* 7. Modal: Phân Quyền Riêng Doanh Nghiệp (Tenant Override) */}
       {overrideModalFeature && (
         <CustomModal
           isOpen={true}
           onClose={() => setOverrideModalFeature(null)}
-          title={`Phân Quyền Tính Năng: ${overrideModalFeature.name}`}
+          title={`Phân Quyền Doanh Nghiệp: ${overrideModalFeature.name}`}
           size="lg"
         >
-          <div className="p-4 flex flex-col gap-3.5 max-h-[75vh] overflow-hidden">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-slate-500">
-                Chặn hoặc cấp quyền sử dụng tính năng <strong>{overrideModalFeature.name}</strong> cho từng doanh nghiệp cụ thể.
-              </p>
-              <span className="text-xs font-bold text-slate-700">
-                {(overrideModalFeature.disabledBusinesses || []).length} / {businesses.length} DN bị chặn
-              </span>
+          <div className="p-4 flex flex-col gap-3 font-sans">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 leading-relaxed">
+              Bạn có thể khóa riêng tính năng này đối với một số Doanh nghiệp cụ thể khi phát sinh vi phạm quy chế hoặc gian lận mà không ảnh hưởng đến toàn sàn.
             </div>
 
-            {/* Search Business in Modal */}
+            {/* Search */}
             <div className="relative">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
                 search
               </span>
               <input
                 type="text"
-                placeholder="Tìm kiếm doanh nghiệp theo tên, MST, email..."
+                placeholder="Tìm Doanh nghiệp theo tên, email, MST..."
                 value={overrideSearch}
                 onChange={(e) => setOverrideSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:border-[#003B2B] focus:bg-white transition-all"
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:border-[#003B2B] focus:bg-white"
               />
             </div>
 
-            {/* Businesses List */}
-            <div className="flex-1 overflow-y-auto max-h-[380px] border border-slate-200 rounded-xl divide-y divide-slate-100">
+            {/* Business List */}
+            <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
               {filteredBusinessesForOverride.length === 0 ? (
-                <div className="p-8 text-center text-xs text-slate-400">Không tìm thấy doanh nghiệp nào</div>
+                <div className="text-center py-8 text-xs text-slate-400">Không tìm thấy doanh nghiệp nào</div>
               ) : (
                 filteredBusinessesForOverride.map((biz) => {
                   const isBlocked = (overrideModalFeature.disabledBusinesses || []).includes(biz.id);
                   return (
                     <div
                       key={biz.id}
-                      className={`p-3 flex items-center justify-between gap-3 transition-colors ${
-                        isBlocked ? 'bg-rose-50/40' : 'hover:bg-slate-50'
-                      }`}
+                      className="p-3 rounded-xl border border-slate-200 bg-white flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors"
                     >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${
-                            isBlocked ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-700'
-                          }`}
-                        >
-                          {biz.name ? biz.name.charAt(0).toUpperCase() : 'B'}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-xs text-slate-900 truncate">{biz.name}</span>
+                          {biz.taxCode && (
+                            <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1 py-0.2 rounded">
+                              MST: {biz.taxCode}
+                            </span>
+                          )}
                         </div>
-                        <div>
-                          <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                            <span>{biz.name}</span>
-                            {biz.status === 'SUSPENDED' && (
-                              <span className="px-1.5 py-0.2 bg-rose-100 text-rose-700 text-[9px] font-bold rounded">
-                                Bị Khóa
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-                            <span>MST: {biz.taxCode || 'Chưa cập nhật'}</span>
-                            <span>•</span>
-                            <span>{biz.email || 'No email'}</span>
-                          </div>
-                        </div>
+                        <p className="text-[11px] text-slate-500 truncate mt-0.5">{biz.email}</p>
                       </div>
 
                       <button
-                        onClick={() =>
-                          handleToggleBusinessOverride(overrideModalFeature.id, biz.id, isBlocked)
-                        }
-                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                        onClick={() => handleToggleBusinessOverride(overrideModalFeature.id, biz.id, isBlocked)}
+                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
                           isBlocked
-                            ? 'bg-rose-600 text-white hover:bg-rose-700'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            ? 'bg-rose-100 text-rose-700 hover:bg-rose-200 border border-rose-300'
+                            : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
                         }`}
                       >
-                        {isBlocked ? 'Đang Chặn (Mở lại)' : 'Cho Phép (Chặn)'}
+                        {isBlocked ? 'Đang Chặn' : 'Được Phép'}
                       </button>
                     </div>
                   );
@@ -540,93 +833,64 @@ export default function AdminSellerFeaturesView() {
             <div className="flex justify-end pt-2 border-t border-slate-100">
               <button
                 onClick={() => setOverrideModalFeature(null)}
-                className="px-4 py-1.5 text-xs font-bold bg-[#003B2B] text-white rounded-xl hover:bg-[#00281D]"
+                className="px-4 py-1.5 text-xs font-bold text-white bg-[#003B2B] hover:bg-[#00281D] rounded-xl cursor-pointer"
               >
-                Hoàn Tất
+                Đóng
               </button>
             </div>
           </div>
         </CustomModal>
       )}
 
-      {/* 7. Modal: Bulk Apply Tenant Overrides across Multiple Features */}
+      {/* 8. Modal: Áp dụng Hàng Loạt (Bulk Override) */}
       {isBulkOverrideOpen && (
         <CustomModal
           isOpen={true}
           onClose={() => setIsBulkOverrideOpen(false)}
-          title="Thiết Lập Khóa / Mở Đồng Loạt Cho Nhiều Doanh Nghiệp"
+          title="Áp Dụng Phân Quyền Hàng Loạt Cho Doanh Nghiệp"
           size="lg"
         >
-          <div className="p-4 flex flex-col gap-3.5 max-h-[75vh] overflow-hidden">
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
-              <div className="font-bold text-slate-800">
-                Đang chọn {selectedFeatureIds.length} tính năng:
-              </div>
-              <div className="flex flex-wrap gap-1.5 mt-1.5">
-                {selectedFeatureIds.map((id) => (
-                  <span key={id} className="px-2 py-0.5 bg-[#003B2B] text-white rounded text-[10px] font-bold font-mono">
-                    {id}
-                  </span>
-                ))}
-              </div>
+          <div className="p-4 flex flex-col gap-3 font-sans text-xs">
+            <p className="text-slate-600">
+              Đang chọn <strong className="text-slate-900">{selectedFeatureIds.length}</strong> tính năng. Chọn hành động và danh sách Doanh nghiệp muốn áp dụng:
+            </p>
+
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-1.5 font-bold cursor-pointer">
+                <input
+                  type="radio"
+                  name="bulkAction"
+                  checked={bulkActionType === 'BLOCK'}
+                  onChange={() => setBulkActionType('BLOCK')}
+                  className="text-rose-600"
+                />
+                <span className="text-rose-700">Khóa tính năng (Block)</span>
+              </label>
+
+              <label className="flex items-center gap-1.5 font-bold cursor-pointer">
+                <input
+                  type="radio"
+                  name="bulkAction"
+                  checked={bulkActionType === 'UNBLOCK'}
+                  onChange={() => setBulkActionType('UNBLOCK')}
+                  className="text-emerald-600"
+                />
+                <span className="text-emerald-700">Mở lại tính năng (Unblock)</span>
+              </label>
             </div>
 
-            <div className="flex items-center gap-3">
-              <label className="text-xs font-bold text-slate-700">Tác vụ đồng loạt:</label>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setBulkActionType('BLOCK')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
-                    bulkActionType === 'BLOCK'
-                      ? 'bg-rose-600 text-white'
-                      : 'bg-slate-100 text-slate-600'
-                  }`}
-                >
-                  Khóa / Chặn tính năng
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBulkActionType('UNBLOCK')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
-                    bulkActionType === 'UNBLOCK'
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-slate-100 text-slate-600'
-                  }`}
-                >
-                  Mở khóa / Cho phép
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-              <span>Chọn các Doanh Nghiệp áp dụng ({bulkSelectedBusinessIds.length} đã chọn):</span>
-              <button
-                type="button"
-                onClick={() => {
-                  if (bulkSelectedBusinessIds.length === businesses.length) {
-                    setBulkSelectedBusinessIds([]);
-                  } else {
-                    setBulkSelectedBusinessIds(businesses.map((b) => b.id));
-                  }
-                }}
-                className="text-[#003B2B] hover:underline"
-              >
-                {bulkSelectedBusinessIds.length === businesses.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto max-h-[300px] border border-slate-200 rounded-xl divide-y divide-slate-100">
+            {/* Select Businesses */}
+            <div className="max-h-60 overflow-y-auto space-y-1.5 border border-slate-200 p-2.5 rounded-xl bg-slate-50">
               {businesses.map((biz) => {
-                const checked = bulkSelectedBusinessIds.includes(biz.id);
+                const isChecked = bulkSelectedBusinessIds.includes(biz.id);
                 return (
                   <label
                     key={biz.id}
-                    className="p-2.5 flex items-center gap-3 hover:bg-slate-50 cursor-pointer"
+                    className="flex items-center gap-2 p-2 rounded-lg bg-white border border-slate-200/60 hover:bg-slate-100 cursor-pointer"
                   >
                     <input
                       type="checkbox"
-                      checked={checked}
+                      checked={isChecked}
                       onChange={(e) => {
                         if (e.target.checked) {
                           setBulkSelectedBusinessIds([...bulkSelectedBusinessIds, biz.id]);
@@ -634,31 +898,34 @@ export default function AdminSellerFeaturesView() {
                           setBulkSelectedBusinessIds(bulkSelectedBusinessIds.filter((id) => id !== biz.id));
                         }
                       }}
-                      className="w-4 h-4 rounded border-slate-300 text-[#003B2B] focus:ring-[#003B2B]"
+                      className="rounded text-[#003B2B]"
                     />
-                    <div>
-                      <div className="text-xs font-bold text-slate-900">{biz.name}</div>
-                      <div className="text-[10px] text-slate-400">MST: {biz.taxCode || 'N/A'} • {biz.email}</div>
+                    <div className="min-w-0 flex-1">
+                      <span className="font-bold text-slate-800">{biz.name}</span>
+                      <span className="text-slate-400 text-[11px] ml-2">({biz.email})</span>
                     </div>
                   </label>
                 );
               })}
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                onClick={() => setIsBulkOverrideOpen(false)}
-                className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={handleApplyBulkTenantOverrides}
-                disabled={bulkSelectedBusinessIds.length === 0}
-                className="px-4 py-1.5 text-xs font-bold text-white bg-[#003B2B] hover:bg-[#00281D] disabled:opacity-50 rounded-xl transition-colors shadow-2xs"
-              >
-                Áp Dụng Cho {bulkSelectedBusinessIds.length} Doanh Nghiệp
-              </button>
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <span className="text-slate-500 text-[11px]">Đã chọn {bulkSelectedBusinessIds.length} Doanh nghiệp</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsBulkOverrideOpen(false)}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleApplyBulkTenantOverrides}
+                  disabled={bulkSelectedBusinessIds.length === 0}
+                  className="px-4 py-1.5 text-xs font-bold text-white bg-[#003B2B] hover:bg-[#00281D] disabled:opacity-50 rounded-xl shadow-2xs cursor-pointer"
+                >
+                  Xác Nhận Áp Dụng
+                </button>
+              </div>
             </div>
           </div>
         </CustomModal>

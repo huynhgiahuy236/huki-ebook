@@ -58,6 +58,11 @@ interface UnifiedCard {
   message: string;
   createdAt: string;
   isRead: boolean;
+  content?: string;
+  actionUrl?: string;
+  actionLabel?: string;
+  authorName?: string;
+  severity?: string;
 
   // Dành riêng cho Đơn hàng
   orderCode?: string;
@@ -107,6 +112,8 @@ export default function UniversalNotificationBell({
 
   // Modal xem chi tiết đơn hàng
   const [activeModalOrder, setActiveModalOrder] = useState<UnifiedCard | null>(null);
+  // Modal xem chi tiết thông báo hệ thống / quản trị sàn
+  const [activeModalNotif, setActiveModalNotif] = useState<UnifiedCard | null>(null);
 
   // Animation trượt ngang khi duyệt đơn và danh sách đơn đã xử lý
   const [animatingOutIds, setAnimatingOutIds] = useState<Set<string>>(new Set());
@@ -120,6 +127,46 @@ export default function UniversalNotificationBell({
 
   // Broadcast announcements from admin / system
   const [adminNotifs, setAdminNotifs] = useState<AdminBroadcastNotification[]>([]);
+
+  // Trạng thái đánh dấu thẻ đã kiểm tra (tránh nhìn nhầm khi đóng gói / soạn sách)
+  const [markedCardIds, setMarkedCardIds] = useState<Set<string>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = sessionStorage.getItem('huki_marked_order_cards');
+        if (stored) return new Set(JSON.parse(stored));
+      } catch {}
+    }
+    return new Set();
+  });
+
+  // Bộ lọc: Chỉ hiện đơn chưa đánh dấu
+  const [onlyUnmarked, setOnlyUnmarked] = useState(false);
+
+  const toggleMarkCard = useCallback((id: string) => {
+    setMarkedCardIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      if (typeof window !== 'undefined') {
+        try {
+          sessionStorage.setItem('huki_marked_order_cards', JSON.stringify(Array.from(next)));
+        } catch {}
+      }
+      return next;
+    });
+  }, []);
+
+  const clearAllMarks = useCallback(() => {
+    setMarkedCardIds(new Set());
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem('huki_marked_order_cards');
+      } catch {}
+    }
+  }, []);
 
   useEffect(() => {
     if (!isSeller) return;
@@ -486,6 +533,8 @@ export default function UniversalNotificationBell({
         category: 'SYSTEM',
         title: n.title || 'Thông báo từ hệ thống sàn',
         message: n.message,
+        content: n.message,
+        actionUrl: n.actionUrl || undefined,
         createdAt: n.createdAt,
         isRead: n.isRead,
       });
@@ -501,6 +550,11 @@ export default function UniversalNotificationBell({
         category: 'SYSTEM',
         title: an.title,
         message: an.summary || an.content,
+        content: an.content || an.summary,
+        actionUrl: an.actionUrl || undefined,
+        actionLabel: an.actionLabel || undefined,
+        authorName: an.authorName || 'Ban Quản Trị HUKI',
+        severity: an.severity,
         createdAt: an.createdAt,
         isRead,
       });
@@ -618,6 +672,19 @@ export default function UniversalNotificationBell({
     });
   }, [unifiedCards, activeFilter, processedOrderIds]);
 
+  // Danh sách thẻ hiển thị sau khi áp dụng bộ lọc đánh dấu
+  const displayedCards = useMemo((): UnifiedCard[] => {
+    if (onlyUnmarked) {
+      return filteredCards.filter((c) => !markedCardIds.has(c.id));
+    }
+    return filteredCards;
+  }, [filteredCards, onlyUnmarked, markedCardIds]);
+
+  // Số lượng đơn đã đánh dấu trong tab hiện tại
+  const currentTabMarkedCount = useMemo(() => {
+    return filteredCards.filter((c) => markedCardIds.has(c.id)).length;
+  }, [filteredCards, markedCardIds]);
+
   // -------------------------------------------------------------------------
   // 7. THAO TÁC XÁC NHẬN ĐƠN HÀNG VỚI ANIMATION TRƯỢT NGANG (SLIDE-OUT)
   // -------------------------------------------------------------------------
@@ -716,6 +783,19 @@ export default function UniversalNotificationBell({
       setSelectedIds(new Set(filteredCards.map((c) => c.id)));
     }
   };
+
+  const handleMarkCardAsRead = useCallback(
+    async (card: UnifiedCard) => {
+      if (card.notifId) {
+        await markAsRead(card.notifId);
+      }
+      const currentBiz = user?.business?.id || 'default_seller';
+      if (card.category === 'SYSTEM' && card.id) {
+        adminNotificationService.markAsRead(card.id, currentBiz);
+      }
+    },
+    [markAsRead, user?.business?.id]
+  );
 
   const handleBulkMarkRead = async () => {
     const ids = Array.from(selectedIds).filter((id) => !id.startsWith('order-'));
@@ -955,9 +1035,11 @@ export default function UniversalNotificationBell({
                         onClick={() => {
                           if (card.cleanCode) {
                             setActiveModalOrder(card);
+                          } else {
+                            setActiveModalNotif(card);
                           }
-                          if (card.notifId && isUnread) {
-                            markAsRead(card.notifId);
+                          if (!card.isRead) {
+                            handleMarkCardAsRead(card);
                           }
                         }}
                         className={`p-3 rounded-xl border transition-all cursor-pointer ${
@@ -967,7 +1049,13 @@ export default function UniversalNotificationBell({
                         }`}
                       >
                         <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1">
-                          <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1 min-w-0 flex-1 truncate mr-2">
+                            {markedCardIds.has(card.id) && (
+                              <span className="px-1.5 py-0.2 rounded bg-[#003B2B] text-emerald-300 font-bold text-[10px] flex items-center gap-0.5 shrink-0">
+                                <span className="material-symbols-outlined text-[12px]">done</span>
+                                <span>Đã kiểm</span>
+                              </span>
+                            )}
                             {isOrderPending ? (
                               <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-bold text-[10px]">
                                 Chờ duyệt
@@ -987,9 +1075,28 @@ export default function UniversalNotificationBell({
                             )}
                             <span className="truncate max-w-[200px]">{card.title}</span>
                           </span>
-                          <span className="text-[10px] whitespace-nowrap">
-                            {formatFriendlyTime(card.createdAt)}
-                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] whitespace-nowrap">
+                              {formatFriendlyTime(card.createdAt)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleMarkCard(card.id);
+                              }}
+                              className={`w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer ${
+                                markedCardIds.has(card.id)
+                                  ? 'text-emerald-600 hover:text-emerald-700'
+                                  : 'text-slate-300 hover:text-slate-500'
+                              }`}
+                              title={markedCardIds.has(card.id) ? 'Bỏ đánh dấu' : 'Đánh dấu đã kiểm tra'}
+                            >
+                              <span className="material-symbols-outlined text-[15px]">
+                                {markedCardIds.has(card.id) ? 'check_box' : 'check_box_outline_blank'}
+                              </span>
+                            </button>
+                          </div>
                         </div>
 
                         {/* Thân thông báo */}
@@ -1199,9 +1306,63 @@ export default function UniversalNotificationBell({
               })}
             </div>
 
-            {/* Trạng thái số lượng */}
-            <div className="text-xs text-slate-400 whitespace-nowrap hidden lg:block">
-              Hiển thị {filteredCards.length} mục
+            {/* Trạng thái số lượng & Bộ lọc đánh dấu tránh nhìn nhầm */}
+            <div className="flex items-center gap-2 whitespace-nowrap shrink-0">
+              {/* Badge Đã đánh dấu */}
+              <div
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold transition-all ${
+                  currentTabMarkedCount > 0
+                    ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800'
+                    : 'bg-slate-100 dark:bg-zinc-800 text-slate-500'
+                }`}
+                title="Số lượng thẻ đã đánh dấu kiểm tra / đóng gói"
+              >
+                <span className="material-symbols-outlined text-[16px] text-emerald-600">
+                  {currentTabMarkedCount > 0 ? 'task_alt' : 'checklist'}
+                </span>
+                <span>Đã kiểm:</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                  currentTabMarkedCount > 0
+                    ? 'bg-[#003B2B] text-white'
+                    : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-slate-300'
+                }`}>
+                  {currentTabMarkedCount} / {filteredCards.length}
+                </span>
+              </div>
+
+              {/* Nút lọc: Ẩn đơn đã tick để tập trung đơn chưa kiểm */}
+              <button
+                type="button"
+                onClick={() => setOnlyUnmarked(!onlyUnmarked)}
+                className={`px-2.5 py-1 rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs ${
+                  onlyUnmarked
+                    ? 'bg-[#003B2B] text-white shadow-xs ring-1 ring-[#003B2B]'
+                    : 'bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50'
+                }`}
+                title={onlyUnmarked ? 'Đang lọc: Chỉ hiện đơn chưa tick (Bấm để xem tất cả)' : 'Lọc bỏ các đơn đã tick để tập trung vào đơn còn lại'}
+              >
+                <span className="material-symbols-outlined text-[15px]">
+                  {onlyUnmarked ? 'filter_alt' : 'filter_alt_off'}
+                </span>
+                <span>{onlyUnmarked ? 'Chỉ hiện chưa tick' : 'Ẩn đơn đã tick'}</span>
+              </button>
+
+              {/* Nút Bỏ tick tất cả */}
+              {currentTabMarkedCount > 0 && (
+                <button
+                  type="button"
+                  onClick={clearAllMarks}
+                  className="px-2 py-1 rounded-xl bg-slate-100 dark:bg-zinc-800 hover:bg-rose-50 hover:text-rose-600 text-slate-500 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                  title="Bỏ đánh dấu tất cả các đơn"
+                >
+                  <span className="material-symbols-outlined text-[15px]">restart_alt</span>
+                  <span className="hidden sm:inline">Bỏ tick</span>
+                </button>
+              )}
+
+              <span className="text-xs text-slate-400 hidden xl:inline">
+                ({filteredCards.length} mục)
+              </span>
             </div>
           </div>
 
@@ -1289,10 +1450,11 @@ export default function UniversalNotificationBell({
                     : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4'
                 }`}
               >
-                {filteredCards.map((card) => {
+                {displayedCards.map((card: UnifiedCard) => {
                   const orderKey = card.cleanCode || card.id;
                   const isAnimating = animatingOutIds.has(orderKey);
                   const isSelected = selectedIds.has(card.id);
+                  const isMarked = markedCardIds.has(card.id);
 
                   const isOrderPending = card.category === 'ORDER_PENDING';
                   const isOrderOther = card.category === 'ORDER_OTHER';
@@ -1303,14 +1465,16 @@ export default function UniversalNotificationBell({
                   return (
                     <div
                       key={card.id}
-                      className={`relative bg-white dark:bg-zinc-900 rounded-2xl border p-4.5 shadow-xs hover:shadow-md flex flex-col justify-between transition-all duration-500 ease-out transform ${
+                      className={`relative rounded-2xl border p-4.5 flex flex-col justify-between transition-all duration-300 transform select-none ${
                         isAnimating
                           ? 'translate-x-full opacity-0 scale-95 pointer-events-none'
                           : 'translate-x-0 opacity-100 scale-100'
                       } ${
-                        isSelected
-                          ? 'border-emerald-500 ring-2 ring-emerald-500/30'
-                          : 'border-slate-200/90 dark:border-zinc-800'
+                        isMarked
+                          ? 'bg-emerald-50/70 dark:bg-emerald-950/35 border-emerald-500 dark:border-emerald-500 ring-2 ring-emerald-500/30 shadow-sm'
+                          : isSelected
+                          ? 'bg-white dark:bg-zinc-900 border-emerald-500 ring-2 ring-emerald-500/30 shadow-md'
+                          : 'bg-white dark:bg-zinc-900 border-slate-200/90 dark:border-zinc-800 shadow-xs hover:shadow-md'
                       }`}
                     >
                       {/* Checkbox chọn nhiều */}
@@ -1338,50 +1502,80 @@ export default function UniversalNotificationBell({
                         {/* -------------------------------------------------- */}
                         {/* HÀNG 1: HEADER THẺ - LOẠI THÔNG BÁO & TRẠNG THÁI */}
                         {/* -------------------------------------------------- */}
-                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-2.5 mb-3">
-                          <div className="flex items-center gap-1.5">
-                            {isOrderPending ? (
-                              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-2.5 mb-3 gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1 flex-wrap">
+                            {isMarked ? (
+                              <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-black bg-[#003B2B] text-emerald-300 shadow-2xs tracking-wide shrink-0 animate-in zoom-in-95 duration-150">
+                                <span className="material-symbols-outlined text-[13px]">task_alt</span>
+                                <span>ĐÃ KIỂM TRA</span>
+                              </span>
+                            ) : isOrderPending ? (
+                              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 shrink-0">
                                 <span className="material-symbols-outlined text-xs">pending_actions</span>
                                 <span>Chờ xác nhận</span>
                               </span>
                             ) : isOrderOther ? (
-                              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 shrink-0">
                                 <span className="material-symbols-outlined text-xs">check_circle</span>
                                 <span>Đã xác nhận</span>
                               </span>
                             ) : isReview ? (
-                              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300">
+                              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300 shrink-0">
                                 <span className="material-symbols-outlined text-xs">star</span>
                                 <span>Đánh giá mới</span>
                               </span>
                             ) : isShipping ? (
-                              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 shrink-0">
                                 <span className="material-symbols-outlined text-xs">local_shipping</span>
                                 <span>Vận chuyển</span>
                               </span>
                             ) : isFinance ? (
-                              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300">
+                              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 shrink-0">
                                 <span className="material-symbols-outlined text-xs">account_balance_wallet</span>
                                 <span>Tài chính / Ví</span>
                               </span>
                             ) : (
-                              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 dark:bg-zinc-800 dark:text-slate-300">
+                              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 dark:bg-zinc-800 dark:text-slate-300 shrink-0">
                                 <span className="material-symbols-outlined text-xs">info</span>
                                 <span>Hệ thống</span>
                               </span>
                             )}
 
                             {card.cleanCode && (
-                              <span className="font-mono font-bold text-xs text-slate-900 dark:text-white">
+                              <span className={`font-mono font-bold text-xs truncate ${isMarked ? 'text-emerald-950 dark:text-emerald-200' : 'text-slate-900 dark:text-white'}`}>
                                 #{card.cleanCode}
                               </span>
                             )}
                           </div>
 
-                          <span className="text-[10px] text-slate-400">
-                            {formatFriendlyTime(card.createdAt)}
-                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] text-slate-400">
+                              {formatFriendlyTime(card.createdAt)}
+                            </span>
+
+                            {/* Nút Đánh Dấu / Tích Đã Kiểm Tra (Tránh nhìn nhầm) */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleMarkCard(card.id);
+                              }}
+                              className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                                isMarked
+                                  ? 'bg-emerald-600 text-white hover:bg-emerald-700 ring-2 ring-emerald-600/30'
+                                  : 'bg-slate-100 dark:bg-zinc-800 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-slate-200/80 dark:border-zinc-700'
+                              }`}
+                              title={isMarked ? 'Bỏ đánh dấu kiểm tra' : 'Bấm để đánh dấu đã kiểm tra (tránh nhìn nhầm)'}
+                              aria-label="Đánh dấu đã kiểm tra"
+                            >
+                              <span className="material-symbols-outlined text-[15px] leading-none">
+                                {isMarked ? 'check_box' : 'check_box_outline_blank'}
+                              </span>
+                              <span className="text-[10.5px] whitespace-nowrap leading-none font-bold">
+                                {isMarked ? 'Đã tick' : 'Đánh dấu'}
+                              </span>
+                            </button>
+                          </div>
                         </div>
 
                         {/* -------------------------------------------------- */}
@@ -1394,10 +1588,10 @@ export default function UniversalNotificationBell({
                             {/* Hộp Sách Cần Đóng Gói */}
                             <div className="space-y-1.5">
                               {card.items && card.items.length > 0 ? (
-                                card.items.slice(0, 2).map((book) => (
+                                card.items.slice(0, 2).map((book: NormalizedBookItem) => (
                                   <div
                                     key={book.id}
-                                    className="flex items-center gap-3 p-2 rounded-xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-100 dark:border-zinc-800"
+                                    className={`flex items-center gap-3 p-2 rounded-xl border transition-colors ${isMarked ? 'bg-emerald-100/40 border-emerald-200/80 dark:bg-emerald-950/40 dark:border-emerald-900/60' : 'bg-slate-50 dark:bg-zinc-800/60 border-slate-100 dark:border-zinc-800'}`}
                                   >
                                     <img
                                       src={book.cover}
@@ -1542,9 +1736,17 @@ export default function UniversalNotificationBell({
                           </div>
                         ) : isOrderOther ? (
                           <div className="flex items-center justify-between text-xs">
-                            <span className="text-slate-400">
-                              Tổng: {(card.grandTotal || 0).toLocaleString('vi-VN')} ₫
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-400">
+                                Tổng: {(card.grandTotal || 0).toLocaleString('vi-VN')} ₫
+                              </span>
+                              {isMarked && (
+                                <span className="text-[10.5px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-0.5">
+                                  <span className="material-symbols-outlined text-[14px]">check</span>
+                                  <span>Đã xong</span>
+                                </span>
+                              )}
+                            </div>
                             <button
                               type="button"
                               onClick={() => setActiveModalOrder(card)}
@@ -1568,10 +1770,20 @@ export default function UniversalNotificationBell({
                           </div>
                         ) : (
                           <div className="flex items-center justify-between text-xs">
-                            <span className="text-slate-400">HUKI Kênh bán</span>
-                            <span className="text-xs text-slate-500 font-medium">
-                              Đã ghi nhận
+                            <span className="text-slate-400">
+                              {card.authorName || 'HUKI Hệ Thống'}
                             </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveModalNotif(card);
+                                if (!card.isRead) handleMarkCardAsRead(card);
+                              }}
+                              className="font-bold text-[#003B2B] dark:text-emerald-400 hover:underline flex items-center gap-0.5 cursor-pointer"
+                            >
+                              <span>Xem thông báo</span>
+                              <span className="material-symbols-outlined text-sm">open_in_new</span>
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1588,6 +1800,93 @@ export default function UniversalNotificationBell({
       )}
 
       {/* ===================================================================== */}
+      {/* ===================================================================== */}
+      {/* 5. MODAL CHI TIẾT THÔNG BÁO HỆ THỐNG / QUẢN TRỊ SÀN */}
+      {/* ===================================================================== */}
+      {isMounted && activeModalNotif && createPortal(
+        <div
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setActiveModalNotif(null)}
+        >
+          <div
+            className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 dark:border-zinc-800 overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-zinc-800 flex items-start justify-between gap-3 bg-slate-50/70 dark:bg-zinc-850">
+              <div className="space-y-1 min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                    activeModalNotif.severity === 'CRITICAL'
+                      ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                      : activeModalNotif.severity === 'WARNING'
+                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                      : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                  }`}>
+                    {activeModalNotif.category === 'SYSTEM' ? 'Bản Tin Hệ Thống' : activeModalNotif.category}
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    {formatFriendlyTime(activeModalNotif.createdAt)}
+                  </span>
+                </div>
+                <h3 className="font-bold text-base text-slate-900 dark:text-white leading-snug break-words">
+                  {activeModalNotif.title}
+                </h3>
+                {activeModalNotif.authorName && (
+                  <p className="text-xs text-slate-500 font-medium">
+                    Phát hành bởi: <span className="font-semibold text-slate-700 dark:text-slate-300">{activeModalNotif.authorName}</span>
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveModalNotif(null)}
+                className="w-8 h-8 rounded-xl bg-white dark:bg-zinc-800 hover:bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center cursor-pointer transition-colors shadow-2xs shrink-0"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-5 overflow-y-auto space-y-3.5 text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-sans whitespace-pre-line">
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-100 dark:border-zinc-800 leading-relaxed text-[12.5px]">
+                {activeModalNotif.content || activeModalNotif.message}
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="p-4 border-t border-slate-100 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-850 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setActiveModalNotif(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer"
+              >
+                Đóng
+              </button>
+
+              {activeModalNotif.actionUrl && activeModalNotif.actionUrl.startsWith('/') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = activeModalNotif.actionUrl!;
+                    setActiveModalNotif(null);
+                    setIsDrawerOpen(false);
+                    setIsGridOpen(false);
+                    router.push(url);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-[#003B2B] hover:bg-[#00281D] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>{activeModalNotif.actionLabel || 'Truy cập tính năng ngay'}</span>
+                  <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* 4. MODAL CHI TIẾT ĐƠN HÀNG (KHI XEM TỪ DANH SÁCH HOẶC BẤM XEM THÊM SÁCH) */}
       {/* ===================================================================== */}
       {isMounted && activeModalOrder && createPortal(

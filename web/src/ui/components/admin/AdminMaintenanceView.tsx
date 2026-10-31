@@ -19,6 +19,14 @@ export default function AdminMaintenanceView() {
   const [allowOfflineDrm, setAllowOfflineDrm] = useState<boolean>(config.allowOfflineDrm);
   const [allowShipperCod, setAllowShipperCod] = useState<boolean>(config.allowShipperOfflineCod);
 
+  // Scheduled Timer states
+  const [remainingScheduleSec, setRemainingScheduleSec] = useState<number>(0);
+  const [schedulePresetMinutes, setSchedulePresetMinutes] = useState<number>(15);
+  const [scheduleCustomTime, setScheduleCustomTime] = useState<string>('');
+  const [scheduleMode, setScheduleMode] = useState<'GRACEFUL' | 'IMMEDIATE'>('GRACEFUL');
+  const [scheduleDrainMinutes, setScheduleDrainMinutes] = useState<number>(5);
+  const [scheduleReasonInput, setScheduleReasonInput] = useState<string>('Nâng cấp cụm máy chủ và bảo mật định kỳ');
+
   // Modal confirmations
   const [isBlackoutModalOpen, setIsBlackoutModalOpen] = useState(false);
   const [isDrainModalOpen, setIsDrainModalOpen] = useState(false);
@@ -52,6 +60,7 @@ export default function AdminMaintenanceView() {
       } else {
         setRemainingDrainSec(0);
       }
+      setRemainingScheduleSec(maintenanceService.getRemainingScheduleSeconds());
     }, 1000);
 
     return () => {
@@ -115,6 +124,38 @@ export default function AdminMaintenanceView() {
     setConfig(updated);
     setIsRestoreModalOpen(false);
     showNotification('HỆ THỐNG ĐÃ ĐƯỢC PHỤC HỒI HOÀN TOÀN! Các dịch vụ đã hoạt động bình thường.');
+  };
+
+  const handleSaveSchedule = () => {
+    let targetStartMs: number;
+    if (scheduleCustomTime) {
+      targetStartMs = new Date(scheduleCustomTime).getTime();
+    } else {
+      targetStartMs = Date.now() + schedulePresetMinutes * 60 * 1000;
+    }
+
+    if (targetStartMs <= Date.now()) {
+      showNotification('Thời gian hẹn giờ phải lớn hơn thời điểm hiện tại!');
+      return;
+    }
+
+    const updated = maintenanceService.scheduleMaintenance({
+      scheduledStartTime: new Date(targetStartMs).toISOString(),
+      scheduledEndTime: endTimeInput ? new Date(endTimeInput).toISOString() : undefined,
+      drainMinutes: scheduleDrainMinutes,
+      reason: scheduleReasonInput.trim() || 'Bảo trì nâng cấp hệ thống định kỳ',
+      mode: scheduleMode,
+      updatedBy: 'Admin Trung Tâm',
+    });
+
+    setConfig(updated);
+    showNotification('ĐÃ THIẾT LẬP LỊCH HẸN GIỜ BẢO TRÌ TỰ ĐỘNG THÀNH CÔNG!');
+  };
+
+  const handleCancelSchedule = () => {
+    const updated = maintenanceService.cancelScheduledMaintenance('Admin Trung Tâm');
+    setConfig(updated);
+    showNotification('Đã hủy lịch hẹn giờ bảo trì hệ thống.');
   };
 
   const isUnderDrain = maintenanceService.isUnderGracefulDrain();
@@ -274,6 +315,184 @@ export default function AdminMaintenanceView() {
           </div>
         </div>
       </div>
+
+      {/* Scheduled Maintenance Panel */}
+      {!config.isActive && config.scheduledStartTime ? (
+        <div className="rounded-2xl p-5 border border-amber-300 bg-amber-50/70 text-amber-950 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div
+              className="w-12 h-12 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs animate-spin"
+              style={{ animationDuration: '6s' }}
+            >
+              <span className="material-symbols-outlined text-2xl">alarm</span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-200 text-amber-900 border border-amber-300">
+                  ĐANG HẸN GIỜ TỰ ĐỘNG
+                </span>
+                <span className="text-xs text-slate-500 font-medium">
+                  Kích hoạt lúc: {new Date(config.scheduledStartTime).toLocaleString('vi-VN')}
+                </span>
+              </div>
+              <h3 className="text-base font-bold text-slate-900">
+                Sàn sẽ tự động tắt sau: {Math.floor(remainingScheduleSec / 3600)} giờ {Math.floor((remainingScheduleSec % 3600) / 60)} phút {remainingScheduleSec % 60} giây
+              </h3>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Chế độ: <strong className="text-slate-800">{config.scheduledMode === 'IMMEDIATE' ? 'Ngắt tức thì (Blackout)' : `Xả êm dịu (${config.drainDurationMinutes} phút)`}</strong> — Lý do: {config.reason}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
+            <button
+              type="button"
+              onClick={handleCancelSchedule}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white text-rose-700 hover:bg-rose-50 border border-rose-200 shadow-2xs transition-colors cursor-pointer"
+            >
+              Hủy Lịch Hẹn Giờ
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (config.scheduledMode === 'IMMEDIATE') {
+                  handleTriggerInstantBlackout();
+                } else {
+                  handleTriggerGracefulDrain();
+                }
+              }}
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-colors cursor-pointer"
+            >
+              Kích Hoạt Ngay
+            </button>
+          </div>
+        </div>
+      ) : !config.isActive ? (
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-amber-600 text-xl">schedule</span>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                Lên Lịch Hẹn Giờ Bảo Trì & Tự Động Tắt Sàn
+              </h3>
+            </div>
+            <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+              TỰ ĐỘNG KÍCH HOẠT KHI ĐẾN GIỜ
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Column 1: Presets & Custom Time */}
+            <div className="space-y-2.5">
+              <label className="block text-xs font-bold text-slate-700">
+                Chọn Thời Gian Tự Động Tắt:
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[15, 30, 60, 120].map((mins) => (
+                  <button
+                    key={mins}
+                    type="button"
+                    onClick={() => {
+                      setSchedulePresetMinutes(mins);
+                      setScheduleCustomTime('');
+                    }}
+                    className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                      !scheduleCustomTime && schedulePresetMinutes === mins
+                        ? 'bg-[#003B2B] text-white border-[#003B2B] shadow-2xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {mins < 60 ? `+${mins} Phút` : `+${mins / 60} Giờ`}
+                  </button>
+                ))}
+              </div>
+
+              <div>
+                <span className="text-[11px] text-slate-400 block mb-1">Hoặc thời điểm cụ thể:</span>
+                <input
+                  type="datetime-local"
+                  value={scheduleCustomTime}
+                  onChange={(e) => setScheduleCustomTime(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:border-emerald-600 focus:bg-white"
+                />
+              </div>
+            </div>
+
+            {/* Column 2: Mode & Reason */}
+            <div className="space-y-2.5 md:col-span-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Chế Độ Khi Đến Giờ:
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setScheduleMode('GRACEFUL')}
+                      className={`flex-1 p-2 rounded-xl border text-xs font-bold transition-all text-left flex items-center gap-1.5 cursor-pointer ${
+                        scheduleMode === 'GRACEFUL'
+                          ? 'bg-amber-50 border-amber-300 text-amber-900 shadow-2xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-base text-amber-600">hourglass_top</span>
+                      <span>Xả êm dịu (5 Phút)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setScheduleMode('IMMEDIATE')}
+                      className={`flex-1 p-2 rounded-xl border text-xs font-bold transition-all text-left flex items-center gap-1.5 cursor-pointer ${
+                        scheduleMode === 'IMMEDIATE'
+                          ? 'bg-rose-50 border-rose-300 text-rose-900 shadow-2xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-base text-rose-600">emergency</span>
+                      <span>Ngắt ngay tức thì</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Thời Gian Dự Kiến Hoàn Tất:
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={endTimeInput}
+                    onChange={(e) => setEndTimeInput(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:border-emerald-600 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Lý Do / Thông Báo Lên Lịch Gửi Khách Hàng & Đối Tác:
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={scheduleReasonInput}
+                    onChange={(e) => setScheduleReasonInput(e.target.value)}
+                    placeholder="VD: Nâng cấp cụm máy chủ và bảo mật định kỳ..."
+                    className="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:border-emerald-600 focus:bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveSchedule}
+                    className="px-5 py-2 bg-[#003B2B] hover:bg-[#00281D] text-white text-xs font-bold rounded-xl shadow-xs transition-transform active:scale-95 cursor-pointer whitespace-nowrap flex items-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">alarm_on</span>
+                    <span>Thiết Lập Lịch Hẹn</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Grid: Risk Mitigation Status & Controls */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

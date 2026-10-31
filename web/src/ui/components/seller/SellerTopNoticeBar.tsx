@@ -134,12 +134,20 @@ export default function SellerTopNoticeBar() {
           )}
 
           {/* Action Link */}
-          <Link
-            href={currentNotice.actionUrl || `/seller/notifications?id=${currentNotice.id}`}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all shadow-2xs whitespace-nowrap ${style.btn}`}
-          >
-            {currentNotice.actionLabel || 'Xem Chi Tiết'}
-          </Link>
+          {(() => {
+            const rawUrl = currentNotice.actionUrl;
+            const validUrl = rawUrl && rawUrl.startsWith('/') && !rawUrl.includes('sdasd')
+              ? rawUrl
+              : `/seller/notifications?id=${currentNotice.id}`;
+            return (
+              <Link
+                href={validUrl}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all shadow-2xs whitespace-nowrap ${style.btn}`}
+              >
+                {currentNotice.actionLabel || 'Xem Chi Tiết'}
+              </Link>
+            );
+          })()}
 
           {/* Dismiss button */}
           {currentNotice.isDismissible && (

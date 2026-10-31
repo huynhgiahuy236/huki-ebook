@@ -134,7 +134,7 @@ function ToastCard({ toast, onDismiss }: { toast: ToastMessageState; onDismiss: 
           {toast.actionUrl && (
             <div className="mt-2">
               <Link
-                href={toast.actionUrl}
+                href={toast.actionUrl.startsWith('/') ? toast.actionUrl : '/seller/notifications'}
                 onClick={() => onDismiss(toast.id)}
                 className="inline-flex items-center gap-1 text-[11px] font-bold text-[#00875A] hover:text-[#006644] hover:underline"
               >

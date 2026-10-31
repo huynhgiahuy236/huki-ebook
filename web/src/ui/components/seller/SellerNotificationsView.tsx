@@ -4,6 +4,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useRealtimeNotifications, RealtimeNotification } from '@/ui/hooks/useRealtimeNotifications';
+import { useAuth } from '@/ui/context/AuthContext';
+import { adminNotificationService, AdminBroadcastNotification } from '@/ui/services/adminNotificationService';
 import { SellerPagination } from './SellerUI';
 
 type TabFilter = 'all' | 'admin' | 'alerts' | 'orders' | 'messages';
@@ -13,6 +15,10 @@ export default function SellerNotificationsView() {
   const searchParams = useSearchParams();
   const highlightId = searchParams.get('id');
 
+  const { user, activeBusinessId } = useAuth();
+  const currentBizId = user?.business?.id || activeBusinessId || undefined;
+  const sellerCreatedAt = user?.business?.createdAt || user?.createdAt || undefined;
+
   const {
     notifications,
     unreadCount,
@@ -21,6 +27,47 @@ export default function SellerNotificationsView() {
     markAllAsRead,
     refresh,
   } = useRealtimeNotifications({ recipientType: 'BUSINESS' });
+
+  const [adminNotifs, setAdminNotifs] = useState<AdminBroadcastNotification[]>(() =>
+    adminNotificationService.getForSeller(currentBizId, false, sellerCreatedAt)
+  );
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setAdminNotifs(adminNotificationService.getForSeller(currentBizId, false, sellerCreatedAt));
+    };
+    window.addEventListener('huki_admin_notifications_updated', handleUpdate);
+    return () => window.removeEventListener('huki_admin_notifications_updated', handleUpdate);
+  }, [currentBizId, sellerCreatedAt]);
+
+  const allMergedNotifications = useMemo((): RealtimeNotification[] => {
+    const broadcastList: RealtimeNotification[] = adminNotifs.map((an) => ({
+      id: an.id,
+      recipientId: currentBizId || 'ALL',
+      recipientType: 'BUSINESS',
+      senderType: 'ADMIN',
+      category: 'MANUAL_BROADCAST',
+      type: an.category === 'MAINTENANCE' ? 'SYSTEM_ALERT' : 'BROADCAST',
+      title: an.title,
+      message: an.content || an.summary,
+      priority: an.severity === 'CRITICAL' ? 'CRITICAL' : an.severity === 'WARNING' ? 'HIGH' : 'NORMAL',
+      isRead: Boolean(an.readByBusinessIds?.includes(currentBizId || 'default_seller')),
+      actionUrl: an.actionUrl,
+      createdAt: an.createdAt,
+      payload: {
+        authorName: an.authorName,
+        actionLabel: an.actionLabel,
+        isBroadcast: true,
+      },
+    }));
+
+    const map = new Map<string, RealtimeNotification>();
+    broadcastList.forEach((n) => map.set(n.id, n));
+    notifications.forEach((n) => map.set(n.id, n));
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [adminNotifs, notifications, currentBizId]);
 
   const [activeTab, setActiveTab] = useState<TabFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -37,21 +84,29 @@ export default function SellerNotificationsView() {
 
   // Open modal if URL has ?id=
   useEffect(() => {
-    if (highlightId && notifications.length > 0) {
-      const found = notifications.find((n) => n.id === highlightId);
+    if (highlightId && allMergedNotifications.length > 0) {
+      const found = allMergedNotifications.find((n) => n.id === highlightId);
       if (found) {
         setSelectedNotif(found);
         if (!found.isRead) {
-          markAsRead(found.id);
+          if (found.id.startsWith('notif-') || found.id.startsWith('maint-') || found.id.startsWith('sched-') || found.id.startsWith('auto-') || found.id.startsWith('reopen-')) {
+            adminNotificationService.markAsRead(found.id, currentBizId);
+          } else {
+            markAsRead(found.id);
+          }
         }
       }
     }
-  }, [highlightId, notifications, markAsRead]);
+  }, [highlightId, allMergedNotifications, markAsRead, currentBizId]);
 
   const handleOpenDetail = (notif: RealtimeNotification) => {
     setSelectedNotif(notif);
     if (!notif.isRead) {
-      markAsRead(notif.id);
+      if (notif.id.startsWith('notif-') || notif.id.startsWith('maint-') || notif.id.startsWith('sched-') || notif.id.startsWith('auto-') || notif.id.startsWith('reopen-')) {
+        adminNotificationService.markAsRead(notif.id, currentBizId);
+      } else {
+        markAsRead(notif.id);
+      }
     }
   };
 
@@ -559,17 +614,23 @@ export default function SellerNotificationsView() {
 
                   {/* Right: Action CTA */}
                   <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                    {n.actionUrl && (
+                    {n.actionUrl && n.actionUrl.startsWith('/') && !n.actionUrl.includes('sdasd') && (
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (!n.isRead) markAsRead(n.id);
+                          if (!n.isRead) {
+                            if (n.id.startsWith('notif-') || n.id.startsWith('maint-') || n.id.startsWith('sched-') || n.id.startsWith('auto-') || n.id.startsWith('reopen-')) {
+                              adminNotificationService.markAsRead(n.id, currentBizId);
+                            } else {
+                              markAsRead(n.id);
+                            }
+                          }
                           router.push(n.actionUrl!);
                         }}
                         className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-[#00875A] hover:text-white dark:bg-zinc-800 dark:hover:bg-emerald-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all shadow-2xs cursor-pointer"
                       >
-                        Xử lý ngay →
+                        {typeof n.payload?.actionLabel === 'string' ? n.payload.actionLabel : 'Xử lý ngay →'}
                       </button>
                     )}
                     <button
@@ -668,7 +729,7 @@ export default function SellerNotificationsView() {
               </span>
 
               <div className="flex items-center gap-2">
-                {selectedNotif.actionUrl && (
+                {selectedNotif.actionUrl && selectedNotif.actionUrl.startsWith('/') && !selectedNotif.actionUrl.includes('sdasd') && (
                   <button
                     type="button"
                     onClick={() => {
@@ -678,7 +739,7 @@ export default function SellerNotificationsView() {
                     }}
                     className="bg-[#00875A] hover:bg-[#00704A] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer"
                   >
-                    <span>Truy cập xử lý ngay</span>
+                    <span>{typeof selectedNotif.payload?.actionLabel === 'string' ? selectedNotif.payload.actionLabel : 'Truy cập xử lý ngay'}</span>
                     <span className="material-symbols-outlined text-sm">arrow_forward</span>
                   </button>
                 )}
