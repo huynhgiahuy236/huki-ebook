@@ -27,6 +27,8 @@ export default function ShopPage() {
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'new' | 'bestseller' | 'ebook' | 'physical' | 'hybrid'
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 24;
   const [isFollowed, setIsFollowed] = useState(false);
   const [isFollowDropdownOpen, setIsFollowDropdownOpen] = useState(false);
   const [isUnfollowModalOpen, setIsUnfollowModalOpen] = useState(false);
@@ -659,6 +661,27 @@ export default function ShopPage() {
     });
   }, [allStoreBooks, activeTab, activeCategory, searchQuery]);
 
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, activeCategory, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredBooks.length / ITEMS_PER_PAGE));
+  const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const paginatedBooks = useMemo(() => {
+    const start = (validCurrentPage - 1) * ITEMS_PER_PAGE;
+    return filteredBooks.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredBooks, validCurrentPage, ITEMS_PER_PAGE]);
+
+  const handlePageChange = (page: number) => {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+    const el = document.getElementById('shop-products-catalog');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   const legacyProfile = business?.stores?.[0];
   const bannerImg = business?.banner || legacyProfile?.banner || 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1600&q=80';
 
@@ -1165,7 +1188,7 @@ export default function ShopPage() {
       )}
 
       {/* Product Showcase & Filtering */}
-      <section>
+      <section id="shop-products-catalog">
         {/* Navigation Tabs Bar & Search */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-theme-border mb-6">
           {/* Format / Highlight Tabs */}
@@ -1221,31 +1244,64 @@ export default function ShopPage() {
           </div>
         </div>
 
-        {/* Category Tag Pills */}
-        <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2">
-          <span className="text-xs text-slate-500 font-semibold shrink-0">Chủ đề:</span>
-          {[
-            { id: 'all', name: 'Tất cả' },
-            { id: 'selfhelp', name: 'Phát triển bản thân' },
-            { id: 'business', name: 'Kinh doanh & Đầu tư' },
-            { id: 'technology', name: 'Công nghệ & AI' },
-            { id: 'literature', name: 'Văn học & Nghệ thuật' },
-          ].map((cat) => {
-            const isCatActive = activeCategory === cat.id;
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setActiveCategory(cat.id)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer ${isCatActive
-                    ? 'bg-[#003b2b] text-white'
-                    : 'bg-white border border-[#e8e5df] text-slate-700 hover:bg-slate-50'
-                  }`}
-              >
-                {cat.name}
-              </button>
-            );
-          })}
+        {/* Category Tag Pills & Quick Mini Pagination */}
+        <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
+            <span className="text-xs text-slate-500 font-semibold shrink-0">Chủ đề:</span>
+            {[
+              { id: 'all', name: 'Tất cả' },
+              { id: 'selfhelp', name: 'Phát triển bản thân' },
+              { id: 'business', name: 'Kinh doanh & Đầu tư' },
+              { id: 'technology', name: 'Công nghệ & AI' },
+              { id: 'literature', name: 'Văn học & Nghệ thuật' },
+            ].map((cat) => {
+              const isCatActive = activeCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer ${isCatActive
+                      ? 'bg-[#003b2b] text-white'
+                      : 'bg-white border border-[#e8e5df] text-slate-700 hover:bg-slate-50'
+                    }`}
+                >
+                  {cat.name}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Quick Mini Pagination Indicator */}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2 ml-auto shrink-0 text-xs">
+              <span className="text-slate-600 font-medium">
+                <strong className="text-[#003b2b]">{validCurrentPage}</strong>/{totalPages}
+              </span>
+              <div className="flex items-center rounded-lg overflow-hidden border border-slate-300 bg-white shadow-2xs">
+                <button
+                  type="button"
+                  disabled={validCurrentPage <= 1}
+                  onClick={() => handlePageChange(validCurrentPage - 1)}
+                  className="w-7 h-7 flex items-center justify-center text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors border-r border-slate-200 cursor-pointer"
+                  title="Trang trước"
+                  aria-label="Trang trước"
+                >
+                  <span className="material-symbols-outlined text-xs">chevron_left</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={validCurrentPage >= totalPages}
+                  onClick={() => handlePageChange(validCurrentPage + 1)}
+                  className="w-7 h-7 flex items-center justify-center text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                  title="Trang sau"
+                  aria-label="Trang sau"
+                >
+                  <span className="material-symbols-outlined text-xs">chevron_right</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Books Grid */}
@@ -1262,15 +1318,73 @@ export default function ShopPage() {
             }}
           />
         ) : (
-          <div className="grid grid-cols-2 min-[480px]:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-3.5">
-            {filteredBooks.map((book) => (
-              <BookCard
-                key={book.id}
-                book={book}
-                isMock={book.isMock}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 min-[480px]:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-3.5">
+              {paginatedBooks.map((book) => (
+                <BookCard
+                  key={book.id}
+                  book={book}
+                  isMock={book.isMock}
+                />
+              ))}
+            </div>
+
+            {/* Bottom Full Pagination */}
+            {totalPages > 1 && (
+              <div className="mt-8 mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 pt-5 border-t border-theme-border">
+                <div className="text-xs text-slate-500">
+                  Hiển thị <span className="font-bold text-slate-900">{(validCurrentPage - 1) * ITEMS_PER_PAGE + 1}</span> - <span className="font-bold text-slate-900">{Math.min(validCurrentPage * ITEMS_PER_PAGE, filteredBooks.length)}</span> trong tổng số <span className="font-bold text-slate-900">{filteredBooks.length}</span> sản phẩm
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    disabled={validCurrentPage <= 1}
+                    onClick={() => handlePageChange(validCurrentPage - 1)}
+                    className="w-8 h-8 rounded-lg border border-slate-300 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                    aria-label="Trang trước"
+                  >
+                    <span className="material-symbols-outlined text-sm">chevron_left</span>
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                    if (totalPages > 7) {
+                      if (p !== 1 && p !== totalPages && Math.abs(p - validCurrentPage) > 2) {
+                        if (p === 2 || p === totalPages - 1) {
+                          return <span key={p} className="px-1 text-slate-400">...</span>;
+                        }
+                        return null;
+                      }
+                    }
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => handlePageChange(p)}
+                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                          p === validCurrentPage
+                            ? 'bg-[#003b2b] text-white shadow-2xs'
+                            : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    disabled={validCurrentPage >= totalPages}
+                    onClick={() => handlePageChange(validCurrentPage + 1)}
+                    className="w-8 h-8 rounded-lg border border-slate-300 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                    aria-label="Trang sau"
+                  >
+                    <span className="material-symbols-outlined text-sm">chevron_right</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </section>
 
