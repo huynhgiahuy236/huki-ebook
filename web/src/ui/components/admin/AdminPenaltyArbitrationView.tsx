@@ -163,7 +163,7 @@ export function AdminPenaltyArbitrationView() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* 1. TOP 4 METRICS CARDS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs flex items-center gap-3">

@@ -121,7 +121,7 @@ export default function AdminMaintenanceView() {
   const isFullBlackout = maintenanceService.isMaintenanceActive();
 
   return (
-    <div className="space-y-6 pb-12 font-sans">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto pb-12 font-sans animate-in fade-in duration-200">
       {/* Toast Notification */}
       {successToast && (
         <div className="fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl bg-slate-900 text-white shadow-2xl border border-slate-700 animate-fade-in text-sm font-semibold">

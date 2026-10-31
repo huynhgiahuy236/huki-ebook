@@ -284,7 +284,7 @@ export function AdminAiAudioView() {
   }, [filteredTransactions, currentPage, pageSize]);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto pb-16 animate-in fade-in duration-200">
       {/* 1. TOP HEADER & METRIC CARDS */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

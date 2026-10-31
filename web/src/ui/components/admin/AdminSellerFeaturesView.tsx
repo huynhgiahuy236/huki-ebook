@@ -149,7 +149,7 @@ export default function AdminSellerFeaturesView() {
   }, [businesses, debouncedOverrideSearch]);
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto px-3.5 sm:px-5 lg:px-6 py-4 flex flex-col gap-4">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* 1. Header & Summary Cards */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
         <div>

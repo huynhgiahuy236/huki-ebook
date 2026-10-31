@@ -204,7 +204,7 @@ export default function SellerNotificationsView() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16 font-sans">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto pb-16 font-sans animate-in fade-in duration-200">
       {/* 1. Header Banner & Quick Stats */}
       <section
         className="rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-lg border border-white/10"

@@ -274,8 +274,7 @@ export default function SellerDashboardPage() {
   }
 
   return (
-    <div className="w-full bg-[#F8FAFC] text-[#1E293B] antialiased min-h-screen p-4 sm:p-6 lg:p-8 font-sans">
-      <div className="max-w-[1560px] mx-auto space-y-6">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
 
         {/* 1. TOP GREETING & STORE CONTROLS */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2">
@@ -903,6 +902,5 @@ export default function SellerDashboardPage() {
           </div>
         </div>
       </div>
-    </div>
   );
 }

@@ -291,7 +291,7 @@ export default function SellerReturnDetailPage() {
   const isDisputed = returnReq.status === 'SELLER_DISPUTED';
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200">
       {/* Top Breadcrumb Navigation */}
       <div className="flex items-center justify-between gap-4">
         <Link

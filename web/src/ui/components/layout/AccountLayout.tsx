@@ -172,7 +172,7 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
 
   return (
     <div className="w-full min-h-[calc(100vh-140px)] bg-[#f4f7f6] py-5 font-sans">
-      <div className="max-w-[1560px] mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-[1600px] mx-auto px-3.5 sm:px-5 lg:px-6">
         
         {/* Breadcrumbs */}
         <nav className="flex items-center gap-1.5 text-[11px] text-gray-500 mb-4">

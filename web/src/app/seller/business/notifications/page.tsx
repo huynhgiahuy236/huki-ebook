@@ -206,7 +206,7 @@ export default function SellerBusinessNotificationsPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8 space-y-8 animate-fade-in pb-24">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200 pb-16">
       {/* 1. Header & Breadcrumb */}
       <header className="space-y-4 border-b border-theme-border pb-6">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-theme-primary">

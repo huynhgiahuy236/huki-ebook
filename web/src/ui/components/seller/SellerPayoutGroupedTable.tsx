@@ -310,16 +310,18 @@ export function SellerPayoutGroupedTable({
           emptyMessage="Các lệnh rút tiền về tài khoản ngân hàng sẽ được lưu vết đầy đủ tại đây."
           summaryRow={
             <tr className="bg-gray-100/90 font-black text-xs text-gray-900 border-t-2 border-gray-300">
-              <td className="py-3 px-3 text-center">Σ</td>
-              <td className="py-3 px-3">
+              <td className="py-3 px-3 text-center" colSpan={2}>
+                Σ
+              </td>
+              <td className="py-3 px-3 whitespace-nowrap">
                 <span className="font-bold uppercase tracking-wider text-gray-800">
                   Tổng Rút ({filteredItems.length} Lệnh)
                 </span>
               </td>
-              <td className="py-3 px-3 text-right font-mono text-emerald-700 text-sm">
+              <td className="py-3 px-3 text-right font-mono text-emerald-700 text-sm font-bold whitespace-nowrap">
                 {formatVND(grandTotal)}
               </td>
-              <td className="py-3 px-3" colSpan={3}>
+              <td className="py-3 px-4" colSpan={3}>
                 <span className="text-xs text-gray-500 font-medium">Đối soát tài khoản ngân hàng gian hàng</span>
               </td>
             </tr>
