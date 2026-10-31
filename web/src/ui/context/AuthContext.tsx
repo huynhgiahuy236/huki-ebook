@@ -68,7 +68,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const bizRes = await businessApi.getMyBusiness();
       if (!bizRes.success || !bizRes.data) return userData;
-      if (bizRes.data.id) setActiveBusinessId(bizRes.data.id);
+      if (bizRes.data.id) {
+        setActiveBusinessId(bizRes.data.id);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('huki_active_business_id', bizRes.data.id);
+        }
+      }
       const isApproved = bizRes.data.status === 'APPROVED';
       const existingMemberships: BusinessMembership[] = Array.isArray(userData.memberships) ? [...userData.memberships] : [];
       const isOwner = bizRes.data.ownerId === userData.id || (bizRes.data as any).currentMember?.role === 'OWNER';
@@ -146,6 +151,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             let userData: any = (res.data as any).user || res.data;
             userData = await hydrateBusiness(userData);
             setUser(userData);
+            if (typeof window !== 'undefined' && userData) {
+              localStorage.setItem('huki_user', JSON.stringify(userData));
+            }
             // Wire tracker với user đã đăng nhập
             if (userData?.id) {
               getTracker().setUserId(userData.id);
@@ -294,6 +302,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       tokenStorage.clearTokens();
       setUser(null);
       setActiveBusinessId(null);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('huki_user');
+        localStorage.removeItem('huki_active_business_id');
+      }
       // Clear tracker userId khi logout
       getTracker().clearUserId();
       // Flush các event còn lại

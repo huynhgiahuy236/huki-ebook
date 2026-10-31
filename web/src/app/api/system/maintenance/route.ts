@@ -40,7 +40,12 @@ declare global {
   var __HUKI_SERVER_MAINTENANCE__: SystemMaintenanceConfig | undefined;
 }
 
-const STORAGE_FILE = path.join(process.cwd(), '.huki_system_maintenance.json');
+const STORAGE_FILE = path.join(process.cwd(), 'web', '.storage', 'system_maintenance.json');
+function ensureStorageDir() {
+  const dir = path.dirname(STORAGE_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
 
 function getMaintenanceFromStore(): SystemMaintenanceConfig {
   if (globalThis.__HUKI_SERVER_MAINTENANCE__) {
@@ -69,6 +74,7 @@ function getMaintenanceFromStore(): SystemMaintenanceConfig {
 function saveMaintenanceToStore(conf: SystemMaintenanceConfig) {
   globalThis.__HUKI_SERVER_MAINTENANCE__ = conf;
   try {
+    ensureStorageDir();
     fs.writeFileSync(STORAGE_FILE, JSON.stringify(conf, null, 2), 'utf-8');
   } catch (err) {
     console.warn('Could not save maintenance file', err);

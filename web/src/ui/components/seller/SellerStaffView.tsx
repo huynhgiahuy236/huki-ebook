@@ -81,6 +81,10 @@ export function SellerStaffView() {
   useEffect(() => {
     if (searchParams?.get('action') === 'provision' || searchParams?.get('action') === 'new') {
       setShowAddForm(true);
+      // Immediately clear the query param so refreshing/switching doesn't keep auto-opening the form
+      if (typeof window !== 'undefined' && window.location.search) {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
     }
   }, [searchParams]);
 
@@ -221,6 +225,8 @@ export function SellerStaffView() {
             id: log.id,
             actorId: log.actorId,
             actorRole: log.actorRole,
+            actorName: log.metadata?.staffName || log.metadata?.actorName || log.actorName,
+            actorEmail: log.metadata?.staffEmail || log.metadata?.actorEmail || log.actorEmail,
             action: log.action,
             resource: log.resource,
             resourceId: log.resourceId,
@@ -520,6 +526,9 @@ export function SellerStaffView() {
     setShowAddForm(false);
     setEditingMemberId(null);
     setFormData(initialForm);
+    if (typeof window !== 'undefined' && window.location.search) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   };
 
   const handleSavePermissions = async (memberId: string) => {
@@ -1120,42 +1129,55 @@ export function SellerStaffView() {
             Làm Mới
           </SellerActionButton>
 
-          {showAddForm && editingMemberId ? (
-            <div className="flex items-center gap-2">
+          {activeStaffTab === 'members' ? (
+            showAddForm && editingMemberId ? (
+              <div className="flex items-center gap-2">
+                <SellerActionButton
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  icon="person_add"
+                  onClick={handleOpenCreate}
+                >
+                  + Cấp Tài Khoản Mới
+                </SellerActionButton>
+                <SellerActionButton
+                  type="button"
+                  variant="neutral"
+                  size="sm"
+                  icon="close"
+                  onClick={handleCloseForm}
+                >
+                  Đóng Chỉnh Sửa
+                </SellerActionButton>
+              </div>
+            ) : (
               <SellerActionButton
                 type="button"
-                variant="primary"
+                variant={showAddForm ? 'neutral' : 'primary'}
                 size="sm"
-                icon="person_add"
-                onClick={handleOpenCreate}
+                icon={showAddForm ? 'close' : 'person_add'}
+                onClick={() => {
+                  if (showAddForm) {
+                    handleCloseForm();
+                  } else {
+                    handleOpenCreate();
+                  }
+                }}
               >
-                + Cấp Tài Khoản Mới
+                {showAddForm ? 'Đóng Biểu Mẫu' : 'Cấp Tài Khoản Mới'}
               </SellerActionButton>
-              <SellerActionButton
-                type="button"
-                variant="neutral"
-                size="sm"
-                icon="close"
-                onClick={handleCloseForm}
-              >
-                Đóng Chỉnh Sửa
-              </SellerActionButton>
-            </div>
+            )
           ) : (
             <SellerActionButton
               type="button"
-              variant={showAddForm ? 'neutral' : 'primary'}
+              variant="neutral"
               size="sm"
-              icon={showAddForm ? 'close' : 'person_add'}
-              onClick={() => {
-                if (showAddForm) {
-                  handleCloseForm();
-                } else {
-                  handleOpenCreate();
-                }
-              }}
+              icon="refresh"
+              onClick={loadAuditLogs}
+              loading={loadingAuditLogs}
             >
-              {showAddForm ? 'Đóng Biểu Mẫu' : 'Cấp Tài Khoản Mới'}
+              Làm Mới Nhật Ký
             </SellerActionButton>
           )}
         </div>
@@ -1178,7 +1200,13 @@ export function SellerStaffView() {
 
         <button
           type="button"
-          onClick={() => setActiveStaffTab('audit_logs')}
+          onClick={() => {
+            setActiveStaffTab('audit_logs');
+            setShowAddForm(false);
+            if (typeof window !== 'undefined' && window.location.search) {
+              window.history.replaceState({}, '', window.location.pathname);
+            }
+          }}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeStaffTab === 'audit_logs'
               ? 'bg-slate-900 text-white shadow-xs'
@@ -1192,8 +1220,8 @@ export function SellerStaffView() {
 
       {activeStaffTab === 'audit_logs' ? (
         <AuditHistoryTimeline
-          title="Lịch Sử Thao Tác Phân Quyền & Quản Trị Nhân Sự"
-          description="Theo dõi toàn bộ nhật ký cấp tài khoản, cập nhật vai trò, phân quyền hoặc xóa tài khoản nhân sự trong Doanh nghiệp."
+          title="Lịch Sử Thao Tác Phân Quyền & Quản Trị Gian Hàng"
+          description="Theo dõi toàn bộ nhật ký cấp tài khoản, phân quyền và các tác vụ xử lý đơn hàng của nhân sự trong Doanh nghiệp."
           items={auditLogs}
           staffList={members.map((m) => ({
             id: m.id,

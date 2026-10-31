@@ -102,7 +102,12 @@ declare global {
   var __HUKI_SERVER_NOTIFICATIONS__: BroadcastNotification[] | undefined;
 }
 
-const STORAGE_FILE = path.join(process.cwd(), '.huki_broadcast_notifications.json');
+const STORAGE_FILE = path.join(process.cwd(), 'web', '.storage', 'broadcast_notifications.json');
+function ensureStorageDir() {
+  const dir = path.dirname(STORAGE_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
 
 function getNotificationsFromStore(): BroadcastNotification[] {
   if (globalThis.__HUKI_SERVER_NOTIFICATIONS__) {
@@ -129,6 +134,7 @@ function getNotificationsFromStore(): BroadcastNotification[] {
 function saveNotificationsToStore(list: BroadcastNotification[]) {
   globalThis.__HUKI_SERVER_NOTIFICATIONS__ = list;
   try {
+    ensureStorageDir();
     fs.writeFileSync(STORAGE_FILE, JSON.stringify(list, null, 2), 'utf-8');
   } catch (err) {
     console.warn('Could not save notifications file', err);

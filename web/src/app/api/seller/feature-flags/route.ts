@@ -122,7 +122,12 @@ declare global {
   var __HUKI_SERVER_FEATURES__: SellerFeature[] | undefined;
 }
 
-const STORAGE_FILE = path.join(process.cwd(), '.huki_seller_features.json');
+const STORAGE_FILE = path.join(process.cwd(), 'web', '.storage', 'seller_features.json');
+function ensureStorageDir() {
+  const dir = path.dirname(STORAGE_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
 
 function getFeaturesFromStore(): SellerFeature[] {
   if (globalThis.__HUKI_SERVER_FEATURES__) {
@@ -149,6 +154,7 @@ function getFeaturesFromStore(): SellerFeature[] {
 function saveFeaturesToStore(list: SellerFeature[]) {
   globalThis.__HUKI_SERVER_FEATURES__ = list;
   try {
+    ensureStorageDir();
     fs.writeFileSync(STORAGE_FILE, JSON.stringify(list, null, 2), 'utf-8');
   } catch (err) {
     console.warn('Could not save feature flags file', err);

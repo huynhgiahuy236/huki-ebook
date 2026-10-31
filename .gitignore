@@ -207,3 +207,7 @@ media/
 *.private
 secrets/
 private/
+
+# Local storage for Next.js mock route data
+web/.storage/
+.huki_*.json

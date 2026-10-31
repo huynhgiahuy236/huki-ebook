@@ -78,7 +78,12 @@ declare global {
   var __HUKI_SERVER_PENALTIES__: Record<string, StorePenaltyProfile> | undefined;
 }
 
-const STORAGE_FILE = path.join(process.cwd(), '.huki_seller_penalties.json');
+const STORAGE_FILE = path.join(process.cwd(), 'web', '.storage', 'seller_penalties.json');
+function ensureStorageDir() {
+  const dir = path.dirname(STORAGE_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
 
 function getPenaltiesFromStore(): Record<string, StorePenaltyProfile> {
   if (globalThis.__HUKI_SERVER_PENALTIES__) {
@@ -107,6 +112,7 @@ function getPenaltiesFromStore(): Record<string, StorePenaltyProfile> {
 function savePenaltiesToStore(profiles: Record<string, StorePenaltyProfile>) {
   globalThis.__HUKI_SERVER_PENALTIES__ = profiles;
   try {
+    ensureStorageDir();
     fs.writeFileSync(STORAGE_FILE, JSON.stringify(profiles, null, 2), 'utf-8');
   } catch (err) {
     console.warn('Could not save seller penalties file', err);

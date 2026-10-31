@@ -2,6 +2,7 @@ import { apiClient } from './apiClient';
 import type { ApiResponse } from './types';
 import { realtimeSyncBus } from '../services/realtimeSyncBus';
 import { memberApi } from './memberApi';
+import { tokenStorage } from './tokenStorage';
 
 export type SellerOrderStatus =
   | 'PENDING_PAYMENT'
@@ -151,6 +152,34 @@ function recordOrderAuditAction(action: string, orderId: string, orderData?: Sel
       if (stored) user = JSON.parse(stored);
     } catch {}
 
+    // Fallback: decode JWT accessToken from tokenStorage
+    if (!user) {
+      try {
+        const token = tokenStorage.getAccessToken();
+        if (token) {
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const base64Url = parts[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(
+              atob(base64)
+                .split('')
+                .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                .join('')
+            );
+            const decoded = JSON.parse(jsonPayload);
+            user = {
+              id: decoded.sub,
+              email: decoded.email,
+              name: decoded.fullName || decoded.name || decoded.email?.split('@')[0],
+              fullName: decoded.fullName,
+              role: decoded.role,
+            };
+          }
+        }
+      } catch {}
+    }
+
     const actorId = user?.id || 'current-user';
     const actorName = user?.fullName || user?.name || user?.email || 'Nhân sự';
     const actorEmail = user?.email || '';
@@ -158,6 +187,11 @@ function recordOrderAuditAction(action: string, orderId: string, orderData?: Sel
 
     const orderCode = (orderData as any)?.code || (orderData as any)?.order?.code || orderId.slice(0, 8);
     const storeId = (orderData as any)?.storeId || (orderData as any)?.store?.id || user?.businessId || user?.storeId || '';
+    const businessId =
+      localStorage.getItem('huki_active_business_id') ||
+      user?.business?.id ||
+      user?.businessId ||
+      storeId;
 
     const statusAfter = action === 'CONFIRM' ? 'CONFIRMED' : action === 'PREPARE' ? 'PREPARING' : action === 'SHIP' ? 'SHIPPED' : action === 'DELIVER' ? 'DELIVERED' : action === 'CANCEL' ? 'CANCELLED' : 'UPDATED';
     const statusBefore = (orderData as any)?.status || (action === 'CONFIRM' ? 'PENDING_CONFIRMATION' : 'CONFIRMED');
@@ -171,7 +205,7 @@ function recordOrderAuditAction(action: string, orderId: string, orderData?: Sel
       action,
       resource: 'Order',
       resourceId: orderId,
-      storeId,
+      storeId: businessId || storeId,
       timestamp: new Date().toISOString(),
       ipAddress: '127.0.0.1 (Nội bộ)',
       changedFields: ['status'],
@@ -183,6 +217,7 @@ function recordOrderAuditAction(action: string, orderId: string, orderData?: Sel
         staffName: actorName,
         staffEmail: actorEmail,
         staffRole: actorRole,
+        title: action === 'CONFIRM' ? 'Người bán đã xác nhận đơn hàng' : action === 'PREPARE' ? 'Người bán đang chuẩn bị & đóng gói kiện hàng' : action === 'SHIP' ? 'Đã bàn giao kiện hàng cho đơn vị vận chuyển' : action === 'DELIVER' ? 'Đơn hàng đã được giao thành công' : 'Hủy đơn hàng',
         ...(extra || {}),
       },
     };
@@ -190,21 +225,27 @@ function recordOrderAuditAction(action: string, orderId: string, orderData?: Sel
     // 1. Broadcast to realtimeSyncBus so open /seller/staff tabs or components pick it up immediately
     realtimeSyncBus.publish('STAFF_AUDIT_LOG_CREATED', {
       log: newAuditLog,
-      businessId: storeId,
+      businessId: businessId || storeId,
     });
 
-    // 2. Persist to localStorage for current store / business
-    const cacheKey = storeId ? `huki_seller_audit_logs_${storeId}` : 'huki_seller_audit_logs';
-    try {
-      const existingStr = localStorage.getItem(cacheKey);
-      const list = existingStr ? JSON.parse(existingStr) : [];
-      list.unshift(newAuditLog);
-      localStorage.setItem(cacheKey, JSON.stringify(list.slice(0, 100)));
-    } catch {}
+    // 2. Persist to localStorage across all relevant keys (businessId, storeId, global)
+    const cacheKeys = new Set<string>(['huki_seller_audit_logs']);
+    if (businessId) cacheKeys.add(`huki_seller_audit_logs_${businessId}`);
+    if (storeId) cacheKeys.add(`huki_seller_audit_logs_${storeId}`);
 
-    // 3. Post to backend server audit log endpoint if businessId is available
-    if (storeId) {
-      memberApi.recordMemberAuditLog(storeId, {
+    cacheKeys.forEach((key) => {
+      try {
+        const existingStr = localStorage.getItem(key);
+        const list = existingStr ? JSON.parse(existingStr) : [];
+        list.unshift(newAuditLog);
+        localStorage.setItem(key, JSON.stringify(list.slice(0, 100)));
+      } catch {}
+    });
+
+    // 3. Post to backend server audit log endpoint with resolved businessId / storeId
+    const targetBizId = businessId || storeId;
+    if (targetBizId) {
+      memberApi.recordMemberAuditLog(targetBizId, {
         action,
         resource: 'Order',
         resourceId: orderId,
@@ -217,9 +258,12 @@ function recordOrderAuditAction(action: string, orderId: string, orderData?: Sel
         metadata: {
           orderId,
           orderCode,
+          staffName: actorName,
+          staffEmail: actorEmail,
+          staffRole: actorRole,
           ...(extra || {}),
         },
-      }).catch(() => {});
+      }).catch((e) => console.warn('Could not post member audit log', e));
     }
   } catch (err) {
     console.warn('Failed to record order audit action', err);

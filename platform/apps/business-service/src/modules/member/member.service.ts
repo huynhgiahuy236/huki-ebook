@@ -745,8 +745,17 @@ export class MemberService {
     userRole: string,
     query: { page?: number; limit?: number; action?: string; resource?: string },
   ) {
+    let targetBizId = businessId;
+    const store = await this.prisma.store.findUnique({
+      where: { id: businessId },
+      select: { businessId: true },
+    });
+    if (store?.businessId) {
+      targetBizId = store.businessId;
+    }
+
     if (userRole !== 'PLATFORM_ADMIN') {
-      const hasAccess = await this.canManageMembers(businessId, userId);
+      const hasAccess = await this.canManageMembers(targetBizId, userId);
       if (!hasAccess) {
         throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT);
       }
@@ -765,7 +774,7 @@ export class MemberService {
 
     return this.auditService.queryAuditLogs({
       resource: filterResource,
-      storeId: businessId,
+      storeId: targetBizId,
       page: query.page,
       limit: query.limit,
       action: query.action,
@@ -790,11 +799,20 @@ export class MemberService {
     },
     req?: any,
   ) {
+    let targetBizId = businessId;
+    const store = await this.prisma.store.findUnique({
+      where: { id: businessId },
+      select: { businessId: true },
+    });
+    if (store?.businessId) {
+      targetBizId = store.businessId;
+    }
+
     if (userRole !== 'PLATFORM_ADMIN') {
-      const isOwner = await this.isOwner(businessId, userId);
+      const isOwner = await this.isOwner(targetBizId, userId);
       if (!isOwner) {
         const member = await this.prisma.member.findUnique({
-          where: { businessId_userId: { businessId, userId } },
+          where: { businessId_userId: { businessId: targetBizId, userId } },
         });
         if (!member || member.status !== MemberStatus.ACTIVE) {
           throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT);
@@ -812,7 +830,7 @@ export class MemberService {
     await this.auditService.record({
       actorId: userId,
       actorRole: dto.actorRole || userRole,
-      storeId: businessId,
+      storeId: targetBizId,
       resource: dto.resource || 'Order',
       resourceId: dto.resourceId,
       action: dto.action,

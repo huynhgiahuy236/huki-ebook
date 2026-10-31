@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
+import { StandardPaginationBar } from './GroupedDataTable';
 import { useAuth } from '@/ui/context/AuthContext';
 
 export interface AuditLogItem {
@@ -50,6 +51,12 @@ function getActionBadgeStyle(action: string): { label: string; className: string
   const upperAction = (action || '').toUpperCase();
 
   switch (upperAction) {
+    case 'PREPARE':
+      return {
+        label: 'Chuẩn Bị Hàng',
+        className: 'bg-blue-100 text-blue-800 border-blue-200/80',
+        icon: 'inventory_2',
+      };
     case 'APPROVE':
     case 'CONFIRM':
     case 'UNBLOCK':
@@ -1038,6 +1045,15 @@ export default function AuditHistoryTimeline({
                 if (action === 'INVITE' || action === 'PROVISION' || action === 'CREATE') {
                   iconName = 'person_add';
                   iconBg = 'bg-emerald-50 text-emerald-700 border border-emerald-200/80';
+                } else if (action === 'CONFIRM') {
+                  iconName = 'check_circle';
+                  iconBg = 'bg-emerald-50 text-emerald-700 border border-emerald-200/80';
+                } else if (action === 'PREPARE') {
+                  iconName = 'inventory_2';
+                  iconBg = 'bg-blue-50 text-blue-700 border border-blue-200/80';
+                } else if (action === 'SHIP') {
+                  iconName = 'local_shipping';
+                  iconBg = 'bg-indigo-50 text-indigo-700 border border-indigo-200/80';
                 } else if (action === 'PERMISSION_CHANGE') {
                   iconName = 'key';
                   iconBg = 'bg-blue-50 text-blue-700 border border-blue-200/80';
@@ -1384,36 +1400,17 @@ export default function AuditHistoryTimeline({
               })}
             </div>
 
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-theme-border bg-theme-surface-subtle/30 px-3 py-2.5 rounded-xl text-xs text-theme-text-muted">
-                <div>
-                  Hiển thị <strong>{(currentPage - 1) * pageSize + 1}</strong> -{' '}
-                  <strong>{Math.min(currentPage * pageSize, filteredItems.length)}</strong> trên{' '}
-                  <strong>{filteredItems.length}</strong> nhật ký
-                </div>
-                <div className="flex items-center gap-1.5 self-end sm:self-auto">
-                  <button
-                    type="button"
-                    disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    className="px-2.5 py-1 rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-subtle disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer text-theme-text"
-                  >
-                    ← Trước
-                  </button>
-                  <span className="px-2.5 py-1 font-bold text-theme-text">
-                    Trang {currentPage} / {totalPages}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={currentPage >= totalPages}
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    className="px-2.5 py-1 rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-subtle disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer text-theme-text"
-                  >
-                    Sau →
-                  </button>
-                </div>
-              </div>
+            {/* Standard Pagination Bar (Always visible when items exist) */}
+            {filteredItems.length > 0 && (
+              <StandardPaginationBar
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredItems.length}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                itemLabel="nhật ký"
+                className="mt-2 rounded-xl border border-theme-border shadow-2xs"
+              />
             )}
           </div>
         )}
