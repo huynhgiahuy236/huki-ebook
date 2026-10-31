@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
-import { StandardPaginationBar } from './GroupedDataTable';
+import React, { useState, useMemo, useCallback } from 'react';
+import GroupedDataTable, { Column } from './GroupedDataTable';
 import { useAuth } from '@/ui/context/AuthContext';
 
 export interface AuditLogItem {
@@ -52,18 +52,19 @@ function getActionBadgeStyle(action: string): { label: string; className: string
 
   switch (upperAction) {
     case 'PREPARE':
+    case 'ORDER_PREPARE':
       return {
-        label: 'Chuẩn Bị Hàng',
+        label: 'Chuẩn Bị Đóng Gói',
         className: 'bg-blue-100 text-blue-800 border-blue-200/80',
         icon: 'inventory_2',
       };
-    case 'APPROVE':
     case 'CONFIRM':
-    case 'UNBLOCK':
-    case 'UNSUSPEND':
+    case 'ORDER_CONFIRM':
+    case 'APPROVE':
     case 'ACTIVATE':
+    case 'UNBLOCK':
       return {
-        label: action === 'APPROVE' ? 'Phê Duyệt' : action === 'CONFIRM' ? 'Xác Nhận' : action === 'UNBLOCK' ? 'Mở Khóa' : 'Kích Hoạt',
+        label: action.includes('CONFIRM') ? 'Xác Nhận Đơn' : action === 'APPROVE' ? 'Phê Duyệt' : 'Kích Hoạt',
         className: 'bg-emerald-100 text-emerald-800 border-emerald-200/80',
         icon: 'check_circle',
       };
@@ -85,9 +86,8 @@ function getActionBadgeStyle(action: string): { label: string; className: string
       };
     case 'SUSPEND':
     case 'FREEZE':
-    case 'ARBITRATE':
       return {
-        label: action === 'SUSPEND' ? 'Tạm Ngưng' : action === 'FREEZE' ? 'Đóng Băng' : 'Phán Quyết Trọng Tài',
+        label: action === 'SUSPEND' ? 'Tạm Ngưng' : 'Đóng Băng',
         className: 'bg-amber-100 text-amber-800 border-amber-200/80',
         icon: 'gavel',
       };
@@ -110,6 +110,7 @@ function getActionBadgeStyle(action: string): { label: string; className: string
     case 'ROLE_CHANGE':
     case 'PERMISSION_CHANGE':
     case 'PIN_CHANGE':
+    case 'PASSWORD_RESET':
       return {
         label: action === 'ROLE_CHANGE' ? 'Đổi Vai Trò' : action === 'PERMISSION_CHANGE' ? 'Đổi Quyền Hạn' : 'Đổi Mật Khẩu / PIN',
         className: 'bg-purple-100 text-purple-800 border-purple-200/80',
@@ -186,7 +187,7 @@ export const FIELD_LABEL_MAP: Record<string, string> = {
   email: 'Email đăng nhập',
   phone: 'Số điện thoại',
   role: 'Vai trò chức danh',
-  status: 'Trạng thái tài khoản',
+  status: 'Trạng thái',
   permissions: 'Danh sách quyền hạn',
   initialPin: 'Mã PIN bảo mật',
   passwordReset: 'Đặt lại mật khẩu',
@@ -205,29 +206,39 @@ export const TECHNICAL_KEYS = new Set([
   'updatedAt',
 ]);
 
-/**
- * Format timestamp into standard DD/MM/YYYY HH:mm:ss
- */
 function formatAuditTime(ts: string | Date): string {
   try {
     const d = typeof ts === 'string' ? new Date(ts) : ts;
     if (isNaN(d.getTime())) return String(ts);
     const pad = (n: number) => (n < 10 ? `0${n}` : n);
-    const day = pad(d.getDate());
-    const month = pad(d.getMonth() + 1);
-    const year = d.getFullYear();
-    const hours = pad(d.getHours());
-    const mins = pad(d.getMinutes());
-    const secs = pad(d.getSeconds());
-    return `${day}/${month}/${year} ${hours}:${mins}:${secs}`;
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   } catch {
     return String(ts);
   }
 }
 
-/**
- * Generate human-friendly action title and subtitle for regular users (Sellers)
- */
+function formatAuditDateOnly(ts: string | Date): string {
+  try {
+    const d = typeof ts === 'string' ? new Date(ts) : ts;
+    if (isNaN(d.getTime())) return String(ts);
+    const pad = (n: number) => (n < 10 ? `0${n}` : n);
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+  } catch {
+    return String(ts);
+  }
+}
+
+function formatAuditTimeOnly(ts: string | Date): string {
+  try {
+    const d = typeof ts === 'string' ? new Date(ts) : ts;
+    if (isNaN(d.getTime())) return '';
+    const pad = (n: number) => (n < 10 ? `0${n}` : n);
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  } catch {
+    return '';
+  }
+}
+
 function getFriendlyActionTitle(item: AuditLogItem): { title: string; subtitle?: string } {
   const staffName =
     item.metadata?.staffName ||
@@ -289,6 +300,34 @@ function getFriendlyActionTitle(item: AuditLogItem): { title: string; subtitle?:
     }
   }
 
+  if (resource === 'ORDER' || item.resource === 'Order') {
+    const orderCode = item.metadata?.orderCode || item.resourceId?.slice(0, 8);
+    if (action === 'CONFIRM' || action === 'ORDER_CONFIRM') {
+      return {
+        title: `Xác nhận đơn hàng #${orderCode}`,
+        subtitle: 'Đơn hàng đã chuyển sang trạng thái đã xác nhận',
+      };
+    }
+    if (action === 'PREPARE' || action === 'ORDER_PREPARE') {
+      return {
+        title: `Chuẩn bị đóng gói đơn hàng #${orderCode}`,
+        subtitle: 'Đơn hàng đã chuyển sang trạng thái chuẩn bị đóng gói',
+      };
+    }
+    if (action === 'SHIP') {
+      return {
+        title: `Bàn giao đơn hàng #${orderCode} cho bưu tá`,
+        subtitle: 'Đơn hàng đang trong quá trình vận chuyển',
+      };
+    }
+    if (action === 'CANCEL') {
+      return {
+        title: `Hủy đơn hàng #${orderCode}`,
+        subtitle: 'Đơn hàng đã được ghi nhận hủy',
+      };
+    }
+  }
+
   const resName = item.resource === 'Member' ? 'Nhân sự' : item.resource === 'Product' ? 'Sản phẩm' : item.resource === 'Order' ? 'Đơn hàng' : item.resource;
   return {
     title: `${resName} ${item.metadata?.staffName || item.metadata?.bookTitle || (item.resourceId ? '#' + item.resourceId.slice(0, 8) : '')}`.trim(),
@@ -296,372 +335,339 @@ function getFriendlyActionTitle(item: AuditLogItem): { title: string; subtitle?:
   };
 }
 
-/**
- * Render sanitized value cleanly in diff
- */
-function renderDiffValue(val: any, key?: string): React.ReactNode {
-  if (val === null || val === undefined) {
-    return <span className="text-slate-400 italic text-[11px]">(trống)</span>;
-  }
+function resolveActorInfo(item: AuditLogItem, currentUser: any, staffList?: AuditStaffOption[]) {
+  const currentUserId = currentUser?.id || currentUser?.sub;
+  const isSelf = Boolean(currentUserId && item.actorId && item.actorId === currentUserId);
 
-  // Permissions array -> Pretty colored tag chips
-  if (key === 'permissions' && Array.isArray(val)) {
-    if (val.length === 0) {
-      return <span className="text-slate-400 italic text-[11px]">Không có quyền nào</span>;
-    }
-    return (
-      <div className="space-y-1.5 py-1">
-        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-          Được cấp {val.length} quyền:
-        </span>
-        <div className="flex flex-wrap gap-1 pt-1 max-h-48 overflow-y-auto">
-          {val.map((permKey: string) => (
-            <span
-              key={permKey}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium bg-emerald-50 text-emerald-900 border border-emerald-200 shadow-2xs"
-            >
-              <span className="material-symbols-outlined text-[12px] text-emerald-600">check_circle</span>
-              <span>{PERMISSION_LABEL_MAP[permKey] || permKey}</span>
-            </span>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  let displayName = item.actorName || item.metadata?.actorName || '';
+  let displayEmail = item.actorEmail || item.metadata?.actorEmail || '';
 
-  // Role -> Friendly Role Badge
-  if (key === 'role' && typeof val === 'string') {
-    const label = ROLE_LABEL_MAP[val] || val;
-    return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-900 border border-blue-200">
-        <span className="material-symbols-outlined text-[13px] text-blue-600">badge</span>
-        <span>{label}</span>
-      </span>
-    );
-  }
-
-  // Status -> Friendly Status Badge
-  if (key === 'status' && typeof val === 'string') {
-    const st = STATUS_LABEL_MAP[val] || { label: val, color: 'bg-slate-100 text-slate-800' };
-    return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${st.color}`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${val === 'ACTIVE' ? 'bg-emerald-600' : 'bg-rose-600'}`} />
-        <span>{st.label}</span>
-      </span>
-    );
-  }
-
-  if (typeof val === 'boolean') {
-    return (
-      <span className={`font-semibold text-xs ${val ? 'text-emerald-700' : 'text-slate-500'}`}>
-        {val ? 'Có / Đã kích hoạt' : 'Không'}
-      </span>
-    );
-  }
-
-  if (typeof val === 'object') {
-    return (
-      <pre className="text-[10.5px] font-mono bg-slate-50 p-2 rounded-lg border border-slate-200 max-h-32 overflow-y-auto whitespace-pre-wrap text-slate-800">
-        {JSON.stringify(val, null, 2)}
-      </pre>
-    );
-  }
-
-  return <span className="font-semibold text-xs text-slate-900">{String(val)}</span>;
-}
-
-/**
- * Resolve actor identity with user context or fallback
- */
-export function resolveActorInfo(item: AuditLogItem, currentUser?: any, staffList?: AuditStaffOption[]): {
-  displayName: string;
-  displayEmail?: string;
-  displayRole: string;
-  isSelf: boolean;
-  avatarChar: string;
-} {
-  const isMatchCurrent = Boolean(
-    currentUser &&
-    (item.actorId === currentUser.id ||
-      item.actorId === 'admin' ||
-      item.actorEmail === currentUser.email)
-  );
-
-  let name = item.actorName || item.metadata?.actorName || item.metadata?.staffName || item.metadata?.authorName;
-  let email = item.actorEmail || item.metadata?.actorEmail || item.metadata?.staffEmail;
-
-  if (staffList && staffList.length > 0 && (!name || !email)) {
-    const matched = staffList.find(
-      (s) =>
-        (item.actorId && (s.id === item.actorId || s.userId === item.actorId)) ||
-        (item.actorEmail && s.email?.toLowerCase() === item.actorEmail.toLowerCase())
-    );
+  if (!displayName && staffList && staffList.length > 0) {
+    const matched = staffList.find((s) => s.userId === item.actorId || s.id === item.actorId);
     if (matched) {
-      name = name || matched.fullName;
-      email = email || matched.email;
+      displayName = matched.fullName || matched.email || '';
+      displayEmail = displayEmail || matched.email || '';
     }
   }
 
-  if (!name && isMatchCurrent) {
-    name = currentUser.fullName || currentUser.name || 'Chủ doanh nghiệp';
-    email = currentUser.email || email;
+  if (!displayName) {
+    if (item.actorRole === 'OWNER') displayName = 'Chủ sở hữu gian hàng';
+    else if (item.actorRole === 'ADMIN') displayName = 'Quản trị viên';
+    else displayName = item.actorRole ? `Nhân sự (${item.actorRole})` : 'Nhân sự hệ thống';
   }
 
-  if (!name) {
-    if (item.actorRole === 'OWNER') {
-      name = 'Chủ doanh nghiệp / Quản trị viên';
-    } else if (item.actorRole === 'STAFF' || item.actorRole === 'ORDER_STAFF') {
-      name = 'Nhân sự vận hành';
-    } else {
-      name = `Quản trị viên (#${item.actorId ? item.actorId.slice(0, 8) : 'sys'})`;
-    }
-  }
-
-  const roleLabels: Record<string, string> = {
-    OWNER: 'Chủ sở hữu',
-    ADMIN: 'Quản trị viên',
-    ORDER_STAFF: 'Nhân viên đơn hàng',
-    STAFF: 'Nhân sự vận hành',
-    WAREHOUSE_STAFF: 'Nhân viên kho',
-    CS_STAFF: 'Nhân viên CSKH',
-  };
-
-  const roleText = roleLabels[item.actorRole] || item.actorRole || 'OWNER';
-  const char = (name ? name.trim().charAt(0) : 'Q').toUpperCase();
+  const roleRaw = item.actorRole || 'STAFF';
+  const displayRole = ROLE_LABEL_MAP[roleRaw] || (roleRaw === 'OWNER' ? 'Chủ sở hữu' : roleRaw);
 
   return {
-    displayName: name,
-    displayEmail: email,
-    displayRole: roleText,
-    isSelf: isMatchCurrent,
-    avatarChar: char,
+    displayName,
+    displayEmail,
+    displayRole,
+    isSelf,
   };
 }
 
-/**
- * Shared AuditHistoryTimeline Component for Governance Traceability
- */
+function resolveTargetInfo(item: AuditLogItem): { targetLabel: string; targetSub?: string } {
+  const resource = (item.resource || '').toUpperCase();
+  const isMember = resource === 'MEMBER' || resource === 'STAFF' || resource === 'INVITATION';
+
+  if (isMember) {
+    const name = item.metadata?.staffName || item.stateAfter?.fullName || item.stateBefore?.fullName || 'Nhân sự';
+    const email = item.metadata?.staffEmail || item.stateAfter?.email || item.stateBefore?.email;
+    return {
+      targetLabel: `Nhân sự: ${name}`,
+      targetSub: email,
+    };
+  }
+
+  if (resource === 'ORDER' || item.resource === 'Order') {
+    const orderCode = item.metadata?.orderCode || item.resourceId?.slice(0, 8);
+    return {
+      targetLabel: `Đơn hàng #${orderCode}`,
+    };
+  }
+
+  if (resource === 'PRODUCT' || item.resource === 'Product') {
+    const title = item.metadata?.bookTitle || item.stateAfter?.title || item.resourceId?.slice(0, 8);
+    return {
+      targetLabel: `Sản phẩm`,
+      targetSub: title,
+    };
+  }
+
+  return {
+    targetLabel: item.resource || 'Tài nguyên',
+    targetSub: item.resourceId ? `#${item.resourceId.slice(0, 8)}` : undefined,
+  };
+}
+
+function renderActionSummary(item: AuditLogItem, actor: any): { badge: React.ReactNode; sentence: React.ReactNode } {
+  const badgeConfig = getActionBadgeStyle(item.action);
+  const action = (item.action || '').toUpperCase();
+  const resource = (item.resource || '').toUpperCase();
+  const isMember = resource === 'MEMBER' || resource === 'STAFF' || resource === 'INVITATION';
+
+  const badge = (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${badgeConfig.className}`}>
+      <span className="material-symbols-outlined text-[13px]">{badgeConfig.icon}</span>
+      <span>{badgeConfig.label}</span>
+    </span>
+  );
+
+  let sentence: React.ReactNode = null;
+  const targetName = item.metadata?.staffName || item.stateAfter?.fullName || item.stateBefore?.fullName || '';
+  const targetEmail = item.metadata?.staffEmail || item.stateAfter?.email || item.stateBefore?.email || '';
+
+  if (isMember) {
+    if (action === 'INVITE' || action === 'PROVISION' || action === 'CREATE') {
+      sentence = (
+        <span>
+          Đã cấp tài khoản mới cho <strong className="font-semibold text-slate-900">{targetName || 'nhân viên mới'}</strong>
+          {targetEmail && <span className="text-slate-500 font-normal"> ({targetEmail})</span>}
+        </span>
+      );
+    } else if (action === 'PERMISSION_CHANGE') {
+      sentence = (
+        <span>
+          Đã cập nhật quyền hạn cho <strong className="font-semibold text-slate-900">{targetName || 'nhân sự'}</strong>
+        </span>
+      );
+    } else if (action === 'ROLE_CHANGE') {
+      sentence = (
+        <span>
+          Đã thay đổi vai trò của <strong className="font-semibold text-slate-900">{targetName || 'nhân sự'}</strong>
+        </span>
+      );
+    } else if (action === 'DELETE') {
+      sentence = (
+        <span>
+          Đã xóa tài khoản nhân viên <strong className="font-semibold text-slate-900">{targetName || 'nhân sự'}</strong>
+        </span>
+      );
+    } else if (action === 'PIN_CHANGE' || action === 'PASSWORD_RESET' || item.stateAfter?.passwordReset || item.stateAfter?.passwordUpdated) {
+      sentence = (
+        <span>
+          Đã đặt lại mật khẩu cho <strong className="font-semibold text-slate-900">{targetName || 'nhân sự'}</strong>
+        </span>
+      );
+    } else if (item.stateAfter?.status === 'SUSPENDED') {
+      sentence = (
+        <span>
+          Đã tạm khóa tài khoản của <strong className="font-semibold text-slate-900">{targetName || 'nhân sự'}</strong>
+        </span>
+      );
+    } else if (item.stateAfter?.status === 'ACTIVE') {
+      sentence = (
+        <span>
+          Đã mở khóa tài khoản cho <strong className="font-semibold text-slate-900">{targetName || 'nhân sự'}</strong>
+        </span>
+      );
+    } else {
+      sentence = (
+        <span>
+          Đã cập nhật thông tin nhân sự <strong className="font-semibold text-slate-900">{targetName || ''}</strong>
+        </span>
+      );
+    }
+  } else if (resource === 'ORDER' || item.resource === 'Order') {
+    const orderCode = item.metadata?.orderCode || item.resourceId?.slice(0, 8);
+    if (action === 'CONFIRM' || action === 'ORDER_CONFIRM') {
+      sentence = (
+        <span>
+          Đã <strong className="font-semibold text-emerald-700">xác nhận đơn hàng</strong>{' '}
+          <span className="font-mono font-bold text-slate-900 text-xs">#{orderCode}</span>
+        </span>
+      );
+    } else if (action === 'PREPARE' || action === 'ORDER_PREPARE') {
+      sentence = (
+        <span>
+          Đã chuyển đơn hàng sang trạng thái <strong className="font-semibold text-blue-700">chuẩn bị đóng gói</strong>{' '}
+          <span className="font-mono font-bold text-slate-900 text-xs">#{orderCode}</span>
+        </span>
+      );
+    } else if (action === 'SHIP') {
+      sentence = (
+        <span>
+          Đã bàn giao đơn hàng cho <strong className="font-semibold text-indigo-700">đơn vị vận chuyển</strong>{' '}
+          <span className="font-mono font-bold text-slate-900 text-xs">#{orderCode}</span>
+        </span>
+      );
+    } else if (action === 'CANCEL') {
+      sentence = (
+        <span>
+          Đã <strong className="font-semibold text-rose-700">hủy đơn hàng</strong>{' '}
+          <span className="font-mono font-bold text-slate-900 text-xs">#{orderCode}</span>
+        </span>
+      );
+    } else {
+      sentence = (
+        <span>
+          Đã cập nhật trạng thái đơn hàng <span className="font-mono font-bold text-slate-900 text-xs">#{orderCode}</span>
+        </span>
+      );
+    }
+  } else {
+    sentence = (
+      <span>
+        Đã thực hiện thao tác trên {item.resource}{' '}
+        {item.resourceId && <span className="font-mono text-slate-500 text-xs">#{item.resourceId.slice(0, 8)}</span>}
+      </span>
+    );
+  }
+
+  return { badge, sentence };
+}
+
 export default function AuditHistoryTimeline({
-  items = [],
+  items,
   staffList = [],
   loading = false,
   error = null,
   onRetry,
-  emptyTitle = 'Chưa có lịch sử thao tác',
-  emptyMessage = 'Hiện chưa ghi nhận hành động quản trị nào trên tài nguyên này.',
-  title = 'Nhật Ký Quản Trị & Audit Log',
-  description = 'Theo dõi chi tiết các thao tác thay đổi, người thực hiện, trước/sau và mã định danh đối soát.',
+  emptyTitle = 'Chưa có nhật ký ghi nhận',
+  emptyMessage = 'Toàn bộ thao tác cấp tài khoản, đổi vai trò, phân quyền hoặc duyệt đơn sẽ được hiển thị minh bạch tại đây.',
+  title = 'Lịch Sử Thao Tác Phân Quyền & Quản Trị Nhân Sự',
+  description = 'Theo dõi toàn bộ nhật ký cấp tài khoản, cập nhật vai trò, phân quyền hoặc xóa tài khoản nhân sự trong Doanh nghiệp.',
   className = '',
 }: AuditHistoryTimelineProps) {
-  // Try retrieving current authenticated user for actor resolution
-  let currentUser: any = null;
-  try {
-    const auth = useAuth();
-    currentUser = auth?.user;
-  } catch {
-    // If rendered outside AuthContext
-  }
+  const { user: currentUser } = useAuth();
 
   // Filter States
+  const [searchKeyword, setSearchKeyword] = useState<string>('');
   const [selectedAction, setSelectedAction] = useState<string>('ALL');
   const [selectedStaff, setSelectedStaff] = useState<string>('ALL');
   const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | '7DAYS' | '30DAYS' | 'CUSTOM'>('ALL');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  const [searchKeyword, setSearchKeyword] = useState<string>('');
 
-  // Pagination States
+  // Pagination State
   const [currentPage, setCurrentPage] = useState<number>(1);
   const pageSize = 10;
 
-  // Track open state of diffs per audit item
-  const [expandedDiffs, setExpandedDiffs] = useState<Record<string, boolean>>({});
-  const [showTechDetails, setShowTechDetails] = useState<Record<string, boolean>>({});
-
-  const toggleDiff = (id: string) => {
-    setExpandedDiffs((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
-
-  const toggleTechDetails = (id: string) => {
-    setShowTechDetails((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
-
-  // Distinct staff members for the Staff Filter Dropdown
+  // Filter staff options
   const staffOptions = useMemo(() => {
-    const map = new Map<string, { key: string; label: string; email?: string }>();
-
-    // 1. From staffList prop if provided
-    if (staffList && staffList.length > 0) {
-      staffList.forEach((st) => {
-        const key = (st.email || st.fullName || st.id || st.userId || '').trim();
-        if (key) {
-          const label = st.fullName ? `${st.fullName}${st.email ? ` (${st.email})` : ''}` : (st.email || key);
-          map.set(key.toLowerCase(), {
-            key,
-            label,
-            email: st.email,
-          });
-        }
-      });
-    }
-
-    // 2. Also extract from items (both targets and actors)
-    items.forEach((it) => {
-      const staffName = (it.metadata?.staffName || it.stateAfter?.fullName || it.stateBefore?.fullName || '').trim();
-      const staffEmail = (it.metadata?.staffEmail || it.stateAfter?.email || it.stateBefore?.email || '').trim();
-      const key = staffEmail || staffName || it.resourceId;
-
-      if (key) {
-        const lowerKey = key.toLowerCase();
-        if (!map.has(lowerKey)) {
-          const label = staffName
-            ? `${staffName}${staffEmail ? ` (${staffEmail})` : ''}`
-            : (staffEmail || `Nhân sự #${key.slice(0, 8)}`);
-          map.set(lowerKey, {
-            key,
-            label,
-            email: staffEmail,
-          });
-        }
-      }
-
-      // Also extract actor if known
-      const actorName = (it.actorName || '').trim();
-      const actorEmail = (it.actorEmail || '').trim();
-      const actorKey = actorEmail || actorName || it.actorId;
-      if (actorKey) {
-        const lowerActorKey = actorKey.toLowerCase();
-        if (!map.has(lowerActorKey)) {
-          const label = actorName
-            ? `${actorName}${actorEmail ? ` (${actorEmail})` : ''}`
-            : (actorEmail || `Nhân sự #${actorKey.slice(0, 8)}`);
-          map.set(lowerActorKey, {
-            key: actorKey,
-            label,
-            email: actorEmail,
-          });
-        }
+    const map = new Map<string, string>();
+    staffList.forEach((s) => {
+      const id = s.userId || s.id;
+      if (id) {
+        map.set(id, s.fullName ? `${s.fullName} (${s.email})` : s.email || id);
       }
     });
 
-    return Array.from(map.values());
+    items.forEach((item) => {
+      if (item.actorId && !map.has(item.actorId)) {
+        const name = item.actorName || item.metadata?.actorName;
+        const email = item.actorEmail || item.metadata?.actorEmail;
+        map.set(item.actorId, name ? `${name} (${email || item.actorRole})` : email || `ID: ${item.actorId.slice(0, 8)}`);
+      }
+      const targetId = item.stateAfter?.userId || item.stateAfter?.id || item.metadata?.staffId;
+      if (targetId && !map.has(targetId)) {
+        const name = item.metadata?.staffName || item.stateAfter?.fullName;
+        const email = item.metadata?.staffEmail || item.stateAfter?.email;
+        map.set(targetId, name ? `${name} (${email || 'Nhân sự'})` : email || `ID: ${targetId.slice(0, 8)}`);
+      }
+    });
+
+    return Array.from(map.entries()).map(([key, label]) => ({ key, label }));
   }, [items, staffList]);
 
-  // Standardized Feature Categories for Action Dropdown with exact counts
+  // Action categories for dropdown
   const featureCategories = useMemo(() => {
     const counts: Record<string, number> = {
-      ORDER: 0,
-      CREATE: 0,
-      PERMISSION: 0,
-      ROLE: 0,
-      STATUS: 0,
-      SECURITY: 0,
+      ALL: items.length,
+      PROVISION: 0,
+      ROLE_CHANGE: 0,
+      PERMISSION_CHANGE: 0,
+      PASSWORD_RESET: 0,
+      STATUS_CHANGE: 0,
+      ORDER_PROCESS: 0,
       DELETE: 0,
     };
 
-    items.forEach((it) => {
-      const act = (it.action || '').toUpperCase();
-      const res = (it.resource || '').toUpperCase();
-      if (['CONFIRM', 'PREPARE', 'SHIP', 'CANCEL', 'ORDER_CONFIRM', 'ORDER_PREPARE'].includes(act) || res === 'ORDER') {
-        counts.ORDER++;
-      } else if (['INVITE', 'PROVISION', 'CREATE'].includes(act)) {
-        counts.CREATE++;
-      } else if (act === 'PERMISSION_CHANGE') {
-        counts.PERMISSION++;
+    items.forEach((item) => {
+      const act = (item.action || '').toUpperCase();
+      const res = (item.resource || '').toUpperCase();
+
+      if (act === 'PROVISION' || act === 'INVITE' || act === 'CREATE') {
+        counts.PROVISION = (counts.PROVISION || 0) + 1;
       } else if (act === 'ROLE_CHANGE') {
-        counts.ROLE++;
-      } else if (['STATUS_CHANGE', 'BLOCK', 'UNBLOCK', 'SUSPEND', 'ACTIVATE'].includes(act) || it.changedFields?.includes('status')) {
-        counts.STATUS++;
-      } else if (['PIN_CHANGE', 'PASSWORD_RESET'].includes(act) || it.stateAfter?.passwordReset || it.stateAfter?.passwordUpdated) {
-        counts.SECURITY++;
-      } else if (['DELETE', 'REMOVE'].includes(act)) {
-        counts.DELETE++;
+        counts.ROLE_CHANGE = (counts.ROLE_CHANGE || 0) + 1;
+      } else if (act === 'PERMISSION_CHANGE') {
+        counts.PERMISSION_CHANGE = (counts.PERMISSION_CHANGE || 0) + 1;
+      } else if (act === 'PIN_CHANGE' || act === 'PASSWORD_RESET') {
+        counts.PASSWORD_RESET = (counts.PASSWORD_RESET || 0) + 1;
+      } else if (act === 'SUSPEND' || act === 'ACTIVATE' || act === 'STATUS_CHANGE') {
+        counts.STATUS_CHANGE = (counts.STATUS_CHANGE || 0) + 1;
+      } else if (res === 'ORDER' || act === 'CONFIRM' || act === 'PREPARE' || act === 'SHIP') {
+        counts.ORDER_PROCESS = (counts.ORDER_PROCESS || 0) + 1;
+      } else if (act === 'DELETE') {
+        counts.DELETE = (counts.DELETE || 0) + 1;
       }
     });
 
     return [
-      { id: 'ALL', label: 'Tất cả tác vụ', count: items.length },
-      { id: 'ORDER', label: 'Xử lý đơn hàng', count: counts.ORDER },
-      { id: 'CREATE', label: 'Cấp tài khoản mới', count: counts.CREATE },
-      { id: 'PERMISSION', label: 'Cập nhật phân quyền', count: counts.PERMISSION },
-      { id: 'ROLE', label: 'Đổi vai trò chức danh', count: counts.ROLE },
-      { id: 'STATUS', label: 'Khóa / Mở khóa tài khoản', count: counts.STATUS },
-      { id: 'SECURITY', label: 'Đổi mật khẩu / PIN', count: counts.SECURITY },
-      { id: 'DELETE', label: 'Xóa tài khoản nhân sự', count: counts.DELETE },
-    ];
+      { id: 'ALL', label: 'Tất cả tác vụ', count: counts.ALL },
+      { id: 'PROVISION', label: 'Cấp Tài Khoản Mới', count: counts.PROVISION },
+      { id: 'ROLE_CHANGE', label: 'Đổi Vai Trò', count: counts.ROLE_CHANGE },
+      { id: 'PERMISSION_CHANGE', label: 'Đổi Quyền Hạn', count: counts.PERMISSION_CHANGE },
+      { id: 'PASSWORD_RESET', label: 'Đặt Lại Mật Khẩu / PIN', count: counts.PASSWORD_RESET },
+      { id: 'STATUS_CHANGE', label: 'Khóa / Mở Khóa Tài Khoản', count: counts.STATUS_CHANGE },
+      { id: 'ORDER_PROCESS', label: 'Xử Lý Đơn Hàng', count: counts.ORDER_PROCESS },
+      { id: 'DELETE', label: 'Xóa Tài Khoản', count: counts.DELETE },
+    ].filter((c) => c.id === 'ALL' || c.count > 0);
   }, [items]);
 
-  // Compute filtered items
+  // Filter items
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
-      const act = (item.action || '').toUpperCase();
-
-      // 1. Action / Feature filter
-      if (selectedAction !== 'ALL') {
-        const res = (item.resource || '').toUpperCase();
-        if (selectedAction === 'ORDER') {
-          if (!['CONFIRM', 'PREPARE', 'SHIP', 'CANCEL', 'ORDER_CONFIRM', 'ORDER_PREPARE'].includes(act) && res !== 'ORDER') return false;
-        } else if (selectedAction === 'CREATE') {
-          if (!['INVITE', 'PROVISION', 'CREATE'].includes(act) || res === 'ORDER') return false;
-        } else if (selectedAction === 'PERMISSION') {
-          if (act !== 'PERMISSION_CHANGE') return false;
-        } else if (selectedAction === 'ROLE') {
-          if (act !== 'ROLE_CHANGE') return false;
-        } else if (selectedAction === 'STATUS') {
-          if (!['STATUS_CHANGE', 'BLOCK', 'UNBLOCK', 'SUSPEND', 'ACTIVATE'].includes(act) && !item.changedFields?.includes('status')) return false;
-        } else if (selectedAction === 'SECURITY') {
-          if (!['PIN_CHANGE', 'PASSWORD_RESET'].includes(act) && !item.stateAfter?.passwordReset && !item.stateAfter?.passwordUpdated) return false;
-        } else if (selectedAction === 'DELETE') {
-          if (!['DELETE', 'REMOVE'].includes(act)) return false;
-        } else if (act !== selectedAction) {
-          return false;
-        }
-      }
-
-      // 2. Staff Member filter (matches either as actor or as affected member)
-      if (selectedStaff !== 'ALL') {
-        const q = selectedStaff.toLowerCase();
-        const targetName = (item.metadata?.staffName || item.stateAfter?.fullName || item.stateBefore?.fullName || '').toLowerCase();
-        const targetEmail = (item.metadata?.staffEmail || item.stateAfter?.email || item.stateBefore?.email || '').toLowerCase();
-        const targetId = (item.resourceId || item.stateAfter?.id || item.stateAfter?.userId || '').toLowerCase();
-
+      // 1. Keyword search
+      if (searchKeyword.trim()) {
+        const kw = searchKeyword.toLowerCase();
         const actorName = (item.actorName || '').toLowerCase();
         const actorEmail = (item.actorEmail || '').toLowerCase();
-        const actorId = (item.actorId || '').toLowerCase();
+        const action = (item.action || '').toLowerCase();
+        const id = (item.id || '').toLowerCase();
+        const targetName = (item.metadata?.staffName || item.stateAfter?.fullName || '').toLowerCase();
+        const targetEmail = (item.metadata?.staffEmail || item.stateAfter?.email || '').toLowerCase();
+        const orderCode = (item.metadata?.orderCode || item.resourceId || '').toLowerCase();
 
         const match =
-          targetId === q ||
-          targetEmail === q ||
-          targetName === q ||
-          actorId === q ||
-          actorEmail === q ||
-          actorName === q ||
-          targetEmail.includes(q) ||
-          targetName.includes(q) ||
-          actorEmail.includes(q) ||
-          actorName.includes(q) ||
-          (targetEmail.length > 3 && q.includes(targetEmail)) ||
-          (targetName.length > 2 && q.includes(targetName)) ||
-          (actorEmail.length > 3 && q.includes(actorEmail)) ||
-          (actorName.length > 2 && q.includes(actorName));
+          actorName.includes(kw) ||
+          actorEmail.includes(kw) ||
+          action.includes(kw) ||
+          id.includes(kw) ||
+          targetName.includes(kw) ||
+          targetEmail.includes(kw) ||
+          orderCode.includes(kw);
 
         if (!match) return false;
       }
 
-      // 3. Date filter
+      // 2. Action filter
+      if (selectedAction !== 'ALL') {
+        const act = (item.action || '').toUpperCase();
+        const res = (item.resource || '').toUpperCase();
+
+        if (selectedAction === 'PROVISION' && !['PROVISION', 'INVITE', 'CREATE'].includes(act)) return false;
+        if (selectedAction === 'ROLE_CHANGE' && act !== 'ROLE_CHANGE') return false;
+        if (selectedAction === 'PERMISSION_CHANGE' && act !== 'PERMISSION_CHANGE') return false;
+        if (selectedAction === 'PASSWORD_RESET' && !['PIN_CHANGE', 'PASSWORD_RESET'].includes(act) && !item.stateAfter?.passwordReset) return false;
+        if (selectedAction === 'STATUS_CHANGE' && !['SUSPEND', 'ACTIVATE', 'STATUS_CHANGE'].includes(act)) return false;
+        if (selectedAction === 'ORDER_PROCESS' && res !== 'ORDER' && !['CONFIRM', 'PREPARE', 'SHIP'].includes(act)) return false;
+        if (selectedAction === 'DELETE' && act !== 'DELETE') return false;
+      }
+
+      // 3. Staff filter
+      if (selectedStaff !== 'ALL') {
+        const isActor = item.actorId === selectedStaff;
+        const isTarget = item.stateAfter?.userId === selectedStaff || item.stateAfter?.id === selectedStaff || item.metadata?.staffId === selectedStaff;
+        if (!isActor && !isTarget) return false;
+      }
+
+      // 4. Date filter
       if (dateFilter !== 'ALL') {
         const itemDate = new Date(item.timestamp);
         const now = new Date();
-
-        if (isNaN(itemDate.getTime())) {
-          return true;
-        }
 
         if (dateFilter === 'TODAY') {
           const isToday =
@@ -671,81 +677,336 @@ export default function AuditHistoryTimeline({
           if (!isToday) return false;
         } else if (dateFilter === '7DAYS') {
           const diffDays = (now.getTime() - itemDate.getTime()) / (1000 * 3600 * 24);
-          if (diffDays > 7 || diffDays < 0) return false;
+          if (diffDays > 7) return false;
         } else if (dateFilter === '30DAYS') {
           const diffDays = (now.getTime() - itemDate.getTime()) / (1000 * 3600 * 24);
-          if (diffDays > 30 || diffDays < 0) return false;
+          if (diffDays > 30) return false;
         } else if (dateFilter === 'CUSTOM') {
-          if (startDate) {
-            const start = new Date(startDate);
-            start.setHours(0, 0, 0, 0);
-            if (itemDate < start) return false;
-          }
+          if (startDate && new Date(startDate) > itemDate) return false;
           if (endDate) {
             const end = new Date(endDate);
             end.setHours(23, 59, 59, 999);
-            if (itemDate > end) return false;
+            if (end < itemDate) return false;
           }
-        }
-      }
-
-      // 4. Search query
-      if (searchKeyword.trim()) {
-        const q = searchKeyword.toLowerCase().trim();
-        const actor = resolveActorInfo(item, currentUser, staffList);
-
-        const matchActorName = actor.displayName.toLowerCase().includes(q);
-        const matchActorEmail = (actor.displayEmail || '').toLowerCase().includes(q);
-        const matchActorId = (item.actorId || '').toLowerCase().includes(q);
-        const matchResourceId = (item.resourceId || '').toLowerCase().includes(q);
-        const matchStaffName = (item.metadata?.staffName || item.stateAfter?.fullName || item.stateBefore?.fullName || '').toLowerCase().includes(q);
-        const matchStaffEmail = (item.metadata?.staffEmail || item.stateAfter?.email || item.stateBefore?.email || '').toLowerCase().includes(q);
-        const matchDescription = (item.description || '').toLowerCase().includes(q);
-        const matchAction = (item.action || '').toLowerCase().includes(q);
-        const matchStoreId = (item.storeId || '').toLowerCase().includes(q);
-
-        if (
-          !matchActorName &&
-          !matchActorEmail &&
-          !matchActorId &&
-          !matchResourceId &&
-          !matchStaffName &&
-          !matchStaffEmail &&
-          !matchDescription &&
-          !matchAction &&
-          !matchStoreId
-        ) {
-          return false;
         }
       }
 
       return true;
     });
-  }, [items, selectedAction, selectedStaff, dateFilter, startDate, endDate, searchKeyword, currentUser]);
+  }, [items, searchKeyword, selectedAction, selectedStaff, dateFilter, startDate, endDate]);
 
-  const hasActiveFilters =
-    selectedAction !== 'ALL' ||
-    selectedStaff !== 'ALL' ||
-    dateFilter !== 'ALL' ||
-    Boolean(searchKeyword.trim()) ||
-    Boolean(startDate) ||
-    Boolean(endDate);
+  const totalPages = Math.ceil(filteredItems.length / pageSize) || 1;
 
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
+    setSearchKeyword('');
     setSelectedAction('ALL');
     setSelectedStaff('ALL');
     setDateFilter('ALL');
     setStartDate('');
     setEndDate('');
-    setSearchKeyword('');
     setCurrentPage(1);
-  };
+  }, []);
 
-  const totalPages = Math.ceil(filteredItems.length / pageSize) || 1;
-  const paginatedItems = filteredItems.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const hasActiveFilters =
+    searchKeyword.trim() !== '' ||
+    selectedAction !== 'ALL' ||
+    selectedStaff !== 'ALL' ||
+    dateFilter !== 'ALL';
+
+  // Define Table Columns (Removed IP & technical trace hash column completely)
+  const columns: Column<AuditLogItem>[] = useMemo(() => [
+    {
+      key: 'timestamp',
+      title: 'Thời gian',
+      width: '150px',
+      render: (_, item) => (
+        <div className="flex flex-col">
+          <span className="font-semibold text-xs text-slate-800">
+            {formatAuditDateOnly(item.timestamp)}
+          </span>
+          <span className="font-mono text-[11px] text-slate-400">
+            {formatAuditTimeOnly(item.timestamp)}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'actor',
+      title: 'Người thực hiện',
+      width: '230px',
+      render: (_, item) => {
+        const actor = resolveActorInfo(item, currentUser, staffList);
+        return (
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 font-bold text-slate-700 text-xs">
+              {actor.displayName.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1">
+                <span className="font-semibold text-slate-900 truncate max-w-[130px] text-xs">
+                  {actor.displayName}
+                </span>
+                {actor.isSelf && (
+                  <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-slate-100 text-slate-600 shrink-0">
+                    Bạn
+                  </span>
+                )}
+              </div>
+              <div className="text-[11px] text-slate-400 truncate">
+                {actor.displayRole}
+              </div>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'action',
+      title: 'Tác vụ & Sự kiện',
+      render: (_, item) => {
+        const actor = resolveActorInfo(item, currentUser, staffList);
+        const { badge, sentence } = renderActionSummary(item, actor);
+        return (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              {badge}
+            </div>
+            <div className="text-xs text-slate-700 leading-relaxed">
+              {sentence}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'resource',
+      title: 'Đối tượng',
+      width: '200px',
+      render: (_, item) => {
+        const { targetLabel, targetSub } = resolveTargetInfo(item);
+        return (
+          <div className="min-w-0">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/80">
+              {targetLabel}
+            </span>
+            {targetSub && (
+              <div className="text-[10.5px] text-slate-400 mt-0.5 truncate max-w-[180px]">
+                {targetSub}
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+  ], [currentUser, staffList]);
+
+  // Render Detailed Content when row expands via arrow button (Clean & 100% Seller friendly)
+  const renderExpandedDetail = useCallback((item: AuditLogItem) => {
+    const action = (item.action || '').toUpperCase();
+    const resource = (item.resource || '').toUpperCase();
+    const isMemberResource = resource === 'MEMBER' || resource === 'STAFF' || resource === 'INVITATION';
+    const isOrderResource = resource === 'ORDER' || item.resource === 'Order';
+
+    const friendly = getFriendlyActionTitle(item);
+    const actor = resolveActorInfo(item, currentUser, staffList);
+
+    const roleAfter = item.stateAfter?.role ? (ROLE_LABEL_MAP[item.stateAfter.role] || item.stateAfter.role) : '';
+    const roleBefore = item.stateBefore?.role ? (ROLE_LABEL_MAP[item.stateBefore.role] || item.stateBefore.role) : '';
+
+    const permsAfter: string[] = Array.isArray(item.stateAfter?.permissions) ? item.stateAfter.permissions : [];
+    const permsBefore: string[] = Array.isArray(item.stateBefore?.permissions) ? item.stateBefore.permissions : [];
+
+    const addedPerms = permsAfter.filter((p) => !permsBefore.includes(p));
+    const removedPerms = permsBefore.filter((p) => !permsAfter.includes(p));
+
+    return (
+      <div className="space-y-3.5">
+        {/* Header Summary */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-2.5 border-b border-slate-100">
+          <div>
+            <h4 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-blue-600 text-[17px]">info</span>
+              <span>{friendly.title}</span>
+            </h4>
+            {friendly.subtitle && (
+              <p className="text-[11.5px] text-slate-500 mt-0.5">{friendly.subtitle}</p>
+            )}
+          </div>
+          <div className="text-xs text-slate-400">
+            <span>Thời gian: <strong className="font-medium text-slate-600">{formatAuditTime(item.timestamp)}</strong></span>
+          </div>
+        </div>
+
+        {/* Business Change Details */}
+        {isMemberResource && (
+          <div className="space-y-3">
+            {/* If Provision / Create */}
+            {(action === 'INVITE' || action === 'PROVISION' || action === 'CREATE') && (
+              <div className="bg-slate-50/70 rounded-xl p-3.5 border border-slate-200/60 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Họ và tên nhân sự:</span>
+                    <span className="font-semibold text-slate-900 text-xs">
+                      {item.stateAfter?.fullName || item.metadata?.staffName || '(Trống)'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Email đăng nhập:</span>
+                    <span className="font-medium text-slate-800 text-xs">
+                      {item.stateAfter?.email || item.metadata?.staffEmail || '(Trống)'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Vai trò chức danh:</span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                      {roleAfter || 'Nhân sự vận hành'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Trạng thái tài khoản:</span>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Đang hoạt động
+                    </span>
+                  </div>
+                </div>
+
+                {/* Permissions Breakdown */}
+                {permsAfter.length > 0 && (
+                  <div className="pt-2 border-t border-slate-200/60">
+                    <div className="text-[11.5px] font-bold text-slate-700 mb-2">
+                      Danh sách quyền hạn được cấp ({permsAfter.length} chức năng):
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {permsAfter.map((perm) => (
+                        <div
+                          key={perm}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/80 text-xs text-slate-700 shadow-2xs"
+                        >
+                          <span className="material-symbols-outlined text-emerald-600 text-[15px] shrink-0 font-bold">
+                            check_circle
+                          </span>
+                          <span className="truncate">{PERMISSION_LABEL_MAP[perm] || perm}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* If Role change */}
+            {action === 'ROLE_CHANGE' && (
+              <div className="flex items-center gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200/60">
+                <span className="text-slate-500">Vai trò chức danh:</span>
+                {roleBefore && <span className="line-through text-slate-400">{roleBefore}</span>}
+                {roleBefore && <span className="text-slate-400">&rarr;</span>}
+                <span className="font-bold text-slate-900 bg-white px-2.5 py-1 rounded border border-slate-200">
+                  {roleAfter}
+                </span>
+              </div>
+            )}
+
+            {/* If Permission change */}
+            {action === 'PERMISSION_CHANGE' && (
+              <div className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200/60 text-xs">
+                {addedPerms.length > 0 && (
+                  <div>
+                    <span className="text-emerald-700 font-bold block mb-1.5">+ Quyền được bổ sung ({addedPerms.length}):</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {addedPerms.map((p) => (
+                        <span
+                          key={p}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium text-[11px]"
+                        >
+                          <span>+</span>
+                          <span>{PERMISSION_LABEL_MAP[p] || p}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {removedPerms.length > 0 && (
+                  <div>
+                    <span className="text-rose-700 font-bold block mb-1.5">- Quyền bị thu hồi ({removedPerms.length}):</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {removedPerms.map((p) => (
+                        <span
+                          key={p}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-200 line-through font-medium text-[11px]"
+                        >
+                          <span>-</span>
+                          <span>{PERMISSION_LABEL_MAP[p] || p}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* If Order Resource */}
+        {isOrderResource && (
+          <div className="bg-slate-50/70 rounded-xl p-3.5 border border-slate-200/60 space-y-2.5 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div>
+                <span className="text-slate-400 block text-[11px]">Mã đơn hàng:</span>
+                <span className="font-mono font-bold text-slate-900 text-xs">
+                  #{item.metadata?.orderCode || item.resourceId}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[11px]">Trạng thái đơn hàng:</span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  {item.stateBefore?.status && (
+                    <>
+                      <span className="text-slate-400 line-through text-[11px]">{item.stateBefore.status}</span>
+                      <span className="text-slate-400">&rarr;</span>
+                    </>
+                  )}
+                  <span className="font-bold text-blue-700 text-xs">{item.stateAfter?.status || action}</span>
+                </div>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[11px]">Nhân viên xử lý:</span>
+                <span className="font-semibold text-slate-900 text-xs">
+                  {actor.displayName} ({actor.displayRole})
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Generic diff if neither member nor order */}
+        {!isMemberResource && !isOrderResource && (item.stateBefore || item.stateAfter) && (
+          <div className="bg-slate-50/70 rounded-xl p-3 border border-slate-200/60 text-xs space-y-1">
+            <div className="text-[11px] font-bold text-slate-500 mb-1">Chi tiết các trường thay đổi:</div>
+            {Object.keys(item.stateAfter || {}).filter(k => !TECHNICAL_KEYS.has(k)).map(k => (
+              <div key={k} className="flex items-center gap-1.5 text-xs">
+                <span className="text-slate-500 font-medium">• {FIELD_LABEL_MAP[k] || k}:</span>
+                {item.stateBefore?.[k] !== undefined && (
+                  <span className="line-through text-slate-400 mr-1">{String(item.stateBefore[k])} &rarr;</span>
+                )}
+                <span className="font-semibold text-slate-900">{String(item.stateAfter?.[k] ?? '')}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Note / Description if present */}
+        {item.description && (
+          <div className="text-xs text-slate-500 italic pt-1">
+            Ghi chú: {item.description}
+          </div>
+        )}
+      </div>
+    );
+  }, [currentUser, staffList]);
 
   return (
-    <div className={`w-full bg-theme-surface rounded-xl border border-theme-border shadow-2xs overflow-hidden ${className}`}>
+    <div className={`w-full rounded-2xl border border-theme-border bg-theme-surface shadow-2xs overflow-hidden ${className}`}>
       {/* Header */}
       <div className="px-4 py-3.5 sm:px-5 border-b border-theme-border bg-theme-surface-subtle/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
@@ -779,14 +1040,20 @@ export default function AuditHistoryTimeline({
               <input
                 type="text"
                 value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.target.value)}
+                onChange={(e) => {
+                  setSearchKeyword(e.target.value);
+                  setCurrentPage(1);
+                }}
                 placeholder="Tìm kiếm theo người thực hiện, nhân sự, tác vụ, ID..."
-                className="w-full pl-9 pr-8 py-2 text-xs bg-white rounded-lg border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all"
+                className="w-full pl-9 pr-8 py-2 text-xs bg-white rounded-lg border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all shadow-2xs"
               />
               {searchKeyword && (
                 <button
                   type="button"
-                  onClick={() => setSearchKeyword('')}
+                  onClick={() => {
+                    setSearchKeyword('');
+                    setCurrentPage(1);
+                  }}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[15px]">close</span>
@@ -813,7 +1080,7 @@ export default function AuditHistoryTimeline({
               </select>
             </div>
 
-            {/* Staff Member Dropdown Filter (New!) */}
+            {/* Staff Member Dropdown Filter */}
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Nhân sự:</span>
               <select
@@ -864,21 +1131,27 @@ export default function AuditHistoryTimeline({
             </div>
           </div>
 
-          {/* Custom Date Range Picker (shown when CUSTOM is selected) */}
+          {/* Custom Date Range Picker */}
           {dateFilter === 'CUSTOM' && (
             <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200/60 animate-in fade-in duration-150">
               <span className="text-[11px] font-bold text-slate-600">Từ ngày:</span>
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="px-2.5 py-1 text-xs bg-white rounded-lg border border-slate-200 text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-900"
               />
               <span className="text-[11px] font-bold text-slate-600">Đến ngày:</span>
               <input
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="px-2.5 py-1 text-xs bg-white rounded-lg border border-slate-200 text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-900"
               />
             </div>
@@ -894,7 +1167,10 @@ export default function AuditHistoryTimeline({
                     Tác vụ: {featureCategories.find((c) => c.id === selectedAction)?.label || selectedAction}
                     <button
                       type="button"
-                      onClick={() => setSelectedAction('ALL')}
+                      onClick={() => {
+                        setSelectedAction('ALL');
+                        setCurrentPage(1);
+                      }}
                       className="hover:text-blue-900 cursor-pointer"
                     >
                       &times;
@@ -906,7 +1182,10 @@ export default function AuditHistoryTimeline({
                     Nhân sự: {staffOptions.find((s) => s.key === selectedStaff)?.label || selectedStaff}
                     <button
                       type="button"
-                      onClick={() => setSelectedStaff('ALL')}
+                      onClick={() => {
+                        setSelectedStaff('ALL');
+                        setCurrentPage(1);
+                      }}
                       className="hover:text-purple-900 cursor-pointer"
                     >
                       &times;
@@ -922,6 +1201,7 @@ export default function AuditHistoryTimeline({
                         setDateFilter('ALL');
                         setStartDate('');
                         setEndDate('');
+                        setCurrentPage(1);
                       }}
                       className="hover:text-emerald-900 cursor-pointer"
                     >
@@ -934,7 +1214,10 @@ export default function AuditHistoryTimeline({
                     Từ khóa: &quot;{searchKeyword}&quot;
                     <button
                       type="button"
-                      onClick={() => setSearchKeyword('')}
+                      onClick={() => {
+                        setSearchKeyword('');
+                        setCurrentPage(1);
+                      }}
                       className="hover:text-amber-900 cursor-pointer"
                     >
                       &times;
@@ -957,7 +1240,7 @@ export default function AuditHistoryTimeline({
       )}
 
       {/* Body State handling */}
-      <div className="p-4 sm:p-6">
+      <div className="p-4 sm:p-5">
         {loading ? (
           <div className="py-12 flex flex-col items-center justify-center gap-2 text-theme-text-muted">
             <span className="w-6 h-6 border-2 border-theme-secondary border-t-transparent rounded-full animate-spin" />
@@ -1007,412 +1290,25 @@ export default function AuditHistoryTimeline({
             </button>
           </div>
         ) : (
-          /* Activity Stream Feed */
-          <div className="space-y-4">
-            <div className="divide-y divide-slate-100 bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-2xs">
-              {paginatedItems.map((item, idx) => {
-                const itemKey = item.id || String(idx);
-                const isDiffOpen = Boolean(expandedDiffs[itemKey]);
-                const showTech = Boolean(showTechDetails[itemKey]);
-                const actor = resolveActorInfo(item, currentUser, staffList);
-                const action = (item.action || '').toUpperCase();
-                const resource = (item.resource || '').toUpperCase();
-                const isMemberResource = resource === 'MEMBER' || resource === 'STAFF' || resource === 'INVITATION';
-
-                const targetName =
-                  item.metadata?.staffName ||
-                  item.stateAfter?.fullName ||
-                  item.stateBefore?.fullName ||
-                  '';
-                const targetEmail =
-                  item.metadata?.staffEmail ||
-                  item.stateAfter?.email ||
-                  item.stateBefore?.email ||
-                  '';
-
-                const roleAfter = item.stateAfter?.role ? (ROLE_LABEL_MAP[item.stateAfter.role] || item.stateAfter.role) : '';
-                const roleBefore = item.stateBefore?.role ? (ROLE_LABEL_MAP[item.stateBefore.role] || item.stateBefore.role) : '';
-
-                const permsAfter: string[] = Array.isArray(item.stateAfter?.permissions) ? item.stateAfter.permissions : [];
-                const permsBefore: string[] = Array.isArray(item.stateBefore?.permissions) ? item.stateBefore.permissions : [];
-
-                const addedPerms = permsAfter.filter((p) => !permsBefore.includes(p));
-                const removedPerms = permsBefore.filter((p) => !permsAfter.includes(p));
-
-                // Determine icon & clean styling
-                let iconName = 'history';
-                let iconBg = 'bg-slate-100 text-slate-700';
-                if (action === 'INVITE' || action === 'PROVISION' || action === 'CREATE') {
-                  iconName = 'person_add';
-                  iconBg = 'bg-emerald-50 text-emerald-700 border border-emerald-200/80';
-                } else if (action === 'CONFIRM') {
-                  iconName = 'check_circle';
-                  iconBg = 'bg-emerald-50 text-emerald-700 border border-emerald-200/80';
-                } else if (action === 'PREPARE') {
-                  iconName = 'inventory_2';
-                  iconBg = 'bg-blue-50 text-blue-700 border border-blue-200/80';
-                } else if (action === 'SHIP') {
-                  iconName = 'local_shipping';
-                  iconBg = 'bg-indigo-50 text-indigo-700 border border-indigo-200/80';
-                } else if (action === 'PERMISSION_CHANGE') {
-                  iconName = 'key';
-                  iconBg = 'bg-blue-50 text-blue-700 border border-blue-200/80';
-                } else if (action === 'ROLE_CHANGE') {
-                  iconName = 'badge';
-                  iconBg = 'bg-indigo-50 text-indigo-700 border border-indigo-200/80';
-                } else if (action === 'DELETE') {
-                  iconName = 'person_remove';
-                  iconBg = 'bg-rose-50 text-rose-700 border border-rose-200/80';
-                } else if (item.stateAfter?.status === 'SUSPENDED') {
-                  iconName = 'lock';
-                  iconBg = 'bg-amber-50 text-amber-700 border border-amber-200/80';
-                } else if (item.stateAfter?.status === 'ACTIVE') {
-                  iconName = 'lock_open';
-                  iconBg = 'bg-emerald-50 text-emerald-700 border border-emerald-200/80';
-                }
-
-                // Construct natural human sentence
-                let sentence: React.ReactNode = null;
-                if (isMemberResource) {
-                  if (action === 'INVITE' || action === 'PROVISION' || action === 'CREATE') {
-                    sentence = (
-                      <span>
-                        đã cấp tài khoản mới cho{' '}
-                        <strong className="font-semibold text-slate-900">{targetName || 'nhân viên mới'}</strong>
-                        {targetEmail && <span className="text-slate-500 font-normal"> ({targetEmail})</span>}
-                      </span>
-                    );
-                  } else if (action === 'PERMISSION_CHANGE') {
-                    sentence = (
-                      <span>
-                        đã cập nhật quyền hạn cho{' '}
-                        <strong className="font-semibold text-slate-900">{targetName || 'nhân sự'}</strong>
-                      </span>
-                    );
-                  } else if (action === 'ROLE_CHANGE') {
-                    sentence = (
-                      <span>
-                        đã thay đổi vai trò của{' '}
-                        <strong className="font-semibold text-slate-900">{targetName || 'nhân sự'}</strong>
-                      </span>
-                    );
-                  } else if (action === 'DELETE') {
-                    sentence = (
-                      <span>
-                        đã xóa tài khoản nhân viên{' '}
-                        <strong className="font-semibold text-slate-900">{targetName || 'nhân sự'}</strong>
-                      </span>
-                    );
-                  } else if (action === 'PIN_CHANGE' || action === 'PASSWORD_RESET' || item.stateAfter?.passwordReset || item.stateAfter?.passwordUpdated) {
-                    sentence = (
-                      <span>
-                        đã đặt lại mật khẩu cho{' '}
-                        <strong className="font-semibold text-slate-900">{targetName || 'nhân sự'}</strong>
-                        {targetEmail && <span className="text-slate-500 font-normal"> ({targetEmail})</span>}
-                      </span>
-                    );
-                  } else if (item.stateAfter?.status === 'SUSPENDED') {
-                    sentence = (
-                      <span>
-                        đã tạm khóa tài khoản của{' '}
-                        <strong className="font-semibold text-slate-900">{targetName || 'nhân sự'}</strong>
-                      </span>
-                    );
-                  } else if (item.stateAfter?.status === 'ACTIVE') {
-                    sentence = (
-                      <span>
-                        đã mở khóa tài khoản cho{' '}
-                        <strong className="font-semibold text-slate-900">{targetName || 'nhân sự'}</strong>
-                      </span>
-                    );
-                  } else {
-                    sentence = (
-                      <span>
-                        đã cập nhật thông tin của{' '}
-                        <strong className="font-semibold text-slate-900">{targetName || 'nhân sự'}</strong>
-                      </span>
-                    );
-                  }
-                } else if (resource === 'ORDER' || item.resource === 'Order') {
-                  const orderCode = item.metadata?.orderCode || item.resourceId?.slice(0, 8);
-                  if (action === 'CONFIRM' || action === 'ORDER_CONFIRM') {
-                    iconName = 'check_circle';
-                    iconBg = 'bg-emerald-50 text-emerald-700 border border-emerald-200/80';
-                    sentence = (
-                      <span>
-                        đã <strong className="font-semibold text-emerald-700">xác nhận đơn hàng</strong>{' '}
-                        <span className="font-mono font-bold text-slate-900 text-xs">#{orderCode}</span>
-                      </span>
-                    );
-                  } else if (action === 'PREPARE' || action === 'ORDER_PREPARE') {
-                    iconName = 'inventory_2';
-                    iconBg = 'bg-blue-50 text-blue-700 border border-blue-200/80';
-                    sentence = (
-                      <span>
-                        đã chuyển đơn hàng sang trạng thái <strong className="font-semibold text-blue-700">chuẩn bị đóng gói</strong>{' '}
-                        <span className="font-mono font-bold text-slate-900 text-xs">#{orderCode}</span>
-                      </span>
-                    );
-                  } else if (action === 'SHIP') {
-                    iconName = 'local_shipping';
-                    iconBg = 'bg-indigo-50 text-indigo-700 border border-indigo-200/80';
-                    sentence = (
-                      <span>
-                        đã bàn giao đơn hàng cho <strong className="font-semibold text-indigo-700">đơn vị vận chuyển</strong>{' '}
-                        <span className="font-mono font-bold text-slate-900 text-xs">#{orderCode}</span>
-                      </span>
-                    );
-                  } else if (action === 'CANCEL') {
-                    iconName = 'cancel';
-                    iconBg = 'bg-rose-50 text-rose-700 border border-rose-200/80';
-                    sentence = (
-                      <span>
-                        đã <strong className="font-semibold text-rose-700">hủy đơn hàng</strong>{' '}
-                        <span className="font-mono font-bold text-slate-900 text-xs">#{orderCode}</span>
-                      </span>
-                    );
-                  } else {
-                    sentence = (
-                      <span>
-                        đã cập nhật trạng thái đơn hàng{' '}
-                        <span className="font-mono font-bold text-slate-900 text-xs">#{orderCode}</span>
-                      </span>
-                    );
-                  }
-                } else {
-                  const resName = item.resource === 'Product' ? 'sản phẩm' : item.resource === 'Order' ? 'đơn hàng' : item.resource;
-                  sentence = (
-                    <span>
-                      đã thực hiện thao tác trên {resName}{' '}
-                      <span className="font-mono text-slate-500 text-xs">#{item.resourceId?.slice(0, 8)}</span>
-                    </span>
-                  );
-                }
-
-                return (
-                  <div key={itemKey} className="flex gap-3.5 items-start py-3.5 first:pt-0 last:pb-0">
-                    {/* Icon */}
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
-                      <span className="material-symbols-outlined text-[17px]">{iconName}</span>
-                    </div>
-
-                    {/* Main content */}
-                    <div className="grow min-w-0">
-                      {/* Top: Sentence + Time */}
-                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                        <div className="text-[13px] text-slate-700 leading-relaxed">
-                          <span className="font-semibold text-slate-900">{actor.displayName}</span>
-                          {actor.isSelf && (
-                            <span className="ml-1 px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
-                              Bạn
-                            </span>
-                          )}
-                          <span className="text-slate-400 font-normal"> ({actor.displayRole})</span>
-                          {' '}
-                          {sentence}
-                        </div>
-                        <span className="text-[11px] text-slate-400 whitespace-nowrap shrink-0">
-                          {formatAuditTime(item.timestamp)}
-                        </span>
-                      </div>
-
-                      {/* Middle: Natural Action Details (clean inline metadata, no clunky tables) */}
-                      {isMemberResource && (
-                        <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                          {/* If Provision / Create */}
-                          {(action === 'INVITE' || action === 'PROVISION' || action === 'CREATE') && (
-                            <>
-                              {roleAfter && (
-                                <div className="flex items-center gap-1">
-                                  <span className="text-slate-400 text-[11px]">Vai trò:</span>
-                                  <span className="font-medium text-slate-800 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
-                                    {roleAfter}
-                                  </span>
-                                </div>
-                              )}
-                              <div className="flex items-center gap-1">
-                                <span className="text-slate-400 text-[11px]">Trạng thái:</span>
-                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                  Đang hoạt động
-                                </span>
-                              </div>
-                              {permsAfter.length > 0 && (
-                                <div className="flex items-center gap-1 text-[11px]">
-                                  <span className="text-slate-400">Quyền hạn:</span>
-                                  <span className="font-medium text-slate-700">{permsAfter.length} quyền</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleDiff(itemKey)}
-                                    className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer ml-1"
-                                  >
-                                    {isDiffOpen ? 'Thu gọn' : 'Xem chi tiết'}
-                                  </button>
-                                </div>
-                              )}
-                            </>
-                          )}
-
-                          {/* If Role change */}
-                          {action === 'ROLE_CHANGE' && roleAfter && (
-                            <div className="flex items-center gap-1.5 text-xs">
-                              <span className="text-slate-400 text-[11px]">Vai trò:</span>
-                              {roleBefore && <span className="line-through text-slate-400 text-[11px]">{roleBefore}</span>}
-                              {roleBefore && <span className="text-slate-400">&rarr;</span>}
-                              <span className="font-semibold text-slate-900 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
-                                {roleAfter}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* If Permission change */}
-                          {action === 'PERMISSION_CHANGE' && (
-                            <div className="w-full mt-1 space-y-1">
-                              {addedPerms.length > 0 && (
-                                <div className="flex items-start gap-1.5 text-xs">
-                                  <span className="text-emerald-700 font-medium text-[11px] shrink-0">+ Thêm quyền:</span>
-                                  <span className="text-slate-700 font-medium text-[11px]">
-                                    {addedPerms.map((p) => PERMISSION_LABEL_MAP[p] || p).join(', ')}
-                                  </span>
-                                </div>
-                              )}
-                              {removedPerms.length > 0 && (
-                                <div className="flex items-start gap-1.5 text-xs">
-                                  <span className="text-rose-600 font-medium text-[11px] shrink-0">- Thu hồi:</span>
-                                  <span className="text-slate-500 line-through text-[11px]">
-                                    {removedPerms.map((p) => PERMISSION_LABEL_MAP[p] || p).join(', ')}
-                                  </span>
-                                </div>
-                              )}
-                              {addedPerms.length === 0 && removedPerms.length === 0 && permsAfter.length > 0 && (
-                                <div className="flex items-center gap-1 text-[11px]">
-                                  <span className="text-slate-400">Tổng cộng:</span>
-                                  <span className="font-medium text-slate-700">{permsAfter.length} quyền</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleDiff(itemKey)}
-                                    className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer ml-1"
-                                  >
-                                    {isDiffOpen ? 'Thu gọn' : 'Xem chi tiết'}
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {/* If Password / PIN Reset */}
-                          {(action === 'PIN_CHANGE' || action === 'PASSWORD_RESET' || item.stateAfter?.passwordReset || item.stateAfter?.passwordUpdated) && (
-                            <div className="flex items-center gap-1.5 text-xs text-amber-800 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200/80">
-                              <span className="material-symbols-outlined text-[14px] text-amber-600">lock_reset</span>
-                              <span>Đã cấp mật khẩu tạm mới &amp; yêu cầu đổi mật khẩu ở lần đăng nhập tiếp theo</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Collapsible Permissions list (clean & light, NOT giant neon pills) */}
-                      {isDiffOpen && permsAfter.length > 0 && (
-                        <div className="mt-2.5 p-2.5 rounded-lg bg-slate-50/80 border border-slate-200/60 text-xs animate-in fade-in duration-150">
-                          <div className="text-[11px] font-medium text-slate-500 mb-1.5">
-                            Danh sách quyền được cấp ({permsAfter.length}):
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {permsAfter.map((p: string) => (
-                              <span
-                                key={p}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white text-slate-700 border border-slate-200 text-[11px]"
-                              >
-                                <span className="text-emerald-600 font-bold">✓</span>
-                                <span>{PERMISSION_LABEL_MAP[p] || p}</span>
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Non-member generic diff if available */}
-                      {!isMemberResource && (item.stateBefore || item.stateAfter) && (
-                        <div className="mt-1.5 text-xs text-slate-600 space-y-0.5">
-                          {Object.keys(item.stateAfter || {}).filter(k => !TECHNICAL_KEYS.has(k)).map(k => (
-                            <div key={k} className="flex items-center gap-1 text-[11.5px]">
-                              <span className="text-slate-400">• {FIELD_LABEL_MAP[k] || k}:</span>
-                              {item.stateBefore?.[k] !== undefined && (
-                                <span className="line-through text-slate-400 mr-1">{String(item.stateBefore[k])} &rarr;</span>
-                              )}
-                              <span className="font-medium text-slate-800">{String(item.stateAfter?.[k] ?? '')}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Note / Description */}
-                      {item.description && (
-                        <p className="mt-1 text-xs text-slate-500 italic">{item.description}</p>
-                      )}
-
-                      {/* Footer: Traceable & Serious Governance Audit Trail */}
-                      <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
-                        <span className="font-mono text-[10.5px] text-slate-500">
-                          Mã đối soát: #{item.id ? (item.id.length > 18 ? item.id.slice(0, 16) : item.id) : itemKey}
-                        </span>
-                        <span>•</span>
-                        <span>Thiết bị: <strong className="font-mono text-slate-600">{item.ipAddress || '127.0.0.1'}</strong></span>
-                        {item.metadata?.pinVerified && (
-                          <>
-                            <span>•</span>
-                            <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-[10.5px]">
-                              <span className="material-symbols-outlined text-[13px]">verified</span>
-                              Đã xác thực mã PIN bảo mật
-                            </span>
-                          </>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => toggleTechDetails(itemKey)}
-                          className="hover:text-slate-700 cursor-pointer ml-auto text-[10.5px] text-slate-500 hover:underline flex items-center gap-1"
-                        >
-                          <span className="material-symbols-outlined text-[13px]">code</span>
-                          <span>{showTech ? 'Ẩn debug' : 'Dữ liệu kỹ thuật'}</span>
-                        </button>
-                      </div>
-
-                      {/* Raw Debug JSON (Only if user explicitly wants IT view) */}
-                      {showTech && (
-                        <pre className="mt-2 p-2.5 bg-slate-900 text-slate-100 rounded-lg text-[10px] font-mono overflow-x-auto max-h-40">
-                          {JSON.stringify(
-                            {
-                              id: item.id,
-                              action: item.action,
-                              resource: item.resource,
-                              resourceId: item.resourceId,
-                              storeId: item.storeId,
-                              actorId: item.actorId,
-                              before: item.stateBefore,
-                              after: item.stateAfter,
-                            },
-                            null,
-                            2
-                          )}
-                        </pre>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Standard Pagination Bar (Always visible when items exist) */}
-            {filteredItems.length > 0 && (
-              <StandardPaginationBar
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalItems={filteredItems.length}
-                pageSize={pageSize}
-                onPageChange={setCurrentPage}
-                itemLabel="nhật ký"
-                className="mt-2 rounded-xl border border-theme-border shadow-2xs"
-              />
-            )}
-          </div>
+          /* Rendered via GroupedDataTable: No checkboxes, No technical clutter */
+          <GroupedDataTable<AuditLogItem>
+            columns={columns}
+            data={filteredItems}
+            keyField="id"
+            expandable={true}
+            selectable={false}
+            pagination={{
+              currentPage,
+              totalPages,
+              totalItems: filteredItems.length,
+              pageSize,
+              onPageChange: setCurrentPage,
+              itemLabel: 'nhật ký',
+            }}
+            expandedRowRender={renderExpandedDetail}
+            emptyMessage="Không có dữ liệu nhật ký phù hợp"
+            containerClassName="border-0 shadow-none"
+          />
         )}
       </div>
     </div>

@@ -164,6 +164,54 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
     }
   }, []);
 
+  // Bulk mark multiple as read
+  const bulkMarkAsRead = useCallback(async (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    try {
+      const idSet = new Set(ids);
+      setNotifications((prev) =>
+        prev.map((n) => (idSet.has(n.id) ? { ...n, isRead: true } : n))
+      );
+      setUnreadCount((prev) => Math.max(0, prev - ids.length));
+      await Promise.allSettled(
+        ids.map((id) => apiClient(`/notifications/${id}/read`, { method: 'PATCH' }))
+      );
+      realtimeSyncBus.publish('NOTIFICATIONS_UPDATED');
+    } catch (err) {
+      console.error('Failed to bulk mark as read:', err);
+    }
+  }, []);
+
+  // Delete single notification
+  const deleteNotification = useCallback(async (id: string) => {
+    try {
+      await apiClient(`/notifications/${id}`, { method: 'DELETE' });
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      setTotalCount((prev) => Math.max(0, prev - 1));
+      realtimeSyncBus.publish('NOTIFICATIONS_UPDATED');
+      return true;
+    } catch (err) {
+      console.error('Failed to delete notification:', err);
+      return false;
+    }
+  }, []);
+
+  // Bulk delete multiple notifications
+  const bulkDelete = useCallback(async (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    try {
+      const idSet = new Set(ids);
+      setNotifications((prev) => prev.filter((n) => !idSet.has(n.id)));
+      setTotalCount((prev) => Math.max(0, prev - ids.length));
+      await Promise.allSettled(
+        ids.map((id) => apiClient(`/notifications/${id}`, { method: 'DELETE' }))
+      );
+      realtimeSyncBus.publish('NOTIFICATIONS_UPDATED');
+    } catch (err) {
+      console.error('Failed to bulk delete notifications:', err);
+    }
+  }, []);
+
   // Mark all as read
   const markAllAsRead = useCallback(async () => {
     try {
@@ -293,6 +341,9 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
     isLoadingMore,
     isConnected,
     markAsRead,
+    bulkMarkAsRead,
+    deleteNotification,
+    bulkDelete,
     markAllAsRead,
     loadMore,
     refresh: () => fetchNotifications(1, false, isReadFilter),
