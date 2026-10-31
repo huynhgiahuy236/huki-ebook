@@ -127,8 +127,53 @@ export class NotificationWatchdogService {
       const orderDate = new Date(order.createdAt);
       const diffHours = (Date.now() - orderDate.getTime()) / (1000 * 60 * 60);
 
-      // Trigger if pending > 24h
-      if (diffHours >= 24) {
+      // Trigger if pending >= 48h (Auto-Cancellation & Heavy Penalty per POL-07 & POL-16)
+      if (diffHours >= 48) {
+        const sellerCancelKey = `watchdog-order-sla-seller-48h-${order.orderId}-${hourBucket}`;
+        const sellerAlert = await this.delivery.deliver({
+          sourceKey: sellerCancelKey,
+          recipientId: order.storeId,
+          recipientType: "BUSINESS",
+          senderType: "SYSTEM",
+          senderName: "Hệ thống Bắt lỗi SLA",
+          category: "AUTO_WATCHDOG",
+          priority: "CRITICAL",
+          type: "WATCHDOG_ALERT",
+          title: `🚫 Tự động hủy đơn #${order.orderCode}: Quá hạn 48h`,
+          message: `Đơn hàng #${order.orderCode} đã bị hệ thống tự động hủy do người bán không xác nhận sau 48h. Gian hàng bị phạt +2 điểm Sao Quả Tạ (Tỷ lệ hủy đơn không hoàn tất NFR) theo POL-07 & POL-16.`,
+          actionUrl: `/seller/orders?tab=CANCELLED`,
+          payload: { orderId: order.orderId, orderCode: order.orderCode, diffHours, penaltyPoints: 2, violationType: "NON_FULFILLMENT" },
+        });
+
+        if (sellerAlert) {
+          count++;
+          details.push({
+            rule: "ORDER_AUTO_CANCEL_48H",
+            targetId: order.storeId,
+            recipientType: "BUSINESS",
+            priority: "CRITICAL",
+            title: `🚫 Tự động hủy đơn #${order.orderCode}`,
+          });
+        }
+
+        const adminCancelKey = `watchdog-order-sla-admin-48h-${order.orderId}-${hourBucket}`;
+        await this.delivery.deliver({
+          sourceKey: adminCancelKey,
+          recipientId: "admin_channel",
+          recipientType: "ADMIN",
+          senderType: "SYSTEM",
+          senderName: "Hệ thống Bắt lỗi SLA",
+          category: "AUTO_WATCHDOG",
+          priority: "HIGH",
+          type: "WATCHDOG_ALERT",
+          title: `[Tự Động Hủy Đơn] Hủy đơn #${order.orderCode} của gian hàng ${order.storeName || order.storeId}`,
+          message: `Hệ thống tự động hủy đơn #${order.orderCode} do quá 48h không xác nhận và hoàn tiền cho người mua (+2 điểm Sao Quả Tạ).`,
+          actionUrl: `/admin/penalty-arbitration?storeId=${order.storeId}`,
+          payload: { orderId: order.orderId, orderCode: order.orderCode, storeId: order.storeId, isSlaViolation: true, penaltyPoints: 2 },
+        });
+      }
+      // Trigger if pending >= 24h (Warning & 1 Penalty Point per POL-07 & POL-16)
+      else if (diffHours >= 24) {
         // Alert to Seller
         const sellerSourceKey = `watchdog-order-sla-seller-${order.orderId}-${hourBucket}`;
         const sellerAlert = await this.delivery.deliver({
@@ -140,10 +185,10 @@ export class NotificationWatchdogService {
           category: "AUTO_WATCHDOG",
           priority: "HIGH",
           type: "WATCHDOG_ALERT",
-          title: `⚠️ Cảnh báo SLA: Đơn hàng #${order.orderCode} quá 24h chưa xử lý`,
-          message: `Đơn hàng #${order.orderCode} được đặt từ ${orderDate.toLocaleString("vi-VN")} nhưng chưa được xác nhận/đóng gói. Vui lòng xử lý ngay để tránh bị phạt hủy đơn!`,
-          actionUrl: `/seller/orders`,
-          payload: { orderId: order.orderId, orderCode: order.orderCode, diffHours },
+          title: `⚠️ Cảnh báo Sao Quả Tạ: Đơn hàng #${order.orderCode} quá 24h chưa xử lý`,
+          message: `Gian hàng chưa xác nhận đơn #${order.orderCode} sau 24h kể từ khi thanh toán. Hệ thống đã tự động ghi nhận +1 điểm Sao Quả Tạ theo chính sách POL-07 & POL-16. Vui lòng xác nhận và đóng gói ngay để tránh bị hủy đơn tự động sau 48h!`,
+          actionUrl: `/seller/orders?tab=PENDING_CONFIRMATION&highlight=${order.orderCode}`,
+          payload: { orderId: order.orderId, orderCode: order.orderCode, diffHours, penaltyPoints: 1, violationType: "LATE_SHIPMENT" },
         });
 
         if (sellerAlert) {
@@ -157,7 +202,7 @@ export class NotificationWatchdogService {
           });
         }
 
-        // Alert to Admin
+        // Alert to Admin: Supervisory audit alert (No seller confirm action)
         const adminSourceKey = `watchdog-order-sla-admin-${order.orderId}-${hourBucket}`;
         const adminAlert = await this.delivery.deliver({
           sourceKey: adminSourceKey,
@@ -168,10 +213,10 @@ export class NotificationWatchdogService {
           category: "AUTO_WATCHDOG",
           priority: "NORMAL",
           type: "WATCHDOG_ALERT",
-          title: `📋 Giám sát SLA: Đơn hàng #${order.orderCode} chậm tiến độ`,
-          message: `Gian hàng ${order.storeName || order.storeId} chưa xử lý đơn #${order.orderCode} sau 24h.`,
-          actionUrl: `/admin/orders`,
-          payload: { orderId: order.orderId, orderCode: order.orderCode, storeId: order.storeId },
+          title: `[Giám sát SLA] Gian hàng ${order.storeName || order.storeId} trễ hạn đơn #${order.orderCode} (> 24h)`,
+          message: `Gian hàng ${order.storeName || order.storeId} chưa xử lý đơn #${order.orderCode} sau 24h. Hệ thống đã tự động ghi nhận +1 điểm Sao Quả Tạ.`,
+          actionUrl: `/admin/penalty-arbitration?storeId=${order.storeId}`,
+          payload: { orderId: order.orderId, orderCode: order.orderCode, storeId: order.storeId, isSlaViolation: true, penaltyPoints: 1 },
         });
 
         if (adminAlert) count++;

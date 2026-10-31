@@ -539,12 +539,14 @@ class SellerPenaltyService {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.profiles));
     } catch {}
 
-    // Persist to server
-    fetch('/api/seller/penalties', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profiles: this.profiles }),
-    }).catch((err) => console.warn('Could not persist penalties to server:', err));
+    // Persist to server if running in real browser with origin
+    if (typeof window !== 'undefined' && window.location?.origin && window.location.origin.startsWith('http')) {
+      fetch('/api/seller/penalties', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profiles: this.profiles }),
+      }).catch(() => {});
+    }
   }
 
   /**

@@ -120,6 +120,8 @@ export default function UniversalNotificationBell({
   const [processedOrderIds, setProcessedOrderIds] = useState<Set<string>>(new Set());
 
   const isSeller = variant === 'seller';
+  const isAdmin = variant === 'admin';
+  const isShipper = variant === 'shipper';
 
   // Cache thông tin đơn hàng đầy đủ từ backend
   const [orderCache, setOrderCache] = useState<Map<string, SellerOrder>>(new Map());
@@ -200,11 +202,11 @@ export default function UniversalNotificationBell({
   // 1. PHÂN QUYỀN CHUẨN CHỈNH
   // -------------------------------------------------------------------------
   const canConfirmOrders = useMemo(() => {
+    // Chỉ có người bán (BUSINESS) hoặc nhân viên có quyền ORDER_PROCESS mới được xác nhận đơn của shop
+    // Quản trị viên sàn giám sát tuân thủ, tuyệt đối không xác nhận hay đóng gói đơn thay cho người bán
     if (!isSeller) return false;
     if (!user) return false;
-    // Chủ gian hàng (BUSINESS) hoặc Quản trị viên sàn (PLATFORM_ADMIN) có toàn quyền
-    if (user.role === 'PLATFORM_ADMIN' || user.role === 'BUSINESS') return true;
-    // Nhân viên cần quyền ORDER_PROCESS
+    if (user.role === 'BUSINESS') return true;
     return can('ORDER_PROCESS') || hasPermission('ORDER_PROCESS');
   }, [isSeller, user, can, hasPermission]);
 
@@ -375,6 +377,60 @@ export default function UniversalNotificationBell({
           n.message?.match(/(ORD-[A-Za-z0-9-]+)/i)?.[1] ||
           '';
         const cleanCode = rawCode ? String(rawCode).replace(/-S\d+$/, '') : '';
+
+        // ĐỐI VỚI ADMIN: Admin là ban quản trị sàn, không phải seller lên đơn.
+        // Tuyệt đối không hiển thị "Chờ xác nhận", không hiển thị "Xác nhận đơn ngay"
+        if (isAdmin) {
+          const isSlaAlert =
+            n.type === 'WATCHDOG_ALERT' ||
+            n.category === 'AUTO_WATCHDOG' ||
+            lowerTitle.includes('sla') ||
+            lowerMsg.includes('sau 24h') ||
+            lowerMsg.includes('chưa xử lý đơn') ||
+            lowerMsg.includes('chậm tiến độ') ||
+            Boolean(payload.isSlaViolation);
+
+          const targetStoreId = payload.storeId || '';
+
+          if (isSlaAlert) {
+            list.push({
+              id: n.id,
+              notifId: n.id,
+              category: 'SYSTEM',
+              title: n.title?.includes('[Giám sát SLA]')
+                ? n.title
+                : `[Giám sát SLA] Đơn trễ hạn > 24h (${cleanCode ? '#' + cleanCode : 'Cảnh báo vi phạm'})`,
+              message: n.message,
+              content: n.message,
+              createdAt: n.createdAt,
+              isRead: n.isRead,
+              actionUrl: targetStoreId
+                ? `/admin/penalty-arbitration?storeId=${encodeURIComponent(targetStoreId)}`
+                : '/admin/penalty-arbitration',
+              actionLabel: 'Xem Trọng Tài Sao Quả Tạ',
+              authorName: 'Giám Sát SLA Sàn',
+              severity: 'WARNING',
+            });
+            return;
+          }
+
+          // Thông báo đơn hàng chung trên sàn cho Admin: xem tổng quan, không lên đơn
+          list.push({
+            id: n.id,
+            notifId: n.id,
+            category: 'SYSTEM',
+            title: n.title || 'Cập nhật đơn hàng trên sàn',
+            message: n.message,
+            content: n.message,
+            createdAt: n.createdAt,
+            isRead: n.isRead,
+            actionUrl: '/admin/orders',
+            actionLabel: 'Xem đơn hàng sàn',
+          });
+          return;
+        }
+
+        // ĐỐI VỚI SELLER: Đưa vào danh sách xử lý đơn hàng
         if (cleanCode) seenOrderCodes.add(cleanCode);
 
         // Tra cứu trong cache đơn hàng thật (tìm chính xác, tìm theo rawCode, và tìm gần đúng)
@@ -560,8 +616,9 @@ export default function UniversalNotificationBell({
       });
     });
 
-    // 2. Bổ sung các đơn hàng Chờ xác nhận trong orderCache nếu chưa có thông báo tương ứng
-    orderCache.forEach((order) => {
+    // 2. Bổ sung các đơn hàng Chờ xác nhận trong orderCache nếu chưa có thông báo tương ứng (Chỉ dành cho SELLER)
+    if (isSeller) {
+      orderCache.forEach((order) => {
       if (order.status !== 'PENDING_CONFIRMATION') return;
       const cleanCode = order.code.replace(/-S\d+$/, '');
       if (seenOrderCodes.has(cleanCode)) return;
@@ -598,7 +655,8 @@ export default function UniversalNotificationBell({
         address,
         items,
       });
-    });
+      });
+    }
 
     return list;
   }, [notifications, orderCache, adminNotifs, user, normalizeItemsList]);
@@ -860,46 +918,65 @@ export default function UniversalNotificationBell({
       ? '/admin/notifications'
       : '/account/notifications');
 
-  // Danh sách các Tab lọc
-  const filterTabs = [
-    {
-      id: 'ALL' as const,
-      label: 'Tất cả',
-      count: counts.total,
-      icon: 'notifications',
-    },
-    {
-      id: 'PENDING_ORDER' as const,
-      label: 'Chờ xác nhận',
-      count: counts.pending,
-      icon: 'pending_actions',
-      highlight: counts.pending > 0,
-    },
-    {
-      id: 'ORDER' as const,
-      label: 'Đơn hàng',
-      count: counts.order,
-      icon: 'shopping_bag',
-    },
-    {
-      id: 'REVIEW' as const,
-      label: 'Đánh giá',
-      count: counts.review,
-      icon: 'star',
-    },
-    {
-      id: 'SHIPPING' as const,
-      label: 'Vận chuyển',
-      count: counts.shipping,
-      icon: 'local_shipping',
-    },
-    {
-      id: 'SYSTEM' as const,
-      label: 'Hệ thống & Ví',
-      count: counts.system,
-      icon: 'account_balance_wallet',
-    },
-  ];
+  // Danh sách các Tab lọc (Được tùy biến thông minh theo vai trò Admin / Seller / Shipper)
+  const filterTabs = useMemo(() => {
+    if (isAdmin) {
+      return [
+        {
+          id: 'ALL' as const,
+          label: 'Tất cả',
+          count: counts.total,
+          icon: 'notifications',
+        },
+        {
+          id: 'SYSTEM' as const,
+          label: 'Giám sát SLA & Cảnh báo',
+          count: counts.system,
+          icon: 'gavel',
+        },
+      ];
+    }
+
+    return [
+      {
+        id: 'ALL' as const,
+        label: 'Tất cả',
+        count: counts.total,
+        icon: 'notifications',
+      },
+      {
+        id: 'PENDING_ORDER' as const,
+        label: 'Chờ xác nhận',
+        count: counts.pending,
+        icon: 'pending_actions',
+        highlight: counts.pending > 0,
+      },
+      {
+        id: 'ORDER' as const,
+        label: 'Đơn hàng',
+        count: counts.order,
+        icon: 'shopping_bag',
+      },
+      {
+        id: 'REVIEW' as const,
+        label: 'Đánh giá',
+        count: counts.review,
+        icon: 'star',
+      },
+      {
+        id: 'SHIPPING' as const,
+        label: 'Vận chuyển',
+        count: counts.shipping,
+        icon: 'local_shipping',
+      },
+      {
+        id: 'SYSTEM' as const,
+        label: 'Hệ thống & Ví',
+        count: counts.system,
+        icon: 'account_balance_wallet',
+      },
+    ];
+  }, [isAdmin, counts]);
 
   return (
     <>
@@ -946,32 +1023,62 @@ export default function UniversalNotificationBell({
               <div className="p-4 bg-slate-50 dark:bg-zinc-850 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <span>Thông báo gian hàng</span>
-                    {counts.pending > 0 && (
+                    <span>
+                      {isAdmin
+                        ? 'Thông báo quản trị sàn'
+                        : isSeller
+                        ? 'Thông báo gian hàng'
+                        : isShipper
+                        ? 'Thông báo giao vận'
+                        : 'Thông báo của bạn'}
+                    </span>
+                    {isSeller && counts.pending > 0 && (
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white">
                         {counts.pending} đơn chờ duyệt
                       </span>
                     )}
+                    {isAdmin && effectiveUnreadCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-600 text-white">
+                        {effectiveUnreadCount} tin mới
+                      </span>
+                    )}
                   </h3>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    Quản lý thông báo, đơn hàng & đánh giá
+                    {isAdmin
+                      ? 'Giám sát vận hành sàn, cảnh báo SLA & khiếu nại'
+                      : isSeller
+                      ? 'Quản lý thông báo, đơn hàng & đánh giá'
+                      : 'Cập nhật tin tức và thông báo hệ thống'}
                   </p>
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  {/* Nút mở sang chế độ lưới */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsDrawerOpen(false);
-                      setIsGridOpen(true);
-                    }}
-                    className="px-2.5 py-1.5 rounded-xl bg-[#003B2B] hover:bg-[#00281D] text-white text-xs font-bold flex items-center gap-1 cursor-pointer transition-all shadow-xs"
-                    title="Mở chế độ Lưới để lên đơn nhanh"
-                  >
-                    <span className="material-symbols-outlined text-sm">grid_view</span>
-                    <span>Lưới lên đơn</span>
-                  </button>
+                  {/* Nút mở sang chế độ lưới chỉ cho Seller */}
+                  {isSeller && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDrawerOpen(false);
+                        setIsGridOpen(true);
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl bg-[#003B2B] hover:bg-[#00281D] text-white text-xs font-bold flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+                      title="Mở chế độ Lưới để lên đơn nhanh"
+                    >
+                      <span className="material-symbols-outlined text-sm">grid_view</span>
+                      <span>Lưới lên đơn</span>
+                    </button>
+                  )}
+
+                  {isAdmin && (
+                    <Link
+                      href="/admin/notifications"
+                      onClick={() => setIsDrawerOpen(false)}
+                      className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+                    >
+                      <span className="material-symbols-outlined text-sm">open_in_new</span>
+                      <span>Xem tất cả</span>
+                    </Link>
+                  )}
 
                   <button
                     type="button"
@@ -1104,13 +1211,13 @@ export default function UniversalNotificationBell({
                           {card.message}
                         </p>
 
-                        {/* Nếu là Đơn hàng: hiển thị tóm tắt tựa sách & nút duyệt nhanh */}
-                        {card.cleanCode && (
+                        {/* Nếu là Đơn hàng của Seller: hiển thị tóm tắt tựa sách & nút duyệt nhanh */}
+                        {isSeller && card.cleanCode && (
                           <div className="mt-2 pt-2 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between">
                             <span className="text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300">
                               #{card.cleanCode}
                             </span>
-                            {isOrderPending && (
+                            {isOrderPending && canConfirmOrders && (
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -1122,6 +1229,31 @@ export default function UniversalNotificationBell({
                                 Xác nhận đơn ngay
                               </button>
                             )}
+                          </div>
+                        )}
+
+                        {/* Nút hành động cho thẻ có actionUrl (Admin hoặc thông báo hệ thống/SLA) */}
+                        {card.actionUrl && (!isSeller || !card.cleanCode) && (
+                          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-end">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!card.isRead) {
+                                  handleMarkCardAsRead(card);
+                                }
+                                if (card.actionUrl) {
+                                  setIsDrawerOpen(false);
+                                  router.push(card.actionUrl);
+                                } else {
+                                  setActiveModalNotif(card);
+                                }
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold cursor-pointer transition-colors shadow-2xs flex items-center gap-1"
+                            >
+                              <span>{card.actionLabel || 'Xem chi tiết'}</span>
+                              <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1163,7 +1295,7 @@ export default function UniversalNotificationBell({
       {/* ===================================================================== */}
       {/* 3. TRUNG TÂM LÊN ĐƠN & XỬ LÝ NHANH DẠNG LƯỚI (CHUẨN UX NGƯỜI BÁN THỰC TẾ) */}
       {/* ===================================================================== */}
-      {isMounted && isGridOpen && createPortal(
+      {isMounted && isGridOpen && isSeller && createPortal(
         <div className="fixed inset-0 z-[95] bg-slate-900/40 backdrop-blur-xs flex flex-col font-sans animate-in fade-in duration-150">
           
           {/* Header Kiosk: Đầy đủ tùy chọn cột, chọn nhiều & đóng */}
