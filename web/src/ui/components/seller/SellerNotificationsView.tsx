@@ -1,14 +1,25 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import Link from 'next/link';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useRealtimeNotifications, RealtimeNotification } from '@/ui/hooks/useRealtimeNotifications';
 import { useAuth } from '@/ui/context/AuthContext';
 import { adminNotificationService, AdminBroadcastNotification } from '@/ui/services/adminNotificationService';
 import { SellerPagination } from './SellerUI';
 
-type TabFilter = 'all' | 'admin' | 'alerts' | 'orders' | 'messages';
+export type NotificationCategoryTab =
+  | 'all'
+  | 'sla'
+  | 'orders'
+  | 'finance'
+  | 'admin'
+  | 'reviews'
+  | 'messages';
+
+export type PriorityFilter = 'all' | 'CRITICAL' | 'HIGH' | 'NORMAL';
+export type ReadStatusFilter = 'all' | 'unread' | 'read';
+export type DateRangeFilter = 'all' | 'today' | '3days' | '7days' | '30days';
+export type SortOrderFilter = 'newest' | 'oldest' | 'priority';
 
 export default function SellerNotificationsView() {
   const router = useRouter();
@@ -19,15 +30,16 @@ export default function SellerNotificationsView() {
   const currentBizId = user?.business?.id || activeBusinessId || undefined;
   const sellerCreatedAt = user?.business?.createdAt || user?.createdAt || undefined;
 
+  // Realtime hook
   const {
     notifications,
-    unreadCount,
     isLoading,
     markAsRead,
     markAllAsRead,
     refresh,
   } = useRealtimeNotifications({ recipientType: 'BUSINESS' });
 
+  // Broadcast announcements from admin / system
   const [adminNotifs, setAdminNotifs] = useState<AdminBroadcastNotification[]>(() =>
     adminNotificationService.getForSeller(currentBizId, false, sellerCreatedAt)
   );
@@ -40,39 +52,56 @@ export default function SellerNotificationsView() {
     return () => window.removeEventListener('huki_admin_notifications_updated', handleUpdate);
   }, [currentBizId, sellerCreatedAt]);
 
+  // Local read status overrides for instant UI reactivity
+  const [localReadIds, setLocalReadIds] = useState<Set<string>>(new Set());
+
+  // 1. TỔNG HỢP TOÀN BỘ THÔNG BÁO (Hệ thống, BQT, Đơn hàng, SLA Watchdog, Ví)
   const allMergedNotifications = useMemo((): RealtimeNotification[] => {
-    const broadcastList: RealtimeNotification[] = adminNotifs.map((an) => ({
-      id: an.id,
-      recipientId: currentBizId || 'ALL',
-      recipientType: 'BUSINESS',
-      senderType: 'ADMIN',
-      category: 'MANUAL_BROADCAST',
-      type: an.category === 'MAINTENANCE' ? 'SYSTEM_ALERT' : 'BROADCAST',
-      title: an.title,
-      message: an.content || an.summary,
-      priority: an.severity === 'CRITICAL' ? 'CRITICAL' : an.severity === 'WARNING' ? 'HIGH' : 'NORMAL',
-      isRead: Boolean(an.readByBusinessIds?.includes(currentBizId || 'default_seller')),
-      actionUrl: an.actionUrl,
-      createdAt: an.createdAt,
-      payload: {
-        authorName: an.authorName,
-        actionLabel: an.actionLabel,
-        isBroadcast: true,
-      },
-    }));
+    const effectiveBiz = currentBizId || 'default_seller';
+    const broadcastList: RealtimeNotification[] = adminNotifs.map((an) => {
+      const isAlreadyRead = Boolean(an.readByBusinessIds?.includes(effectiveBiz));
+      return {
+        id: an.id,
+        recipientId: effectiveBiz,
+        recipientType: 'BUSINESS',
+        senderType: 'ADMIN',
+        senderName: an.authorName || 'Ban Quản Trị HUKI',
+        category: 'MANUAL_BROADCAST',
+        type: an.category === 'MAINTENANCE' ? 'SYSTEM_ALERT' : 'BROADCAST',
+        title: an.title,
+        message: an.content || an.summary,
+        priority: an.severity === 'CRITICAL' ? 'CRITICAL' : an.severity === 'WARNING' ? 'HIGH' : 'NORMAL',
+        isRead: isAlreadyRead,
+        actionUrl: an.actionUrl,
+        createdAt: an.createdAt,
+        payload: {
+          authorName: an.authorName || 'Ban Quản Trị HUKI',
+          actionLabel: an.actionLabel || 'Xem hướng dẫn & chi tiết',
+          isBroadcast: true,
+          severity: an.severity,
+        },
+      };
+    });
 
     const map = new Map<string, RealtimeNotification>();
     broadcastList.forEach((n) => map.set(n.id, n));
     notifications.forEach((n) => map.set(n.id, n));
-    return Array.from(map.values()).sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-  }, [adminNotifs, notifications, currentBizId]);
 
-  const [activeTab, setActiveTab] = useState<TabFilter>('all');
+    return Array.from(map.values())
+      .map((item) => ({
+        ...item,
+        isRead: localReadIds.has(item.id) ? true : item.isRead,
+      }))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [adminNotifs, notifications, currentBizId, localReadIds]);
+
+  // 2. BỘ LỌC VÀ TRẠNG THÁI TÌM KIẾM
+  const [activeTab, setActiveTab] = useState<NotificationCategoryTab>('all');
+  const [readFilter, setReadFilter] = useState<ReadStatusFilter>('all');
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all');
+  const [dateFilter, setDateFilter] = useState<DateRangeFilter>('all');
+  const [sortOrder, setSortOrder] = useState<SortOrderFilter>('newest');
   const [searchQuery, setSearchQuery] = useState('');
-  const [unreadOnly, setUnreadOnly] = useState(false);
-  const [selectedNotif, setSelectedNotif] = useState<RealtimeNotification | null>(null);
 
   // Multi-select bulk state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -80,37 +109,312 @@ export default function SellerNotificationsView() {
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState(10);
 
-  // Open modal if URL has ?id=
+  // Detail Modal State
+  const [selectedNotifIndex, setSelectedNotifIndex] = useState<number | null>(null);
+
+  // Helper helper category matcher
+  const isSlaNotice = useCallback((n: RealtimeNotification) => {
+    const title = (n.title || '').toLowerCase();
+    const msg = (n.message || '').toLowerCase();
+    return (
+      n.category === 'AUTO_WATCHDOG' ||
+      n.type === 'WATCHDOG_ALERT' ||
+      title.includes('sla') ||
+      title.includes('sao quả tạ') ||
+      title.includes('quá 24h') ||
+      title.includes('quá 48h') ||
+      title.includes('hủy đơn') ||
+      msg.includes('sao quả tạ') ||
+      msg.includes('trừ 1 điểm') ||
+      msg.includes('trừ 2 điểm') ||
+      msg.includes('chưa xử lý đơn') ||
+      Boolean((n.payload as any)?.penaltyPoints)
+    );
+  }, []);
+
+  const isOrderNotice = useCallback((n: RealtimeNotification) => {
+    const title = (n.title || '').toLowerCase();
+    const msg = (n.message || '').toLowerCase();
+    return (
+      n.category === 'AUTO_LIFECYCLE' ||
+      n.type?.includes('ORDER') ||
+      n.type?.includes('SHIPPING') ||
+      title.includes('đơn hàng') ||
+      title.includes('vận chuyển') ||
+      title.includes('bưu tá') ||
+      msg.includes('đơn hàng') ||
+      Boolean((n.payload as any)?.orderCode)
+    );
+  }, []);
+
+  const isFinanceNotice = useCallback((n: RealtimeNotification) => {
+    const title = (n.title || '').toLowerCase();
+    const msg = (n.message || '').toLowerCase();
+    return (
+      n.type?.includes('PAYMENT') ||
+      n.type?.includes('ESCROW') ||
+      n.type?.includes('PAYOUT') ||
+      n.type?.includes('WALLET') ||
+      title.includes('thanh toán') ||
+      title.includes('ví') ||
+      title.includes('escrow') ||
+      title.includes('rút tiền') ||
+      title.includes('đối soát') ||
+      msg.includes('ví') ||
+      msg.includes('escrow') ||
+      msg.includes('tiền về') ||
+      msg.includes('rút tiền')
+    );
+  }, []);
+
+  const isAdminNotice = useCallback((n: RealtimeNotification) => {
+    return (
+      n.senderType === 'ADMIN' ||
+      n.category === 'MANUAL_BROADCAST' ||
+      n.type === 'BROADCAST' ||
+      n.type === 'SYSTEM_ALERT' ||
+      Boolean((n.payload as any)?.isBroadcast)
+    );
+  }, []);
+
+  const isReviewNotice = useCallback((n: RealtimeNotification) => {
+    const title = (n.title || '').toLowerCase();
+    const msg = (n.message || '').toLowerCase();
+    return (
+      n.type?.includes('REVIEW') ||
+      n.type?.includes('REPLY') ||
+      title.includes('đánh giá') ||
+      title.includes('nhận xét') ||
+      msg.includes('đánh giá') ||
+      msg.includes('sao')
+    );
+  }, []);
+
+  const isMessageNotice = useCallback((n: RealtimeNotification) => {
+    const title = (n.title || '').toLowerCase();
+    const msg = (n.message || '').toLowerCase();
+    return (
+      n.category === 'MANUAL_DIRECT' ||
+      n.type?.includes('CHAT') ||
+      n.senderType === 'USER' ||
+      n.senderType === 'SHIPPER' ||
+      title.includes('tin nhắn') ||
+      title.includes('chat') ||
+      msg.includes('tin nhắn')
+    );
+  }, []);
+
+  // 3. TÍNH TOÁN SỐ LƯỢNG THỐNG KÊ (KPI STATS)
+  const stats = useMemo(() => {
+    const total = allMergedNotifications.length;
+    const unread = allMergedNotifications.filter((n) => !n.isRead).length;
+
+    let slaCount = 0;
+    let orderCount = 0;
+    let financeCount = 0;
+    let adminCount = 0;
+    let reviewCount = 0;
+    let messageCount = 0;
+
+    let unreadSla = 0;
+    let unreadOrders = 0;
+    let unreadFinance = 0;
+    let unreadAdmin = 0;
+    let unreadReviews = 0;
+    let unreadMessages = 0;
+
+    allMergedNotifications.forEach((n) => {
+      const isUnread = !n.isRead;
+
+      if (isSlaNotice(n)) {
+        slaCount++;
+        if (isUnread) unreadSla++;
+      }
+      if (isOrderNotice(n)) {
+        orderCount++;
+        if (isUnread) unreadOrders++;
+      }
+      if (isFinanceNotice(n)) {
+        financeCount++;
+        if (isUnread) unreadFinance++;
+      }
+      if (isAdminNotice(n)) {
+        adminCount++;
+        if (isUnread) unreadAdmin++;
+      }
+      if (isReviewNotice(n)) {
+        reviewCount++;
+        if (isUnread) unreadReviews++;
+      }
+      if (isMessageNotice(n)) {
+        messageCount++;
+        if (isUnread) unreadMessages++;
+      }
+    });
+
+    return {
+      total,
+      unread,
+      slaCount,
+      orderCount,
+      financeCount,
+      adminCount,
+      reviewCount,
+      messageCount,
+      unreadSla,
+      unreadOrders,
+      unreadFinance,
+      unreadAdmin,
+      unreadReviews,
+      unreadMessages,
+    };
+  }, [allMergedNotifications, isSlaNotice, isOrderNotice, isFinanceNotice, isAdminNotice, isReviewNotice, isMessageNotice]);
+
+  // 4. LỌC DANH SÁCH THÔNG BÁO THEO TẤT CẢ ĐIỀU KIỆN
+  const filteredList = useMemo(() => {
+    const now = Date.now();
+
+    const result = allMergedNotifications.filter((n) => {
+      // 1. Tab danh mục chính
+      if (activeTab === 'sla') {
+        if (!isSlaNotice(n)) return false;
+      } else if (activeTab === 'orders') {
+        if (!isOrderNotice(n)) return false;
+      } else if (activeTab === 'finance') {
+        if (!isFinanceNotice(n)) return false;
+      } else if (activeTab === 'admin') {
+        if (!isAdminNotice(n)) return false;
+      } else if (activeTab === 'reviews') {
+        if (!isReviewNotice(n)) return false;
+      } else if (activeTab === 'messages') {
+        if (!isMessageNotice(n)) return false;
+      }
+
+      // 2. Trạng thái đọc
+      if (readFilter === 'unread' && n.isRead) return false;
+      if (readFilter === 'read' && !n.isRead) return false;
+
+      // 3. Mức độ ưu tiên
+      if (priorityFilter !== 'all') {
+        const itemPriority = n.priority || 'NORMAL';
+        if (itemPriority !== priorityFilter) return false;
+      }
+
+      // 4. Khoảng thời gian
+      if (dateFilter !== 'all') {
+        const timeDiff = now - new Date(n.createdAt).getTime();
+        const oneDay = 24 * 3600 * 1000;
+        if (dateFilter === 'today' && timeDiff > oneDay) return false;
+        if (dateFilter === '3days' && timeDiff > 3 * oneDay) return false;
+        if (dateFilter === '7days' && timeDiff > 7 * oneDay) return false;
+        if (dateFilter === '30days' && timeDiff > 30 * oneDay) return false;
+      }
+
+      // 5. Từ khóa tìm kiếm
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchTitle = (n.title || '').toLowerCase().includes(q);
+        const matchMessage = (n.message || '').toLowerCase().includes(q);
+        const matchSender = (n.senderName || '').toLowerCase().includes(q);
+        const matchOrderCode = Boolean((n.payload as any)?.orderCode?.toLowerCase().includes(q));
+        if (!matchTitle && !matchMessage && !matchSender && !matchOrderCode) return false;
+      }
+
+      return true;
+    });
+
+    // 6. Sắp xếp
+    return result.sort((a, b) => {
+      if (sortOrder === 'oldest') {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      if (sortOrder === 'priority') {
+        const weight: Record<string, number> = { CRITICAL: 3, HIGH: 2, NORMAL: 1 };
+        const wA = weight[a.priority || 'NORMAL'] || 1;
+        const wB = weight[b.priority || 'NORMAL'] || 1;
+        if (wB !== wA) return wB - wA;
+      }
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [
+    allMergedNotifications,
+    activeTab,
+    readFilter,
+    priorityFilter,
+    dateFilter,
+    searchQuery,
+    sortOrder,
+    isSlaNotice,
+    isOrderNotice,
+    isFinanceNotice,
+    isAdminNotice,
+    isReviewNotice,
+    isMessageNotice,
+  ]);
+
+  // Phân trang
+  const pagedList = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredList.slice(start, start + pageSize);
+  }, [filteredList, currentPage, pageSize]);
+
+  const pagedIds = useMemo(() => pagedList.map((n) => n.id), [pagedList]);
+  const areAllCurrentPageSelected =
+    pagedIds.length > 0 && pagedIds.every((id) => selectedIds.includes(id));
+
+  // Tự động mở modal nếu có query param ?id=
   useEffect(() => {
-    if (highlightId && allMergedNotifications.length > 0) {
-      const found = allMergedNotifications.find((n) => n.id === highlightId);
-      if (found) {
-        setSelectedNotif(found);
-        if (!found.isRead) {
-          if (found.id.startsWith('notif-') || found.id.startsWith('maint-') || found.id.startsWith('sched-') || found.id.startsWith('auto-') || found.id.startsWith('reopen-')) {
-            adminNotificationService.markAsRead(found.id, currentBizId);
-          } else {
-            markAsRead(found.id);
-          }
+    if (highlightId && filteredList.length > 0) {
+      const idx = filteredList.findIndex((n) => n.id === highlightId);
+      if (idx !== -1) {
+        setSelectedNotifIndex(idx);
+        const target = filteredList[idx];
+        if (!target.isRead) {
+          handleMarkSingleAsRead(target.id);
         }
       }
     }
-  }, [highlightId, allMergedNotifications, markAsRead, currentBizId]);
+  }, [highlightId, filteredList]);
 
-  const handleOpenDetail = (notif: RealtimeNotification) => {
-    setSelectedNotif(notif);
-    if (!notif.isRead) {
-      if (notif.id.startsWith('notif-') || notif.id.startsWith('maint-') || notif.id.startsWith('sched-') || notif.id.startsWith('auto-') || notif.id.startsWith('reopen-')) {
-        adminNotificationService.markAsRead(notif.id, currentBizId);
+  // Đánh dấu đã đọc 1 thông báo
+  const handleMarkSingleAsRead = useCallback(
+    (id: string) => {
+      setLocalReadIds((prev) => new Set(prev).add(id));
+      if (
+        id.startsWith('notif-') ||
+        id.startsWith('maint-') ||
+        id.startsWith('sched-') ||
+        id.startsWith('auto-') ||
+        id.startsWith('reopen-')
+      ) {
+        adminNotificationService.markAsRead(id, currentBizId);
       } else {
-        markAsRead(notif.id);
+        markAsRead(id);
       }
+    },
+    [currentBizId, markAsRead]
+  );
+
+  // Mở modal chi tiết
+  const handleOpenDetailByIndex = (idx: number) => {
+    setSelectedNotifIndex(idx);
+    const notif = filteredList[idx];
+    if (notif && !notif.isRead) {
+      handleMarkSingleAsRead(notif.id);
     }
   };
 
-  // Toggle selection for bulk actions
+  // Đánh dấu đã đọc tất cả
+  const handleMarkAllUnified = async () => {
+    if (!window.confirm('Bạn có chắc muốn đánh dấu TẤT CẢ thông báo là ĐÃ ĐỌC?')) return;
+    adminNotificationService.markAllAsRead(currentBizId);
+    setLocalReadIds(new Set(allMergedNotifications.map((n) => n.id)));
+    await markAllAsRead();
+  };
+
+  // Chọn/bỏ chọn checkbox
   const handleToggleSelect = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     setSelectedIds((prev) =>
@@ -118,302 +422,347 @@ export default function SellerNotificationsView() {
     );
   };
 
-  const handleToggleSelectAll = (filteredIds: string[]) => {
-    const areAllSelected = filteredIds.every((id) => selectedIds.includes(id));
-    if (areAllSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !filteredIds.includes(id)));
+  const handleToggleSelectAll = () => {
+    if (areAllCurrentPageSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !pagedIds.includes(id)));
     } else {
-      setSelectedIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...pagedIds])));
     }
   };
 
-  const handleBulkMarkAsRead = async () => {
+  const handleBulkMarkSelectedAsRead = async () => {
     if (selectedIds.length === 0) return;
     const ids = [...selectedIds];
     setSelectedIds([]);
-    for (const id of ids) {
-      await markAsRead(id);
-    }
-  };
-
-  // Stats calculation
-  const stats = useMemo(() => {
-    const total = notifications.length;
-    const unread = unreadCount;
-    const adminNotifs = notifications.filter(
-      (n) => n.senderType === 'ADMIN' || n.category === 'MANUAL_BROADCAST'
-    ).length;
-    const alertNotifs = notifications.filter(
-      (n) => n.priority === 'CRITICAL' || n.priority === 'HIGH' || n.category === 'AUTO_WATCHDOG'
-    ).length;
-    const orderNotifs = notifications.filter(
-      (n) => n.category === 'AUTO_LIFECYCLE' || n.type?.includes('ORDER')
-    ).length;
-    return { total, unread, adminNotifs, alertNotifs, orderNotifs };
-  }, [notifications, unreadCount]);
-
-  // Filtering notifications
-  const filteredList = useMemo(() => {
-    return notifications.filter((n) => {
-      // 1. Tab filter
-      if (activeTab === 'admin') {
-        if (n.senderType !== 'ADMIN' && n.category !== 'MANUAL_BROADCAST') return false;
-      } else if (activeTab === 'alerts') {
-        if (
-          n.priority !== 'CRITICAL' &&
-          n.priority !== 'HIGH' &&
-          n.category !== 'AUTO_WATCHDOG' &&
-          !n.type?.includes('ALERT') &&
-          !n.type?.includes('OVERDUE')
-        ) {
-          return false;
-        }
-      } else if (activeTab === 'orders') {
-        if (n.category !== 'AUTO_LIFECYCLE' && !n.type?.includes('ORDER') && !n.title?.toLowerCase().includes('đơn')) {
-          return false;
-        }
-      } else if (activeTab === 'messages') {
-        if (
-          n.category !== 'MANUAL_DIRECT' &&
-          n.senderType !== 'USER' &&
-          n.senderType !== 'SHIPPER'
-        ) {
-          return false;
-        }
-      }
-
-      // 2. Unread only filter
-      if (unreadOnly && n.isRead) {
-        return false;
-      }
-
-      // 3. Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchTitle = n.title?.toLowerCase().includes(q);
-        const matchMessage = n.message?.toLowerCase().includes(q);
-        const matchSender = n.senderName?.toLowerCase().includes(q);
-        if (!matchTitle && !matchMessage && !matchSender) return false;
-      }
-
-      return true;
+    setLocalReadIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
     });
-  }, [notifications, activeTab, unreadOnly, searchQuery]);
-
-  const pagedList = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredList.slice(start, start + pageSize);
-  }, [filteredList, currentPage, pageSize]);
-
-  const pagedIds = useMemo(() => pagedList.map((n) => n.id), [pagedList]);
-  const areAllCurrentPageSelected = pagedIds.length > 0 && pagedIds.every((id) => selectedIds.includes(id));
-
-  // Sender badges
-  const getSenderBadge = (senderType: string, senderName?: string) => {
-    switch (senderType) {
-      case 'ADMIN':
-        return (
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 flex items-center gap-1">
-
-            <span>Ban Quản Trị HUKI</span>
-          </span>
-        );
-      case 'SELLER':
-        return (
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 flex items-center gap-1">
-
-            <span>{senderName || 'Người bán'}</span>
-          </span>
-        );
-      case 'SHIPPER':
-        return (
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 flex items-center gap-1">
-
-            <span>{senderName || 'Bưu tá Express'}</span>
-          </span>
-        );
-      case 'USER':
-        return (
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 flex items-center gap-1">
-
-            <span>{senderName || 'Khách hàng'}</span>
-          </span>
-        );
-      default:
-        return (
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 flex items-center gap-1">
-
-            <span>Hệ thống</span>
-          </span>
-        );
+    for (const id of ids) {
+      if (
+        id.startsWith('notif-') ||
+        id.startsWith('maint-') ||
+        id.startsWith('sched-') ||
+        id.startsWith('auto-') ||
+        id.startsWith('reopen-')
+      ) {
+        adminNotificationService.markAsRead(id, currentBizId);
+      } else {
+        await markAsRead(id);
+      }
     }
   };
 
-  const formatRelativeTime = (isoString?: string) => {
+  // Reset tất cả bộ lọc về mặc định
+  const handleResetFilters = () => {
+    setActiveTab('all');
+    setReadFilter('all');
+    setPriorityFilter('all');
+    setDateFilter('all');
+    setSortOrder('newest');
+    setSearchQuery('');
+    setCurrentPage(1);
+    setSelectedIds([]);
+    setIsMultiSelectMode(false);
+  };
+
+  const isAnyFilterActive =
+    activeTab !== 'all' ||
+    readFilter !== 'all' ||
+    priorityFilter !== 'all' ||
+    dateFilter !== 'all' ||
+    sortOrder !== 'newest' ||
+    Boolean(searchQuery.trim());
+
+  // Định dạng thời gian
+  const formatTime = (isoString?: string) => {
     if (!isoString) return '';
-    const diff = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
+    const date = new Date(isoString);
+    const diff = Math.floor((Date.now() - date.getTime()) / 1000);
     if (diff < 60) return 'Vừa xong';
     if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
     if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
-    return `${Math.floor(diff / 86400)} ngày trước`;
+    if (diff < 86400 * 3) return `${Math.floor(diff / 86400)} ngày trước`;
+    return date.toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
-  return (
-    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto pb-16 font-sans animate-in fade-in duration-200">
-      {/* 1. Header Banner & Quick Stats */}
-      <section
-        className="rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-lg border border-white/10"
-        style={{
-          background: 'linear-gradient(135deg, #003B2B 0%, #005A3E 60%, #00271E 100%)',
-        }}
-      >
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-xl">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-[#94F5D6] text-xs font-bold backdrop-blur-md border border-white/20">
-              <span className="material-symbols-outlined text-[15px] text-[#FBBF24]">notifications_active</span>
-              <span>Trung Tâm Thông Báo &amp; Lịch Sử Toàn Sàn Realtime</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              Trung Tâm Thông Báo Gian Hàng
-            </h1>
-            <p className="text-white/80 text-xs sm:text-sm leading-relaxed">
-              Theo dõi và quản lý đầy đủ lịch sử thông báo: bảo trì hệ thống, lịch đối soát tài chính, cập nhật đơn hàng và tương tác trực tiếp từ khách hàng &amp; bưu tá.
-            </p>
-          </div>
+  const selectedNotif =
+    selectedNotifIndex !== null && filteredList[selectedNotifIndex]
+      ? filteredList[selectedNotifIndex]
+      : null;
 
-          {/* Stat Pills */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 w-full md:w-auto">
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/15 text-center min-w-[90px]">
-              <span className="block text-xl font-black text-white">{stats.total}</span>
-              <span className="text-[11px] text-emerald-200/90 font-medium">Tổng lịch sử</span>
-            </div>
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/15 text-center min-w-[90px]">
-              <span className="block text-xl font-black text-rose-300">{stats.unread}</span>
-              <span className="text-[11px] text-emerald-200/90 font-medium">Chưa đọc</span>
-            </div>
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/15 text-center min-w-[90px]">
-              <span className="block text-xl font-black text-amber-300">{stats.alertNotifs}</span>
-              <span className="text-[11px] text-emerald-200/90 font-medium">Cảnh báo</span>
-            </div>
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/15 text-center min-w-[90px]">
-              <span className="block text-xl font-black text-[#94F5D6]">{stats.adminNotifs}</span>
-              <span className="text-[11px] text-emerald-200/90 font-medium">Từ BQT</span>
-            </div>
+  return (
+    <div className="flex flex-col gap-5 w-full max-w-[1600px] mx-auto pb-20 font-sans animate-in fade-in duration-200">
+      
+      {/* ===================================================================== */}
+      {/* 1. HEADER KPI SUMMARY CARDS (TRUNG TÂM BÁO CÁO THÔNG BÁO THỜI GIAN THỰC) */}
+      {/* ===================================================================== */}
+      <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {/* Card 1: Tổng lịch sử */}
+        <div
+          onClick={() => {
+            setActiveTab('all');
+            setCurrentPage(1);
+          }}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
+            activeTab === 'all'
+              ? 'bg-[#003B2B] text-white border-[#003B2B] ring-2 ring-[#003B2B]/20'
+              : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${
+                activeTab === 'all'
+                  ? 'bg-white/15 text-[#94F5D6]'
+                  : 'bg-emerald-50 text-[#00875A] dark:bg-zinc-800 dark:text-emerald-400'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[20px]">all_inbox</span>
+            </span>
+            <span className="text-[11px] font-bold uppercase tracking-wider opacity-75">Hộp thư</span>
           </div>
+          <div className="text-2xl font-black tracking-tight">{stats.total}</div>
+          <p className="text-[11px] opacity-80 mt-0.5 truncate">Tất cả thông báo</p>
+        </div>
+
+        {/* Card 2: Chưa đọc (High Urgency) */}
+        <div
+          onClick={() => {
+            setReadFilter(readFilter === 'unread' ? 'all' : 'unread');
+            setCurrentPage(1);
+          }}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
+            readFilter === 'unread'
+              ? 'bg-rose-700 text-white border-rose-700 ring-2 ring-rose-600/30'
+              : 'bg-white hover:bg-rose-50/50 text-slate-800 border-rose-200/80 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${
+                readFilter === 'unread'
+                  ? 'bg-white/15 text-rose-200'
+                  : 'bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[20px]">mark_email_unread</span>
+            </span>
+            {stats.unread > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-500 text-white animate-pulse">
+                Cần xử lý
+              </span>
+            )}
+          </div>
+          <div className="text-2xl font-black text-rose-600 dark:text-rose-400">
+            {stats.unread}
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+            Tin chưa đọc
+          </p>
+        </div>
+
+        {/* Card 3: Cảnh báo SLA & Sao Quả Tạ */}
+        <div
+          onClick={() => {
+            setActiveTab('sla');
+            setCurrentPage(1);
+          }}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
+            activeTab === 'sla'
+              ? 'bg-amber-600 text-white border-amber-600 ring-2 ring-amber-500/20'
+              : 'bg-white hover:bg-amber-50/50 text-slate-800 border-amber-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${
+                activeTab === 'sla'
+                  ? 'bg-white/15 text-amber-200'
+                  : 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[20px]">gavel</span>
+            </span>
+            {stats.unreadSla > 0 && (
+              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-500 text-white">
+                +{stats.unreadSla}
+              </span>
+            )}
+          </div>
+          <div className="text-2xl font-black text-amber-600 dark:text-amber-400">
+            {stats.slaCount}
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+            SLA &amp; Sao Quả Tạ
+          </p>
+        </div>
+
+        {/* Card 4: Đơn hàng & Giao vận */}
+        <div
+          onClick={() => {
+            setActiveTab('orders');
+            setCurrentPage(1);
+          }}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
+            activeTab === 'orders'
+              ? 'bg-blue-600 text-white border-blue-600 ring-2 ring-blue-500/20'
+              : 'bg-white hover:bg-blue-50/50 text-slate-800 border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${
+                activeTab === 'orders'
+                  ? 'bg-white/15 text-blue-200'
+                  : 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[20px]">local_shipping</span>
+            </span>
+            {stats.unreadOrders > 0 && (
+              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-blue-500 text-white">
+                +{stats.unreadOrders}
+              </span>
+            )}
+          </div>
+          <div className="text-2xl font-black text-blue-600 dark:text-blue-400">
+            {stats.orderCount}
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+            Đơn hàng &amp; Giao vận
+          </p>
+        </div>
+
+        {/* Card 5: Từ Ban Quản Trị Sàn & Bảo Trì */}
+        <div
+          onClick={() => {
+            setActiveTab('admin');
+            setCurrentPage(1);
+          }}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group shadow-2xs col-span-2 sm:col-span-1 ${
+            activeTab === 'admin'
+              ? 'bg-indigo-700 text-white border-indigo-700 ring-2 ring-indigo-500/20'
+              : 'bg-white hover:bg-indigo-50/50 text-slate-800 border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${
+                activeTab === 'admin'
+                  ? 'bg-white/15 text-indigo-200'
+                  : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-400'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[20px]">shield</span>
+            </span>
+            {stats.unreadAdmin > 0 && (
+              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500 text-white">
+                +{stats.unreadAdmin}
+              </span>
+            )}
+          </div>
+          <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
+            {stats.adminCount}
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+            Chỉ đạo Ban Quản Trị
+          </p>
         </div>
       </section>
 
-      {/* 2. Controls & Tabs (Framed Card) */}
-      <section className="bg-white dark:bg-neutral-900 border border-slate-200/80 dark:border-neutral-800 rounded-2xl p-3.5 sm:p-4 shadow-2xs space-y-3">
-        {/* Horizontal Category Tabs */}
-        <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 scrollbar-none">
-          <div className="flex items-center gap-1.5 shrink-0 flex-wrap sm:flex-nowrap">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('all');
-                setCurrentPage(1);
-              }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'all'
-                ? 'bg-[#003B2B] text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">all_inbox</span>
-              <span>Tất Cả ({notifications.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('admin');
-                setCurrentPage(1);
-              }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'admin'
-                ? 'bg-rose-700 text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">shield</span>
-              <span>Từ Ban Quản Trị ({stats.adminNotifs})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('alerts');
-                setCurrentPage(1);
-              }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'alerts'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">warning</span>
-              <span>Cảnh Báo &amp; Khẩn ({stats.alertNotifs})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('orders');
-                setCurrentPage(1);
-              }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'orders'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">local_shipping</span>
-              <span>Đơn Hàng ({stats.orderNotifs})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('messages');
-                setCurrentPage(1);
-              }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'messages'
-                ? 'bg-purple-600 text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">chat</span>
-              <span>Chủ Động (1-1)</span>
-            </button>
+      {/* ===================================================================== */}
+      {/* 2. TAB NAVIGATION & ADVANCED FILTER DOCK */}
+      {/* ===================================================================== */}
+      <section className="bg-white dark:bg-neutral-900 border border-slate-200/90 dark:border-neutral-800 rounded-2xl p-4 shadow-2xs space-y-3.5">
+        
+        {/* Row 1: Category Tabs (Scrollable on Mobile) */}
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-zinc-800 pb-3">
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5 flex-1 min-w-0">
+            {[
+              { id: 'all', label: 'Tất cả', count: stats.total, unread: stats.unread, icon: 'all_inbox' },
+              { id: 'sla', label: 'Cảnh báo SLA & Sao Quả Tạ', count: stats.slaCount, unread: stats.unreadSla, icon: 'gavel', badgeClass: 'bg-amber-500' },
+              { id: 'orders', label: 'Đơn hàng & Giao nhận', count: stats.orderCount, unread: stats.unreadOrders, icon: 'local_shipping', badgeClass: 'bg-blue-500' },
+              { id: 'finance', label: 'Tài chính & Ví Escrow', count: stats.financeCount, unread: stats.unreadFinance, icon: 'account_balance_wallet', badgeClass: 'bg-emerald-600' },
+              { id: 'admin', label: 'Từ Ban Quản Trị', count: stats.adminCount, unread: stats.unreadAdmin, icon: 'shield', badgeClass: 'bg-indigo-600' },
+              { id: 'reviews', label: 'Đánh giá độc giả', count: stats.reviewCount, unread: stats.unreadReviews, icon: 'star', badgeClass: 'bg-amber-400' },
+              { id: 'messages', label: 'Tin nhắn CSKH', count: stats.messageCount, unread: stats.unreadMessages, icon: 'chat', badgeClass: 'bg-purple-500' },
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTab(tab.id as NotificationCategoryTab);
+                    setCurrentPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer shrink-0 ${
+                    isActive
+                      ? 'bg-[#003B2B] text-white shadow-2xs'
+                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-zinc-700'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>
+                  <span>{tab.label}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      isActive
+                        ? 'bg-white/20 text-white'
+                        : tab.unread > 0
+                        ? `${tab.badgeClass || 'bg-rose-500'} text-white`
+                        : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          {/* Right Action buttons */}
+          {/* Quick Header Actions */}
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsMultiSelectMode(!isMultiSelectMode)}
-              className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer ${isMultiSelectMode
-                ? 'bg-emerald-800 text-white border-emerald-800'
-                : 'border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50'
-                }`}
-            >
-              <span className="material-symbols-outlined text-sm">checklist</span>
-              <span>{isMultiSelectMode ? 'Đang chọn nhiều' : 'Chọn nhiều'}</span>
-            </button>
-
             {stats.unread > 0 && (
               <button
                 type="button"
-                onClick={markAllAsRead}
-                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-slate-200 hover:text-[#00875A] hover:bg-emerald-50 text-xs font-bold shrink-0 transition-colors flex items-center gap-1.5 cursor-pointer"
+                onClick={handleMarkAllUnified}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-slate-200 hover:text-[#00875A] hover:bg-emerald-50 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title="Đánh dấu tất cả là đã đọc"
               >
-                <span className="material-symbols-outlined text-[15px]">done_all</span>
-                <span>Đã đọc tất cả</span>
+                <span className="material-symbols-outlined text-[16px]">done_all</span>
+                <span className="hidden sm:inline">Đã đọc tất cả</span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => {
+                refresh();
+                setAdminNotifs(adminNotificationService.getForSeller(currentBizId, false, sellerCreatedAt));
+              }}
+              disabled={isLoading}
+              className="p-2 rounded-xl border border-slate-200 dark:border-zinc-700 text-slate-600 hover:text-slate-900 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+              title="Làm mới danh sách ngay"
+            >
+              <span className={`material-symbols-outlined text-[18px] ${isLoading ? 'animate-spin text-[#00875A]' : ''}`}>
+                refresh
+              </span>
+            </button>
           </div>
         </div>
 
-        {/* Search & Filter row */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-zinc-800">
-          <div className="relative w-full sm:max-w-md">
+        {/* Row 2: Search + Dropdowns Filter Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Search Box */}
+          <div className="relative flex-1 min-w-[260px] max-w-lg">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">
               search
             </span>
@@ -424,8 +773,8 @@ export default function SellerNotificationsView() {
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Tìm theo tiêu đề, người gửi hoặc nội dung thông báo..."
-              className="w-full h-10 pl-9 pr-8 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
+              placeholder="Tìm theo tiêu đề, mã đơn (#ORD-...), người gửi..."
+              className="w-full h-9 pl-9 pr-8 bg-slate-50 dark:bg-zinc-850 border border-slate-200 dark:border-zinc-750 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all shadow-2xs"
             />
             {searchQuery && (
               <button
@@ -433,42 +782,118 @@ export default function SellerNotificationsView() {
                 onClick={() => setSearchQuery('')}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
-                <span className="material-symbols-outlined text-base">close</span>
+                <span className="material-symbols-outlined text-[16px]">close</span>
               </button>
             )}
           </div>
 
-          <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer self-start sm:self-auto select-none">
-            <input
-              type="checkbox"
-              checked={unreadOnly}
+          {/* Secondary Filter Dropdowns */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Read Filter */}
+            <select
+              value={readFilter}
               onChange={(e) => {
-                setUnreadOnly(e.target.checked);
+                setReadFilter(e.target.value as ReadStatusFilter);
                 setCurrentPage(1);
               }}
-              className="w-4 h-4 rounded text-[#00875A] focus:ring-[#00875A] border-slate-300 rounded cursor-pointer"
-            />
-            <span>Chỉ xem thông báo chưa đọc</span>
-          </label>
+              className="h-9 px-2.5 bg-slate-50 dark:bg-zinc-850 border border-slate-200 dark:border-zinc-750 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-[#00875A] cursor-pointer shadow-2xs"
+            >
+              <option value="all">Tất cả trạng thái</option>
+              <option value="unread">Chỉ chưa đọc ({stats.unread})</option>
+              <option value="read">Đã đọc</option>
+            </select>
+
+            {/* Priority Filter */}
+            <select
+              value={priorityFilter}
+              onChange={(e) => {
+                setPriorityFilter(e.target.value as PriorityFilter);
+                setCurrentPage(1);
+              }}
+              className="h-9 px-2.5 bg-slate-50 dark:bg-zinc-850 border border-slate-200 dark:border-zinc-750 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-[#00875A] cursor-pointer shadow-2xs"
+            >
+              <option value="all">Mức độ ưu tiên</option>
+              <option value="CRITICAL">🔴 Khẩn cấp (CRITICAL)</option>
+              <option value="HIGH">🟡 Ưu tiên cao (HIGH)</option>
+              <option value="NORMAL">🟢 Thông thường (NORMAL)</option>
+            </select>
+
+            {/* Date Filter */}
+            <select
+              value={dateFilter}
+              onChange={(e) => {
+                setDateFilter(e.target.value as DateRangeFilter);
+                setCurrentPage(1);
+              }}
+              className="h-9 px-2.5 bg-slate-50 dark:bg-zinc-850 border border-slate-200 dark:border-zinc-750 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-[#00875A] cursor-pointer shadow-2xs"
+            >
+              <option value="all">Toàn bộ thời gian</option>
+              <option value="today">Hôm nay (24 giờ)</option>
+              <option value="3days">3 ngày qua</option>
+              <option value="7days">7 ngày qua</option>
+              <option value="30days">30 ngày qua</option>
+            </select>
+
+            {/* Sort Order */}
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as SortOrderFilter)}
+              className="h-9 px-2.5 bg-slate-50 dark:bg-zinc-850 border border-slate-200 dark:border-zinc-750 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-[#00875A] cursor-pointer shadow-2xs"
+            >
+              <option value="newest">Mới nhất trước</option>
+              <option value="oldest">Cũ nhất trước</option>
+              <option value="priority">Ưu tiên cao trước</option>
+            </select>
+
+            {/* Multi-Select Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsMultiSelectMode(!isMultiSelectMode);
+                if (isMultiSelectMode) setSelectedIds([]);
+              }}
+              className={`h-9 px-3 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                isMultiSelectMode || selectedIds.length > 0
+                  ? 'bg-emerald-800 text-white border-emerald-800'
+                  : 'bg-white dark:bg-zinc-850 border-slate-200 dark:border-zinc-750 text-slate-700 dark:text-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">checklist</span>
+              <span>{isMultiSelectMode ? 'Đóng chọn nhiều' : 'Chọn nhiều'}</span>
+            </button>
+
+            {/* Reset Filter Button */}
+            {isAnyFilterActive && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="h-9 px-2.5 rounded-xl border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
+                title="Xóa bộ lọc về mặc định"
+              >
+                <span className="material-symbols-outlined text-[15px]">restart_alt</span>
+                <span>Đặt lại</span>
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Bulk Action Bar (When selection is active) */}
+        {/* Row 3: Multi-Select Floating Bulk Action Dock */}
         {(isMultiSelectMode || selectedIds.length > 0) && (
-          <div className="px-4 py-2.5 bg-slate-900 text-white rounded-xl flex items-center justify-between gap-3 text-xs animate-in fade-in duration-150">
-            <div className="flex items-center gap-2.5">
-              <label className="flex items-center gap-2 cursor-pointer font-semibold select-none">
+          <div className="p-3 bg-slate-900 text-white rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs animate-in fade-in duration-150 shadow-md">
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer font-bold select-none">
                 <input
                   type="checkbox"
                   checked={areAllCurrentPageSelected}
-                  onChange={() => handleToggleSelectAll(pagedIds)}
+                  onChange={handleToggleSelectAll}
                   className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                 />
                 <span>Chọn tất cả trang này ({pagedList.length})</span>
               </label>
 
               {selectedIds.length > 0 && (
-                <span className="text-amber-400 font-bold">
-                  • Đã chọn: {selectedIds.length} thông báo
+                <span className="text-amber-300 font-bold bg-amber-950/80 px-2 py-0.5 rounded-md border border-amber-600/40">
+                  Đã chọn: {selectedIds.length} mục
                 </span>
               )}
             </div>
@@ -476,9 +901,9 @@ export default function SellerNotificationsView() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={handleBulkMarkAsRead}
+                onClick={handleBulkMarkSelectedAsRead}
                 disabled={selectedIds.length === 0}
-                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
               >
                 <span className="material-symbols-outlined text-sm">done_all</span>
                 <span>Đánh dấu đã đọc ({selectedIds.length})</span>
@@ -492,35 +917,85 @@ export default function SellerNotificationsView() {
                 }}
                 className="text-slate-400 hover:text-white px-2 py-1 text-xs cursor-pointer"
               >
-                Bỏ chọn
+                Hủy chọn
               </button>
             </div>
           </div>
         )}
       </section>
 
-      {/* 3. Notification List (Card Container) */}
-      <section className="space-y-3">
+      {/* ===================================================================== */}
+      {/* 3. DANH SÁCH THÔNG BÁO (NOTIFICATION CARDS LIST) */}
+      {/* ===================================================================== */}
+      <section className="space-y-2.5">
         {filteredList.length === 0 ? (
-          <div className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-3xl p-12 text-center space-y-3 shadow-xs">
-            <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-zinc-800 text-slate-400 flex items-center justify-center mx-auto">
-              <span className="material-symbols-outlined text-3xl">notifications_off</span>
+          <div className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-3xl p-12 text-center space-y-4 shadow-2xs">
+            <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-zinc-800 text-slate-400 flex items-center justify-center mx-auto">
+              <span className="material-symbols-outlined text-4xl">notifications_off</span>
             </div>
-            <div className="space-y-1">
-              <h3 className="font-bold text-base text-slate-900 dark:text-white">Không có thông báo nào</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-                {searchQuery || unreadOnly
-                  ? 'Thử điều chỉnh lại bộ lọc hoặc từ khóa tìm kiếm.'
-                  : 'Hiện tại bạn đã cập nhật đầy đủ mọi thông báo mới nhất từ Ban quản trị sàn.'}
+            <div className="space-y-1.5 max-w-md mx-auto">
+              <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                Không tìm thấy thông báo nào phù hợp
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                {isAnyFilterActive
+                  ? 'Các tiêu chí tìm kiếm hoặc bộ lọc hiện tại không khớp với thông báo nào. Vui lòng bấm đặt lại để xem đầy đủ.'
+                  : 'Hiện tại gian hàng của bạn chưa có thông báo mới nào từ hệ thống sàn.'}
               </p>
             </div>
+            {isAnyFilterActive && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="px-4 py-2 rounded-xl bg-[#003B2B] hover:bg-[#00271E] text-white text-xs font-bold transition-all shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-sm">restart_alt</span>
+                <span>Đặt lại tất cả bộ lọc</span>
+              </button>
+            )}
           </div>
         ) : (
           <>
-            {pagedList.map((n) => {
+            {/* Header thanh đếm số lượng kết quả */}
+            <div className="flex items-center justify-between text-xs text-slate-500 px-1 font-medium">
+              <span>
+                Hiển thị{' '}
+                <strong className="text-slate-800 dark:text-slate-200">
+                  {Math.min((currentPage - 1) * pageSize + 1, filteredList.length)} -{' '}
+                  {Math.min(currentPage * pageSize, filteredList.length)}
+                </strong>{' '}
+                trên tổng số{' '}
+                <strong className="text-slate-800 dark:text-slate-200">{filteredList.length}</strong> thông báo
+              </span>
+
+              <div className="flex items-center gap-1.5">
+                <span>Số tin mỗi trang:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="bg-transparent text-slate-800 dark:text-slate-200 font-bold focus:outline-none cursor-pointer"
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+            </div>
+
+            {/* List rendered items */}
+            {pagedList.map((n, idx) => {
               const isCritical = n.priority === 'CRITICAL';
               const isHigh = n.priority === 'HIGH';
               const isSelected = selectedIds.includes(n.id);
+              const isSla = isSlaNotice(n);
+              const isOrder = isOrderNotice(n);
+              const isFinance = isFinanceNotice(n);
+              const isAdmin = isAdminNotice(n);
+
+              const globalIndex = (currentPage - 1) * pageSize + idx;
 
               return (
                 <div
@@ -529,23 +1004,36 @@ export default function SellerNotificationsView() {
                     if (isMultiSelectMode) {
                       handleToggleSelect(n.id, e);
                     } else {
-                      handleOpenDetail(n);
+                      handleOpenDetailByIndex(globalIndex);
                     }
                   }}
-                  className={`bg-white dark:bg-neutral-900 rounded-2xl border transition-all p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 cursor-pointer hover:shadow-md relative overflow-hidden ${isSelected
-                    ? 'border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/30 ring-1 ring-emerald-500/30'
-                    : !n.isRead
-                      ? isCritical
-                        ? 'border-rose-300 bg-rose-50/20 dark:bg-rose-950/20 ring-1 ring-rose-500/20'
+                  className={`bg-white dark:bg-neutral-900 rounded-2xl border transition-all p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5 cursor-pointer hover:shadow-md relative overflow-hidden group ${
+                    isSelected
+                      ? 'border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/30 ring-2 ring-emerald-500/20'
+                      : !n.isRead
+                      ? isCritical || isSla
+                        ? 'border-rose-300 bg-rose-50/30 dark:bg-rose-950/20 shadow-2xs'
                         : isHigh
-                          ? 'border-amber-300 bg-amber-50/20 dark:bg-amber-950/20 ring-1 ring-amber-500/20'
-                          : 'border-emerald-300/80 bg-emerald-50/15 ring-1 ring-emerald-500/10'
-                      : 'border-slate-200/90 dark:border-neutral-800 hover:border-slate-300'
-                    }`}
+                        ? 'border-amber-300 bg-amber-50/30 dark:bg-amber-950/20 shadow-2xs'
+                        : 'border-emerald-300 bg-emerald-50/25 dark:bg-emerald-950/20 shadow-2xs'
+                      : 'border-slate-200/80 dark:border-neutral-800 hover:border-slate-300'
+                  }`}
                 >
-                  {/* Left: Icon, Checkbox & Body */}
-                  <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                    {/* Checkbox */}
+                  {/* Left Indicator Ribbon for unread */}
+                  {!n.isRead && (
+                    <div
+                      className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                        isCritical || isSla
+                          ? 'bg-rose-600 animate-pulse'
+                          : isHigh
+                          ? 'bg-amber-500'
+                          : 'bg-[#00875A]'
+                      }`}
+                    />
+                  )}
+
+                  {/* Checkbox (if multi-select) & Category Icon */}
+                  <div className="flex items-start gap-3 flex-1 min-w-0 pl-1">
                     {(isMultiSelectMode || isSelected) && (
                       <div className="pt-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                         <input
@@ -557,98 +1045,172 @@ export default function SellerNotificationsView() {
                       </div>
                     )}
 
+                    {/* Icon by Category */}
                     <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${isCritical
-                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300'
-                        : isHigh
-                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300'
-                          : 'bg-emerald-100 text-[#00875A] dark:bg-emerald-950 dark:text-emerald-300'
-                        }`}
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs transition-transform group-hover:scale-105 ${
+                        isSla
+                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300 ring-1 ring-rose-300'
+                          : isOrder
+                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300'
+                          : isFinance
+                          ? 'bg-emerald-100 text-[#00875A] dark:bg-emerald-950 dark:text-emerald-300'
+                          : isAdmin
+                          ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300'
+                          : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                      }`}
                     >
                       <span className="material-symbols-outlined text-[20px]">
-                        {isCritical
-                          ? 'warning'
-                          : isHigh
-                            ? 'report_problem'
-                            : n.category === 'MANUAL_DIRECT'
-                              ? 'chat'
-                              : n.category === 'MANUAL_BROADCAST'
-                                ? 'campaign'
-                                : 'notifications'}
+                        {isSla
+                          ? 'gavel'
+                          : isOrder
+                          ? 'local_shipping'
+                          : isFinance
+                          ? 'account_balance_wallet'
+                          : isAdmin
+                          ? 'shield'
+                          : n.category === 'MANUAL_DIRECT'
+                          ? 'chat'
+                          : 'notifications'}
                       </span>
                     </div>
 
+                    {/* Content Details */}
                     <div className="space-y-1 flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        {getSenderBadge(n.senderType, n.senderName)}
-                        {isCritical && (
-                          <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded-md bg-rose-600 text-white animate-pulse">
+                        {/* Category Label Pill */}
+                        {isSla ? (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-rose-600 text-white flex items-center gap-1 shadow-2xs">
+                            <span className="material-symbols-outlined text-[12px]">warning</span>
+                            <span>Sao Quả Tạ &amp; SLA</span>
+                          </span>
+                        ) : isOrder ? (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                            Đơn Hàng
+                          </span>
+                        ) : isFinance ? (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                            Tài Chính Ví
+                          </span>
+                        ) : isAdmin ? (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
+                            Ban Quản Trị
+                          </span>
+                        ) : null}
+
+                        {isCritical && !isSla && (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-rose-600 text-white animate-pulse">
                             Khẩn cấp
                           </span>
                         )}
-                        {isHigh && (
-                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-md bg-amber-500 text-white">
-                            Ưu tiên
+
+                        {isHigh && !isCritical && !isSla && (
+                          <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase bg-amber-500 text-white">
+                            Ưu tiên cao
                           </span>
                         )}
-                        <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
-                          • {formatRelativeTime(n.createdAt)}
+
+                        <span className="text-[11px] text-slate-400 font-medium">
+                          • {formatTime(n.createdAt)}
                         </span>
+
                         {!n.isRead && (
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Chưa đọc" />
+                          <span
+                            className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"
+                            title="Tin mới chưa đọc"
+                          />
                         )}
                       </div>
 
+                      {/* Notification Title */}
                       <h3
-                        className={`text-sm sm:text-base leading-snug line-clamp-1 ${!n.isRead ? 'font-black text-slate-900 dark:text-white' : 'font-bold text-slate-800 dark:text-slate-200'
-                          }`}
+                        className={`text-sm leading-snug line-clamp-1 ${
+                          !n.isRead
+                            ? 'font-black text-slate-900 dark:text-white'
+                            : 'font-bold text-slate-800 dark:text-slate-200'
+                        }`}
                       >
                         {n.title}
                       </h3>
 
+                      {/* Notification Message Snippet */}
                       <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
                         {n.message}
                       </p>
                     </div>
                   </div>
 
-                  {/* Right: Action CTA */}
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                  {/* Right Actions & Navigation CTA */}
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center pl-1 sm:pl-0">
+                    {/* Primary CTA button if actionUrl exists */}
                     {n.actionUrl && n.actionUrl.startsWith('/') && !n.actionUrl.includes('sdasd') && (
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (!n.isRead) {
-                            if (n.id.startsWith('notif-') || n.id.startsWith('maint-') || n.id.startsWith('sched-') || n.id.startsWith('auto-') || n.id.startsWith('reopen-')) {
-                              adminNotificationService.markAsRead(n.id, currentBizId);
-                            } else {
-                              markAsRead(n.id);
-                            }
+                            handleMarkSingleAsRead(n.id);
                           }
                           router.push(n.actionUrl!);
                         }}
-                        className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-[#00875A] hover:text-white dark:bg-zinc-800 dark:hover:bg-emerald-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1 ${
+                          isSla
+                            ? 'bg-rose-700 hover:bg-rose-800 text-white'
+                            : isOrder
+                            ? 'bg-[#003B2B] hover:bg-[#00271E] text-white'
+                            : 'bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-200'
+                        }`}
                       >
-                        {typeof n.payload?.actionLabel === 'string' ? n.payload.actionLabel : 'Xử lý ngay →'}
+                        <span>
+                          {typeof n.payload?.actionLabel === 'string'
+                            ? n.payload.actionLabel
+                            : isSla
+                            ? 'Xác nhận đóng gói ngay'
+                            : 'Xử lý ngay'}
+                        </span>
+                        <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
                       </button>
                     )}
+
+                    {/* Toggle Read button on hover */}
                     <button
                       type="button"
-                      onClick={() => handleOpenDetail(n)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (n.isRead) {
+                          setLocalReadIds((prev) => {
+                            const next = new Set(prev);
+                            next.delete(n.id);
+                            return next;
+                          });
+                        } else {
+                          handleMarkSingleAsRead(n.id);
+                        }
+                      }}
+                      className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                      title={n.isRead ? 'Đánh dấu chưa đọc' : 'Đánh dấu đã đọc'}
+                    >
+                      <span className="material-symbols-outlined text-[18px]">
+                        {n.isRead ? 'mark_chat_unread' : 'done'}
+                      </span>
+                    </button>
+
+                    {/* Detail button */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenDetailByIndex(globalIndex)}
                       className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
                       title="Xem chi tiết"
                     >
-                      <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+                      <span className="material-symbols-outlined text-[18px]">chevron_right</span>
                     </button>
                   </div>
                 </div>
               );
             })}
 
-            {/* Pagination Toolbar */}
+            {/* Pagination Controls */}
             {filteredList.length > pageSize && (
-              <div className="pt-2">
+              <div className="pt-3">
                 <SellerPagination
                   currentPage={currentPage}
                   totalPages={Math.ceil(filteredList.length / pageSize) || 1}
@@ -663,11 +1225,13 @@ export default function SellerNotificationsView() {
         )}
       </section>
 
-      {/* 4. Notification Detail Modal */}
+      {/* ===================================================================== */}
+      {/* 4. MODAL CHI TIẾT THÔNG BÁO (VỚI STEPPER TRƯỚC / SAU TIỆN DỤNG) */}
+      {/* ===================================================================== */}
       {selectedNotif && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
-          onClick={() => setSelectedNotif(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150 font-sans"
+          onClick={() => setSelectedNotifIndex(null)}
         >
           <div
             className="bg-white dark:bg-zinc-900 rounded-3xl max-w-xl w-full p-6 sm:p-7 space-y-5 shadow-2xl border border-slate-100 dark:border-zinc-800 animate-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col text-slate-900 dark:text-slate-100"
@@ -677,9 +1241,19 @@ export default function SellerNotificationsView() {
           >
             {/* Modal Header */}
             <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-100 dark:border-zinc-800">
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  {getSenderBadge(selectedNotif.senderType, selectedNotif.senderName)}
+                  {isSlaNotice(selectedNotif) ? (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-rose-600 text-white flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[12px]">warning</span>
+                      <span>Sao Quả Tạ &amp; SLA</span>
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-slate-100 text-slate-800 dark:bg-zinc-800 dark:text-slate-200">
+                      {selectedNotif.senderName || 'Hệ thống HUKI'}
+                    </span>
+                  )}
+
                   {selectedNotif.priority === 'CRITICAL' && (
                     <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-rose-600 text-white animate-pulse">
                       Báo động đỏ
@@ -690,25 +1264,28 @@ export default function SellerNotificationsView() {
                       Ưu tiên cao
                     </span>
                   )}
-                  <span className="text-[11px] text-slate-400 dark:text-slate-500">
+
+                  <span className="text-[11px] text-slate-400">
                     {new Date(selectedNotif.createdAt).toLocaleString('vi-VN')}
                   </span>
                 </div>
+
                 <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white leading-tight">
                   {selectedNotif.title}
                 </h2>
               </div>
 
+              {/* Close Button */}
               <button
                 type="button"
-                onClick={() => setSelectedNotif(null)}
+                onClick={() => setSelectedNotifIndex(null)}
                 className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-500 flex items-center justify-center transition-colors cursor-pointer shrink-0 font-bold"
               >
                 ✕
               </button>
             </div>
 
-            {/* Modal Content */}
+            {/* Modal Content Body */}
             <div className="flex-1 overflow-y-auto space-y-4 pr-1 text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
               <div className="p-4 bg-slate-50 dark:bg-zinc-800/60 rounded-2xl border border-slate-200/60 dark:border-zinc-700 font-medium">
                 {selectedNotif.message}
@@ -716,36 +1293,78 @@ export default function SellerNotificationsView() {
 
               {selectedNotif.imageUrl && (
                 <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-zinc-700 max-h-64">
-                  <img src={selectedNotif.imageUrl} alt="Attachment" className="w-full h-full object-cover" />
+                  <img src={selectedNotif.imageUrl} alt="Đính kèm" className="w-full h-full object-cover" />
                 </div>
               )}
             </div>
 
-            {/* Modal Footer */}
+            {/* Modal Stepper & Action Footer */}
             <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between gap-3">
-              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                <span className="material-symbols-outlined text-sm">check_circle</span>
-                <span>Đã ghi nhận đã đọc</span>
-              </span>
-
-              <div className="flex items-center gap-2">
-                {selectedNotif.actionUrl && selectedNotif.actionUrl.startsWith('/') && !selectedNotif.actionUrl.includes('sdasd') && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const url = selectedNotif.actionUrl!;
-                      setSelectedNotif(null);
-                      router.push(url);
-                    }}
-                    className="bg-[#00875A] hover:bg-[#00704A] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>{typeof selectedNotif.payload?.actionLabel === 'string' ? selectedNotif.payload.actionLabel : 'Truy cập xử lý ngay'}</span>
-                    <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                  </button>
-                )}
+              {/* Previous / Next Stepper buttons */}
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setSelectedNotif(null)}
+                  disabled={selectedNotifIndex === null || selectedNotifIndex <= 0}
+                  onClick={() => {
+                    if (selectedNotifIndex !== null && selectedNotifIndex > 0) {
+                      handleOpenDetailByIndex(selectedNotifIndex - 1);
+                    }
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-zinc-800 text-xs font-semibold disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Thông báo trước (phím ←)"
+                >
+                  <span className="material-symbols-outlined text-[15px]">arrow_back</span>
+                  <span className="hidden sm:inline">Trước</span>
+                </button>
+
+                <span className="text-[11px] text-slate-400 px-1">
+                  {selectedNotifIndex !== null ? selectedNotifIndex + 1 : 1} / {filteredList.length}
+                </span>
+
+                <button
+                  type="button"
+                  disabled={
+                    selectedNotifIndex === null || selectedNotifIndex >= filteredList.length - 1
+                  }
+                  onClick={() => {
+                    if (selectedNotifIndex !== null && selectedNotifIndex < filteredList.length - 1) {
+                      handleOpenDetailByIndex(selectedNotifIndex + 1);
+                    }
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-zinc-800 text-xs font-semibold disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Thông báo tiếp theo (phím →)"
+                >
+                  <span className="hidden sm:inline">Sau</span>
+                  <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+                </button>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2">
+                {selectedNotif.actionUrl &&
+                  selectedNotif.actionUrl.startsWith('/') &&
+                  !selectedNotif.actionUrl.includes('sdasd') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = selectedNotif.actionUrl!;
+                        setSelectedNotifIndex(null);
+                        router.push(url);
+                      }}
+                      className="bg-[#003B2B] hover:bg-[#00271E] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span>
+                        {typeof selectedNotif.payload?.actionLabel === 'string'
+                          ? selectedNotif.payload.actionLabel
+                          : 'Xử lý ngay'}
+                      </span>
+                      <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                    </button>
+                  )}
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedNotifIndex(null)}
                   className="bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                 >
                   Đóng
