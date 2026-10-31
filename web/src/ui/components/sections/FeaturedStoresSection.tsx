@@ -27,7 +27,7 @@ export default function FeaturedStoresSection() {
         // For now, use placeholder data
         setStores([
           {
-            id: 'store-tre',
+            id: 'nxb-tre',
             name: 'NXB Trẻ',
             displayName: 'Nhà Xuất Bản Trẻ',
             code: 'TRẺ',
@@ -38,7 +38,7 @@ export default function FeaturedStoresSection() {
             isVerified: true,
           },
           {
-            id: 'store-nhanam',
+            id: 'nha-nam',
             name: 'Nhã Nam',
             displayName: 'Nhã Nam Publishing',
             code: 'NN',
@@ -49,7 +49,7 @@ export default function FeaturedStoresSection() {
             isVerified: true,
           },
           {
-            id: 'store-kimdong',
+            id: 'nxb-kim-dong',
             name: 'Kim Đồng',
             displayName: 'NXB Kim Đồng',
             code: 'KĐ',
@@ -60,7 +60,7 @@ export default function FeaturedStoresSection() {
             isVerified: true,
           },
           {
-            id: 'store-alpha',
+            id: 'alpha-books',
             name: 'Alpha Books',
             displayName: 'Alpha Books Official',
             code: 'αB',
@@ -71,7 +71,7 @@ export default function FeaturedStoresSection() {
             isVerified: true,
           },
           {
-            id: 'store-firstnews',
+            id: 'first-news',
             name: 'First News',
             displayName: 'First News Trí Việt',
             code: 'FN',

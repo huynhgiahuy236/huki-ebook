@@ -28,7 +28,7 @@ const ADMIN_DEFAULT_BANNERS = [
     id: "BAN-02",
     title: "Hội Sách Bản Quyền Alpha Books x HUKI",
     subtitle: "Tặng ngay Ebook DRM độc quyền khi đặt trước sách in",
-    link: "/shop/pub-4",
+    link: "/shop/alpha-books",
     badge: "ƯU ĐÃI ĐỘC QUYỀN",
     bgImage: "/banners/hero-podium.jpg",
     status: "active",

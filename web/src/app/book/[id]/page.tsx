@@ -20,7 +20,6 @@ import { SimilarBooksSection } from '@/ui/components/recommendations/SimilarBook
 import { personalizationService } from '@/ui/services/personalizationService';
 import { realtimeSyncBus, InventoryUpdatePayload } from '@/ui/services/realtimeSyncBus';
 import { reviewSummaryService } from '@/ui/services/reviewSummaryService';
-import BookAffiliateCard from '@/ui/components/affiliate/BookAffiliateCard';
 
 export interface TableOfContentItem {
   id: number | string;
@@ -137,7 +136,7 @@ export default function BookDetailPage() {
               bookData.category?.name || bookData.categoryName,
               bookData.author?.name || bookData.authorName
             );
-          } catch {}
+          } catch { }
         }
       })
       .catch(() => {
@@ -158,7 +157,7 @@ export default function BookDetailPage() {
                   bookData.category?.name || bookData.categoryName,
                   bookData.author?.name || bookData.authorName
                 );
-              } catch {}
+              } catch { }
             }
           })
           .catch((err) => console.warn('Could not fetch book detail:', err));
@@ -180,7 +179,7 @@ export default function BookDetailPage() {
               .then((fallbackRes) => {
                 if (fallbackRes?.success && fallbackRes.data) setStoreInfo(fallbackRes.data);
               })
-              .catch(() => {});
+              .catch(() => { });
           }
         })
         .catch(() => {
@@ -189,7 +188,7 @@ export default function BookDetailPage() {
             .then((fallbackRes) => {
               if (fallbackRes?.success && fallbackRes.data) setStoreInfo(fallbackRes.data);
             })
-            .catch(() => {});
+            .catch(() => { });
         });
     } else if (realBook?.publisher) {
       const pubName = typeof realBook.publisher === 'object' ? (realBook.publisher.slug || realBook.publisher.name) : realBook.publisher;
@@ -199,7 +198,7 @@ export default function BookDetailPage() {
           .then((res) => {
             if (res?.success && res.data) setStoreInfo(res.data);
           })
-          .catch(() => {});
+          .catch(() => { });
       }
     }
     if (realBook?.id) {
@@ -384,7 +383,7 @@ export default function BookDetailPage() {
                   setRealBook(fresh);
                 }
               })
-              .catch(() => {});
+              .catch(() => { });
           }
 
           if (payload.action === 'RESERVED') {
@@ -409,7 +408,7 @@ export default function BookDetailPage() {
                 setRealBook(fresh);
               }
             })
-            .catch(() => {});
+            .catch(() => { });
         }
       }
     };
@@ -430,7 +429,7 @@ export default function BookDetailPage() {
             setIsFollowingStore(res.data.includes(targetBizId));
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [isLoggedIn, storeInfo?.id, realBook?.businessId]);
 
@@ -574,7 +573,33 @@ export default function BookDetailPage() {
   }, [id, realBook, storeInfo]);
 
   const publisherProfile = useMemo(() => {
-    const defaultName = book.publisher || realBook?.publisher?.name || realBook?.publisher || 'Gian Hàng HUKI';
+    const rawPublisher = realBook?.publisher;
+    const publisherObj = typeof rawPublisher === 'object' && rawPublisher ? rawPublisher : null;
+    const defaultName =
+      publisherObj?.name ||
+      (typeof rawPublisher === 'string' ? rawPublisher : '') ||
+      book.publisher ||
+      realBook?.business?.displayName ||
+      realBook?.business?.name ||
+      'Gian Hàng HUKI';
+
+    const slugFromName = (str: string) =>
+      str
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w-]+/g, '')
+        .replace(/--+/g, '-');
+
+    const publisherSlug =
+      publisherObj?.slug ||
+      (publisherObj?.name ? slugFromName(publisherObj.name) : '') ||
+      (typeof rawPublisher === 'string' && rawPublisher ? slugFromName(rawPublisher) : '') ||
+      (book.publisher ? slugFromName(book.publisher) : '') ||
+      'gian-hang';
+
     const storeLogo =
       storeInfo?.logo ||
       storeInfo?.stores?.[0]?.logo ||
@@ -588,7 +613,7 @@ export default function BookDetailPage() {
       return {
         id: storeInfo.id,
         name: storeInfo.name || defaultName,
-        slug: storeInfo.slug || storeInfo.stores?.[0]?.slug || storeInfo.id,
+        slug: storeInfo.slug || storeInfo.stores?.[0]?.slug || publisherSlug || storeInfo.id,
         logo: storeLogo,
         description: storeInfo.description || storeInfo.stores?.[0]?.description || 'Gian hàng và Nhà xuất bản chính thức được chứng nhận bản quyền bởi HUKI Platform.',
         address: storeInfo.address || 'Hà Nội & TP. Hồ Chí Minh, Việt Nam',
@@ -600,9 +625,9 @@ export default function BookDetailPage() {
     }
     if (realBook?.business) {
       return {
-        id: realBook.business.id || 'alpha-books',
+        id: realBook.business.id || publisherSlug,
         name: realBook.business.displayName || realBook.business.name || defaultName,
-        slug: realBook.business.slug || realBook.business.stores?.[0]?.slug || realBook.business.id || 'alpha-books',
+        slug: realBook.business.slug || realBook.business.stores?.[0]?.slug || publisherSlug || realBook.business.id,
         logo: storeLogo,
         description: realBook.business.description || realBook.business.stores?.[0]?.description || 'Nhà xuất bản và phát hành sách bản quyền chính thức trên hệ thống HUKI Platform.',
         address: realBook.business.address || 'Hà Nội & TP. Hồ Chí Minh, Việt Nam',
@@ -613,9 +638,9 @@ export default function BookDetailPage() {
       };
     }
     return {
-      id: 'alpha-books',
+      id: publisherObj?.id || realBook?.storeId || realBook?.businessId || publisherSlug,
       name: defaultName,
-      slug: 'alpha-books',
+      slug: publisherSlug,
       logo: storeLogo,
       description: 'Nhà xuất bản và phát hành sách bản quyền chính thức trên hệ thống HUKI Platform.',
       address: 'Hà Nội & TP. Hồ Chí Minh, Việt Nam',
@@ -772,15 +797,15 @@ export default function BookDetailPage() {
     (bookDiscount && bookDiscount.type === 'PERCENTAGE'
       ? Number(bookDiscount.value)
       : currentPrice && currentPrice.originalPrice > currentPrice.price
-      ? Math.round(((currentPrice.originalPrice - currentPrice.price) / currentPrice.originalPrice) * 100)
-      : 0);
+        ? Math.round(((currentPrice.originalPrice - currentPrice.price) / currentPrice.originalPrice) * 100)
+        : 0);
   const isPhysicalSelected = selectedFormat === 'physical' || selectedFormat === 'hybrid';
   const physicalAvailable =
     book.available !== undefined
       ? Number(book.available)
       : book.stock !== undefined
-      ? Math.max(0, Number(book.stock) - Number(book.reserved || 0))
-      : null;
+        ? Math.max(0, Number(book.stock) - Number(book.reserved || 0))
+        : null;
   const isOutOfStock = isPhysicalSelected && physicalAvailable !== null && physicalAvailable <= 0;
   const isLowStock = isPhysicalSelected && physicalAvailable !== null && physicalAvailable > 0 && physicalAvailable <= 5;
 
@@ -955,8 +980,8 @@ export default function BookDetailPage() {
                       {reviewSummary && reviewSummary.totalReviews > 0
                         ? reviewSummary.averageRating.toFixed(1)
                         : realBook?.rating
-                        ? Number(realBook.rating).toFixed(1)
-                        : 'Chưa có'}
+                          ? Number(realBook.rating).toFixed(1)
+                          : 'Chưa có'}
                     </span>
                     <span className="text-gray-400 text-[11px]">
                       ({(reviewSummary ? reviewSummary.totalReviews : (reviewsList.length || realBook?.reviewCount || 0)).toLocaleString('vi-VN')} đánh giá)
@@ -991,18 +1016,16 @@ export default function BookDetailPage() {
                       <div
                         key={fmt.type}
                         onClick={() => setSelectedFormat(fmt.type)}
-                        className={`p-3 rounded-xl cursor-pointer transition-colors border-[1.5px] flex items-center justify-between gap-3 select-none ${
-                          isSelected
+                        className={`p-3 rounded-xl cursor-pointer transition-colors border-[1.5px] flex items-center justify-between gap-3 select-none ${isSelected
                             ? 'border-[#006953] bg-[#006953]/5 shadow-2xs'
                             : isDiscounted
-                            ? 'border-rose-200/80 bg-rose-50/10 hover:border-rose-300'
-                            : 'border-gray-200 bg-white hover:border-gray-300'
-                        }`}
+                              ? 'border-rose-200/80 bg-rose-50/10 hover:border-rose-300'
+                              : 'border-gray-200 bg-white hover:border-gray-300'
+                          }`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                          <div className={`w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center transition-colors shrink-0 ${
-                            isSelected ? 'border-[#006953] bg-[#006953]' : 'border-gray-300 bg-white'
-                          }`}>
+                          <div className={`w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center transition-colors shrink-0 ${isSelected ? 'border-[#006953] bg-[#006953]' : 'border-gray-300 bg-white'
+                            }`}>
                             {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                           </div>
 
@@ -1125,22 +1148,20 @@ export default function BookDetailPage() {
                       disabled={isOutOfStock}
                       title="Thêm Vào Giỏ Hàng"
                       aria-label="Thêm Vào Giỏ Hàng"
-                      className={`w-11 h-10 shrink-0 border rounded-xl transition-colors flex items-center justify-center cursor-pointer ${
-                        isOutOfStock
+                      className={`w-11 h-10 shrink-0 border rounded-xl transition-colors flex items-center justify-center cursor-pointer ${isOutOfStock
                           ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
                           : 'border-[#006953] text-[#006953] hover:bg-[#006953]/10'
-                      }`}
+                        }`}
                     >
                       <span className="material-symbols-outlined text-[20px]">add_shopping_cart</span>
                     </button>
                     <button
                       onClick={handleBuyNow}
                       disabled={isOutOfStock}
-                      className={`flex-1 h-10 rounded-xl font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                        isOutOfStock
+                      className={`flex-1 h-10 rounded-xl font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${isOutOfStock
                           ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                           : 'bg-[#006953] hover:bg-[#00523c] text-white'
-                      }`}
+                        }`}
                     >
                       <span className="material-symbols-outlined text-[18px]">shopping_cart_checkout</span>
                       <span>{isOutOfStock ? 'Tạm Hết Hàng' : 'Mua Ngay'}</span>
@@ -1164,9 +1185,6 @@ export default function BookDetailPage() {
                   <span className="truncate">Bảo hộ HUKI DRM đọc trên 5 thiết bị</span>
                 </div>
               </div>
-
-              {/* Affiliate Partner Commission Card */}
-              <BookAffiliateCard bookId={book.id || id} bookTitle={book.title} />
 
               {/* Publisher / Store Footer */}
               <Link href={`/shop/${publisherProfile.slug || publisherProfile.id}`} className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2 group hover:opacity-95 transition-opacity">
@@ -1380,9 +1398,8 @@ export default function BookDetailPage() {
                         return (
                           <span
                             key={i}
-                            className={`material-symbols-outlined text-lg ${
-                              i <= Math.round(avg) && avg > 0 ? 'text-[#fea619]' : 'text-slate-200'
-                            }`}
+                            className={`material-symbols-outlined text-lg ${i <= Math.round(avg) && avg > 0 ? 'text-[#fea619]' : 'text-slate-200'
+                              }`}
                             style={{ fontVariationSettings: "'FILL' 1" }}
                           >
                             star
@@ -1421,11 +1438,10 @@ export default function BookDetailPage() {
                   <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-xl border border-gray-200/70">
                     <button
                       onClick={() => setReviewsFilterRating(undefined)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        reviewsFilterRating === undefined
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${reviewsFilterRating === undefined
                           ? 'bg-[#006953] text-white shadow-xs'
                           : 'text-gray-600 hover:text-gray-900'
-                      }`}
+                        }`}
                     >
                       Tất cả
                     </button>
@@ -1433,11 +1449,10 @@ export default function BookDetailPage() {
                       <button
                         key={r}
                         onClick={() => setReviewsFilterRating(r)}
-                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          reviewsFilterRating === r
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${reviewsFilterRating === r
                             ? 'bg-[#006953] text-white shadow-xs'
                             : 'text-gray-600 hover:text-gray-900'
-                        }`}
+                          }`}
                       >
                         {r}★
                       </button>
@@ -1447,9 +1462,8 @@ export default function BookDetailPage() {
                   <button
                     type="button"
                     onClick={() => setIsReviewModalOpen(!isReviewModalOpen)}
-                    className={`px-4 py-2.5 rounded-xl text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
-                      currentUserReview ? 'bg-[#004d3d] hover:bg-[#003c30]' : 'bg-[#006953] hover:bg-[#00523c]'
-                    }`}
+                    className={`px-4 py-2.5 rounded-xl text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${currentUserReview ? 'bg-[#004d3d] hover:bg-[#003c30]' : 'bg-[#006953] hover:bg-[#00523c]'
+                      }`}
                   >
                     <span className="material-symbols-outlined text-base">
                       {isReviewModalOpen ? 'close' : currentUserReview ? 'edit_note' : 'rate_review'}
@@ -1458,8 +1472,8 @@ export default function BookDetailPage() {
                       {isReviewModalOpen
                         ? 'Đóng Form'
                         : currentUserReview
-                        ? 'Sửa Đánh Giá Của Bạn'
-                        : 'Viết Đánh Giá'}
+                          ? 'Sửa Đánh Giá Của Bạn'
+                          : 'Viết Đánh Giá'}
                     </span>
                   </button>
                 </div>
@@ -1607,11 +1621,10 @@ export default function BookDetailPage() {
                 type="button"
                 onClick={handleConfirmUnfollow}
                 disabled={unfollowCountdown > 0 || isUnfollowing}
-                className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-sm ${
-                  unfollowCountdown > 0 || isUnfollowing
+                className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-sm ${unfollowCountdown > 0 || isUnfollowing
                     ? 'bg-gray-400 cursor-not-allowed opacity-80'
                     : 'bg-rose-600 hover:bg-rose-700 cursor-pointer'
-                }`}
+                  }`}
               >
                 {isUnfollowing ? (
                   <>

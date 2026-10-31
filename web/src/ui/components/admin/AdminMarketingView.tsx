@@ -32,7 +32,7 @@ const DEFAULT_BANNERS: MarketingBanner[] = [
     id: "BAN-02",
     title: "Hội Sách Bản Quyền Alpha Books x HUKI",
     subtitle: "Tặng ngay Ebook DRM độc quyền khi đặt trước sách in",
-    link: "/shop/pub-4",
+    link: "/shop/alpha-books",
     badge: "ƯU ĐÃI ĐỘC QUYỀN",
     bgImage: "/banners/hero-podium.jpg",
     status: "active",
@@ -96,12 +96,11 @@ export const LINK_OPTION_GROUPS = [
   {
     group: "Gian Hàng NXB & Nhà Bán Hàng",
     options: [
-      { label: "Gian Hàng Alpha Books", value: "/shop/pub-4" },
-      { label: "Gian Hàng NXB Trẻ", value: "/shop/pub-1" },
-      { label: "Gian Hàng NXB Kim Đồng", value: "/shop/pub-2" },
-      { label: "Gian Hàng Nhã Nam", value: "/shop/pub-3" },
-      { label: "Gian Hàng NXB Phụ Nữ", value: "/shop/pub-5" },
-      { label: "Gian Hàng Thái Hà Books", value: "/shop/pub-6" },
+      { label: "Gian Hàng Alpha Books", value: "/shop/alpha-books" },
+      { label: "Gian Hàng NXB Trẻ", value: "/shop/nxb-tre" },
+      { label: "Gian Hàng NXB Kim Đồng", value: "/shop/nxb-kim-dong" },
+      { label: "Gian Hàng Nhã Nam", value: "/shop/nha-nam" },
+      { label: "Gian Hàng First News Trí Việt", value: "/shop/first-news" },
     ],
   },
   {
@@ -139,7 +138,7 @@ export function recordBannerClick(bannerId: string) {
         localStorage.setItem("huki_admin_marketing_banners", JSON.stringify(updated));
       }
     }
-  } catch {}
+  } catch { }
   window.dispatchEvent(new CustomEvent("huki_banner_clicked", { detail: { bannerId } }));
 }
 
@@ -197,7 +196,7 @@ export function AdminMarketingView() {
           if (Array.isArray(updated)) {
             setBanners(updated);
           }
-        } catch {}
+        } catch { }
       }
     };
 
@@ -313,14 +312,14 @@ export function AdminMarketingView() {
         prev.map((b) =>
           b.id === editingBannerId
             ? {
-                ...b,
-                title: bannerForm.title.trim(),
-                subtitle: bannerForm.subtitle.trim(),
-                badge: bannerForm.badge.trim(),
-                link: bannerForm.link.trim(),
-                bgImage: bannerForm.bgImage.trim() || "/banners/hero-library.jpg",
-                order: Number(bannerForm.order) || b.order,
-              }
+              ...b,
+              title: bannerForm.title.trim(),
+              subtitle: bannerForm.subtitle.trim(),
+              badge: bannerForm.badge.trim(),
+              link: bannerForm.link.trim(),
+              bgImage: bannerForm.bgImage.trim() || "/banners/hero-library.jpg",
+              order: Number(bannerForm.order) || b.order,
+            }
             : b,
         ),
       );
@@ -381,11 +380,10 @@ export function AdminMarketingView() {
               handleOpenCreateForm();
             }
           }}
-          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-xs cursor-pointer shrink-0 ${
-            isAddFormOpen
+          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-xs cursor-pointer shrink-0 ${isAddFormOpen
               ? "bg-gray-800 text-white hover:bg-gray-700"
               : "bg-[#00875A] hover:bg-[#00734c] text-white"
-          }`}
+            }`}
         >
           <span className="material-symbols-outlined text-[17px]">
             {isAddFormOpen ? "expand_less" : "add_photo_alternate"}
@@ -398,19 +396,17 @@ export function AdminMarketingView() {
       {isAddFormOpen && (
         <div
           ref={studioRef}
-          className={`bg-white rounded-3xl p-6 border-2 shadow-xl animate-in slide-in-from-top-4 duration-200 ${
-            editingBannerId ? "border-amber-500/60 ring-2 ring-amber-400/20" : "border-emerald-500/40"
-          }`}
+          className={`bg-white rounded-3xl p-6 border-2 shadow-xl animate-in slide-in-from-top-4 duration-200 ${editingBannerId ? "border-amber-500/60 ring-2 ring-amber-400/20" : "border-emerald-500/40"
+            }`}
         >
           {/* Studio Header */}
           <div className="flex items-center justify-between pb-4 border-b border-gray-100">
             <div className="flex items-center gap-2.5">
               <div
-                className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold border ${
-                  editingBannerId
+                className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold border ${editingBannerId
                     ? "bg-amber-50 text-amber-700 border-amber-200"
                     : "bg-emerald-50 text-[#00875A] border-emerald-200"
-                }`}
+                  }`}
               >
                 <span className="material-symbols-outlined text-xl">
                   {editingBannerId ? "edit_document" : "add_photo_alternate"}
@@ -548,20 +544,20 @@ export function AdminMarketingView() {
                 {/* Nếu chọn Tùy chỉnh hoặc đường dẫn không nằm trong Preset: Hiện ô nhập tay */}
                 {(!LINK_OPTION_GROUPS.some((g) => g.options.some((o) => o.value === bannerForm.link)) ||
                   bannerForm.link === "CUSTOM") && (
-                  <div className="mt-2.5 p-3 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-1.5 animate-in fade-in duration-150">
-                    <div className="flex items-center gap-1.5 text-[11px] text-emerald-900 font-bold">
-                      <span className="material-symbols-outlined text-[15px] text-[#00875A]">edit_link</span>
-                      <span>Nhập đường dẫn URL tùy chỉnh (Custom Path / Query Parameters):</span>
+                    <div className="mt-2.5 p-3 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-1.5 animate-in fade-in duration-150">
+                      <div className="flex items-center gap-1.5 text-[11px] text-emerald-900 font-bold">
+                        <span className="material-symbols-outlined text-[15px] text-[#00875A]">edit_link</span>
+                        <span>Nhập đường dẫn URL tùy chỉnh (Custom Path / Query Parameters):</span>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="VD: /books?filter=special hoặc link chiến dịch https://"
+                        value={bannerForm.link === "CUSTOM" ? "" : bannerForm.link}
+                        onChange={(e) => setBannerForm({ ...bannerForm, link: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
+                      />
                     </div>
-                    <input
-                      type="text"
-                      placeholder="VD: /books?filter=special hoặc link chiến dịch https://"
-                      value={bannerForm.link === "CUSTOM" ? "" : bannerForm.link}
-                      onChange={(e) => setBannerForm({ ...bannerForm, link: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
-                    />
-                  </div>
-                )}
+                  )}
               </div>
 
               {/* Image Picker & Uploader */}
@@ -606,11 +602,10 @@ export function AdminMarketingView() {
                         key={bg.url}
                         type="button"
                         onClick={() => setBannerForm({ ...bannerForm, bgImage: bg.url })}
-                        className={`relative rounded-xl overflow-hidden h-14 border-2 transition-all cursor-pointer group text-left ${
-                          bannerForm.bgImage === bg.url
+                        className={`relative rounded-xl overflow-hidden h-14 border-2 transition-all cursor-pointer group text-left ${bannerForm.bgImage === bg.url
                             ? "border-[#00875A] ring-2 ring-emerald-500/20 scale-[1.02]"
                             : "border-gray-200 hover:border-gray-400"
-                        }`}
+                          }`}
                       >
                         <img src={bg.url} alt={bg.label} className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors p-1.5 flex items-end">
@@ -643,11 +638,10 @@ export function AdminMarketingView() {
                 </button>
                 <button
                   type="submit"
-                  className={`px-6 py-2 rounded-xl text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center gap-1.5 ${
-                    editingBannerId
+                  className={`px-6 py-2 rounded-xl text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center gap-1.5 ${editingBannerId
                       ? "bg-amber-600 hover:bg-amber-700"
                       : "bg-[#00875A] hover:bg-[#00734c]"
-                  }`}
+                    }`}
                 >
                   <span className="material-symbols-outlined text-base">
                     {editingBannerId ? "save" : "publish"}
@@ -671,11 +665,10 @@ export function AdminMarketingView() {
                     <button
                       type="button"
                       onClick={() => setPreviewDevice("desktop")}
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                        previewDevice === "desktop"
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${previewDevice === "desktop"
                           ? "bg-[#00875A] text-white"
                           : "text-gray-400 hover:text-white"
-                      }`}
+                        }`}
                     >
                       <span className="material-symbols-outlined text-[13px]">desktop_windows</span>
                       <span>Desktop</span>
@@ -683,11 +676,10 @@ export function AdminMarketingView() {
                     <button
                       type="button"
                       onClick={() => setPreviewDevice("mobile")}
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                        previewDevice === "mobile"
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${previewDevice === "mobile"
                           ? "bg-[#00875A] text-white"
                           : "text-gray-400 hover:text-white"
-                      }`}
+                        }`}
                     >
                       <span className="material-symbols-outlined text-[13px]">smartphone</span>
                       <span>Mobile</span>
@@ -774,11 +766,10 @@ export function AdminMarketingView() {
         {banners.map((b) => (
           <div
             key={b.id}
-            className={`bg-white rounded-3xl border overflow-hidden shadow-2xs flex flex-col justify-between group transition-all ${
-              editingBannerId === b.id
+            className={`bg-white rounded-3xl border overflow-hidden shadow-2xs flex flex-col justify-between group transition-all ${editingBannerId === b.id
                 ? "border-amber-500 ring-2 ring-amber-400/20"
                 : "border-[#E2E8F0] hover:border-[#00875A]/60"
-            }`}
+              }`}
           >
             <div>
               {/* Image Preview with overlay */}

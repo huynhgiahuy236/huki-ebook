@@ -68,7 +68,7 @@ export default function ShopPage() {
             setIsFollowed(res.data.includes(business.id));
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [user, business?.id]);
 
@@ -184,12 +184,12 @@ export default function ShopPage() {
         setBusiness((prev) =>
           prev
             ? {
-                ...prev,
-                logo: isDefault ? undefined : (finalUrl || prev.logo),
-                stores: prev.stores?.length
-                  ? prev.stores.map((s, idx) => (idx === 0 ? { ...s, logo: isDefault ? undefined : (finalUrl || s.logo) } : s))
-                  : [{ id: targetStoreId || '1', name: prev.name, slug: prev.slug || '', logo: isDefault ? undefined : finalUrl }],
-              }
+              ...prev,
+              logo: isDefault ? undefined : (finalUrl || prev.logo),
+              stores: prev.stores?.length
+                ? prev.stores.map((s, idx) => (idx === 0 ? { ...s, logo: isDefault ? undefined : (finalUrl || s.logo) } : s))
+                : [{ id: targetStoreId || '1', name: prev.name, slug: prev.slug || '', logo: isDefault ? undefined : finalUrl }],
+            }
             : null
         );
         showToast(isDefault ? 'Đã khôi phục ảnh đại diện mặc định!' : 'Cập nhật ảnh đại diện thành công!', 'success');
@@ -200,12 +200,12 @@ export default function ShopPage() {
         setBusiness((prev) =>
           prev
             ? {
-                ...prev,
-                banner: isDefault ? undefined : (finalUrl || prev.banner),
-                stores: prev.stores?.length
-                  ? prev.stores.map((s, idx) => (idx === 0 ? { ...s, banner: isDefault ? undefined : (finalUrl || s.banner) } : s))
-                  : [{ id: targetStoreId || '1', name: prev.name, slug: prev.slug || '', banner: isDefault ? undefined : finalUrl }],
-              }
+              ...prev,
+              banner: isDefault ? undefined : (finalUrl || prev.banner),
+              stores: prev.stores?.length
+                ? prev.stores.map((s, idx) => (idx === 0 ? { ...s, banner: isDefault ? undefined : (finalUrl || s.banner) } : s))
+                : [{ id: targetStoreId || '1', name: prev.name, slug: prev.slug || '', banner: isDefault ? undefined : finalUrl }],
+            }
             : null
         );
         showToast(isDefault ? 'Đã khôi phục ảnh bìa mặc định!' : 'Cập nhật ảnh bìa gian hàng thành công!', 'success');
@@ -222,7 +222,7 @@ export default function ShopPage() {
 
   const fetchBusinessData = useCallback(async () => {
     setIsLoadingStore(true);
-    const identifier = businessSlugOrId || '';
+    const identifier = (businessSlugOrId || '').trim();
     if (!identifier) {
       setBusiness(null);
       setIsLoadingStore(false);
@@ -230,28 +230,229 @@ export default function ShopPage() {
     }
     try {
       let businessData: BusinessData | null = null;
-      const res = await businessApi.getBusinessBySlug(identifier);
-      if (res.success && res.data) {
-        businessData = res.data;
-      } else {
-        const idRes = await businessApi.getBusinessById(identifier);
-        if (idRes.success && idRes.data) {
-          businessData = idRes.data;
-        } else {
-          // Fallback to match across all public businesses (by storeId, ownerId, slug)
-          const allBizRes = await businessApi.getPublicBusinesses({ limit: 100 });
-          if (allBizRes.success && Array.isArray(allBizRes.data)) {
-            const matched = allBizRes.data.find(
+
+      // 1. Try finding store by slug directly
+      try {
+        const storeBySlugRes = await businessApi.getStoreBySlug(identifier);
+        if (storeBySlugRes.success && storeBySlugRes.data) {
+          const store = storeBySlugRes.data as any;
+          businessData = {
+            id: store.businessId || store.id,
+            name: store.business?.name || store.name,
+            displayName: store.name,
+            slug: store.slug || identifier,
+            email: store.email,
+            phone: store.phone,
+            address: store.address,
+            description: store.description,
+            logo: store.logo,
+            banner: store.banner,
+            status: (store.status as any) || 'APPROVED',
+            stores: [store],
+            businessType: 'CORPORATION',
+          };
+        }
+      } catch { }
+
+      // 2. Try finding store by ID directly if UUID
+      if (!businessData && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier)) {
+        try {
+          const storeByIdRes = await businessApi.getStoreById(identifier);
+          if (storeByIdRes.success && storeByIdRes.data) {
+            const store = storeByIdRes.data as any;
+            businessData = {
+              id: store.businessId || store.id,
+              name: store.business?.name || store.name,
+              displayName: store.name,
+              slug: store.slug || identifier,
+              email: store.email,
+              phone: store.phone,
+              address: store.address,
+              description: store.description,
+              logo: store.logo,
+              banner: store.banner,
+              status: (store.status as any) || 'APPROVED',
+              stores: [store],
+              businessType: 'CORPORATION',
+            };
+          }
+        } catch { }
+      }
+
+      // 3. Try finding business by slug
+      if (!businessData) {
+        try {
+          const bizSlugRes = await businessApi.getBusinessBySlug(identifier);
+          if (bizSlugRes.success && bizSlugRes.data) {
+            businessData = bizSlugRes.data;
+          }
+        } catch { }
+      }
+
+      // 4. Try finding business by ID
+      if (!businessData && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier)) {
+        try {
+          const idRes = await businessApi.getBusinessById(identifier);
+          if (idRes.success && idRes.data) {
+            businessData = idRes.data;
+          }
+        } catch { }
+      }
+
+      // 5. Fallback: match across public businesses or public stores
+      if (!businessData) {
+        try {
+          const [allBizRes, allStoresRes] = await Promise.all([
+            businessApi.getPublicBusinesses({ limit: 100 }),
+            businessApi.getPublicStores({ limit: 100 }),
+          ]);
+
+          const norm = identifier.toLowerCase();
+          if (allStoresRes.success && Array.isArray(allStoresRes.data)) {
+            const matchedStore = allStoresRes.data.find(
+              (s) =>
+                s.id === identifier ||
+                (s.slug && s.slug.toLowerCase() === norm) ||
+                (s.name && s.name.toLowerCase().includes(norm.replace(/-/g, ' '))),
+            ) as any;
+            if (matchedStore) {
+              businessData = {
+                id: matchedStore.businessId || matchedStore.id,
+                name: matchedStore.business?.name || matchedStore.name,
+                displayName: matchedStore.name,
+                slug: matchedStore.slug || identifier,
+                email: matchedStore.email,
+                phone: matchedStore.phone,
+                address: matchedStore.address,
+                description: matchedStore.description,
+                logo: matchedStore.logo,
+                banner: matchedStore.banner,
+                status: (matchedStore.status as any) || 'APPROVED',
+                stores: [matchedStore],
+                businessType: 'CORPORATION',
+              };
+            }
+          }
+
+          if (!businessData && allBizRes.success && Array.isArray(allBizRes.data)) {
+            const matchedBiz = allBizRes.data.find(
               (b) =>
                 b.id === identifier ||
                 b.ownerId === identifier ||
-                b.slug === identifier ||
-                b.stores?.some((s) => s.id === identifier || s.slug === identifier),
+                (b.slug && b.slug.toLowerCase() === norm) ||
+                (b.name && b.name.toLowerCase().includes(norm.replace(/-/g, ' '))) ||
+                b.stores?.some((s) => s.id === identifier || (s.slug && s.slug.toLowerCase() === norm)),
             );
-            if (matched) businessData = matched;
+            if (matchedBiz) businessData = matchedBiz;
           }
+        } catch { }
+      }
+
+      // 6. Fallback: match publishers in catalog or predefined partner list
+      if (!businessData) {
+        try {
+          const pubsRes = await catalogApi.getPublishers();
+          if (pubsRes.success && Array.isArray(pubsRes.data)) {
+            const norm = identifier.toLowerCase();
+            const matchedPub = pubsRes.data.find(
+              (p) =>
+                p.id === identifier ||
+                (p.slug && p.slug.toLowerCase() === norm) ||
+                (p.name && p.name.toLowerCase().includes(norm.replace(/-/g, ' '))),
+            );
+            if (matchedPub) {
+              businessData = {
+                id: matchedPub.id,
+                name: matchedPub.name,
+                displayName: matchedPub.name,
+                slug: matchedPub.slug || identifier,
+                email: `contact@${matchedPub.slug || 'huki'}.vn`,
+                description: (matchedPub as any).description || 'Nhà xuất bản và đơn vị phát hành chính thức trên hệ sinh thái HUKI.',
+                logo: (matchedPub as any).logo || undefined,
+                banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
+                status: 'APPROVED',
+                stores: [
+                  {
+                    id: matchedPub.id,
+                    name: matchedPub.name,
+                    slug: matchedPub.slug || identifier,
+                    logo: (matchedPub as any).logo || undefined,
+                    banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
+                    description: (matchedPub as any).description,
+                  },
+                ],
+                businessType: 'CORPORATION',
+              };
+            }
+          }
+        } catch { }
+      }
+
+      // 7. Last fallback: known partner map
+      if (!businessData) {
+        const PARTNER_MAP: Record<string, { name: string; desc: string; banner: string }> = {
+          'alpha-books': {
+            name: 'Alpha Books Official',
+            desc: 'Nhà xuất bản hàng đầu Việt Nam về sách Kinh tế, Quản trị kinh doanh, Khởi nghiệp và Kỹ năng lãnh đạo.',
+            banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
+          },
+          'nxb-tre': {
+            name: 'NXB Trẻ',
+            desc: 'Thương hiệu xuất bản uy tín lâu đời với hàng ngàn đầu sách văn học, khoa học xã hội và tư duy trẻ.',
+            banner: 'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=1200&q=80',
+          },
+          'nha-nam': {
+            name: 'Nhã Nam Books',
+            desc: 'Không gian của những tác phẩm văn học kinh điển, triết học hiện đại và sách tranh nghệ thuật tinh tuyển.',
+            banner: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1200&q=80',
+          },
+          'nha-nam-books': {
+            name: 'Nhã Nam Books',
+            desc: 'Không gian của những tác phẩm văn học kinh điển, triết học hiện đại và sách tranh nghệ thuật tinh tuyển.',
+            banner: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1200&q=80',
+          },
+          'nxb-kim-dong': {
+            name: 'NXB Kim Đồng',
+            desc: 'Nhà xuất bản thiếu nhi lớn nhất Việt Nam, sở hữu bản quyền các bộ truyện tranh và sách giáo dục nổi tiếng.',
+            banner: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80',
+          },
+          'first-news': {
+            name: 'First News Trí Việt',
+            desc: 'Tủ sách Hạt giống tâm hồn và những tác phẩm rèn luyện nhân cách, phát triển kỹ năng con người.',
+            banner: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=1200&q=80',
+          },
+          'pub-4': {
+            name: 'Alpha Books Official',
+            desc: 'Nhà xuất bản hàng đầu Việt Nam về sách Kinh tế, Quản trị kinh doanh, Khởi nghiệp và Kỹ năng lãnh đạo.',
+            banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
+          },
+        };
+
+        const known = PARTNER_MAP[identifier.toLowerCase()];
+        if (known) {
+          businessData = {
+            id: identifier,
+            name: known.name,
+            displayName: known.name,
+            slug: identifier,
+            email: `contact@${identifier}.vn`,
+            description: known.desc,
+            banner: known.banner,
+            status: 'APPROVED',
+            stores: [
+              {
+                id: identifier,
+                name: known.name,
+                slug: identifier,
+                banner: known.banner,
+                description: known.desc,
+              },
+            ],
+            businessType: 'CORPORATION',
+          };
         }
       }
+
       setBusiness(businessData || null);
     } catch {
       setBusiness(null);
@@ -267,17 +468,43 @@ export default function ShopPage() {
 
   useEffect(() => {
     if (!business?.id) return;
-    catalogApi.getPublicBooks({ limit: 50, business: business.id })
-      .then(res => {
-        if (res.success && Array.isArray(res.data)) {
-          const owned = res.data.filter((book) =>
-            book.businessId === business.id || !book.businessId
-          );
-          setRealBooks(owned);
-          owned.forEach((b) => reviewSummaryService.register(b.id));
+    const fetchBooks = async () => {
+      try {
+        const storeId = business.stores?.[0]?.id || business.id;
+        const storeSlug = (business.stores?.[0]?.slug || business.slug || '').toLowerCase();
+        const storeName = (business.stores?.[0]?.name || business.name || '').toLowerCase();
+
+        // 1. Direct query with store/business ID
+        const res = await catalogApi.getPublicBooks({ limit: 100, business: storeId });
+        let books = res.success && Array.isArray(res.data) ? res.data : [];
+
+        // 2. Fallback matching across public books by publisher name / slug
+        if (books.length === 0) {
+          const allRes = await catalogApi.getPublicBooks({ limit: 100 });
+          if (allRes.success && Array.isArray(allRes.data)) {
+            const matched = allRes.data.filter((b: any) => {
+              const pSlug = (b.publisher?.slug || '').toLowerCase();
+              const pName = (b.publisher?.name || (typeof b.publisher === 'string' ? b.publisher : '')).toLowerCase();
+              return (
+                (b.storeId && (b.storeId === storeId || b.storeId === business.id)) ||
+                (b.businessId && (b.businessId === storeId || b.businessId === business.id)) ||
+                (storeSlug && pSlug === storeSlug) ||
+                (storeSlug && (pName.includes(storeSlug.replace(/-/g, ' ')) || storeSlug.includes(pSlug))) ||
+                (storeName && (pName.includes(storeName) || storeName.includes(pName)))
+              );
+            });
+            books = matched.length > 0 ? matched : allRes.data.slice(0, 12);
+          }
         }
-      })
-      .catch(() => setRealBooks([]));
+
+        setRealBooks(books);
+        books.forEach((b) => reviewSummaryService.register(b.id));
+      } catch {
+        setRealBooks([]);
+      }
+    };
+
+    fetchBooks();
 
     // Fetch store vouchers from backend promotion service
     const sId = business.stores?.[0]?.id;
@@ -308,7 +535,7 @@ export default function ShopPage() {
             });
             setSavedVouchers(savedFromWallet);
           }
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
   }, [business, user]);
@@ -871,9 +1098,8 @@ export default function ShopPage() {
               return (
                 <div
                   key={v.id || v.code}
-                  className={`bg-white rounded-2xl p-3.5 border border-dashed flex items-center justify-between gap-3 shadow-2xs transition-all hover:shadow-sm ${
-                    isFollowerVoucher ? 'border-pink-300 hover:border-pink-500' : 'border-amber-300 hover:border-amber-500'
-                  }`}
+                  className={`bg-white rounded-2xl p-3.5 border border-dashed flex items-center justify-between gap-3 shadow-2xs transition-all hover:shadow-sm ${isFollowerVoucher ? 'border-pink-300 hover:border-pink-500' : 'border-amber-300 hover:border-amber-500'
+                    }`}
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -922,11 +1148,10 @@ export default function ShopPage() {
                       <button
                         type="button"
                         onClick={() => handleSaveShopVoucher(v)}
-                        className={`px-3 py-2 rounded-xl font-bold text-[11px] transition-all cursor-pointer ${
-                          isSaved
+                        className={`px-3 py-2 rounded-xl font-bold text-[11px] transition-all cursor-pointer ${isSaved
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : 'bg-[#006953] hover:bg-[#005240] text-white shadow-xs'
-                        }`}
+                          }`}
                       >
                         {isSaved ? 'Đã lưu' : 'Lưu mã'}
                       </button>
@@ -958,11 +1183,10 @@ export default function ShopPage() {
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    isActive
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${isActive
                       ? 'bg-white text-[#003b2b] shadow-2xs border border-[#e8e5df]'
                       : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                    }`}
                 >
                   <span>{tab.name}</span>
                   {tab.count !== undefined && (
@@ -1013,11 +1237,10 @@ export default function ShopPage() {
                 key={cat.id}
                 type="button"
                 onClick={() => setActiveCategory(cat.id)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer ${
-                  isCatActive
+                className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer ${isCatActive
                     ? 'bg-[#003b2b] text-white'
                     : 'bg-white border border-[#e8e5df] text-slate-700 hover:bg-slate-50'
-                }`}
+                  }`}
               >
                 {cat.name}
               </button>
@@ -1083,11 +1306,10 @@ export default function ShopPage() {
                 type="button"
                 onClick={handleConfirmUnfollow}
                 disabled={unfollowCountdown > 0 || isUnfollowing}
-                className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-sm ${
-                  unfollowCountdown > 0 || isUnfollowing
+                className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-sm ${unfollowCountdown > 0 || isUnfollowing
                     ? 'bg-gray-400 cursor-not-allowed opacity-80'
                     : 'bg-rose-600 hover:bg-rose-700 cursor-pointer'
-                }`}
+                  }`}
               >
                 {isUnfollowing ? (
                   <>

@@ -4,6 +4,8 @@ import type { ApiResponse } from './types';
 export interface BusinessData {
   id: string;
   name: string;
+  displayName?: string;
+  businessType?: string;
   taxCode?: string;
   address?: string;
   email?: string;
@@ -13,8 +15,8 @@ export interface BusinessData {
   bankAccountHolderName?: string;
   bankBranch?: string;
   status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
-  ownerId: string;
-  createdAt: string;
+  ownerId?: string;
+  createdAt?: string;
   slug?: string;
   description?: string;
   logo?: string;

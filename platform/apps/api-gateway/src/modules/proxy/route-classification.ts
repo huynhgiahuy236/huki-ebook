@@ -126,6 +126,24 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
       return 'PUBLIC';
     }
 
+    // Public businesses & stores storefront endpoints (excluding private seller/admin/my endpoints)
+    if (
+      (normPath === '/businesses' || normPath.startsWith('/businesses/')) &&
+      !normPath.startsWith('/businesses/admin') &&
+      !normPath.startsWith('/businesses/my') &&
+      !normPath.startsWith('/businesses/following')
+    ) {
+      return 'PUBLIC';
+    }
+
+    if (
+      (normPath === '/stores' || normPath.startsWith('/stores/')) &&
+      !normPath.startsWith('/stores/admin') &&
+      !normPath.startsWith('/stores/my')
+    ) {
+      return 'PUBLIC';
+    }
+
     // Public books detail/list, excluding protected reader/forensic/digital endpoints
     if (
       (normPath === '/books' || normPath.startsWith('/books/')) &&

@@ -386,6 +386,16 @@ export default function StoreHeader({
             <span className="material-symbols-outlined text-[13px]">bolt</span>
             <span>Flash Sale</span>
           </Link>
+          <span className="opacity-40">|</span>
+          <Link
+            href="/affiliate"
+            className="hover:text-[var(--theme-header-top-accent,#94f5d6)] transition-colors flex items-center gap-1 font-semibold text-emerald-100"
+            title="Chương trình Tiếp thị Liên kết & Kiếm tiền cùng HUKI"
+          >
+            <span className="material-symbols-outlined text-[13px]">campaign</span>
+            <span>Tiếp Thị Liên Kết</span>
+          </Link>
+          <span className="opacity-40">|</span>
           {isAdmin ? (
             <Link
               href="/admin"
