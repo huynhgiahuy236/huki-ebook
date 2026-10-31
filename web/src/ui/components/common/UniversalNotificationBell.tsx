@@ -60,6 +60,7 @@ export default function UniversalNotificationBell({
   } = useRealtimeNotifications({
     recipientType,
     limit: 20,
+    isReadFilter: activeTab === 'UNREAD' ? false : undefined,
   });
 
   // Route dẫn tới Trung tâm thông báo đầy đủ
@@ -333,7 +334,10 @@ export default function UniversalNotificationBell({
               <div className="flex items-center border-b border-slate-200 dark:border-zinc-800 px-4 bg-slate-50/50 dark:bg-zinc-850 text-xs font-semibold shrink-0 gap-6">
                 <button
                   type="button"
-                  onClick={() => setActiveTab('ALL')}
+                  onClick={() => {
+                    setActiveTab('ALL');
+                    setViewingIndex(null);
+                  }}
                   className={`py-2.5 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
                     activeTab === 'ALL'
                       ? 'border-[#003B2B] text-[#003B2B] dark:border-emerald-400 dark:text-emerald-400 font-bold'
@@ -348,7 +352,10 @@ export default function UniversalNotificationBell({
 
                 <button
                   type="button"
-                  onClick={() => setActiveTab('UNREAD')}
+                  onClick={() => {
+                    setActiveTab('UNREAD');
+                    setViewingIndex(null);
+                  }}
                   className={`py-2.5 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
                     activeTab === 'UNREAD'
                       ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400 font-bold'

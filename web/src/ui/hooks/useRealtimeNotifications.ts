@@ -33,10 +33,11 @@ export interface UseRealtimeNotificationsOptions {
   autoFetch?: boolean;
   limit?: number;
   recipientType?: 'USER' | 'BUSINESS' | 'DELIVERY' | 'ADMIN';
+  isReadFilter?: boolean;
 }
 
 export function useRealtimeNotifications(options: UseRealtimeNotificationsOptions = {}) {
-  const { autoFetch = true, limit = 20, recipientType } = options;
+  const { autoFetch = true, limit = 20, recipientType, isReadFilter } = options;
   const { showToast } = useToast();
 
   const [notifications, setNotifications] = useState<RealtimeNotification[]>([]);
@@ -146,8 +147,8 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
   // Load more pages
   const loadMore = useCallback(async () => {
     if (isLoadingMore || !hasMore) return;
-    await fetchNotifications(currentPage + 1, true);
-  }, [fetchNotifications, currentPage, hasMore, isLoadingMore]);
+    await fetchNotifications(currentPage + 1, true, isReadFilter);
+  }, [fetchNotifications, currentPage, hasMore, isLoadingMore, isReadFilter]);
 
   // Mark single as read
   const markAsRead = useCallback(async (id: string) => {
@@ -174,18 +175,21 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
       setUnreadCount(0);
       realtimeSyncBus.publish('NOTIFICATIONS_UPDATED');
       await fetchUnreadCount();
+      if (isReadFilter === false) {
+        await fetchNotifications(1, false, false);
+      }
     } catch (err) {
       console.error('Failed to mark all notifications as read:', err);
     }
-  }, [fetchUnreadCount, recipientType]);
+  }, [fetchUnreadCount, fetchNotifications, recipientType, isReadFilter]);
 
-  // Initial load
+  // Initial load and filter change
   useEffect(() => {
     if (autoFetch) {
       fetchUnreadCount();
-      fetchNotifications(1, false);
+      fetchNotifications(1, false, isReadFilter);
     }
-  }, [autoFetch, fetchUnreadCount, fetchNotifications]);
+  }, [autoFetch, fetchUnreadCount, fetchNotifications, isReadFilter]);
 
   // Realtime Socket.io listener
   useEffect(() => {
@@ -291,7 +295,7 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
     markAsRead,
     markAllAsRead,
     loadMore,
-    refresh: () => fetchNotifications(1, false),
+    refresh: () => fetchNotifications(1, false, isReadFilter),
     fetchUnreadCount,
   };
 }

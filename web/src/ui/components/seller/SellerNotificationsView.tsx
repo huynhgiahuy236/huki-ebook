@@ -20,7 +20,7 @@ export default function SellerNotificationsView() {
     markAsRead,
     markAllAsRead,
     refresh,
-  } = useRealtimeNotifications();
+  } = useRealtimeNotifications({ recipientType: 'BUSINESS' });
 
   const [activeTab, setActiveTab] = useState<TabFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');

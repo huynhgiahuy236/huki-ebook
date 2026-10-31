@@ -37,9 +37,6 @@ export function DailyRecommendationsSection({
     return (
       <section className="flex flex-col gap-3 py-1 sm:py-2">
         <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
-          <span className="material-symbols-outlined text-amber-500 text-[24px]">
-            auto_awesome
-          </span>
           <h2 className="font-editorial text-lg sm:text-xl font-bold text-[#17201F]">{title}</h2>
           <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
             Đang cập nhật...

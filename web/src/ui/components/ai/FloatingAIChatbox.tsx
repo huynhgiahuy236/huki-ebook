@@ -26,10 +26,10 @@ export interface AIMessage {
 }
 
 const QUICK_PROMPTS = [
-  ' Sách nào đang bán chạy nhất?',
-  'Sách Ebook DRM đọc như thế nào?',
-  ' Thời gian và phí giao hàng?',
-  '💳 Chính sách đổi trả & hoàn tiền?',
+  'Sách bán chạy nhất',
+  'Hướng dẫn đọc Ebook DRM',
+  'Thời gian & phí giao hàng',
+  'Chính sách đổi trả & hoàn tiền',
 ];
 
 const AI_SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 phút không hoạt động thì tự động làm mới phiên chat
@@ -38,7 +38,7 @@ const DEFAULT_WELCOME_MESSAGE: AIMessage = {
   id: 'welcome',
   role: 'assistant',
   content:
-    'Xin chào bạn! 👋 Tôi là **Bé Cáo AI HUKI**.\nTôi có thể giúp bạn tìm sách thật trong kho, hướng dẫn đọc Ebook DRM hoặc giải đáp mọi thắc mắc về đơn hàng. Bạn cần mình tư vấn điều gì hôm nay?',
+    'Xin chào bạn! Tôi là tư vấn viên hỗ trợ HUKI.\nTôi có thể giúp bạn tìm kiếm sách trong kho, hướng dẫn đọc Ebook DRM hoặc giải đáp thắc mắc về đơn hàng. Bạn cần tư vấn điều gì hôm nay?',
   time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
 };
 
@@ -287,69 +287,45 @@ export default function FloatingAIChatbox() {
   };
 
   return (
-    <aside aria-label="Trợ lý Bé Cáo AI">
-      {/* 1. FLOATING 3D MASCOT TRIGGER CHARACTER (Đặt cao hơn nút ScrollToTop để không bị đè) */}
+    <aside aria-label="Tư vấn khách hàng HUKI">
+      {/* 1. FLOATING SUPPORT TRIGGER BUTTON (Gọn gàng, chuẩn thương mại điện tử) */}
       {!isOpen && (
-        <div className="fixed bottom-24 sm:bottom-28 right-4 sm:right-6 z-40 flex flex-col items-end pointer-events-auto select-none">
-          {/* Floating Speech Bubble Callout */}
-          <div
-            onClick={handleOpenChat}
-            className="mb-1.5 cursor-pointer bg-white text-slate-800 text-[11px] font-bold px-3 py-1.5 rounded-full shadow-lg border border-emerald-500/20 flex items-center gap-1.5 animate-in fade-in slide-in-from-bottom-2 duration-300 hover:scale-105 active:scale-95 transition-all hover:border-emerald-500/50"
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="tracking-tight text-[#003B2B]">Hỏi Bé Cáo AI nè! </span>
-          </div>
-
-          {/* Mascot Floating 3D Character Container */}
+        <div className="fixed bottom-20 sm:bottom-24 right-4 sm:right-6 z-40 flex items-center pointer-events-auto select-none">
           <button
             type="button"
             onClick={handleOpenChat}
-            className="relative group cursor-pointer flex flex-col items-center focus:outline-none transition-transform duration-300 hover:scale-110 active:scale-95"
-            title="Trò chuyện cùng Bé Cáo AI HUKI"
-            aria-label="Mở Trợ Lý AI HUKI"
+            className="group flex items-center gap-2 bg-[#003B2B] hover:bg-[#00281d] text-white px-3.5 py-2.5 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer active:scale-95 border border-white/20"
+            title="Nhắn tin tư vấn & hỗ trợ trực tuyến"
+            aria-label="Mở tư vấn HUKI"
           >
-            {/* Sparkle Badge */}
-            <div className="absolute top-1 right-1 w-6 h-6 rounded-full bg-gradient-to-r from-amber-400 to-orange-400 text-white flex items-center justify-center shadow-md z-10 animate-sparkle-pulse border border-white">
-              <span className="material-symbols-outlined text-[13px] font-bold">auto_awesome</span>
-            </div>
-
-            {/* Mascot Image with 3D Float Animation */}
-            <div className="animate-float-huki relative w-[78px] h-[86px] sm:w-[94px] sm:h-[102px]">
-              <img
-                src="/ai_huki.png"
-                alt="Bé Cáo AI HUKI"
-                className="w-full h-full object-contain filter drop-shadow-[0_10px_20px_rgba(0,59,43,0.22)] group-hover:brightness-105 transition-all"
-              />
-            </div>
-
-            {/* Dynamic Ground Shadow */}
-            <div className="w-12 sm:w-16 h-2 rounded-full bg-slate-900/35 blur-[2.5px] animate-shadow-huki mt-[-2px]" />
+            <span className="material-symbols-outlined text-[20px] text-emerald-300 group-hover:scale-110 transition-transform">
+              support_agent
+            </span>
+            <span className="text-xs font-semibold tracking-tight pr-1 hidden sm:inline">
+              Tư vấn trực tuyến
+            </span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           </button>
         </div>
       )}
 
-      {/* 2. CHATBOX POPUP WINDOW (Góc dưới bên phải như cũ) */}
+      {/* 2. CHATBOX POPUP WINDOW (Góc dưới bên phải) */}
       {isOpen && (
         <div className="fixed bottom-4 right-3 sm:bottom-6 sm:right-6 z-50 w-[92vw] sm:w-[390px] max-w-[430px] h-[550px] max-h-[82vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-200 font-sans">
           {/* Header */}
           <div className="px-4 py-3 bg-gradient-to-r from-[#003B2B] via-[#004d38] to-[#006953] text-white flex items-center justify-between shrink-0 shadow-xs">
             <div className="flex items-center gap-2.5">
-              {/* Mascot Avatar */}
-              <div className="w-9 h-9 rounded-full bg-white/15 border border-white/25 p-0.5 flex items-center justify-center shrink-0 overflow-hidden shadow-xs">
-                <img
-                  src="/ai_huki.png"
-                  alt="Bé Cáo AI HUKI"
-                  className="w-full h-full object-contain transform scale-110"
-                />
+              <div className="w-8 h-8 rounded-full bg-white/15 border border-white/25 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px] text-emerald-300">support_agent</span>
               </div>
 
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h3 className="font-bold text-xs tracking-tight">Bé Cáo AI HUKI</h3>
+                  <h3 className="font-bold text-xs tracking-tight">Tư Vấn Khách Hàng HUKI</h3>
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 </div>
                 <p className="text-[10px] text-emerald-200/90 font-medium">
-                  Trợ lý kho sách thật HUKI • Cache Redis
+                  Tra cứu sách, đơn hàng &amp; bản quyền DRM
                 </p>
               </div>
             </div>
@@ -383,12 +359,8 @@ export default function FloatingAIChatbox() {
                 className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 {msg.role === 'assistant' && (
-                  <div className="w-7 h-7 rounded-full bg-emerald-50 border border-emerald-200/70 p-0.5 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs overflow-hidden">
-                    <img
-                      src="/ai_huki.png"
-                      alt="Bé Cáo AI HUKI"
-                      className="w-full h-full object-contain"
-                    />
+                  <div className="w-7 h-7 rounded-full bg-emerald-50 border border-emerald-200/70 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                    <span className="material-symbols-outlined text-[15px] text-[#003B2B]">support_agent</span>
                   </div>
                 )}
 
@@ -457,18 +429,14 @@ export default function FloatingAIChatbox() {
 
             {isLoading && (
               <div className="flex gap-2 items-center text-slate-400 text-xs py-1">
-                <div className="w-7 h-7 rounded-full bg-emerald-50 border border-emerald-200/70 p-0.5 flex items-center justify-center shrink-0 shadow-2xs animate-pulse overflow-hidden">
-                  <img
-                    src="/ai_huki.png"
-                    alt="Bé Cáo AI HUKI"
-                    className="w-full h-full object-contain"
-                  />
+                <div className="w-7 h-7 rounded-full bg-emerald-50 border border-emerald-200/70 flex items-center justify-center shrink-0 shadow-2xs">
+                  <span className="material-symbols-outlined text-[15px] text-[#003B2B]">support_agent</span>
                 </div>
                 <div className="bg-white border border-slate-200 px-3 py-2 rounded-2xl rounded-bl-xs flex items-center gap-1.5 shadow-2xs">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#003B2B] animate-bounce" />
                   <span className="w-1.5 h-1.5 rounded-full bg-[#003B2B] animate-bounce [animation-delay:0.2s]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-[#003B2B] animate-bounce [animation-delay:0.4s]" />
-                  <span className="text-[11px] text-slate-500 font-medium ml-1">Bé Cáo đang tra kho sách...</span>
+                  <span className="text-[11px] text-slate-500 font-medium ml-1">Đang tra cứu hệ thống kho sách...</span>
                 </div>
               </div>
             )}
@@ -504,7 +472,7 @@ export default function FloatingAIChatbox() {
                 type="text"
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
-                placeholder="Hỏi Bé Cáo về tác phẩm, tác giả, đơn hàng..."
+                placeholder="Tra cứu sách, tác giả, đơn hàng..."
                 disabled={isLoading}
                 className="flex-1 bg-transparent border-none outline-none text-xs text-slate-800 placeholder-slate-400"
               />

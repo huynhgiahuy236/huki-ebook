@@ -18,7 +18,7 @@ interface SimilarBooksSectionProps {
 export function SimilarBooksSection({
   bookId,
   limit = 6,
-  title = '📚 Độc giả cùng gu cũng đọc',
+  title = 'Sách cùng thể loại & chủ đề',
 }: SimilarBooksSectionProps) {
   const { books, loading, error } = useSimilarBooks({
     bookId,

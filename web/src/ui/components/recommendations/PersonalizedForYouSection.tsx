@@ -54,8 +54,7 @@ export function PersonalizedForYouSection({
     return (
       <section className="py-2">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg sm:text-xl font-bold text-[#17201F] flex items-center gap-2">
-            <span className="material-symbols-outlined text-amber-500 text-[22px]">auto_awesome</span>
+          <h2 className="text-lg sm:text-xl font-bold text-[#17201F]">
             {title}
           </h2>
         </div>
