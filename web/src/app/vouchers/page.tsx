@@ -231,8 +231,7 @@ export default function VouchersPage() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-1.5 flex items-center gap-1 overflow-x-auto no-scrollbar">
           <button
             onClick={() => { setActiveTab("HUKI"); setPagePlatform(1); }}
-            className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${
-              activeTab === "HUKI"
+            className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === "HUKI"
                 ? "bg-[#003B2B] text-white shadow-sm"
                 : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
             }`}
