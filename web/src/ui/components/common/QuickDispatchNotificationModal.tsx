@@ -4,6 +4,7 @@ import React, { useState, useId } from 'react';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { playNotificationChime } from '@/ui/utils/soundEffects';
+import { tokenStorage } from '@/ui/api/tokenStorage';
 
 export type DispatchSenderRole = 'SELLER' | 'SHIPPER' | 'USER' | 'ADMIN';
 export type DispatchTargetRole = 'SELLER' | 'SHIPPER' | 'USER' | 'ADMIN';
@@ -181,11 +182,7 @@ export default function QuickDispatchNotificationModal({
       // Resolve authorization token
       let token = '';
       if (typeof window !== 'undefined') {
-        token =
-          localStorage.getItem('token') ||
-          localStorage.getItem('accessToken') ||
-          localStorage.getItem('huki_auth_token') ||
-          '';
+        token = tokenStorage.getAccessToken() || '';
       }
 
       const recipientTypeMap: Record<DispatchTargetRole, string> = {

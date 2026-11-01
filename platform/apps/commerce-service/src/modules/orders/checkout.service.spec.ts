@@ -154,7 +154,7 @@ describe("CheckoutService (Prisma)", () => {
               {
                 storeId: "store-1",
                 ownerUserId: "seller-1",
-                requiresShipping: false,
+                requiresShipping: true,
                 itemSubtotal: 100000,
                 shippingFee: 0,
                 storeVoucherDiscount: 10000,

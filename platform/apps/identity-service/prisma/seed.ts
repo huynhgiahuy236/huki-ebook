@@ -8,29 +8,25 @@ async function main() {
 
   const users = [
     {
-      email: 'user@huki.com',
-      password: 'User123!',
+      email: process.env.USER_SEED_EMAIL || 'user@huki.com', password: process.env.USER_INITIAL_PASSWORD || 'User123!',
       fullName: 'Nguyễn Văn An (Test Buyer)',
       role: UserRole.USER,
       status: UserStatus.ACTIVE,
     },
     {
-      email: 'business@huki.com',
-      password: 'Business123!',
+      email: process.env.BUSINESS_SEED_EMAIL || 'business@huki.com', password: process.env.BUSINESS_INITIAL_PASSWORD || 'Business123!',
       fullName: 'Alpha Books Official (Test Business)',
       role: UserRole.BUSINESS,
       status: UserStatus.ACTIVE,
     },
     {
-      email: 'admin@huki.com',
-      password: 'Admin123!',
+      email: process.env.ADMIN_SEED_EMAIL || 'admin@huki.com', password: process.env.ADMIN_INITIAL_PASSWORD || 'Admin123!',
       fullName: 'HUKI Platform Admin',
       role: UserRole.PLATFORM_ADMIN,
       status: UserStatus.ACTIVE,
     },
     {
-      email: 'staff@huki.com',
-      password: 'Staff123!',
+      email: process.env.STAFF_SEED_EMAIL || 'staff@huki.com', password: process.env.STAFF_INITIAL_PASSWORD || 'Staff123!',
       fullName: 'Trần Văn Nhân (Provisioned Admin Con)',
       role: UserRole.BUSINESS,
       status: UserStatus.ACTIVE,

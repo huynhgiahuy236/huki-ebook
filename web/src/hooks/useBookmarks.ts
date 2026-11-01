@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Bookmark } from '@/ui/context/ReaderContext';
 import { readerApi } from '@/ui/api/readerApi';
+import { tokenStorage } from '@/ui/api/tokenStorage';
 
 interface UseBookmarksOptions {
   bookId: string;
@@ -145,7 +146,7 @@ export function useBookmarks({ bookId, currentPage }: UseBookmarksOptions) {
     saveLocalBookmarks(updated);
 
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('huki_token') || localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? tokenStorage.getAccessToken() : null;
       if (token && !bookmarkId.startsWith('local_')) {
         await fetch(`/api/reader/bookmarks/${bookmarkId}`, {
           method: 'DELETE',

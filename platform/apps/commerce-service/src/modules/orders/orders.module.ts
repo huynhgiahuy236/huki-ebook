@@ -1,3 +1,4 @@
+import { EmailModule } from "@huki/shared";
 import { Module } from "@nestjs/common";
 import { CartModule } from "../cart/cart.module";
 import { CheckoutController } from "./checkout.controller";
@@ -19,7 +20,7 @@ import { AffiliateModule } from "../affiliate/affiliate.module";
 import { PolicyConfigService } from "../../../../../libs/shared/src/config/policy-config.service";
 
 @Module({
-  imports: [CartModule, ShippingModule, VoucherModule, WalletModule, LedgerModule, AffiliateModule],
+  imports: [EmailModule, CartModule, ShippingModule, VoucherModule, WalletModule, LedgerModule, AffiliateModule],
   controllers: [CheckoutController, OrdersController, SellerOrdersController, ShipperOrdersController],
   providers: [
     CheckoutService,

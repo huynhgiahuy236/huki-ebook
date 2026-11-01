@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { tokenStorage } from '@/ui/api/tokenStorage';
 
 export const HIGHLIGHT_COLORS = [
   { id: 'yellow', name: 'Vàng Dạ Quang', color: '#fef08a', bgClass: 'bg-yellow-200' },
@@ -197,7 +198,7 @@ export const ReaderProvider = ({ children }: { children: ReactNode }) => {
     // 1. Fetch bookmarks
     const loadRemoteBookmarks = async () => {
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('huki_token') || localStorage.getItem('token') : null;
+        const token = typeof window !== 'undefined' ? tokenStorage.getAccessToken() : null;
         if (token) {
           const res = await fetch(`/api/reader/bookmarks/${activeBookId}`, {
             headers: { Authorization: `Bearer ${token}` }
@@ -265,7 +266,7 @@ export const ReaderProvider = ({ children }: { children: ReactNode }) => {
 
     const timer = setTimeout(async () => {
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('huki_token') || localStorage.getItem('token') : null;
+        const token = typeof window !== 'undefined' ? tokenStorage.getAccessToken() : null;
         if (token) {
           const pct = totalPages > 0 ? Math.min(100, Math.round((currentPage / totalPages) * 100)) : 0;
           await fetch('/api/reader/progress', {
@@ -340,7 +341,7 @@ export const ReaderProvider = ({ children }: { children: ReactNode }) => {
       if (existing) {
         // Delete
         const updated = prev.filter(b => !(b.bookId === bookId && b.page === pageNum));
-        const token = typeof window !== 'undefined' ? localStorage.getItem('huki_token') || localStorage.getItem('token') : null;
+        const token = typeof window !== 'undefined' ? tokenStorage.getAccessToken() : null;
         if (token && !existing.id.startsWith('bm_')) {
           fetch(`/api/reader/bookmarks/${existing.id}`, {
             method: 'DELETE',
@@ -359,7 +360,7 @@ export const ReaderProvider = ({ children }: { children: ReactNode }) => {
           timestamp: new Date().toISOString()
         };
 
-        const token = typeof window !== 'undefined' ? localStorage.getItem('huki_token') || localStorage.getItem('token') : null;
+        const token = typeof window !== 'undefined' ? tokenStorage.getAccessToken() : null;
         if (token) {
           fetch('/api/reader/bookmarks', {
             method: 'POST',

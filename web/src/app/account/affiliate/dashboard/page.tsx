@@ -9,6 +9,7 @@ import AffiliateKycModal from '@/ui/components/affiliate/AffiliateKycModal';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+import { tokenStorage } from '@/ui/api/tokenStorage';
 
 interface CtvStats {
   profile: {
@@ -127,7 +128,7 @@ export default function AffiliateDashboardPage() {
       const query = new URLSearchParams({ format });
       const response = await fetch(`/api/v1/affiliate/reports/export?${query.toString()}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+          Authorization: `Bearer ${tokenStorage.getAccessToken() || ''}`,
         },
       });
 

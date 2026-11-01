@@ -74,6 +74,6 @@ export class CheckoutController {
         }
       }
     }
-    return this.checkout.confirm(actor.sub, key, dto);
+    return this.checkout.confirm(actor.sub, key, dto, actor.email);
   }
 }

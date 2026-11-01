@@ -1,3 +1,19 @@
+export interface OrderConfirmationItem {
+  title: string;
+  quantity: number;
+  price: number | string;
+}
+
+export interface OrderConfirmationInput {
+  to: string;
+  orderCode: string;
+  orderId?: string;
+  customerName?: string;
+  totalAmount: number | string;
+  items?: OrderConfirmationItem[];
+  shippingAddress?: string;
+}
+
 import {
   Injectable,
   Logger,
@@ -48,6 +64,94 @@ export class EmailService {
     });
   }
 
+    sendOrderConfirmationEmail(input: OrderConfirmationInput) {
+    const formattedTotal = Number(input.totalAmount).toLocaleString('vi-VN') + ' đ';
+    const orderUrl = this.frontendUrl('/orders/' + (input.orderId || input.orderCode), '');
+
+    const itemsHtml = (input.items || [])
+      .map(
+        (item) => `
+        <tr>
+          <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #334155;">${item.title}</td>
+          <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; text-align: center; color: #64748b;">x${item.quantity}</td>
+          <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: 600; color: #0f172a;">${Number(item.price).toLocaleString('vi-VN')} đ</td>
+        </tr>`
+      )
+      .join('');
+
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
+    .card { max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 12px; padding: 32px; border: 1px solid #e2e8f0; }
+    .header { text-align: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; }
+    .logo { font-size: 22px; font-weight: 800; color: #4f46e5; }
+    .title { font-size: 18px; font-weight: 700; color: #0f172a; margin-top: 16px; margin-bottom: 8px; }
+    .badge { display: inline-block; background: #ecfdf5; color: #059669; font-weight: 600; padding: 4px 12px; border-radius: 9999px; font-size: 12px; }
+    .table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }
+    .table th { text-align: left; padding: 8px 0; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 13px; text-transform: uppercase; }
+    .total-box { background: #f8fafc; border-radius: 8px; padding: 16px; margin: 20px 0; display: flex; justify-content: space-between; align-items: center; }
+    .btn { display: inline-block; background: #4f46e5; color: #ffffff !important; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px; text-align: center; margin-top: 16px; }
+    .footer { text-align: center; font-size: 12px; color: #94a3b8; margin-top: 24px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="logo">HUKI EBOOK</div>
+      <div class="title">Xác nhận đơn hàng thành công</div>
+      <span class="badge">Mã đơn: #${input.orderCode}</span>
+    </div>
+    <p style="margin-top: 20px; font-size: 15px; color: #334155;">
+      Xin chào <strong>${input.customerName || 'Quý khách'}</strong>,<br>
+      Cảm ơn bạn đã mua sắm tại HUKI EBOOK! Đơn hàng của bạn đã được tiếp nhận và đang được xử lý.
+    </p>
+    ${
+      input.items && input.items.length
+        ? `<table class="table">
+            <thead>
+              <tr>
+                <th>Sản phẩm</th>
+                <th style="text-align: center;">SL</th>
+                <th style="text-align: right;">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>`
+        : ''
+    }
+    <div class="total-box">
+      <span style="font-size: 15px; font-weight: 600; color: #334155;">Tổng thanh toán:</span>
+      <span style="font-size: 18px; font-weight: 800; color: #4f46e5;">${formattedTotal}</span>
+    </div>
+    ${
+      input.shippingAddress
+        ? `<p style="font-size: 13px; color: #64748b; margin: 12px 0;"><strong>Địa chỉ giao hàng:</strong> ${input.shippingAddress}</p>`
+        : ''
+    }
+    <div style="text-align: center;">
+      <a href="${orderUrl}" class="btn">Xem chi tiết đơn hàng</a>
+    </div>
+    <div class="footer">
+      Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ support@huki.vn.<br>
+      © 2026 HUKI EBOOK Platform. All rights reserved.
+    </div>
+  </div>
+</body>
+</html>`;
+
+    return this.send({
+      to: input.to,
+      subject: `[HUKI EBOOK] Xác nhận đơn hàng #${input.orderCode}`,
+      text: `Xin chào ${input.customerName || 'Quý khách'},\n\nĐơn hàng #${input.orderCode} của bạn đã được tạo thành công.\nTổng thanh toán: ${formattedTotal}\nXem chi tiết đơn hàng tại: ${orderUrl}\n\nCảm ơn bạn đã tin tưởng HUKI EBOOK!`,
+      html,
+    });
+  }
+
   sendInvitationEmail(to: string, token: string) {
     const url = this.frontendUrl("/invitations/accept", token);
     return this.send({
@@ -67,7 +171,7 @@ export class EmailService {
     const baseUrl = (
       this.config.get<string>("FRONTEND_URL") || "http://localhost:3000"
     ).replace(/\/$/, "");
-    return `${baseUrl}${path}?token=${encodeURIComponent(token)}`;
+    return token ? `${baseUrl}${path}?token=${encodeURIComponent(token)}` : `${baseUrl}${path}`;
   }
 
   private async send(input: SendEmailInput): Promise<void> {

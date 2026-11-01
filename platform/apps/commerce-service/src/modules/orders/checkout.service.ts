@@ -1,3 +1,4 @@
+import { EmailService } from "@huki/shared";
 import { Injectable, Optional } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { randomBytes } from "crypto";
@@ -102,6 +103,7 @@ export class CheckoutService {
     private readonly pricingCalculator: PricingCalculatorService,
     @Optional() private readonly sanctionsService?: SanctionsService,
     @Optional() private readonly affiliateCheckoutService?: AffiliateCheckoutService,
+    @Optional() private readonly emailService?: EmailService,
   ) { }
 
   async preview(userId: string, dto: CheckoutPreviewDto) {
@@ -432,6 +434,7 @@ export class CheckoutService {
     userId: string,
     idempotencyKey: string,
     dto: CheckoutConfirmDto,
+    userEmail?: string,
   ) {
     if (!idempotencyKey || idempotencyKey.length > 100) {
       throwBadRequest(ErrorCode.IDEMPOTENCY_KEY_REQUIRED);
@@ -811,6 +814,30 @@ export class CheckoutService {
 
       if (orderData.snapshot) {
         await this.consumeVouchers(userId, orderData.order.id, orderData.snapshot);
+      }
+
+      if (userEmail && this.emailService && orderData.snapshot) {
+        const finalSnapshot = orderData.snapshot;
+        const emailItems = (finalSnapshot.groups || []).flatMap((g) => g.items).map((i) => ({
+          title: i.title || "Sách HUKI",
+          quantity: i.quantity,
+          price: i.unitPrice ?? i.subtotal,
+        }));
+        this.emailService
+          .sendOrderConfirmationEmail({
+            to: userEmail,
+            orderCode: orderData.order.code,
+            orderId: orderData.order.id,
+            customerName: finalSnapshot.shippingAddress?.recipientName || "Quý khách",
+            totalAmount: orderData.order.grandTotal.toString(),
+            items: emailItems,
+            shippingAddress: finalSnapshot.shippingAddress
+              ? `${finalSnapshot.shippingAddress.line1}, ${finalSnapshot.shippingAddress.ward}, ${finalSnapshot.shippingAddress.district}, ${finalSnapshot.shippingAddress.province}`
+              : undefined,
+          })
+          .catch((err: any) => {
+            console.warn(`[Checkout] Could not dispatch order confirmation email: ${err?.message}`);
+          });
       }
 
       return this.confirmResponse(orderData.order, false);
