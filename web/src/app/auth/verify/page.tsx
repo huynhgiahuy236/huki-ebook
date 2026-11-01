@@ -22,6 +22,14 @@ function VerifyOtpForm() {
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  // Auto-fill OTP from URL query params (nếu người dùng bấm vào link từ email)
+  useEffect(() => {
+    const tokenParam = searchParams.get('token') || searchParams.get('otp');
+    if (tokenParam && /^\d{6}$/.test(tokenParam.trim())) {
+      setOtp(tokenParam.trim().split(''));
+    }
+  }, [searchParams]);
+
   // Countdown timer
   useEffect(() => {
     let timer: NodeJS.Timeout | undefined;

@@ -40,6 +40,16 @@ const nextConfig: NextConfig = {
         permanent: true,
       },
       {
+        source: '/verify-email',
+        destination: '/auth/verify',
+        permanent: false,
+      },
+      {
+        source: '/reset-password',
+        destination: '/auth/reset-password',
+        permanent: false,
+      },
+      {
         source: '/books/:slug',
         destination: '/book/:slug',
         permanent: false,

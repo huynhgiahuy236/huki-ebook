@@ -219,6 +219,17 @@ export class EmailService {
     }
   }
 
+
+  private templateWithOtp(
+    title: string,
+    message: string,
+    otp: string,
+    action: string,
+    url: string,
+  ) {
+    return `<!doctype html><html><body style="font-family:Arial,sans-serif;background-color:#f4f6f8;padding:20px;color:#172033;margin:0;"><div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;border:1px solid #e2e8f0;text-align:center;"><h1 style="color:#003B2B;margin-top:0;font-size:24px;letter-spacing:1px;">HUKI EBOOK</h1><h2 style="font-size:18px;color:#1e293b;">${title}</h2><p style="color:#475569;font-size:14px;line-height:1.6;">${message}</p><div style="margin:24px 0;background:#f0fdf4;border:2px dashed #16a34a;border-radius:8px;padding:16px 20px;display:inline-block;"><span style="font-size:12px;color:#166534;font-weight:600;text-transform:uppercase;display:block;margin-bottom:4px;">MÃ XÁC THỰC OTP</span><span style="font-size:32px;font-weight:800;color:#003B2B;letter-spacing:6px;font-family:monospace;">${otp}</span></div><div><a href="${url}" style="background:#003B2B;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:600;display:inline-block;font-size:14px;">${action}</a></div><p style="color:#94a3b8;font-size:12px;margin-top:24px;">Mã OTP có hiệu lực trong 15 phút. Nếu không phải bạn đăng ký, xin bỏ qua email này.</p></div></body></html>`;
+  }
+
   private template(
     title: string,
     message: string,
