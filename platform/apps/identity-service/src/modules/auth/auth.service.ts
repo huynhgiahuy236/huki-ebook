@@ -45,6 +45,8 @@ interface UserEmailVerifiedEvent {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
@@ -57,8 +59,53 @@ export class AuthService {
     const email = dto.email.trim().toLowerCase();
 
     // Check if email exists
-    if (await this.prisma.user.findUnique({ where: { email } })) {
-      throwConflict(ErrorCode.AUTH_EMAIL_EXISTS);
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      if (existingUser.status === UserStatus.DELETED || existingUser.deletedAt) {
+        // Tài khoản cũ đã bị xóa: giải phóng email cũ để cho phép đăng ký mới
+        await this.prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            email: 'deleted_' + Date.now() + '_' + existingUser.id.substring(0, 8) + '_' + existingUser.email,
+            fullName: 'Người dùng đã xóa',
+            phone: null,
+            avatar: null,
+          },
+        });
+      } else if (existingUser.status !== UserStatus.PENDING) {
+        throwConflict(ErrorCode.AUTH_EMAIL_EXISTS);
+      }
+
+      // Tài khoản đang ở trạng thái PENDING (chưa kích hoạt OTP) -> cho phép đăng ký lại / cập nhật OTP mới
+      const emailVerificationToken = Math.floor(100000 + Math.random() * 900000).toString();
+      const emailVerificationExpiresAt = new Date(Date.now() + 15 * 60_1000);
+
+      const updatedPendingUser = await this.prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          passwordHash: await bcrypt.hash(dto.password, 12),
+          fullName: dto.fullName,
+          phone: dto.phone,
+          emailVerificationToken,
+          emailVerificationExpiresAt,
+        },
+      });
+
+      this.logger.log(`[AUTH OTP] Email verification code for ${updatedPendingUser.email}: ${emailVerificationToken}`);
+      try {
+        await this.emailService.sendVerificationEmail(
+          updatedPendingUser.email,
+          emailVerificationToken,
+        );
+      } catch (err: any) {
+        this.logger.warn(`Could not send verification email to ${updatedPendingUser.email}: ${err?.message || err}`);
+      }
+
+      return {
+        user: this.sanitizeUser(updatedPendingUser),
+        message: "Đăng ký thành công. Vui lòng kiểm tra email để nhận mã xác thực OTP.",
+        requiresVerification: true,
+      };
     }
 
     // Generate 6-digit numeric OTP verification code
@@ -80,10 +127,15 @@ export class AuthService {
       },
     });
 
-    await this.emailService.sendVerificationEmail(
-      user.email,
-      emailVerificationToken,
-    );
+    this.logger.log(`[AUTH OTP] Email verification code for ${user.email}: ${emailVerificationToken}`);
+    try {
+      await this.emailService.sendVerificationEmail(
+        user.email,
+        emailVerificationToken,
+      );
+    } catch (err: any) {
+      this.logger.warn(`Could not send verification email to ${user.email}: ${err?.message || err}`);
+    }
 
     // Publish USER_REGISTERED event
     this.emitUserRegistered({
@@ -100,50 +152,110 @@ export class AuthService {
     };
   }
 
-  async verifyEmail(token: string) {
-    let user = await this.prisma.user.findFirst({
+  async verifyEmail(token: string, email?: string) {
+    const normalizedEmail = email ? email.trim().toLowerCase() : undefined;
+    const cleanToken = token.trim();
+
+    // 1. Tìm tài khoản PENDING theo email (hoặc tài khoản PENDING mới nhất nếu không truyền email)
+    let targetUser = await this.prisma.user.findFirst({
       where: {
-        emailVerificationToken: token,
-        emailVerificationExpiresAt: { gt: new Date() },
+        ...(normalizedEmail ? { email: normalizedEmail } : {}),
+        status: UserStatus.PENDING,
       },
+      orderBy: { updatedAt: 'desc' },
     });
 
-    // In dev mode, support '123456' demo OTP code for latest pending account
-    if (!user && (token === '123456' || process.env.NODE_ENV !== 'production')) {
-      user = await this.prisma.user.findFirst({
-        where: {
-          status: UserStatus.PENDING,
-        },
-        orderBy: { createdAt: 'desc' },
+    // Nếu không thấy tài khoản PENDING, kiểm tra xem tài khoản đã ACTIVE chưa
+    if (!targetUser && normalizedEmail) {
+      const activeUser = await this.prisma.user.findFirst({
+        where: { email: normalizedEmail },
       });
-    }
-
-    if (!user) {
-      throwBadRequest(
-        ErrorCode.AUTH_RESET_TOKEN_INVALID,
-        "Invalid or expired verification token",
+      if (activeUser && activeUser.status === UserStatus.ACTIVE) {
+        return {
+          message: 'Tài khoản này đã được kích hoạt thành công trước đó. Vui lòng đăng nhập.',
+          user: this.sanitizeUser(activeUser),
+        };
+      }
+      throwNotFound(
+        ErrorCode.USER_NOT_FOUND,
+        'Không tìm thấy thông tin tài khoản cần xác thực. Vui lòng kiểm tra lại email hoặc đăng ký mới.',
       );
     }
 
-    // Update user to ACTIVE
+    if (!targetUser) {
+      throwNotFound(
+        ErrorCode.USER_NOT_FOUND,
+        'Không tìm thấy thông tin tài khoản cần xác thực. Vui lòng kiểm tra lại email hoặc đăng ký mới.',
+      );
+    }
+
+    // 2. Kiểm tra xem mã OTP có bị hết hạn không (>15 phút)
+    if (
+      targetUser.emailVerificationExpiresAt &&
+      targetUser.emailVerificationExpiresAt <= new Date()
+    ) {
+      throwBadRequest(
+        ErrorCode.AUTH_RESET_TOKEN_EXPIRED,
+        'Mã xác thực OTP đã hết hạn (quá 15 phút). Vui lòng bấm "Gửi lại mã mới".',
+      );
+    }
+
+    // 3. Kiểm tra số lần nhập sai (Blocked after 5 failed attempts)
+    if (targetUser.failedLoginAttempts >= 5) {
+      throwBadRequest(
+        ErrorCode.AUTH_LOGIN_ACCOUNT_BLOCKED,
+        'Bạn đã nhập sai mã OTP quá 5 lần. Mã này đã bị vô hiệu hóa, vui lòng bấm "Gửi lại mã mới".',
+      );
+    }
+
+    // 4. Kiểm tra mã OTP: Khớp mã thật trong DB hoặc mã mẫu '123456' trong môi trường dev
+    const isDemoCode = cleanToken === '123456' && process.env.NODE_ENV !== 'production';
+    const isTokenMatch = cleanToken === targetUser.emailVerificationToken;
+
+    if (!isTokenMatch && !isDemoCode) {
+      const failedAttempts = (targetUser.failedLoginAttempts || 0) + 1;
+      const willLock = failedAttempts >= 5;
+      await this.prisma.user.update({
+        where: { id: targetUser.id },
+        data: {
+          failedLoginAttempts: failedAttempts,
+          ...(willLock ? { emailVerificationExpiresAt: new Date(0) } : {}),
+        },
+      });
+
+      if (willLock) {
+        throwBadRequest(
+          ErrorCode.AUTH_LOGIN_ACCOUNT_BLOCKED,
+          'Bạn đã nhập sai mã OTP quá 5 lần. Mã xác thực đã bị vô hiệu hóa, vui lòng bấm "Gửi lại mã mới".',
+        );
+      }
+
+      const remaining = 5 - failedAttempts;
+      throwBadRequest(
+        ErrorCode.AUTH_RESET_TOKEN_INVALID,
+        `Mã OTP không chính xác. Bạn còn ${remaining} lần thử trước khi mã bị vô hiệu hóa.`,
+      );
+    }
+
+    // 5. Xác thực thành công: Kích hoạt ACTIVE và xóa sạch token/attempts
     const updatedUser = await this.prisma.user.update({
-      where: { id: user!.id },
+      where: { id: targetUser.id },
       data: {
         status: UserStatus.ACTIVE,
         emailVerifiedAt: new Date(),
         emailVerificationToken: null,
         emailVerificationExpiresAt: null,
+        failedLoginAttempts: 0,
       },
     });
 
-    // Publish USER_EMAIL_VERIFIED event
     this.emitUserEmailVerified({
       userId: updatedUser.id,
       timestamp: new Date().toISOString(),
     });
 
     return {
-      message: "Email verified successfully. You can now login.",
+      message: 'Xác thực tài khoản thành công! Bạn có thể đăng nhập ngay.',
       user: this.sanitizeUser(updatedUser),
     };
   }
@@ -154,76 +266,101 @@ export class AuthService {
     });
 
     if (!user) {
-      // Don't reveal if email exists
-      return { message: "If email exists, verification has been sent." };
+      return { message: 'Nếu email tồn tại, mã xác thực mới đã được gửi.' };
     }
 
     if (user.status === UserStatus.ACTIVE && user.emailVerifiedAt) {
-      return { message: "Email already verified." };
+      return { message: 'Tài khoản này đã được kích hoạt trước đó.' };
     }
 
-    // Generate new verification token
-    const emailVerificationToken = randomBytes(32).toString("hex");
-    const emailVerificationExpiresAt = new Date(Date.now() + 24 * 60 * 60_1000);
+    // Generate new 6-digit numeric OTP verification code và reset attempts
+    const emailVerificationToken = Math.floor(100000 + Math.random() * 900000).toString();
+    const emailVerificationExpiresAt = new Date(Date.now() + 15 * 60_1000);
 
     await this.prisma.user.update({
-      where: { id: user!.id },
+      where: { id: user.id },
       data: {
         emailVerificationToken,
         emailVerificationExpiresAt,
+        failedLoginAttempts: 0,
       },
     });
 
-    await this.emailService.sendVerificationEmail(
-      user.email,
-      emailVerificationToken,
-    );
+    this.logger.log(`[AUTH OTP] Re-sent verification code for ${user.email}: ${emailVerificationToken}`);
+    try {
+      await this.emailService.sendVerificationEmail(
+        user.email,
+        emailVerificationToken,
+      );
+    } catch (err: any) {
+      this.logger.warn(`Could not re-send verification email: ${err?.message || err}`);
+    }
 
-    return { message: "Verification email sent." };
+    return { message: 'Mã xác thực OTP mới đã được gửi tới email của bạn.' };
   }
 
   async login(dto: LoginDto, userAgent?: string, ipAddress?: string) {
+    const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email.trim().toLowerCase() },
+      where: { email },
     });
 
-    if (!user) throwUnauthorized(ErrorCode.AUTH_LOGIN_INVALID_CREDENTIALS);
+    if (!user || user.status === UserStatus.DELETED || user.deletedAt) {
+      throwNotFound(
+        ErrorCode.USER_NOT_FOUND,
+        'Tài khoản chưa tồn tại trên hệ thống. Vui lòng kiểm tra lại email hoặc bấm "Tạo tài khoản mới".',
+      );
+    }
 
     // Check if account is locked
-    if (user!.lockedUntil && user!.lockedUntil > new Date()) {
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      const waitMinutes = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
       throwUnauthorized(
         ErrorCode.AUTH_LOGIN_ACCOUNT_BLOCKED,
-        "Account is temporarily locked",
+        `Tài khoản đang bị tạm khóa do nhập sai mật khẩu nhiều lần. Vui lòng thử lại sau ${waitMinutes} phút.`,
       );
     }
 
     // Check user status - PENDING means not verified
-    if (user!.status === UserStatus.PENDING) {
+    if (user.status === UserStatus.PENDING) {
       throwUnauthorized(
         ErrorCode.AUTH_LOGIN_ACCOUNT_PENDING,
-        "Please verify your email first",
+        'Tài khoản chưa kích hoạt mã xác thực OTP. Vui lòng kiểm tra email để nhập mã kích hoạt.',
       );
     }
 
-    // Check if account is blocked
-    if (user!.status === UserStatus.BLOCKED) {
-      throwUnauthorized(ErrorCode.AUTH_LOGIN_ACCOUNT_BLOCKED);
+    // Check if account is blocked by admin
+    if (user.status === UserStatus.BLOCKED) {
+      throwUnauthorized(
+        ErrorCode.AUTH_LOGIN_ACCOUNT_BLOCKED,
+        'Tài khoản của bạn đã bị khóa bởi quản trị viên.',
+      );
     }
 
     // Verify password
-    if (!(await bcrypt.compare(dto.password, user!.passwordHash))) {
-      const failedLoginAttempts = user!.failedLoginAttempts + 1;
+    if (!(await bcrypt.compare(dto.password, user.passwordHash))) {
+      const failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+      const willLock = failedLoginAttempts >= 5;
       await this.prisma.user.update({
-        where: { id: user!.id },
+        where: { id: user.id },
         data: {
           failedLoginAttempts,
-          lockedUntil:
-            failedLoginAttempts >= 5
-              ? new Date(Date.now() + 30 * 60_1000)
-              : null,
+          lockedUntil: willLock ? new Date(Date.now() + 15 * 60_1000) : null,
         },
       });
-      throwUnauthorized(ErrorCode.AUTH_LOGIN_INVALID_CREDENTIALS);
+
+      if (willLock) {
+        throwUnauthorized(
+          ErrorCode.AUTH_LOGIN_ACCOUNT_BLOCKED,
+          'Bạn đã nhập sai mật khẩu 5 lần. Tài khoản tạm thời bị khóa 15 phút để bảo mật.',
+        );
+      }
+
+      const remaining = 5 - failedLoginAttempts;
+      throwUnauthorized(
+        ErrorCode.AUTH_LOGIN_INVALID_CREDENTIALS,
+        `Mật khẩu không chính xác. Bạn còn ${remaining} lần thử trước khi tài khoản bị tạm khóa 15 phút.`,
+      );
     }
 
     // Reset failed attempts on successful auth attempt

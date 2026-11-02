@@ -132,9 +132,16 @@ function LoginForm() {
       const isRestricted = rawTarget.startsWith('/seller') || rawTarget.startsWith('/admin');
       router.push(isRestricted ? '/' : rawTarget);
     } else {
+      const isNotFound = res.code === 'USER_NOT_FOUND' || res.error?.includes('chưa tồn tại') || res.error?.includes('không tồn tại');
       const vietnameseError = formatAuthError(res.error);
+      if (isNotFound) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          emailOrPhone: 'Tài khoản chưa tồn tại. Vui lòng kiểm tra lại email hoặc bấm Đăng ký tài khoản mới.',
+        }));
+      }
       showToast({
-        title: 'Đăng nhập thất bại',
+        title: isNotFound ? 'Chưa có tài khoản' : 'Đăng nhập thất bại',
         message: vietnameseError,
         type: 'error',
       });

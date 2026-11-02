@@ -141,7 +141,12 @@ export default function RegisterPage() {
         message: 'Mã OTP đã được gửi đến email của bạn.',
         type: 'success',
       });
-      router.push(`/auth/verify?email=${encodeURIComponent(formData.email.trim())}`);
+      const verifyUrl = `/auth/verify?email=${encodeURIComponent(formData.email.trim())}`;
+      if (typeof window !== 'undefined') {
+        window.location.href = verifyUrl;
+      } else {
+        router.push(verifyUrl);
+      }
     } else {
       const vietnameseError = formatAuthError(regRes.error);
       showToast({

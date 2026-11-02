@@ -69,8 +69,8 @@ export class AuthController {
   })
   @ApiResponse({ status: 200, description: 'Email verified successfully' })
   @ApiBadRequestResponse({ description: 'Invalid or expired token' })
-  async verifyEmail(@Body('token') token: string) {
-    const result = await this.authService.verifyEmail(token);
+  async verifyEmail(@Body('token') token: string, @Body('email') email?: string) {
+    const result = await this.authService.verifyEmail(token, email);
     return { data: result };
   }
 

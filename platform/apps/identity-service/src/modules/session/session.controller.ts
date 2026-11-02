@@ -1,13 +1,14 @@
 import {
   Controller,
   Get,
-  Post,
   Delete,
   Param,
   UseGuards,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../../../libs/shared/src/decorators/current-user.decorator';
@@ -22,8 +23,13 @@ export class SessionController {
 
   @Get()
   @ApiOperation({ summary: 'Get all active sessions' })
-  async getSessions(@CurrentUser('id') userId: string) {
-    const sessions = await this.sessionService.getUserSessions(userId);
+  async getSessions(
+    @CurrentUser('id') userId: string,
+    @Req() req: Request,
+  ) {
+    const userAgent = req.get('user-agent');
+    const ipAddress = req.ip;
+    const sessions = await this.sessionService.getUserSessions(userId, userAgent, ipAddress);
     return { data: sessions };
   }
 

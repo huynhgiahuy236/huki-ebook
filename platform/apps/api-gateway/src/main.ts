@@ -72,6 +72,18 @@ async function bootstrap() {
     exposedHeaders: ['x-correlation-id', 'X-Correlation-Id'],
   });
 
+  // Auto-redirect verification and password reset links to Web Frontend
+  app.use((req: any, res: any, next: any) => {
+    const p = req.path || '';
+    if (p === '/verify-email' || p === '/auth/verify' || p === '/reset-password' || p === '/auth/reset-password') {
+      const frontend = process.env.FRONTEND_URL || 'http://localhost:3100';
+      const qs = req.url && req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+      const dest = p.includes('reset') ? '/auth/reset-password' : '/auth/verify';
+      return res.redirect(`${frontend}${dest}${qs}`);
+    }
+    next();
+  });
+
   // Global prefix
   app.setGlobalPrefix('api/v1');
 

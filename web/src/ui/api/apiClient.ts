@@ -201,8 +201,16 @@ const BUSINESS_ERROR_TRANSLATIONS: Record<string, { title: string; message: stri
     message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
   },
   AUTH_USER_NOT_FOUND: {
-    title: 'Không tìm thấy tài khoản',
-    message: 'Email này chưa được đăng ký trong hệ thống HUKI.',
+    title: 'Tài khoản chưa tồn tại',
+    message: 'Tài khoản chưa tồn tại trên hệ thống. Vui lòng kiểm tra lại email hoặc bấm "Tạo tài khoản mới".',
+  },
+  USER_NOT_FOUND: {
+    title: 'Tài khoản chưa tồn tại',
+    message: 'Tài khoản chưa tồn tại trên hệ thống. Vui lòng kiểm tra lại email hoặc bấm "Tạo tài khoản mới".',
+  },
+  AUTH_PASSWORD_INCORRECT: {
+    title: 'Mật khẩu không đúng',
+    message: 'Mật khẩu không chính xác. Vui lòng kiểm tra lại hoặc chọn "Quên mật khẩu".',
   },
   AUTH_USER_ALREADY_EXISTS: {
     title: 'Email đã được sử dụng',
@@ -371,7 +379,31 @@ export function extractHumanErrorMessage(body: unknown, status: number): { title
       ? nestedError.code
       : defaultHttp.code;
 
-  // 1. Kiểm tra từ điển mã lỗi nghiệp vụ
+  // 1. Ưu tiên message cụ thể từ backend nếu có (ví dụ: số lần thử còn lại, tài khoản chưa tồn tại...)
+  const rawMessage = obj.message
+    || nestedError?.message
+    || (typeof obj.error === 'string' ? obj.error : null);
+
+  if (typeof rawMessage === 'string' && rawMessage.trim()) {
+    const trimmed = rawMessage.trim();
+    const lower = trimmed.toLowerCase();
+    if (
+      lower !== 'internal server error' &&
+      lower !== 'bad request' &&
+      lower !== 'unauthorized' &&
+      lower !== 'not found' &&
+      lower !== 'forbidden' &&
+      lower !== 'conflict'
+    ) {
+      return {
+        title: BUSINESS_ERROR_TRANSLATIONS[rawCode]?.title || defaultHttp.title,
+        message: translateValidationRule(trimmed),
+        code: rawCode || defaultHttp.code,
+      };
+    }
+  }
+
+  // 1b. Tra từ điển mã lỗi nghiệp vụ nếu không có message cụ thể
   if (rawCode && BUSINESS_ERROR_TRANSLATIONS[rawCode]) {
     return {
       title: BUSINESS_ERROR_TRANSLATIONS[rawCode].title,
@@ -423,9 +455,6 @@ export function extractHumanErrorMessage(body: unknown, status: number): { title
   }
 
   // 4. Lấy chuỗi message thô nếu có và làm sạch
-  const rawMessage = obj.message
-    || nestedError?.message
-    || (typeof obj.error === 'string' ? obj.error : null);
   if (typeof rawMessage === 'string' && rawMessage.trim()) {
     const trimmed = rawMessage.trim();
 

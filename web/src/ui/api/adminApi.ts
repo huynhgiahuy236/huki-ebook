@@ -523,6 +523,19 @@ export const adminApi = {
   },
 
   /**
+   * Khôi phục mở lại chốt an toàn tài khoản người dùng đã xóa hoặc chờ xóa
+   */
+  async restoreUser(id: string): Promise<ApiResponse<any>> {
+    const res = await apiClient<any>(`/users/admin/${id}/restore`, {
+      method: 'POST',
+    });
+    if (res.success) {
+      realtimeSyncBus.publish('USER_STATUS_UPDATED', { userId: id, action: 'RESTORE' });
+    }
+    return res;
+  },
+
+  /**
    * Lấy danh sách toàn bộ các món hàng trong quỹ tài khoản trung gian
    */
   async getEscrowItems(params?: { status?: string; search?: string }): Promise<ApiResponse<any[]>> {

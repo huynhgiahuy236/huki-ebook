@@ -39,7 +39,7 @@ body {
   font-weight: 100 700;
   font-display: block;
   src: url('/fonts/material-symbols-outlined.woff2') format('woff2'),
-       url('https://fonts.gstatic.com/s/materialsymbolsoutlined/v377/kJEhBvYX7BgnkSrUwT8OhrdQw4oELdPIeeII9v6oFsI.woff2') format('woff2');
+    url('https://fonts.gstatic.com/s/materialsymbolsoutlined/v377/kJEhBvYX7BgnkSrUwT8OhrdQw4oELdPIeeII9v6oFsI.woff2') format('woff2');
 }
 
 .material-symbols-outlined {
@@ -61,19 +61,25 @@ body {
 
 /* Floating AI Mascot Animations */
 @keyframes float-huki {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0px) rotate(0deg);
   }
+
   50% {
     transform: translateY(-8px) rotate(-1.5deg);
   }
 }
 
 @keyframes shadow-huki {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: scale(1);
     opacity: 0.35;
   }
+
   50% {
     transform: scale(0.78);
     opacity: 0.15;
@@ -81,10 +87,13 @@ body {
 }
 
 @keyframes sparkle-pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: scale(0.85);
     opacity: 0.5;
   }
+
   50% {
     transform: scale(1.15);
     opacity: 1;
@@ -108,8 +117,49 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 /* Hide scrollbar for IE, Edge and Firefox */
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+@keyframes otp-shake {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
+}
+
+@keyframes otp-pulse-red {
+
+  0%,
+  100% {
+    border-color: #f43f5e;
+    box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.25);
+  }
+
+  50% {
+    border-color: #fda4af;
+    box-shadow: 0 0 0 1px rgba(244, 63, 94, 0.1);
+  }
+}
+
+.animate-otp-shake {
+  animation: otp-shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+.animate-otp-pulse {
+  animation: otp-pulse-red 1.2s infinite ease-in-out;
 }

@@ -207,6 +207,14 @@ export function formatAuthError(error: unknown): string {
       : JSON.stringify(error);
   const raw = (typeof error === 'string' ? error : errorMessage).toLowerCase();
 
+  if (raw.includes('user_not_found') || raw.includes('chưa có tài khoản') || raw.includes('không tồn tại')) {
+    return 'Tài khoản chưa tồn tại trên hệ thống. Vui lòng kiểm tra lại email hoặc bấm "Tạo tài khoản mới".';
+  }
+  if (raw.includes('mật khẩu không chính xác') || raw.includes('auth_password_incorrect') || raw.includes('lần thử')) {
+    return typeof errorObject?.message === 'string' && errorObject.message.includes('thử')
+      ? errorObject.message
+      : 'Mật khẩu không chính xác. Vui lòng kiểm tra lại hoặc chọn "Quên mật khẩu".';
+  }
   if (raw.includes('email_exists') || raw.includes('email already exists') || raw.includes('email đã tồn tại')) {
     return 'Email này đã được sử dụng trên hệ thống. Vui lòng đăng nhập hoặc dùng email khác.';
   }

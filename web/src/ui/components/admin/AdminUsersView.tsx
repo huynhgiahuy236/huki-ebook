@@ -40,10 +40,16 @@ export interface AdminUser {
   devicesList: DrmDevice[];
   points: number;
   joinedDate: string;
-  status: 'active' | 'warning' | 'locked' | 'pending';
+  status: 'active' | 'warning' | 'locked' | 'pending' | 'pending_deletion' | 'deleted';
   statusLabel: string;
   storeName?: string | null;
   rawStatus?: string;
+  deletionScheduledAt?: string | null;
+  deletionRequestedAt?: string | null;
+  deletionCount?: number;
+  remainingDays?: number | null;
+  deletedAt?: string | null;
+  originalEmail?: string | null;
 }
 
 function formatVietnamDate(dateStr?: string | null): string {
@@ -107,14 +113,27 @@ export default function AdminUsersView() {
         const rawUsers = res.data;
         const mapped: AdminUser[] = rawUsers.map((u: any) => {
           const rawStatus = (u.status || '').toUpperCase();
+          const isPendingDeletion = rawStatus === 'PENDING_DELETION';
+          const isDeleted = rawStatus === 'DELETED' || Boolean(u.deletedAt);
           const isLocked = rawStatus === 'LOCKED' || rawStatus === 'BLOCKED';
           const isPending = rawStatus === 'PENDING';
-          const status = isLocked ? 'locked' : isPending ? 'warning' : 'active';
-          const statusLabel = isLocked
-            ? 'Đã bị khóa tài khoản'
-            : isPending
-            ? 'Chờ xác thực'
-            : 'Hoạt động tốt';
+
+          let status: 'active' | 'warning' | 'locked' | 'pending' | 'pending_deletion' | 'deleted' = 'active';
+          let statusLabel = 'Hoạt động tốt';
+
+          if (isPendingDeletion) {
+            status = 'pending_deletion';
+            statusLabel = `Chờ xóa (${u.remainingDays ?? 7} ngày)`;
+          } else if (isDeleted) {
+            status = 'deleted';
+            statusLabel = 'Đã xóa tài khoản';
+          } else if (isLocked) {
+            status = 'locked';
+            statusLabel = 'Đã bị khóa tài khoản';
+          } else if (isPending) {
+            status = 'warning';
+            statusLabel = 'Chờ xác thực';
+          }
 
           // Determine role & tier
           const role = u.role || 'CUSTOMER';
@@ -162,6 +181,12 @@ export default function AdminUsersView() {
             statusLabel,
             storeName: u.storeName,
             rawStatus,
+            deletionScheduledAt: u.deletionScheduledAt,
+            deletionRequestedAt: u.deletionRequestedAt,
+            deletionCount: u.deletionCount || 0,
+            remainingDays: u.remainingDays,
+            deletedAt: u.deletedAt,
+            originalEmail: u.originalEmail,
           };
         });
 
@@ -188,6 +213,7 @@ export default function AdminUsersView() {
   loadUsersRef.current = loadUsers;
 
   useEffect(() => {
+    // 1. Cross-tab instant broadcast sync
     const unsubscribe = realtimeSyncBus.subscribe((msg) => {
       if (
         msg.type === 'USER_REGISTERED' ||
@@ -200,7 +226,16 @@ export default function AdminUsersView() {
 
         let eventText = 'Có biến động người dùng trong hệ thống';
         if (msg.type === 'USER_REGISTERED') eventText = `Bạn đọc mới vừa đăng ký: ${(msg.payload as any)?.email || ''}`;
-        if (msg.type === 'USER_STATUS_UPDATED') eventText = 'Cập nhật trạng thái khóa/mở khóa tài khoản';
+        if (msg.type === 'USER_STATUS_UPDATED') {
+          const payload = msg.payload as any;
+          if (payload?.status === 'PENDING_DELETION') {
+            eventText = 'Một người dùng vừa yêu cầu chờ xóa tài khoản (7 ngày)';
+          } else if (payload?.status === 'ACTIVE' || payload?.action === 'RESTORE') {
+            eventText = 'Một tài khoản đã được khôi phục hoạt động bình thường';
+          } else {
+            eventText = 'Cập nhật trạng thái người dùng';
+          }
+        }
         if (msg.type === 'USER_UPDATED') eventText = 'Hồ sơ người dùng vừa được cập nhật';
 
         setLastLiveEvent(`${eventText} (${new Date(msg.timestamp).toLocaleTimeString('vi-VN')})`);
@@ -211,8 +246,116 @@ export default function AdminUsersView() {
       }
     });
 
+    // 2. Realtime sync on Window Focus & Tab Visibility change
+    const onFocus = () => {
+      loadUsersRef.current();
+    };
+    window.addEventListener('focus', onFocus);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        loadUsersRef.current();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    // 3. Heartbeat background polling every 3 seconds for guaranteed real-time across different browsers
+    const pollInterval = window.setInterval(() => {
+      adminApi.getUsers().then((res) => {
+        if (res.success && Array.isArray(res.data)) {
+          const rawUsers = res.data;
+          const mapped: AdminUser[] = rawUsers.map((u: any) => {
+            const rawStatus = (u.status || '').toUpperCase();
+            const isPendingDeletion = rawStatus === 'PENDING_DELETION';
+            const isDeleted = rawStatus === 'DELETED' || Boolean(u.deletedAt);
+            const isLocked = rawStatus === 'LOCKED' || rawStatus === 'BLOCKED';
+            const isPending = rawStatus === 'PENDING';
+
+            let status: 'active' | 'warning' | 'locked' | 'pending' | 'pending_deletion' | 'deleted' = 'active';
+            let statusLabel = 'Hoạt động tốt';
+
+            if (isPendingDeletion) {
+              status = 'pending_deletion';
+              statusLabel = `Chờ xóa (${u.remainingDays ?? 7} ngày)`;
+            } else if (isDeleted) {
+              status = 'deleted';
+              statusLabel = 'Đã xóa tài khoản';
+            } else if (isLocked) {
+              status = 'locked';
+              statusLabel = 'Đã bị khóa tài khoản';
+            } else if (isPending) {
+              status = 'warning';
+              statusLabel = 'Chờ xác thực';
+            }
+
+            const role = u.role || 'CUSTOMER';
+            let tier: 'diamond' | 'gold' | 'silver' | 'bronze' = 'bronze';
+            let tierLabel = 'Đồng';
+            if (role === 'PLATFORM_ADMIN') {
+              tier = 'diamond';
+              tierLabel = 'Quản Trị';
+            } else if (role === 'BUSINESS' || role === 'SELLER_ADMIN') {
+              tier = 'gold';
+              tierLabel = 'Đối Tác NXB';
+            } else if (role === 'DELIVERY_STAFF') {
+              tier = 'silver';
+              tierLabel = 'Bưu Tá';
+            }
+
+            const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.fullName || 'User')}&background=00875A&color=fff&size=120`;
+
+            return {
+              id: u.id,
+              name: u.fullName || 'Độc Giả Chưa Đặt Tên',
+              email: u.email || 'N/A',
+              phone: u.phone || 'Chưa cập nhật',
+              avatar: u.avatar || defaultAvatar,
+              role,
+              roleLabel: u.roleLabel || (role === 'CUSTOMER' ? 'Khách hàng' : role),
+              tier,
+              tierLabel,
+              spent: 0,
+              booksOwned: 0,
+              ebooksCount: 0,
+              physicalCount: 0,
+              devicesCount: 1,
+              devicesList: [
+                {
+                  id: `DEV-${u.id.substring(0, 4)}`,
+                  name: 'Trình duyệt Web (HUKI Desktop)',
+                  type: 'Windows Web',
+                  lastActive: 'Hôm nay',
+                },
+              ],
+              points: 100,
+              joinedDate: formatVietnamDate(u.createdAt),
+              status,
+              statusLabel,
+              storeName: u.storeName,
+              rawStatus,
+              deletionScheduledAt: u.deletionScheduledAt,
+              deletionRequestedAt: u.deletionRequestedAt,
+              deletionCount: u.deletionCount || 0,
+              remainingDays: u.remainingDays,
+              deletedAt: u.deletedAt,
+              originalEmail: u.originalEmail,
+            };
+          });
+
+          // Check if data changed to avoid re-rendering unnecessarily
+          setUsers((prev) => {
+            const prevStr = JSON.stringify(prev.map(p => ({ id: p.id, status: p.status, remainingDays: p.remainingDays })));
+            const nextStr = JSON.stringify(mapped.map(m => ({ id: m.id, status: m.status, remainingDays: m.remainingDays })));
+            return prevStr !== nextStr ? mapped : prev;
+          });
+        }
+      }).catch(() => {});
+    }, 3000);
+
     return () => {
       unsubscribe();
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.clearInterval(pollInterval);
       if (pulseTimerRef.current) window.clearTimeout(pulseTimerRef.current);
     };
   }, [showToast]);
@@ -244,7 +387,22 @@ export default function AdminUsersView() {
     isDirty: false,
   });
 
-  // 3. Real Toggle Lock in Database
+  // 3. Real Restore User (Mở lại chốt an toàn)
+  const handleRestoreUser = async (userId: string) => {
+    try {
+      const res = await adminApi.restoreUser(userId);
+      if (res.success) {
+        showToast?.('Đã khôi phục tài khoản thành công! Chốt an toàn đã được mở lại.', 'success');
+        loadUsers();
+      } else {
+        showToast?.(res.error?.message || 'Không thể khôi phục tài khoản.', 'error');
+      }
+    } catch (err: any) {
+      showToast?.(err?.message || 'Lỗi khi khôi phục tài khoản.', 'error');
+    }
+  };
+
+  // Real Toggle Lock in Database
   const handleToggleLock = async (userId: string) => {
     try {
       const res = await adminApi.toggleLockUser(userId);
@@ -452,6 +610,8 @@ export default function AdminUsersView() {
       if (activeTab === 'customer' && user.role !== 'CUSTOMER' && user.role !== 'USER') return false;
       if (activeTab === 'business' && user.role !== 'BUSINESS' && user.role !== 'SELLER_ADMIN') return false;
       if (activeTab === 'staff' && user.role !== 'DELIVERY_STAFF') return false;
+      if (activeTab === 'pending_deletion' && user.status !== 'pending_deletion') return false;
+      if (activeTab === 'deleted' && user.status !== 'deleted') return false;
       if (activeTab === 'warning' && user.status !== 'warning' && user.status !== 'locked') return false;
 
       // Date filter
@@ -484,6 +644,8 @@ export default function AdminUsersView() {
     const businessCount = users.filter((u) => u.role === 'BUSINESS' || u.role === 'SELLER_ADMIN').length;
     const staffCount = users.filter((u) => u.role === 'DELIVERY_STAFF').length;
     const lockedOrPendingCount = users.filter((u) => u.status === 'locked' || u.status === 'warning').length;
+    const pendingDeletionCount = users.filter((u) => u.status === 'pending_deletion').length;
+    const deletedCount = users.filter((u) => u.status === 'deleted').length;
 
     return {
       totalUsers,
@@ -491,6 +653,8 @@ export default function AdminUsersView() {
       businessCount,
       staffCount,
       lockedOrPendingCount,
+      pendingDeletionCount,
+      deletedCount,
     };
   }, [users]);
 
@@ -581,9 +745,25 @@ export default function AdminUsersView() {
         align: 'center',
         sortable: true,
         className: 'whitespace-nowrap',
-        render: (status: string) => {
-          if (status === 'active') return <AdminStatusBadge status="success" label="Hoạt động" icon="check_circle" />;
-          if (status === 'warning') return <AdminStatusBadge status="warning" label="Chờ duyệt" icon="warning" />;
+        render: (_val: string, user: AdminUser) => {
+          if (user.status === 'pending_deletion') {
+            return (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-50 text-amber-800 border border-amber-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                <span>Chờ xóa (${user.remainingDays ?? 7} ngày)</span>
+              </span>
+            );
+          }
+          if (user.status === 'deleted') {
+            return (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-rose-50 text-rose-800 border border-rose-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                <span>Đã xóa</span>
+              </span>
+            );
+          }
+          if (user.status === 'active') return <AdminStatusBadge status="success" label="Hoạt động" icon="check_circle" />;
+          if (user.status === 'warning') return <AdminStatusBadge status="warning" label="Chờ duyệt" icon="warning" />;
           return <AdminStatusBadge status="danger" label="Đã khóa" icon="lock" />;
         },
       },
@@ -594,17 +774,28 @@ export default function AdminUsersView() {
         className: 'whitespace-nowrap',
         render: (_val, user) => (
           <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => handleToggleLock(user.id)}
-              className={`px-2 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer border ${
-                user.status === 'locked'
-                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
-                  : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
-              }`}
-              title={user.status === 'locked' ? 'Mở khóa tài khoản' : 'Khóa tài khoản trong CSDL'}
-            >
-              {user.status === 'locked' ? 'Mở Khóa' : 'Khóa'}
-            </button>
+            {user.status === 'pending_deletion' || user.status === 'deleted' ? (
+              <button
+                onClick={() => handleRestoreUser(user.id)}
+                className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer border bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300 flex items-center gap-1 shadow-2xs"
+                title="Mở lại chốt và khôi phục tài khoản nguyên trạng"
+              >
+                <span className="material-symbols-outlined text-[13px]">restore</span>
+                <span>Khôi Phục</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => handleToggleLock(user.id)}
+                className={`px-2 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer border ${
+                  user.status === 'locked'
+                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                    : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                }`}
+                title={user.status === 'locked' ? 'Mở khóa tài khoản' : 'Khóa tài khoản trong CSDL'}
+              >
+                {user.status === 'locked' ? 'Mở Khóa' : 'Khóa'}
+              </button>
+            )}
             <button
               onClick={() => {
                 setInspectingUser(user);
@@ -752,6 +943,8 @@ export default function AdminUsersView() {
           { key: 'customer', label: 'Độc giả (Customer)', count: kpiStats.customerCount },
           { key: 'business', label: 'Nhà bán sách (Business)', count: kpiStats.businessCount },
           { key: 'staff', label: 'Bưu tá (Shipper)', count: kpiStats.staffCount },
+          { key: 'pending_deletion', label: 'Chờ xóa (7 ngày)', count: kpiStats.pendingDeletionCount },
+          { key: 'deleted', label: 'Đã xóa', count: kpiStats.deletedCount },
           { key: 'warning', label: 'Khóa / Chờ duyệt', count: kpiStats.lockedOrPendingCount },
         ]}
         activeTab={activeTab}
@@ -965,19 +1158,30 @@ export default function AdminUsersView() {
               <div className="pt-3 border-t border-gray-200 space-y-2">
                 <div className="font-bold text-gray-900 text-xs">Thao Tác Quản Trị Trực Tiếp CSDL:</div>
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handleToggleLock(inspectingUser.id)}
-                    className={`px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer flex items-center gap-1 shadow-2xs ${
-                      inspectingUser.status === 'locked'
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                        : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[15px]">
-                      {inspectingUser.status === 'locked' ? 'lock_open' : 'lock'}
-                    </span>
-                    <span>{inspectingUser.status === 'locked' ? 'Mở Khóa Tài Khoản (DB)' : 'Khóa Tài Khoản (DB)'}</span>
-                  </button>
+                  {(inspectingUser.status === 'pending_deletion' || inspectingUser.status === 'deleted') && (
+                    <button
+                      onClick={() => handleRestoreUser(inspectingUser.id)}
+                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer flex items-center gap-1.5 shadow-xs"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">restore</span>
+                      <span>Mở Chốt &amp; Khôi Phục Tài Khoản (DB)</span>
+                    </button>
+                  )}
+                  {inspectingUser.status !== 'deleted' && inspectingUser.status !== 'pending_deletion' && (
+                    <button
+                      onClick={() => handleToggleLock(inspectingUser.id)}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer flex items-center gap-1 shadow-2xs ${
+                        inspectingUser.status === 'locked'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                          : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[15px]">
+                        {inspectingUser.status === 'locked' ? 'lock_open' : 'lock'}
+                      </span>
+                      <span>{inspectingUser.status === 'locked' ? 'Mở Khóa Tài Khoản (DB)' : 'Khóa Tài Khoản (DB)'}</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => handleRewardPoints(inspectingUser.id)}
                     className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs border border-amber-200 cursor-pointer flex items-center gap-1 shadow-2xs"

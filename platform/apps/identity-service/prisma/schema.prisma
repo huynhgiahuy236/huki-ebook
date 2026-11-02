@@ -49,6 +49,14 @@ model User {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
+  // Deletion lifecycle & recovery
+  deletionRequestedAt     DateTime?  @map("deletion_requested_at")
+  deletionScheduledAt     DateTime?  @map("deletion_scheduled_at")
+  deletionOtp             String?    @map("deletion_otp")
+  deletionOtpExpiresAt    DateTime?  @map("deletion_otp_expires_at")
+  deletionCount           Int        @default(0) @map("deletion_count")
+  originalEmail           String?    @map("original_email")
+
   @@index([email])
   @@index([role])
   @@index([status])
@@ -66,6 +74,7 @@ enum UserStatus {
   ACTIVE
   BLOCKED
   PENDING
+  PENDING_DELETION
   DELETED
 }
 

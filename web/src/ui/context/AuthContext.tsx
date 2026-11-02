@@ -20,7 +20,7 @@ export interface AuthContextType {
   logout: () => Promise<void>;
   register: (formData: { email: string; password?: string; name?: string; fullName?: string; phone?: string }) => Promise<{ success: boolean; user?: UserSession; error?: string }>;
   changePassword: (currentPassword?: string, newPassword?: string) => Promise<ApiResponse<{ message: string }>>;
-  verifyEmail: (token: string) => Promise<ApiResponse<{ message: string; user?: UserSession }>>;
+  verifyEmail: (token: string, email?: string) => Promise<ApiResponse<{ message: string; user?: UserSession }>>;
   resendVerification: (email: string) => Promise<ApiResponse<{ message: string }>>;
   refreshBusiness: () => Promise<BusinessData | null>;
   updateUserProfile: (payload: UpdateProfilePayload) => Promise<ApiResponse<UserProfile>>;

@@ -88,6 +88,47 @@ export class UserController {
     };
   }
 
+  @Post('request-deletion-otp')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Request OTP for account deletion' })
+  async requestDeletionOtp(@CurrentUser('id') userId: string) {
+    return this.userService.requestDeletionOtp(userId);
+  }
+
+  @Post('confirm-deletion')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Confirm account deletion with GitHub-style text and OTP' })
+  async confirmDeletion(
+    @CurrentUser('id') userId: string,
+    @Body() dto: { confirmationText: string; otp: string; reason?: string },
+  ) {
+    return this.userService.confirmDeletion(userId, dto);
+  }
+
+  @Post('cancel-deletion')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Cancel pending account deletion within 7-day grace period' })
+  async cancelDeletion(@CurrentUser('id') userId: string) {
+    return this.userService.cancelDeletion(userId);
+  }
+
+  @Post('admin/:id/restore')
+  @ApiOperation({ summary: 'Admin restore user account' })
+  async restoreUserByAdmin(@Param('id') id: string) {
+    return this.userService.restoreUserByAdmin(id);
+  }
+
+  @Delete('profile')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Delete current user account (self-service)' })
+  async deleteSelf(@CurrentUser('id') userId: string) {
+    return this.userService.deleteSelf(userId);
+  }
+
   // ===================== ADMIN USER MANAGEMENT APIS =====================
   @Get('admin/all')
   @ApiOperation({ summary: 'Admin get all users with store info' })

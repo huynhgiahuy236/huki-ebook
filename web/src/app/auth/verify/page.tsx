@@ -5,12 +5,11 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
-import { tokenStorage } from '@/ui/api/tokenStorage';
 
 function VerifyOtpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { verifyEmail, resendVerification, login, pendingResetTarget } = useAuth();
+  const { verifyEmail, resendVerification, pendingResetTarget } = useAuth();
   const { showToast } = useToast();
 
   const targetEmail = searchParams.get('email') || pendingResetTarget || 'user@huki.com';
@@ -20,13 +19,31 @@ function VerifyOtpForm() {
   const [canResend, setCanResend] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Error & Shake & Auto-clear States
+  const [hasError, setHasError] = useState(false);
+  const [isShaking, setIsShaking] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const autoClearTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Cleanup auto-clear timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoClearTimerRef.current) {
+        clearTimeout(autoClearTimerRef.current);
+      }
+    };
+  }, []);
 
   // Auto-fill OTP from URL query params (nếu người dùng bấm vào link từ email)
   useEffect(() => {
     const tokenParam = searchParams.get('token') || searchParams.get('otp');
     if (tokenParam && /^\d{6}$/.test(tokenParam.trim())) {
       setOtp(tokenParam.trim().split(''));
+      setTimeout(() => {
+        inputRefs.current[5]?.focus();
+      }, 50);
     }
   }, [searchParams]);
 
@@ -45,45 +62,182 @@ function VerifyOtpForm() {
     };
   }, [countdown]);
 
-  // Handle single digit input
+  // Handle single digit input or autofill in onChange
   const handleChange = (index: number, value: string) => {
-    if (value && !/^\d+$/.test(value)) return;
+    const cleanDigits = value.replace(/\D/g, '');
 
+    // Nếu đang có lỗi và người dùng bắt đầu gõ số mới -> Xóa lỗi và reset nhập từ ô 0
+    if (hasError) {
+      if (autoClearTimerRef.current) {
+        clearTimeout(autoClearTimerRef.current);
+        autoClearTimerRef.current = null;
+      }
+      setHasError(false);
+      setErrorMessage('');
+
+      if (cleanDigits) {
+        const firstDigit = cleanDigits.slice(-1);
+        const newOtp = [firstDigit, '', '', '', '', ''];
+        setOtp(newOtp);
+        setTimeout(() => {
+          inputRefs.current[1]?.focus();
+          inputRefs.current[1]?.select();
+        }, 20);
+        return;
+      }
+    }
+    if (!cleanDigits) {
+      const newOtp = [...otp];
+      newOtp[index] = '';
+      setOtp(newOtp);
+      return;
+    }
+
+    // Trường hợp paste hoặc trình duyệt tự động điền nhiều chữ số
+    if (cleanDigits.length > 1) {
+      const newOtp = [...otp];
+      for (let i = 0; i < cleanDigits.length && index + i < 6; i++) {
+        newOtp[index + i] = cleanDigits[i];
+      }
+      setOtp(newOtp);
+      const nextIdx = Math.min(index + cleanDigits.length, 5);
+      setTimeout(() => {
+        inputRefs.current[nextIdx]?.focus();
+        inputRefs.current[nextIdx]?.select();
+      }, 20);
+      return;
+    }
+
+    // Nhập một chữ số đơn
     const newOtp = [...otp];
-    newOtp[index] = value.slice(-1);
+    newOtp[index] = cleanDigits.slice(-1);
     setOtp(newOtp);
 
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
+    if (index < 5) {
+      setTimeout(() => {
+        inputRefs.current[index + 1]?.focus();
+        inputRefs.current[index + 1]?.select();
+      }, 20);
     }
   };
 
-  // Handle key navigation (Backspace)
+  // Handle key navigation (Tránh lỗi lặp số với bộ gõ tiếng Việt Unikey / Telex & Tự động nhập lại khi đã lỗi)
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+    // Nếu đang ở trạng thái lỗi và người dùng gõ số mới -> Tự động xóa sạch lỗi và bắt đầu nhập lại từ ô đầu tiên
+    if (hasError) {
+      if (autoClearTimerRef.current) {
+        clearTimeout(autoClearTimerRef.current);
+        autoClearTimerRef.current = null;
+      }
+      setHasError(false);
+      setErrorMessage('');
+
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        const newOtp = [e.key, '', '', '', '', ''];
+        setOtp(newOtp);
+        setTimeout(() => {
+          inputRefs.current[1]?.focus();
+          inputRefs.current[1]?.select();
+        }, 15);
+        return;
+      }
+    }
+
+    // Nếu gõ số 0-9
+    if (/^[0-9]$/.test(e.key)) {
+      e.preventDefault();
+      const newOtp = [...otp];
+      newOtp[index] = e.key;
+      setOtp(newOtp);
+      if (index < 5) {
+        setTimeout(() => {
+          inputRefs.current[index + 1]?.focus();
+          inputRefs.current[index + 1]?.select();
+        }, 15);
+      }
+      return;
+    }
+
+    // Phím Backspace: xóa ô hiện tại, nếu rỗng thì lùi về ô trước
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      const newOtp = [...otp];
+      if (otp[index]) {
+        newOtp[index] = '';
+        setOtp(newOtp);
+      } else if (index > 0) {
+        newOtp[index - 1] = '';
+        setOtp(newOtp);
+        setTimeout(() => {
+          inputRefs.current[index - 1]?.focus();
+        }, 15);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowLeft' && index > 0) {
+      e.preventDefault();
       inputRefs.current[index - 1]?.focus();
+      inputRefs.current[index - 1]?.select();
+      return;
+    }
+
+    if (e.key === 'ArrowRight' && index < 5) {
+      e.preventDefault();
+      inputRefs.current[index + 1]?.focus();
+      inputRefs.current[index + 1]?.select();
+      return;
     }
   };
 
-  // Handle paste full 6-digit code
-  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+  // Handle paste full code
+  const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pasteData = e.clipboardData.getData('text').trim();
-    if (/^\d{6}$/.test(pasteData)) {
-      const digits = pasteData.split('');
+    if (hasError) {
+      if (autoClearTimerRef.current) {
+        clearTimeout(autoClearTimerRef.current);
+        autoClearTimerRef.current = null;
+      }
+      setHasError(false);
+      setErrorMessage('');
+    }
+
+    const pasteData = e.clipboardData.getData('text');
+    const cleanDigits = pasteData.replace(/\D/g, '');
+    if (cleanDigits.length >= 6) {
+      const digits = cleanDigits.slice(0, 6).split('');
       setOtp(digits);
-      inputRefs.current[5]?.focus();
+      setTimeout(() => {
+        inputRefs.current[5]?.focus();
+      }, 30);
       showToast({
         title: 'Đã tự động điền mã',
-        message: 'Mã xác thực OTP đã được điền tự động.',
+        message: `Mã xác thực ${digits.join('')} đã được điền.`,
         type: 'info',
       });
+    } else if (cleanDigits.length > 0) {
+      const newOtp = [...otp];
+      for (let i = 0; i < cleanDigits.length && i < 6; i++) {
+        newOtp[i] = cleanDigits[i];
+      }
+      setOtp(newOtp);
     }
   };
 
   const handleFillDemoCode = () => {
+    if (hasError) {
+      if (autoClearTimerRef.current) {
+        clearTimeout(autoClearTimerRef.current);
+        autoClearTimerRef.current = null;
+      }
+      setHasError(false);
+      setErrorMessage('');
+    }
     setOtp(['1', '2', '3', '4', '5', '6']);
-    inputRefs.current[5]?.focus();
+    setTimeout(() => {
+      inputRefs.current[5]?.focus();
+    }, 20);
     showToast({
       title: 'Mã OTP thử nghiệm',
       message: 'Đã điền mã xác thực mẫu 123456.',
@@ -93,8 +247,16 @@ function VerifyOtpForm() {
 
   const handleResendOtp = async () => {
     if (!canResend) return;
+    if (autoClearTimerRef.current) {
+      clearTimeout(autoClearTimerRef.current);
+      autoClearTimerRef.current = null;
+    }
+    setHasError(false);
+    setErrorMessage('');
+    setOtp(['', '', '', '', '', '']);
     setCountdown(60);
     setCanResend(false);
+
     const res = await resendVerification(targetEmail);
     if (res.success) {
       showToast({
@@ -102,6 +264,9 @@ function VerifyOtpForm() {
         message: `Mã xác thực mới đã được gửi tới ${targetEmail}. Vui lòng kiểm tra hộp thư.`,
         type: 'success',
       });
+      setTimeout(() => {
+        inputRefs.current[0]?.focus();
+      }, 50);
     } else {
       const errorMsg = res.error?.message || (typeof res.error === 'string' ? res.error : 'Chưa thể gửi lại mã OTP vào lúc này. Vui lòng thử lại sau giây lát.');
       showToast({
@@ -116,6 +281,11 @@ function VerifyOtpForm() {
     e.preventDefault();
     const otpCode = otp.join('');
     if (otpCode.length < 6) {
+      setHasError(true);
+      setErrorMessage('Vui lòng nhập đầy đủ 6 chữ số mã xác thực để tiếp tục.');
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 500);
+
       showToast({
         title: 'Chưa đủ 6 số OTP',
         message: 'Vui lòng nhập đầy đủ 6 chữ số mã xác thực để tiếp tục.',
@@ -125,26 +295,51 @@ function VerifyOtpForm() {
     }
 
     setIsLoading(true);
-    const res = await verifyEmail(otpCode);
+    const res = await verifyEmail(otpCode, targetEmail);
     setIsLoading(false);
+
     if (res.success) {
+      if (autoClearTimerRef.current) {
+        clearTimeout(autoClearTimerRef.current);
+      }
+      setHasError(false);
+      setErrorMessage('');
+
       if (typeof window !== 'undefined') {
         localStorage.removeItem('huki_pending_password');
       }
 
       showToast({
         title: 'Xác thực thành công',
-        message: 'Tài khoản của bạn đã được kích hoạt. Vui lòng đăng nhập để tiếp tục.',
+        message: 'Tài khoản của bạn đã được kích hoạt. Đang chuyển hướng đến trang đăng nhập...',
         type: 'success',
       });
-      router.push('/auth/login');
+      setTimeout(() => {
+        router.push('/auth/login');
+      }, 1000);
     } else {
-      const errorMsg = res.error?.message || (typeof res.error === 'string' ? res.error : 'Mã OTP không chính xác hoặc đã hết hiệu lực.');
+      const rawMsg = res.error?.message || (typeof res.error === 'string' ? res.error : 'Mã OTP không chính xác hoặc đã hết hiệu lực.');
+      setHasError(true);
+      setErrorMessage(rawMsg);
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 500);
+
       showToast({
         title: 'Xác thực không thành công',
-        message: errorMsg,
+        message: rawMsg,
         type: 'error',
       });
+
+      // 5 giây tự động xóa các ô OTP và đưa con trỏ về ô đầu tiên
+      if (autoClearTimerRef.current) {
+        clearTimeout(autoClearTimerRef.current);
+      }
+      autoClearTimerRef.current = setTimeout(() => {
+        setOtp(['', '', '', '', '', '']);
+        setHasError(false);
+        setErrorMessage('');
+        inputRefs.current[0]?.focus();
+      }, 5000);
     }
   };
 
@@ -209,7 +404,7 @@ function VerifyOtpForm() {
 
           {/* Bottom: Stat & Version */}
           <div className="relative z-10 pt-6 border-t border-white/15 text-xs text-white/70 flex items-center justify-between">
-            <span>Thời hạn OTP: 60 giây</span>
+            <span>Thời hạn OTP: 15 phút</span>
             <span className="font-semibold text-white/90">HUKI 2FA</span>
           </div>
         </section>
@@ -242,7 +437,10 @@ function VerifyOtpForm() {
                 <label className="block text-center text-xs font-semibold text-slate-700 mb-4">
                   Nhập 6 chữ số xác thực:
                 </label>
-                <div className="flex items-center justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
+                <div
+                  className={`flex items-center justify-center gap-2 sm:gap-3 transition-transform ${isShaking ? 'animate-otp-shake' : ''}`}
+                  onPaste={handlePaste}
+                >
                   {otp.map((digit, idx) => (
                     <input
                       key={idx}
@@ -251,14 +449,40 @@ function VerifyOtpForm() {
                       }}
                       type="text"
                       inputMode="numeric"
+                      pattern="[0-9]*"
+                      autoComplete={idx === 0 ? "one-time-code" : "off"}
                       maxLength={1}
                       value={digit}
+                      onFocus={(e) => {
+                        if (hasError) {
+                          if (autoClearTimerRef.current) clearTimeout(autoClearTimerRef.current);
+                          setHasError(false);
+                        }
+                        e.target.select();
+                      }}
                       onChange={(e) => handleChange(idx, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(idx, e)}
-                      className="w-11 h-13 sm:w-12 sm:h-14 text-center text-xl font-bold text-slate-900 bg-white border border-slate-200 hover:border-slate-300 rounded-xl focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 outline-none transition-all shadow-2xs"
+                      onPaste={handlePaste}
+                      className={`w-11 h-13 sm:w-12 sm:h-14 text-center text-xl font-bold rounded-xl outline-none transition-all shadow-2xs select-all ${hasError
+                          ? 'border-2 border-rose-500 bg-rose-50/50 text-rose-600 ring-2 ring-rose-200 animate-otp-pulse'
+                          : 'bg-white border border-slate-200 hover:border-slate-300 text-slate-900 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15'
+                        }`}
                     />
                   ))}
                 </div>
+
+                {/* Inline Error Message Banner */}
+                {hasError && errorMessage && (
+                  <div className="mt-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center justify-center gap-2 animate-in fade-in zoom-in-95 duration-200 text-center">
+                    <span className="material-symbols-outlined text-base text-rose-600 shrink-0">error</span>
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
+                {hasError && (
+                  <p className="text-center text-[11px] text-slate-400 mt-1.5 animate-in fade-in">
+                    Ô nhập sẽ tự động xóa sau 5 giây hoặc bấm phím số để nhập lại ngay.
+                  </p>
+                )}
               </div>
 
               {/* Resend & Demo OTP Button */}
