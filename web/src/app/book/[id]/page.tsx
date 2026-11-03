@@ -20,6 +20,8 @@ import { SimilarBooksSection } from '@/ui/components/recommendations/SimilarBook
 import { personalizationService } from '@/ui/services/personalizationService';
 import { realtimeSyncBus, InventoryUpdatePayload } from '@/ui/services/realtimeSyncBus';
 import { reviewSummaryService } from '@/ui/services/reviewSummaryService';
+import { affiliateApi } from '@/lib/affiliate/affiliateApi';
+import { userApi } from '@/ui/api/userApi';
 
 export interface TableOfContentItem {
   id: number | string;
@@ -74,6 +76,88 @@ export default function BookDetailPage() {
   const [activeTab, setActiveTab] = useState('intro');
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
+
+  // Sync wishlist from localStorage and RealtimeBus
+  useEffect(() => {
+    try {
+      const saved: string[] = JSON.parse(localStorage.getItem('huki_wishlist_ids') || '[]');
+      if (Array.isArray(saved) && id) {
+        setIsWishlisted(saved.includes(id));
+      }
+    } catch (e) {}
+
+    const handleWishlistUpdated = (e: any) => {
+      if (e?.detail?.bookId === id) {
+        setIsWishlisted(Boolean(e.detail.wishlisted));
+      }
+    };
+    window.addEventListener('huki_wishlist_updated', handleWishlistUpdated);
+
+    const unsubRealtime = realtimeSyncBus.subscribe((msg: any) => {
+      if (msg?.type === 'WISHLIST_UPDATED') {
+        const payload = msg.payload as any;
+        if (payload?.bookId === id && typeof payload?.wishlisted === 'boolean') {
+          setIsWishlisted(payload.wishlisted);
+        }
+      }
+    });
+
+    return () => {
+      window.removeEventListener('huki_wishlist_updated', handleWishlistUpdated);
+      unsubRealtime();
+    };
+  }, [id]);
+
+  const handleToggleWishlist = async () => {
+    const willWishlist = !isWishlisted;
+    setIsWishlisted(willWishlist);
+    try {
+      const savedIds: string[] = JSON.parse(localStorage.getItem('huki_wishlist_ids') || '[]');
+      const newIds = willWishlist
+        ? Array.from(new Set([...savedIds, book.id]))
+        : savedIds.filter((id) => id !== book.id);
+      localStorage.setItem('huki_wishlist_ids', JSON.stringify(newIds));
+      window.dispatchEvent(new CustomEvent('huki_wishlist_updated', {
+        detail: { bookId: book.id, wishlisted: willWishlist }
+      }));
+      realtimeSyncBus.publish('WISHLIST_UPDATED', { bookId: book.id, wishlisted: willWishlist, newIds });
+      showToast(willWishlist ? 'Đã lưu vào danh sách Yêu thích!' : 'Đã bỏ khỏi Yêu thích', 'info');
+      if (isLoggedIn) {
+        userApi.updateProfile({ wishlist: newIds }).catch(() => {});
+      }
+      if (willWishlist) {
+        trackEvent.addToWishlist(book.id, realBook?.categoryId);
+      }
+    } catch (err) {
+      console.warn('Wishlist error:', err);
+    }
+  };
+
+  const handleShareBook = async () => {
+    if (typeof window === 'undefined') return;
+    let shareUrl = window.location.href;
+    try {
+      if (isLoggedIn) {
+        const res = await affiliateApi.getMyProfile();
+        const code = res?.data?.profile?.affiliateCode;
+        if (res?.data?.hasProfile && code && res?.data?.profile?.status === 'ACTIVE') {
+          const url = new URL(shareUrl);
+          url.searchParams.set('ref', code);
+          await navigator.clipboard?.writeText(url.toString());
+          showToast(`Đã sao chép liên kết Tiếp Thị Liên Kết (Mã: ${code}). Hoa hồng ghi nhận 30 ngày!`, 'success');
+          return;
+        }
+      }
+    } catch (err) {}
+    try {
+      const url = new URL(shareUrl);
+      url.searchParams.delete('ref');
+      await navigator.clipboard?.writeText(url.toString());
+      showToast('Đã sao chép liên kết sách!', 'success');
+    } catch (err) {
+      showToast('Không thể sao chép liên kết', 'error');
+    }
+  };
   const [isFollowingStore, setIsFollowingStore] = useState(false);
   const [isFollowDropdownOpen, setIsFollowDropdownOpen] = useState(false);
   const [isUnfollowModalOpen, setIsUnfollowModalOpen] = useState(false);
@@ -912,9 +996,37 @@ export default function BookDetailPage() {
             <div className="w-full h-full bg-white rounded-2xl p-4.5 sm:p-5 border border-[#e8e5df] shadow-xs flex flex-col justify-between items-center group">
               <div className="w-full flex flex-col items-center">
                 <div className="relative w-[180px] sm:w-[200px] aspect-[2/3] rounded-lg overflow-hidden shadow-md transition-transform duration-300 group-hover:scale-[1.02]">
-                  <img src={book.cover} alt={book.title} className="w-full h-full object-cover" />
+                  <img
+                    src={book.cover}
+                    alt={book.title}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/images/book-placeholder.png';
+                    }}
+                    className="w-full h-full object-cover"
+                  />
+
+                  {/* Floating Action Icons: Top-Left Heart, Top-Right Share */}
+                  <button
+                    onClick={handleToggleWishlist}
+                    title={isWishlisted ? 'Bỏ khỏi yêu thích' : 'Thêm vào yêu thích'}
+                    className="absolute top-2.5 left-2.5 z-10 w-8 h-8 rounded-full bg-white/85 backdrop-blur-md shadow-sm border border-white/60 flex items-center justify-center text-gray-700 hover:scale-110 active:scale-95 transition-all"
+                  >
+                    <span className={`material-symbols-outlined text-[18px] leading-none ${isWishlisted ? 'text-red-500 fill-1 font-variation-fill' : 'text-gray-600'}`}>
+                      {isWishlisted ? 'favorite' : 'favorite_border'}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={handleShareBook}
+                    title="Chia sẻ liên kết sách"
+                    className="absolute top-2.5 right-2.5 z-10 w-8 h-8 rounded-full bg-white/85 backdrop-blur-md shadow-sm border border-white/60 flex items-center justify-center text-gray-700 hover:text-[#006953] hover:scale-110 active:scale-95 transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[17px] leading-none">share</span>
+                  </button>
+
                   {book.isBestseller && (
-                    <div className="absolute top-2 left-2 bg-[#fea619] text-black text-[9px] font-black px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
+                    <div className="absolute bottom-2 left-2 bg-[#fea619] text-black text-[9px] font-black px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
                       <span className="material-symbols-outlined text-xs">local_fire_department</span>BÁN CHẠY
                     </div>
                   )}
@@ -922,24 +1034,15 @@ export default function BookDetailPage() {
               </div>
 
               <div className="w-full space-y-2 mt-3.5">
-                <Link href={`/library/${book.id}`} className="w-full h-9 rounded-lg bg-[#006953] hover:bg-[#00523c] text-white font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5">
-                  <span className="material-symbols-outlined text-[16px]">chrome_reader_mode</span>Đọc Thử Bản Trực Tuyến
-                </Link>
-                <div className="grid grid-cols-2 gap-1.5 w-full">
-                  <button onClick={() => {
-                    setIsWishlisted(!isWishlisted);
-                    showToast(!isWishlisted ? 'Đã lưu vào Yêu thích!' : 'Đã bỏ yêu thích', 'info');
-                    // Track wishlist event
-                    if (!isWishlisted) {
-                      trackEvent.addToWishlist(book.id, realBook?.categoryId);
-                    }
-                  }} className={`h-8 px-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition-colors ${isWishlisted ? 'border-red-200 bg-red-50 text-red-600' : 'border-gray-200 hover:bg-gray-50 text-gray-700'}`}>
-                    <span className="material-symbols-outlined text-[15px]">{isWishlisted ? 'favorite' : 'favorite_border'}</span>{isWishlisted ? 'Đã thích' : 'Yêu thích'}
-                  </button>
-                  <button onClick={() => { if (typeof window !== 'undefined') { navigator.clipboard?.writeText(window.location.href); showToast('Đã sao chép liên kết sách!', 'success'); } }} className="h-8 px-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-semibold flex items-center justify-center gap-1 transition-colors">
-                    <span className="material-symbols-outlined text-[15px]">share</span>Chia sẻ
-                  </button>
-                </div>
+                {selectedFormat !== 'physical' && realBook?.format !== 'PHYSICAL' ? (
+                  <Link href={`/library/${book.id}`} className="w-full h-9 rounded-lg bg-[#006953] hover:bg-[#00523c] text-white font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px]">chrome_reader_mode</span>Đọc Thử Bản Trực Tuyến
+                  </Link>
+                ) : (
+                  <div className="w-full h-9 rounded-lg bg-emerald-50/80 border border-emerald-200/60 text-[#006953] font-semibold text-xs flex items-center justify-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px]">menu_book</span>Ấn bản sách giấy vật lý
+                  </div>
+                )}
                 <div className="flex items-center justify-center gap-1 text-[10.5px] text-[#006953] font-medium bg-[#006953]/10 py-1.5 px-2 rounded-lg text-center">
                   <span className="material-symbols-outlined text-[13px]">verified_user</span>Bản quyền chính thức • HUKI DRM
                 </div>

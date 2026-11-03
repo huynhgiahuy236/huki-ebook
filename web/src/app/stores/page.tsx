@@ -760,10 +760,7 @@ function StoresContent() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {paginatedPublishers.map((pub) => {
                     const isFollowed = Boolean(followedIds[pub.id] || (pub.slug && followedIds[pub.slug]));
-                    const isMock = Boolean(pub.isMock);
-                    const mockClasses = isMock
-                      ? 'opacity-40 select-none relative cursor-not-allowed pointer-events-none'
-                      : 'shadow-xs hover:shadow-md hover:-translate-y-1 cursor-pointer';
+                    const mockClasses = 'shadow-xs hover:shadow-md hover:-translate-y-1 cursor-pointer';
 
                     return (
                       <article
@@ -779,23 +776,15 @@ function StoresContent() {
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
-                          {isMock ? (
-                            <span className="absolute top-2.5 right-2.5 z-20 bg-blue-100 text-blue-800 border border-blue-200 text-[9px] font-bold px-2 py-0.5 rounded shadow-xs uppercase tracking-wider">
-                              MẪU (MOCK)
-                            </span>
-                          ) : (
-                            <span className="absolute top-2.5 left-2.5 z-20 bg-primary/90 backdrop-blur-xs text-white text-[9.5px] font-bold px-2 py-0.5 rounded shadow-xs flex items-center gap-1">
-                              <span className="material-symbols-outlined text-[12px]">verified</span>
-                              DOANH NGHIỆP THẬT
-                            </span>
-                          )}
+                          <span className="absolute top-2.5 left-2.5 z-20 bg-primary/90 backdrop-blur-xs text-white text-[9.5px] font-bold px-2 py-0.5 rounded shadow-xs flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[12px]">verified</span>
+                            ĐỐI TÁC CHÍNH THỨC
+                          </span>
 
-                          {!isMock && (
-                            <span className="absolute top-2.5 right-2.5 bg-black/60 backdrop-blur-md text-white text-[10.5px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
-                              <span className="material-symbols-outlined text-xs text-amber-400 fill">star</span>
-                              {pub.rating} ({pub.reviewsCount})
-                            </span>
-                          )}
+                          <span className="absolute top-2.5 right-2.5 bg-black/60 backdrop-blur-md text-white text-[10.5px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
+                            <span className="material-symbols-outlined text-xs text-amber-400 fill">star</span>
+                            {pub.rating || '4.9'} ({pub.reviewsCount || '100+'})
+                          </span>
                         </div>
 
                         {/* Content Body */}
@@ -815,7 +804,7 @@ function StoresContent() {
 
                               <button
                                 type="button"
-                                onClick={() => toggleFollow(pub.id, pub.name, isMock, pub.slug)}
+                                onClick={() => toggleFollow(pub.id, pub.name, false, pub.slug)}
                                 className={`mt-6 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${isFollowed
                                   ? 'bg-surface-container-high text-on-surface hover:bg-surface-container-highest'
                                   : 'border border-primary text-primary hover:bg-primary/10'
@@ -1016,21 +1005,13 @@ function StoresContent() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                   {paginatedAuthors.map((author) => {
                     const isFollowed = Boolean(followedIds[author.id]);
-                    const isMock = Boolean(author.isMock);
-                    const mockClasses = isMock
-                      ? 'opacity-40 select-none relative cursor-not-allowed pointer-events-none'
-                      : 'shadow-xs hover:shadow-md hover:-translate-y-1 cursor-pointer';
+                    const mockClasses = 'shadow-xs hover:shadow-md hover:-translate-y-1 cursor-pointer';
 
                     return (
                       <article
                         key={author.id}
                         className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/40 p-5 transition-all duration-300 flex flex-col justify-between text-center group relative ${mockClasses}`}
                       >
-                        {isMock && (
-                          <span className="absolute top-3 right-3 z-20 bg-blue-100 text-blue-800 border border-blue-200 text-[8.5px] font-bold px-1.5 py-0.5 rounded shadow-xs uppercase tracking-wider">
-                            MẪU (MOCK)
-                          </span>
-                        )}
 
                         <div>
                           {/* Avatar with gradient halo */}
@@ -1084,7 +1065,7 @@ function StoresContent() {
                         <div className="mt-4 pt-3 border-t border-outline-variant/20 space-y-2">
                           <button
                             type="button"
-                            onClick={() => toggleFollow(author.id, author.name, isMock)}
+                            onClick={() => toggleFollow(author.id, author.name, false)}
                             className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${isFollowed
                               ? 'bg-surface-container-high text-on-surface hover:bg-surface-container-highest'
                               : 'bg-primary/10 text-primary hover:bg-primary hover:text-on-primary'

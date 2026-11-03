@@ -216,6 +216,9 @@ services:
       DATABASE_USER: postgres
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       DATABASE_NAME: huki_commerce
+      PROMOTION_SERVICE_URL: http://promotion-service:3007
+      PROMOTION_SERVICE_HOST: promotion-service
+      PROMOTION_SERVICE_PORT: 3007
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_commerce?schema=public
       REDIS_HOST: redis
       REDIS_PORT: 6379

@@ -149,14 +149,14 @@ export default function SellerSetupStorePage() {
         }
       } else {
         // Nếu lỗi 404 hoặc thực sự chưa có business thì mới về register
-        if (bizRes.statusCode === 404 || (!bizRes.data && user?.role !== 'BUSINESS')) {
+        if ((bizRes as any)?.statusCode === 404 || (!bizRes.data && user?.role !== 'BUSINESS')) {
           if (!isRedirectingRef.current) {
             isRedirectingRef.current = true;
             router.replace('/seller/register');
           }
         } else {
           // Lỗi máy chủ (502, 500...) -> KHÔNG ĐƯỢC redirect sang register vì layout sẽ đá ngược lại gây ping-pong loop!
-          setFetchError(bizRes.message || 'Không thể kết nối đến máy chủ Doanh Nghiệp (502/500). Vui lòng thử lại sau.');
+          setFetchError((bizRes as any)?.message || (bizRes as any)?.error || 'Không thể kết nối đến máy chủ Doanh Nghiệp (502/500). Vui lòng thử lại sau.');
         }
       }
     } catch (err: any) {

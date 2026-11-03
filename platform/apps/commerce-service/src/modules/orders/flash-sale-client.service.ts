@@ -32,17 +32,28 @@ export class FlashSaleClientService {
     bookId: string,
     quantity: number,
   ): Promise<FlashSaleQuote> {
-    const data = await this.request<FlashSaleQuote>("/validate-quota", {
-      method: "POST",
-      body: JSON.stringify({ userId, bookId, quantity }),
-    });
-    if (data.isFlashSale && !data.allowed) {
-      throwBadRequest(
-        ErrorCode.FLASH_SALE_USER_LIMIT_REACHED,
-        data.reason || "Đã vượt hạn mức Flash Sale",
-      );
+    try {
+      const data = await this.request<FlashSaleQuote>("/validate-quota", {
+        method: "POST",
+        body: JSON.stringify({ userId, bookId, quantity }),
+      });
+      if (data.isFlashSale && !data.allowed) {
+        throwBadRequest(
+          ErrorCode.FLASH_SALE_USER_LIMIT_REACHED,
+          data.reason || "Đã vượt hạn mức Flash Sale",
+        );
+      }
+      return data;
+    } catch (err: any) {
+      if (err?.response?.code === ErrorCode.FLASH_SALE_USER_LIMIT_REACHED || err?.code === ErrorCode.FLASH_SALE_USER_LIMIT_REACHED) {
+        throw err;
+      }
+      this.logger.warn(`Flash sale quote fallback for book ${bookId}: ${err?.message}`);
+      return {
+        isFlashSale: false,
+        allowed: true,
+      };
     }
-    return data;
   }
 
   async reserveOrder(

@@ -28,15 +28,12 @@ services:
       BUSINESS_SERVICE_PORT: 3002
       COMMERCE_SERVICE_HOST: commerce-service-uat
       COMMERCE_SERVICE_PORT: 3003
-      PROMOTION_SERVICE_URL: http://promotion-service-uat:3007
       PROMOTION_SERVICE_HOST: promotion-service-uat
       PROMOTION_SERVICE_PORT: 3007
       SHIPPING_SERVICE_HOST: shipping-service-uat
       SHIPPING_SERVICE_PORT: 3004
       COMMUNITY_SERVICE_HOST: community-service-uat
       COMMUNITY_SERVICE_PORT: 3005
-      PROMOTION_SERVICE_HOST: promotion-service-uat
-      PROMOTION_SERVICE_PORT: 3007
       ANALYTICS_SERVICE_HOST: analytics-service-uat
       ANALYTICS_SERVICE_PORT: 3008
       JWT_SECRET: ${JWT_SECRET}
@@ -89,8 +86,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
-      GMAIL_USER: ${GMAIL_USER}
-      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
+      DRM_MAX_ACTIVE_DEVICES: 5
       REDIS_HOST: redis
       REDIS_PORT: 6379
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672
@@ -149,6 +145,9 @@ services:
       DATABASE_USER: postgres
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
       DATABASE_NAME: huki_uat_commerce
+      PROMOTION_SERVICE_URL: http://promotion-service-uat:3007
+      PROMOTION_SERVICE_HOST: promotion-service-uat
+      PROMOTION_SERVICE_PORT: 3007
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_commerce?schema=public
       COMMERCE_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_commerce?schema=public
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}

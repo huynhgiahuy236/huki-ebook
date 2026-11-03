@@ -136,9 +136,8 @@ export default function HierarchicalSidebar({
         {
           id: 'web-reader',
           title: 'Trình Đọc Ebook',
-          to: '/reader',
+          to: '/library',
           icon: 'chrome_reader_mode',
-          targetBlank: true,
         },
       ],
     },

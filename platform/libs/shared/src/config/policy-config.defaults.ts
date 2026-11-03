@@ -34,7 +34,7 @@ export const DEFAULT_POLICY_CONFIG: Readonly<IPolicyConfig> = {
   autoCancelOnDispatchTimeout: false,
 
   // DEC-007: Engineering default: 3 devices
-  drmMaxActiveDevices: 3,
+  drmMaxActiveDevices: 5,
 
   // DEC-008: Engineering placeholder: FLAT_RATE
   shippingPricingModel: 'FLAT_RATE',

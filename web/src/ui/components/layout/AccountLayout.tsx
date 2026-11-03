@@ -187,16 +187,16 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
         <div className="flex flex-col md:flex-row gap-5 items-start">
           
           {/* ================= LEFT ACCOUNT SIDEBAR ================= */}
-          <aside className="w-full md:w-56 shrink-0 bg-white rounded-xl border border-gray-200/80 shadow-2xs p-3.5 space-y-4">
+          <aside className="w-full md:w-72 lg:w-80 shrink-0 bg-white rounded-2xl border border-gray-200/80 shadow-xs p-4 sm:p-5 space-y-5">
             
             {/* User Profile Header */}
-            <div className="flex items-center gap-2.5 pb-3 border-b border-gray-100">
-              <UserAvatar user={user} size="md" className="w-9 h-9" />
+            <div className="flex items-center gap-3 pb-3.5 border-b border-gray-100">
+              <UserAvatar user={user} size="md" className="w-10 h-10" />
               <div className="min-w-0 flex-1">
-                <span className="font-bold text-xs text-gray-900 truncate block leading-snug">
+                <span className="font-bold text-sm text-gray-900 truncate block leading-snug">
                   {displayName}
                 </span>
-                <span className="inline-block px-1.5 py-0.2 mt-0.5 rounded bg-emerald-50 text-emerald-800 font-semibold text-[9.5px] border border-emerald-200">
+                <span className="inline-block px-2 py-0.5 mt-0.5 rounded bg-emerald-50 text-emerald-800 font-semibold text-[10px] border border-emerald-200">
                   {roleLabel}
                 </span>
               </div>
@@ -205,28 +205,28 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
             {/* Navigation Groups */}
             <div className="space-y-4 text-xs">
               {navGroups.map((group, gIdx) => (
-                <div key={gIdx} className="space-y-1">
-                  <span className="text-[9.5px] font-bold tracking-wider text-gray-400 uppercase block px-2">
+                <div key={gIdx} className="space-y-1.5">
+                  <span className="text-[10px] font-bold tracking-wider text-gray-400 uppercase block px-2.5">
                     {group.title}
                   </span>
-                  <div className="space-y-0.5">
+                  <div className="space-y-1">
                     {group.items.map((item) => (
                       <Link
                         key={item.href}
                         href={item.href}
                         target={(item as any).targetBlank ? '_blank' : undefined}
                         rel={(item as any).targetBlank ? 'noopener noreferrer' : undefined}
-                        className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        className={`flex items-center justify-between gap-2.5 px-3 py-2 rounded-xl text-xs sm:text-[13px] font-medium transition-all ${
                           item.active
                             ? 'bg-[#003B2B] text-white shadow-2xs font-semibold'
                             : 'text-gray-700 hover:bg-gray-100 hover:text-[#003B2B]'
                         }`}
                       >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className={`material-symbols-outlined text-[16px] ${item.active ? 'text-white' : 'text-gray-400'}`}>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className={`material-symbols-outlined text-[18px] ${item.active ? 'text-white' : 'text-gray-400'}`}>
                             {item.icon}
                           </span>
-                          <span className="truncate">{item.label}</span>
+                          <span className="font-medium whitespace-nowrap">{item.label}</span>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           {(item as any).badge && (

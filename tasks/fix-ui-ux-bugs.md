@@ -10,21 +10,21 @@
 | STT | Vấn đề / Lỗi | Mức độ | Trạng thái | Khu vực ảnh hưởng |
 | :---: | :--- | :---: | :---: | :--- |
 | **01** | Tạo tài liệu theo dõi task & phương án giải quyết | Thấp | `HOÀN THÀNH` | Tài liệu quản lý dự án |
-| **02** | Di chuyển nút "Yêu thích" & "Chia sẻ" thành icon trên cùng (Trái/Phải) & Cơ chế Link Chia sẻ (Affiliate) | Trung bình | `CHỜ LỆNH FIX` | `web/src/app/book/[id]/page.tsx` |
-| **03** | Khả năng đồng bộ Realtime trạng thái (Yêu thích) giữa 2 thiết bị cùng tài khoản | Cao | `CHỜ LỆNH FIX` | `realtimeSyncBus`, Backend Wishlist API |
-| **04** | Lỗi khi bấm Mua ngay: *"Không thể khởi tạo đơn hàng: Dịch vụ Flash Sale tạm thời không khả dụng"* | Khẩn cấp | `CHỜ LỆNH FIX` | `commerce-service`, `docker-compose.uat.yml` |
-| **05** | Sidebar "Trình Đọc Ebook" mở vào trang lỗi PDF & Xử lý sách không có file đọc thử | Cao | `CHỜ LỆNH FIX` | `HierarchicalSidebar.tsx`, `/reader/page.tsx`, `/book/[id]` |
-| **06** | Ảnh bìa sách "Chiến Binh Cầu Vồng" hiển thị bình thường ở ngoài nhưng vỡ ảnh khi vào chi tiết | Trung bình | `CHỜ LỆNH FIX` | `web/src/app/book/[id]/page.tsx`, `BookCover.tsx` |
-| **07** | Bỏ hiệu ứng làm mờ và nhãn "MẪU (MOCK)" trên trang `/stores`, kích hoạt cửa hàng thật (NXB & Tác Giả) | Trung bình | `CHỜ LỆNH FIX` | `web/src/app/stores/page.tsx` |
+| **02** | Di chuyển nút "Yêu thích" & "Chia sẻ" thành icon trên cùng (Trái/Phải) & Cơ chế Link Chia sẻ (Affiliate) | Trung bình | `HOÀN THÀNH` | `web/src/app/book/[id]/page.tsx` |
+| **03** | Khả năng đồng bộ Realtime trạng thái (Yêu thích) giữa 2 thiết bị cùng tài khoản | Cao | `HOÀN THÀNH` | `realtimeSyncBus`, Backend Wishlist API |
+| **04** | Lỗi khi bấm Mua ngay: *"Không thể khởi tạo đơn hàng: Dịch vụ Flash Sale tạm thời không khả dụng"* | Khẩn cấp | `HOÀN THÀNH` | `commerce-service`, `docker-compose.uat.yml` |
+| **05** | Sidebar "Trình Đọc Ebook" mở vào trang lỗi PDF & Xử lý sách không có file đọc thử | Cao | `HOÀN THÀNH` | `HierarchicalSidebar.tsx`, `PdfCanvasViewer.tsx`, `book/[id]` |
+| **06** | Ảnh bìa sách "Chiến Binh Cầu Vồng" hiển thị bình thường ở ngoài nhưng vỡ ảnh khi vào chi tiết | Trung bình | `HOÀN THÀNH` | `web/src/app/book/[id]/page.tsx`, `BookCover.tsx` |
+| **07** | Bỏ hiệu ứng làm mờ và nhãn "MẪU (MOCK)" trên trang `/stores`, kích hoạt cửa hàng thật (NXB & Tác Giả) | Trung bình | `HOÀN THÀNH` | `web/src/app/stores/page.tsx` |
 | **08** | Header Kênh Người Bán (`/seller`) lỗi và các nút điều hướng bấm không ăn | Trung bình | `ĐÃ FIX` | `SellerPortalLayout.tsx`, `seller/layout.tsx` |
-| **09** | Menu thanh điều hướng tài khoản cá nhân (`/account`) quá nhỏ, chữ bị cắt vụn và rối mắt | Trung bình | `CHỜ LỆNH FIX` | `AccountLayout.tsx` |
+| **09** | Menu thanh điều hướng tài khoản cá nhân (`/account`) quá nhỏ, chữ bị cắt vụn và rối mắt | Trung bình | `HOÀN THÀNH` | `AccountLayout.tsx` |
 | **10** | Tính năng Flash Sale trên trang `/books` và `/flash-sale` đang mock, chưa hoạt động thực tế | Cao | `CHỜ LỆNH FIX` | `flash-sale/page.tsx`, CSDL Promotion UAT |
-| **11** | Đăng nhập tài khoản bị văng phiên đăng nhập giữa các thiết bị (Giới hạn phiên Active Devices) | Cao | `CHỜ LỆNH FIX` | `identity-service`, `policy-config.service.ts` |
+| **11** | Đăng nhập tài khoản bị văng phiên đăng nhập giữa các thiết bị (Giới hạn phiên Active Devices) | Cao | `HOÀN THÀNH` | `identity-service`, `policy-config.defaults.ts` |
 | **12** | Vòng lặp chuyển hướng vô tận (Infinite Redirect Loop) gây spam loading ở `/seller/stores/setup` | Khẩn cấp | `ĐÃ FIX` | `seller/layout.tsx`, `seller/stores/setup/page.tsx` |
 | **13** | Trang Quản Trị Admin báo lỗi đỏ *"Có lỗi xảy ra trong quá trình xử lý"* khi xem Báo cáo GMV Doanh số | Cao | `CHỜ LỆNH FIX` | `AdminReportsView.tsx`, `analytics-service` |
 | **14** | Chatbot Tư Vấn Bé Cáo AI chỉ trả lời duy nhất 1 câu mặc định cho mọi câu hỏi | Cao | `CHỜ LỆNH FIX` | `FloatingAIChatbox.tsx`, `community-service`, `docker-compose.uat.yml` |
-| **15** | Bấm vào NXB từ bộ lọc / trang chủ báo *"Không tìm thấy sản phẩm phù hợp"* dù NXB có sách (Nhã Nam) | Cao | `CHỜ LỆNH FIX` | `web/src/app/books/page.tsx` |
-| **16** | Mục Combo Sách Tuyển Chọn trên Trang Chủ bị vỡ ảnh bìa số 2 ("Bìa 2") | Thấp | `CHỜ LỆNH FIX` | `web/src/app/page.tsx` |
+| **15** | Bấm vào NXB từ bộ lọc / trang chủ báo *"Không tìm thấy sản phẩm phù hợp"* dù NXB có sách (Nhã Nam) | Cao | `HOÀN THÀNH` | `web/src/app/books/page.tsx` |
+| **16** | Mục Combo Sách Tuyển Chọn trên Trang Chủ bị vỡ ảnh bìa số 2 ("Bìa 2") | Thấp | `HOÀN THÀNH` | `web/src/app/page.tsx` |
 | **17** | Rà soát & Loại bỏ lộ lọt Thông tin Bảo mật (API Key, Mật khẩu, VPS IP, Gmail Secret) trong Git & Docker/CI/CD | Khẩn cấp | `ĐÃ FIX` | `docker-compose.*.yml`, `.github/workflows/`, Scripts |
 
 ---

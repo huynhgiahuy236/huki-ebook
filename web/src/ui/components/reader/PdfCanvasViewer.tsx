@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { useReader } from '../../context/ReaderContext';
 import { loadPdfDocument } from '../../utils/pdfLoader';
 import WatermarkOverlay from './WatermarkOverlay';
@@ -370,9 +371,24 @@ export default function PdfCanvasViewer({
 
       {/* Error state */}
       {error && (
-        <div className="my-auto p-6 bg-red-950/60 border border-red-800 rounded-2xl text-white max-w-md text-center shadow-2xl">
+        <div className="my-auto p-6 bg-red-950/70 border border-red-800/80 rounded-2xl text-white max-w-md text-center shadow-2xl flex flex-col items-center">
           <span className="material-symbols-outlined text-4xl text-red-400 mb-2">error</span>
           <p className="font-bold text-sm mb-1">{error}</p>
+          <p className="text-xs text-zinc-400 mb-4">Tác phẩm có thể chưa có bản xem thử số hoặc kết nối bị gián đoạn.</p>
+          <div className="flex items-center gap-2.5">
+            <Link
+              href="/library"
+              className="px-4 py-2 bg-[#006953] hover:bg-[#00523c] text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[16px]">auto_stories</span>Về Tủ Sách Cá Nhân
+            </Link>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-lg transition-colors"
+            >
+              Thử tải lại
+            </button>
+          </div>
         </div>
       )}
 

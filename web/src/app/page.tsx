@@ -1432,6 +1432,10 @@ export default function HomePage() {
                         className="w-full h-full object-cover"
                         alt="Bìa 1"
                         src={combo.covers[0]}
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = '/images/book-placeholder.png';
+                        }}
                       />
                     </div>
                   )}
@@ -1441,6 +1445,10 @@ export default function HomePage() {
                         className="w-full h-full object-cover"
                         alt="Bìa 2"
                         src={combo.covers[1]}
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = '/images/book-placeholder.png';
+                        }}
                       />
                     </div>
                   )}
@@ -1450,6 +1458,10 @@ export default function HomePage() {
                         className="w-full h-full object-cover"
                         alt="Bìa 3"
                         src={combo.covers[2]}
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = '/images/book-placeholder.png';
+                        }}
                       />
                     </div>
                   )}

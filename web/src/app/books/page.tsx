@@ -208,10 +208,11 @@ function CatalogPageContent() {
       if (selectedFormat === 'physical' && book.formatType !== 'physical') return false;
       if (selectedFormat === 'hybrid' && book.formatType !== 'hybrid') return false;
       
-      // Publisher filter
+      // Publisher filter (supports both accented name and hyphenated slug e.g. "nha-nam")
       if (selectedPublisher !== 'all') {
-        const pubLower = book.publisher.toLowerCase();
-        if (!pubLower.includes(selectedPublisher.toLowerCase())) return false;
+        const normSelected = normalizeVietnameseText(selectedPublisher.replace(/-/g, ' '));
+        const normBookPub = normalizeVietnameseText(book.publisher || '');
+        if (!normBookPub.includes(normSelected) && !normSelected.includes(normBookPub)) return false;
       }
 
       // Author filter
