@@ -12,7 +12,7 @@ RUN apk add --no-cache openssl libc6-compat python3 make g++
 
 # Install dependencies
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Copy Prisma schemas and generate Prisma client bindings
 COPY apps/identity-service/prisma ./apps/identity-service/prisma
@@ -26,6 +26,7 @@ RUN npm run prisma:generate
 
 # Copy source code and build configs
 COPY tsconfig*.json nest-cli.json nx.json ./
+COPY scripts ./scripts
 COPY libs ./libs
 COPY apps ./apps
 
@@ -56,6 +57,7 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/apps ./apps
+COPY --from=builder /app/scripts ./scripts
 
 # Create non-root user
 USER node

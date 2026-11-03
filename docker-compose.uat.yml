@@ -1,0 +1,279 @@
+# ========================================================
+# HUKI EBOOK - UAT / Staging Environment Stack
+# Runs alongside Production on the same VPS
+# Domain: https://huki-uat.duckdns.org
+# ========================================================
+
+services:
+  # ============================================
+  # UAT BACKEND MICROSERVICES
+  # ============================================
+  api-gateway-uat:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    container_name: huki-uat-api-gateway
+    restart: unless-stopped
+    command: ["node", "dist/out-tsc/api-gateway/apps/api-gateway/src/main.js"]
+    environment:
+      PORT: 3000
+      API_GATEWAY_PORT: 3000
+      NODE_ENV: staging
+      IDENTITY_SERVICE_HOST: identity-service-uat
+      IDENTITY_SERVICE_PORT: 3001
+      BUSINESS_SERVICE_HOST: business-service-uat
+      BUSINESS_SERVICE_PORT: 3002
+      COMMERCE_SERVICE_HOST: commerce-service-uat
+      COMMERCE_SERVICE_PORT: 3003
+      SHIPPING_SERVICE_HOST: shipping-service-uat
+      SHIPPING_SERVICE_PORT: 3004
+      COMMUNITY_SERVICE_HOST: community-service-uat
+      COMMUNITY_SERVICE_PORT: 3005
+      PROMOTION_SERVICE_HOST: promotion-service-uat
+      PROMOTION_SERVICE_PORT: 3007
+      ANALYTICS_SERVICE_HOST: analytics-service-uat
+      ANALYTICS_SERVICE_PORT: 3008
+      JWT_SECRET: ${JWT_SECRET:-0521ab048d035a99b2c967bcadd4fb2bea5c6ed05b4dc7fe5cc129fe50051890d79a031d1a8c036b29e5b74dc82ab6b1e67cd5be3fb6a0838cb6bb9080f818c0}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-7a9b031d1a8c036b29e5b74dc82ab6b1e67cd5be3fb6a0838cb6bb9080f818c00521ab048d035a99b2c967bcadd4fb2bea5c6ed05b4dc7fe5cc129fe50051890}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key-2026-very-secure}
+      CORS_ORIGIN: https://huki-uat.duckdns.org,http://localhost:3100,http://103.67.197.73
+      CORS_ORIGINS: https://huki-uat.duckdns.org,http://localhost:3100,http://103.67.197.73
+    ports:
+      - "127.0.0.1:3010:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      identity-service-uat:
+        condition: service_started
+      business-service-uat:
+        condition: service_started
+      commerce-service-uat:
+        condition: service_started
+    networks:
+      - huki-network
+
+  identity-service-uat:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    container_name: huki-uat-identity-service
+    restart: unless-stopped
+    command: ["node", "dist/out-tsc/identity-service/apps/identity-service/src/main.js"]
+    environment:
+      PORT: 3001
+      IDENTITY_SERVICE_PORT: 3001
+      NODE_ENV: staging
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}
+      DATABASE_NAME: huki_uat_identity
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}@postgres:5432/huki_uat_identity?schema=public
+      JWT_SECRET: ${JWT_SECRET:-0521ab048d035a99b2c967bcadd4fb2bea5c6ed05b4dc7fe5cc129fe50051890d79a031d1a8c036b29e5b74dc82ab6b1e67cd5be3fb6a0838cb6bb9080f818c0}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-7a9b031d1a8c036b29e5b74dc82ab6b1e67cd5be3fb6a0838cb6bb9080f818c00521ab048d035a99b2c967bcadd4fb2bea5c6ed05b4dc7fe5cc129fe50051890}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key-2026-very-secure}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/v1/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - huki-network
+
+  business-service-uat:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    container_name: huki-uat-business-service
+    restart: unless-stopped
+    command: ["node", "dist/out-tsc/business-service/apps/business-service/src/main.js"]
+    environment:
+      PORT: 3002
+      BUSINESS_SERVICE_PORT: 3002
+      NODE_ENV: staging
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}
+      DATABASE_NAME: huki_uat_business
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}@postgres:5432/huki_uat_business?schema=public
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key-2026-very-secure}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/api/v1/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - huki-network
+
+  commerce-service-uat:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    container_name: huki-uat-commerce-service
+    restart: unless-stopped
+    command: ["node", "dist/out-tsc/commerce-service/apps/commerce-service/src/main.js"]
+    environment:
+      PORT: 3003
+      COMMERCE_SERVICE_PORT: 3003
+      NODE_ENV: staging
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}
+      DATABASE_NAME: huki_uat_commerce
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}@postgres:5432/huki_uat_commerce?schema=public
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key-2026-very-secure}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-hukiapp}:${RABBITMQ_PASS:-HukiRabbitmqPass2026!#}@rabbitmq:5672
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/api/v1/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - huki-network
+
+  shipping-service-uat:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    container_name: huki-uat-shipping-service
+    restart: unless-stopped
+    command: ["node", "dist/out-tsc/shipping-service/apps/shipping-service/src/main.js"]
+    environment:
+      PORT: 3004
+      SHIPPING_SERVICE_PORT: 3004
+      NODE_ENV: staging
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}
+      DATABASE_NAME: huki_uat_shipping
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}@postgres:5432/huki_uat_shipping?schema=public
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key-2026-very-secure}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-hukiapp}:${RABBITMQ_PASS:-HukiRabbitmqPass2026!#}@rabbitmq:5672
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/api/v1/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - huki-network
+
+  community-service-uat:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    container_name: huki-uat-community-service
+    restart: unless-stopped
+    command: ["node", "dist/out-tsc/community-service/apps/community-service/src/main.js"]
+    environment:
+      PORT: 3005
+      COMMUNITY_SERVICE_PORT: 3005
+      NODE_ENV: staging
+      MONGODB_URI: mongodb://mongo:27017/community_uat_db
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key-2026-very-secure}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3005/api/v1/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - huki-network
+
+  promotion-service-uat:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    container_name: huki-uat-promotion-service
+    restart: unless-stopped
+    command: ["node", "dist/out-tsc/promotion-service/apps/promotion-service/src/main.js"]
+    environment:
+      PORT: 3007
+      PROMOTION_SERVICE_PORT: 3007
+      NODE_ENV: staging
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}
+      DATABASE_NAME: huki_uat_promotion
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}@postgres:5432/huki_uat_promotion?schema=public
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key-2026-very-secure}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3007/api/v1/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - huki-network
+
+  analytics-service-uat:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    container_name: huki-uat-analytics-service
+    restart: unless-stopped
+    command: ["node", "dist/out-tsc/analytics-service/apps/analytics-service/src/main.js"]
+    environment:
+      PORT: 3008
+      ANALYTICS_SERVICE_PORT: 3008
+      NODE_ENV: staging
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}
+      DATABASE_NAME: huki_uat_analytics
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}@postgres:5432/huki_uat_analytics?schema=public
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key-2026-very-secure}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3008/api/v1/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - huki-network
+
+  # ============================================
+  # UAT FRONTEND WEB APPLICATION
+  # ============================================
+  web-uat:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: huki-uat-web
+    restart: unless-stopped
+    environment:
+      PORT: 3100
+      NODE_ENV: staging
+      API_GATEWAY_URL: http://api-gateway-uat:3000
+      NEXT_PUBLIC_GATEWAY_URL: https://huki-uat.duckdns.org
+      NEXT_PUBLIC_API_BASE_URL: /api/v1
+      NEXT_PUBLIC_SITE_URL: https://huki-uat.duckdns.org
+    ports:
+      - "127.0.0.1:3110:3100"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3100/api/health?probe=live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      api-gateway-uat:
+        condition: service_healthy
+    networks:
+      - huki-network
+
+networks:
+  huki-network:
+    external: true
+

@@ -698,7 +698,7 @@ function slugify(text) {
 }
 
 async function main() {
-  const client = new Client({ connectionString: 'postgresql://postgres:postgres123@localhost:5432/huki_commerce' });
+  const client = new Client({ connectionString: process.env.DATABASE_URL || process.env.COMMERCE_DATABASE_URL || 'postgresql://postgres:postgres123@localhost:5432/huki_commerce' });
   await client.connect();
 
   try {

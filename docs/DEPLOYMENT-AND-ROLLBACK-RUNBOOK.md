@@ -39,11 +39,11 @@ Production deployment is executed via `.github/workflows/deploy.yml`:
 npm run prisma:migrate:deploy
 
 # 2. PM2 zero-downtime reload
-pm2 restart api-gateway identity-service business-service commerce-service shipping-service community-service promotion-service analytics-service --update-env
+docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
 
 # 3. Post-deploy health probe verification
 curl --fail http://127.0.0.1:3000/api/v1/health/live
-curl --fail http://127.0.0.1:3000/api/v1/health/services
+curl --fail http://127.0.0.1:3100/api/health?probe=live
 ```
 
 ---
