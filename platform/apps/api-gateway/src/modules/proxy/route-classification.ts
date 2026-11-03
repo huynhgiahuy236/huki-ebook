@@ -64,6 +64,7 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
     normPath === '/auth/forgot-password' ||
     normPath === '/auth/reset-password' ||
     normPath === '/auth/verify-email' ||
+    normPath === '/auth/resend-verification' ||
     normPath === '/auth/verify-reset-token' ||
     normPath.startsWith('/auth/google')
   ) {

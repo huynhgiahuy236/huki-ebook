@@ -29,6 +29,7 @@ describe('route-classification', () => {
       expect(classifyRoute('POST', '/api/v1/auth/forgot-password')).toBe('PUBLIC');
       expect(classifyRoute('POST', '/api/v1/auth/reset-password')).toBe('PUBLIC');
       expect(classifyRoute('GET', '/api/v1/auth/verify-email?token=xyz')).toBe('PUBLIC');
+      expect(classifyRoute('POST', '/api/v1/auth/resend-verification')).toBe('PUBLIC');
       expect(classifyRoute('GET', '/api/v1/auth/google')).toBe('PUBLIC');
     });
 

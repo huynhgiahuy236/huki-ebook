@@ -338,6 +338,8 @@ function translateValidationRule(msg: string): string {
   if (!msg || typeof msg !== 'string') return '';
   const trimmed = msg.trim();
   
+  if (/authentication token is required/i.test(trimmed)) return 'Vui lòng đăng nhập tài khoản để thực hiện chức năng này';
+  if (/token.*(missing|required|invalid)/i.test(trimmed)) return 'Phiên xác thực không hợp lệ hoặc đã hết hạn';
   if (/categoryId.*UUID/i.test(trimmed)) return 'Vui lòng chọn Thể loại sách hợp lệ trong danh mục';
   if (/authorId.*UUID/i.test(trimmed)) return 'Vui lòng chọn Tác giả hợp lệ';
   if (/publisherId.*UUID/i.test(trimmed)) return 'Vui lòng chọn Nhà xuất bản hợp lệ';
