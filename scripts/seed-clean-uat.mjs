@@ -223,14 +223,22 @@ async function seed() {
   await identClient.end();
 
   // 2. BUSINESS DB
-  console.log('\n[2/3] Khởi tạo Gian hàng chính hãng trên huki_uat_business...');
+  console.log('\n[2/3] Khởi tạo Doanh nghiệp & Gian hàng trên huki_uat_business...');
   const bizClient = await getConnectedClient('huki_uat_business');
+  const BUSINESS_ID = '77777777-0000-4000-8000-000000000001';
+
   await bizClient.query(`
-    INSERT INTO businesses (id, owner_id, name, slug, email, phone, status, tier, verified, description, created_at, updated_at)
-    VALUES ('${STORE_ID}', '${SELLER_USER_ID}', 'Nhà Sách HuKi Official', 'nha-sach-huki-official', 'seller@huki.com', '0901234567', 'ACTIVE', 'ENTERPRISE', true, 'Gian hàng phân phối sách chính hãng uy tín hàng đầu của HuKi Ebook.', NOW(), NOW())
-    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, verified = true, status = 'ACTIVE'
+    INSERT INTO businesses (id, name, email, phone, address, tax_code, business_type, status, owner_id, created_at, updated_at)
+    VALUES ('${BUSINESS_ID}', 'Nhà Sách HuKi Official', 'seller@huki.com', '0901234567', 'TP. Hồ Chí Minh', '0123456789', 'INDIVIDUAL', 'APPROVED', '${SELLER_USER_ID}', NOW(), NOW())
+    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = 'APPROVED'
   `);
-  console.log('✅ Đã tạo Store: "Nhà Sách HuKi Official" (Đã verified)');
+
+  await bizClient.query(`
+    INSERT INTO stores (id, name, slug, description, email, phone, address, status, is_active, business_id, created_at, updated_at)
+    VALUES ('${STORE_ID}', 'Nhà Sách HuKi Official', 'nha-sach-huki-official', 'Gian hàng phân phối sách chính hãng uy tín hàng đầu của HuKi Ebook.', 'seller@huki.com', '0901234567', 'TP. Hồ Chí Minh', 'APPROVED', true, '${BUSINESS_ID}', NOW(), NOW())
+    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = 'APPROVED', is_active = true
+  `);
+  console.log('✅ Đã tạo Store: "Nhà Sách HuKi Official" (Đã duyệt APPROVED)');
   await bizClient.end();
 
   // 3. COMMERCE DB
