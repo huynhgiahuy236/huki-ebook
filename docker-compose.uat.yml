@@ -84,6 +84,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-0521ab048d035a99b2c967bcadd4fb2bea5c6ed05b4dc7fe5cc129fe50051890d79a031d1a8c036b29e5b74dc82ab6b1e67cd5be3fb6a0838cb6bb9080f818c0}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-7a9b031d1a8c036b29e5b74dc82ab6b1e67cd5be3fb6a0838cb6bb9080f818c00521ab048d035a99b2c967bcadd4fb2bea5c6ed05b4dc7fe5cc129fe50051890}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+      GMAIL_USER: ${GMAIL_USER:-huynhgiahuy236@gmail.com}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-okvggoqyjmvdnage}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672
@@ -115,6 +117,8 @@ services:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026}@postgres:5432/huki_uat_business?schema=public
       BUSINESS_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026}@postgres:5432/huki_uat_business?schema=public
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+      GMAIL_USER: ${GMAIL_USER:-huynhgiahuy236@gmail.com}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-okvggoqyjmvdnage}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3002/api/v1/health/live"]
       interval: 15s
@@ -143,6 +147,8 @@ services:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026}@postgres:5432/huki_uat_commerce?schema=public
       COMMERCE_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026}@postgres:5432/huki_uat_commerce?schema=public
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+      GMAIL_USER: ${GMAIL_USER:-huynhgiahuy236@gmail.com}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-okvggoqyjmvdnage}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672

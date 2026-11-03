@@ -154,6 +154,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-this-in-production-min-32-chars-key}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-refresh-min-32-chars-key}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+      GMAIL_USER: ${GMAIL_USER:-huynhgiahuy236@gmail.com}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-okvggoqyjmvdnage}
       REDIS_HOST: redis
       REDIS_PORT: 6379
     healthcheck:
@@ -186,6 +188,8 @@ services:
       DATABASE_NAME: huki_business
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_business?schema=public
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+      GMAIL_USER: ${GMAIL_USER:-huynhgiahuy236@gmail.com}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-okvggoqyjmvdnage}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3002/api/v1/health/live"]
       interval: 10s
@@ -218,6 +222,8 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+      GMAIL_USER: ${GMAIL_USER:-huynhgiahuy236@gmail.com}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-okvggoqyjmvdnage}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3003/api/v1/health/live"]
       interval: 10s
