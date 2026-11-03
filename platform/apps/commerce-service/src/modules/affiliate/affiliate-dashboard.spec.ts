@@ -45,6 +45,9 @@ describe('AffiliateDashboardService (Phase 9 Reporting & Dashboards)', () => {
     affiliateWallet: {
       aggregate: jest.fn(),
     },
+    book: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
   };
 
   beforeEach(async () => {

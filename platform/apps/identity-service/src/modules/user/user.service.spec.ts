@@ -11,12 +11,16 @@ describe('UserService - Profile & Onboarding', () => {
   const auditService = {
     logAction: jest.fn(),
   };
+  const emailService = {
+    sendMail: jest.fn(),
+    sendOtp: jest.fn(),
+  };
 
   let service: UserService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new UserService(prisma as any, auditService as any);
+    service = new UserService(prisma as any, auditService as any, emailService as any);
   });
 
   describe('findById', () => {

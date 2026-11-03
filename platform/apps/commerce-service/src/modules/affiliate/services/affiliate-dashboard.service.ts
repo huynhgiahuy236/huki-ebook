@@ -267,7 +267,7 @@ export class AffiliateDashboardService {
     }
 
     const bookIds = Array.from(bookMap.keys());
-    const booksDetail = bookIds.length > 0 ? await this.prisma.book.findMany({
+    const booksDetail = bookIds.length > 0 && this.prisma?.book?.findMany ? await this.prisma.book.findMany({
       where: { id: { in: bookIds } },
       select: { id: true, title: true, coverUrl: true, format: true, price: true },
     }) : [];
