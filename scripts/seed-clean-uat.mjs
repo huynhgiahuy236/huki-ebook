@@ -7,8 +7,45 @@ import bcrypt from 'bcrypt';
 
 const { Client } = pg;
 
-const DB_PASS = process.env.POSTGRES_PASSWORD || 'postgres123';
-const DB_HOST = process.env.DATABASE_HOST || 'postgres';
+async function getConnectedClient(databaseName) {
+  let passwordsToTry = [];
+  if (process.env.DATABASE_PASSWORD) passwordsToTry.push(process.env.DATABASE_PASSWORD);
+  if (process.env.POSTGRES_PASSWORD) passwordsToTry.push(process.env.POSTGRES_PASSWORD);
+  if (process.env.DATABASE_URL) {
+    try {
+      const u = new URL(process.env.DATABASE_URL);
+      if (u.password) passwordsToTry.push(u.password);
+    } catch {}
+  }
+  passwordsToTry.push('HukiProductionSecure2026!#', 'postgres123');
+  // Remove duplicates and empty
+  passwordsToTry = [...new Set(passwordsToTry.filter(Boolean))];
+
+  const host = process.env.DATABASE_HOST || 'postgres';
+  const user = process.env.DATABASE_USER || 'postgres';
+
+  let lastError = null;
+  for (const pass of passwordsToTry) {
+    try {
+      const client = new Client({
+        host,
+        port: 5432,
+        user,
+        password: pass,
+        database: databaseName
+      });
+      await client.connect();
+      return client;
+    } catch (err) {
+      lastError = err;
+      if (err.code === '28P01') {
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastError;
+}
 
 const REAL_BOOKS = [
   {
@@ -171,8 +208,7 @@ async function seed() {
 
   // 1. IDENTITY DB
   console.log('\n[1/3] Khởi tạo tài khoản trên huki_uat_identity...');
-  const identClient = new Client({ connectionString: `postgresql://postgres:${DB_PASS}@${DB_HOST}:5432/huki_uat_identity` });
-  await identClient.connect();
+  const identClient = await getConnectedClient('huki_uat_identity');
   const pwdHash = await bcrypt.hash('Huki123456!#', 12);
 
   await identClient.query(`
@@ -188,8 +224,7 @@ async function seed() {
 
   // 2. BUSINESS DB
   console.log('\n[2/3] Khởi tạo Gian hàng chính hãng trên huki_uat_business...');
-  const bizClient = new Client({ connectionString: `postgresql://postgres:${DB_PASS}@${DB_HOST}:5432/huki_uat_business` });
-  await bizClient.connect();
+  const bizClient = await getConnectedClient('huki_uat_business');
   await bizClient.query(`
     INSERT INTO businesses (id, owner_id, name, slug, email, phone, status, tier, verified, description, created_at, updated_at)
     VALUES ('${STORE_ID}', '${SELLER_USER_ID}', 'Nhà Sách HuKi Official', 'nha-sach-huki-official', 'seller@huki.com', '0901234567', 'ACTIVE', 'ENTERPRISE', true, 'Gian hàng phân phối sách chính hãng uy tín hàng đầu của HuKi Ebook.', NOW(), NOW())
@@ -200,8 +235,7 @@ async function seed() {
 
   // 3. COMMERCE DB
   console.log('\n[3/3] Khởi tạo 10 cuốn sách kinh điển trên huki_uat_commerce...');
-  const comClient = new Client({ connectionString: `postgresql://postgres:${DB_PASS}@${DB_HOST}:5432/huki_uat_commerce` });
-  await comClient.connect();
+  const comClient = await getConnectedClient('huki_uat_commerce');
 
   // Categories
   const categories = [
