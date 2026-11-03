@@ -4,7 +4,7 @@ import {
   OnApplicationBootstrap,
   OnModuleDestroy,
 } from '@nestjs/common';
-import { DomainEvent, RabbitMqEventBus } from '../../../../../libs/shared/src';
+import { DomainEvent, RabbitMqEventBus } from '@huki/shared';
 import { OutboxStatus } from '../../../prisma/generated/client';
 import { PrismaService } from '../../prisma/prisma.service';
 

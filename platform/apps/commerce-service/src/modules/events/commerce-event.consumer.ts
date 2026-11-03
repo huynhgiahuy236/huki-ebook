@@ -5,7 +5,7 @@ import {
   PAYMENT_EVENTS,
   RabbitMqEventBus,
   SHIPPING_EVENTS,
-} from '../../../../../libs/shared/src';
+} from '@huki/shared';
 import { OrderCompletionService } from '../orders/order-completion.service';
 
 @Injectable()

@@ -23,7 +23,7 @@ import {
   ReturnRequestStatus,
   Prisma,
 } from "../../../prisma/generated/client";
-import { ORDER_EVENTS, policyConfig } from "../../../../../libs/shared/src";
+import { ORDER_EVENTS, policyConfig } from "@huki/shared";
 import { OrderCompletionService } from "./order-completion.service";
 import {
   throwConflict,

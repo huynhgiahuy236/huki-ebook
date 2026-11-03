@@ -13,7 +13,7 @@ import {
   AccessReason,
   AccessCheckResult,
   ACCESS_MATRIX,
-} from '../../../../../libs/shared/src/enums';
+} from '@huki/shared';
 
 @Injectable()
 export class BookAccessService {

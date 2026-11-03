@@ -9,7 +9,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { WalletService } from '../wallet/wallet.service';
-import { PolicyConfigService } from '../../../../../libs/shared/src/config/policy-config.service';
+import { PolicyConfigService } from '@huki/shared';
 import {
   CartItemFormat,
   LedgerAccountType,
@@ -22,7 +22,7 @@ import {
 } from '../../../prisma/generated/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { BookActor } from '../../common/book-auth.guard';
-import { DomainEvent, ORDER_EVENTS } from '../../../../../libs/shared/src';
+import { DomainEvent, ORDER_EVENTS } from '@huki/shared';
 import { randomBytes } from 'crypto';
 
 export interface SettlementCalculationResult {

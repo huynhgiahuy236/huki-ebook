@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { EventsModule as SharedEventsModule } from '../../../../../libs/shared/src';
+import { EventsModule as SharedEventsModule } from '@huki/shared';
 import { OrdersModule } from '../orders/orders.module';
 import { CommerceEventConsumer } from './commerce-event.consumer';
 import { CommerceOutboxPublisher } from './commerce-outbox.publisher';

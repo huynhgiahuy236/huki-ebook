@@ -5,7 +5,7 @@ import {
   ORDER_EVENTS,
   PAYMENT_EVENTS,
   SHIPPING_EVENTS,
-} from '../../../../../libs/shared/src';
+} from '@huki/shared';
 import { Prisma, SellerOrderStatus } from '../../../prisma/generated/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { InventoryReservationService } from './inventory-reservation.service';

@@ -3,7 +3,7 @@ import {
   DomainEvent,
   ORDER_EVENTS,
   RabbitMqEventBus,
-} from '../../../../../libs/shared/src';
+} from '@huki/shared';
 import { Prisma } from '../../../prisma/generated/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateShipmentsFromOrderDto } from '../shipments/dto/create-shipments.dto';

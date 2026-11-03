@@ -15,7 +15,7 @@ import {
   SellerOrderStatus,
   Prisma,
 } from "../../../prisma/generated/client";
-import { ORDER_EVENTS } from "../../../../../libs/shared/src";
+import { ORDER_EVENTS } from "@huki/shared";
 import {
   throwBadRequest,
   throwNotFound,

@@ -2,7 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { randomUUID } from "crypto";
 import { Model } from "mongoose";
-import { RabbitMqEventBus } from "../../../../../libs/shared/src";
+import { RabbitMqEventBus } from '@huki/shared';
 import {
   NotificationDevice,
   NotificationDeviceDocument,

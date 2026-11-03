@@ -6,7 +6,7 @@ import {
 import { randomBytes } from 'crypto';
 import { ShipmentStatus, StaffStatus } from '../../../prisma/generated/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { SHIPPING_EVENTS } from '../../../../../libs/shared/src';
+import { SHIPPING_EVENTS } from '@huki/shared';
 import {
   AssignDeliveryStaffDto,
   CreateDeliveryStaffDto,

@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
-import { EventsModule } from "../../../../../libs/shared/src";
+import { EventsModule } from '@huki/shared';
 import { AuthenticatedCommunityGuard } from "../../common/community-auth.guard";
 import {
   NotificationDevice,

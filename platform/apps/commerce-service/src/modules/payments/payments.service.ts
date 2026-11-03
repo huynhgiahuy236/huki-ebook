@@ -23,7 +23,7 @@ import {
   SettleRefundDto,
 } from "./dto/payment.dto";
 import { PayOSService } from "./payos.service";
-import { ORDER_EVENTS, PAYMENT_EVENTS, policyConfig } from "../../../../../libs/shared/src";
+import { ORDER_EVENTS, PAYMENT_EVENTS, policyConfig } from "@huki/shared";
 import {
   throwBadRequest,
   throwConflict,

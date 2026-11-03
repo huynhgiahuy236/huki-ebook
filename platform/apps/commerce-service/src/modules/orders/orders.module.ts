@@ -17,7 +17,7 @@ import { VoucherModule } from "../voucher/voucher.module";
 import { WalletModule } from "../wallet/wallet.module";
 import { LedgerModule } from "../ledger/ledger.module";
 import { AffiliateModule } from "../affiliate/affiliate.module";
-import { PolicyConfigService } from "../../../../../libs/shared/src/config/policy-config.service";
+import { PolicyConfigService } from "@huki/shared";
 
 @Module({
   imports: [EmailModule, CartModule, ShippingModule, VoucherModule, WalletModule, LedgerModule, AffiliateModule],
