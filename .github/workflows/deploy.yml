@@ -19,7 +19,7 @@ jobs:
       - name: Trigger Production Deployment on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VPS_HOST || '103.67.197.73' }}
+          host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER || 'root' }}
           key: ${{ secrets.VPS_SSH_KEY }}
           password: ${{ secrets.VPS_PASSWORD }}

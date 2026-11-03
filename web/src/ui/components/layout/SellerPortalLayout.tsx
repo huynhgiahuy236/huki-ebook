@@ -32,7 +32,7 @@ export default function SellerPortalLayout({ children }: SellerPortalLayoutProps
     <div className="min-h-screen flex flex-col bg-[#F8F9FA] text-slate-900 font-sans antialiased">
       {/* B2B Partner Navigation Header - Standard Compact 54px Anti-AI */}
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200/80 shadow-2xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-[54px]">
+        <div className="max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-[54px]">
           {/* Logo & Portal Identity */}
           <div className="flex items-center gap-3">
             <Link href="/seller" className="flex flex-col select-none group">
@@ -161,7 +161,7 @@ export default function SellerPortalLayout({ children }: SellerPortalLayoutProps
 
       {/* B2B Footer - Minimal Clean Hairline */}
       <footer className="bg-white border-t border-slate-200/80 py-6 px-4 sm:px-6 lg:px-8 mt-auto text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="max-w-[1680px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 text-center sm:text-left">
             <span className="font-editorial text-sm font-bold text-[#003B2B]">HUKI PARTNER ECOSYSTEM</span>
             <span className="hidden sm:inline text-slate-300">|</span>

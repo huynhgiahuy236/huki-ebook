@@ -19,12 +19,12 @@ jobs:
       - name: Trigger UAT Deployment on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VPS_HOST || '103.67.197.73' }}
+          host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER || 'root' }}
           key: ${{ secrets.VPS_SSH_KEY }}
           password: ${{ secrets.VPS_PASSWORD }}
           script_stop: true
-          command_timeout: 25m
+          command_timeout: 45m
           script: |
             set -e
             echo "=== [1/4] Pulling latest code on develop branch ==="

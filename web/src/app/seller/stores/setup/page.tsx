@@ -18,6 +18,7 @@ export default function SellerSetupStorePage() {
   const [stores, setStores] = useState<StoreData[]>([]);
   const [currentStore, setCurrentStore] = useState<StoreData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [savingStep, setSavingStep] = useState(false);
   const isRedirectingRef = React.useRef(false);
 
@@ -91,9 +92,12 @@ export default function SellerSetupStorePage() {
 
         // Kiểm tra nếu đã hoàn tất setup Onboarding trước đó -> chuyển thẳng vào Dashboard (chỉ hiển thị 1 lần)
         if (typeof window !== 'undefined' && b.id) {
-          const isCompleted = localStorage.getItem(`huki_store_setup_completed_${b.id}`);
+          const isCompleted = localStorage.getItem(`huki_store_setup_completed_${b.id}`) || localStorage.getItem('huki_store_setup_completed_');
           if (isCompleted === 'true') {
-            router.replace('/seller/dashboard');
+            if (!isRedirectingRef.current) {
+              isRedirectingRef.current = true;
+              router.replace('/seller/dashboard');
+            }
             return;
           }
         }
@@ -144,10 +148,20 @@ export default function SellerSetupStorePage() {
           }
         }
       } else {
-        router.replace('/seller/register');
+        // Nếu lỗi 404 hoặc thực sự chưa có business thì mới về register
+        if (bizRes.statusCode === 404 || (!bizRes.data && user?.role !== 'BUSINESS')) {
+          if (!isRedirectingRef.current) {
+            isRedirectingRef.current = true;
+            router.replace('/seller/register');
+          }
+        } else {
+          // Lỗi máy chủ (502, 500...) -> KHÔNG ĐƯỢC redirect sang register vì layout sẽ đá ngược lại gây ping-pong loop!
+          setFetchError(bizRes.message || 'Không thể kết nối đến máy chủ Doanh Nghiệp (502/500). Vui lòng thử lại sau.');
+        }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error loading setup data:', err);
+      setFetchError(err?.message || 'Có lỗi xảy ra khi tải thông tin gian hàng.');
     } finally {
       setLoading(false);
     }
@@ -371,6 +385,29 @@ export default function SellerSetupStorePage() {
       <div className="min-h-[70vh] flex flex-col items-center justify-center gap-4">
         <div className="w-12 h-12 border-4 border-[#003B2B]/20 border-t-[#003B2B] rounded-full animate-spin"></div>
         <p className="text-sm text-slate-600 font-medium">Đang tải thiết lập cửa hàng...</p>
+      </div>
+    );
+  }
+
+  if (fetchError && !business) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-4 p-6 text-center select-none">
+        <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 mb-1 shadow-sm">
+          <span className="material-symbols-outlined text-3xl">cloud_off</span>
+        </div>
+        <h2 className="text-lg font-bold text-slate-900">Máy chủ Doanh Nghiệp tạm thời không phản hồi</h2>
+        <p className="text-sm text-slate-600 max-w-md">{fetchError}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setLoading(true);
+            setFetchError(null);
+            loadData();
+          }}
+          className="mt-2 px-6 py-2.5 rounded-xl bg-[#003B2B] text-white text-sm font-semibold hover:bg-[#002a1f] transition-all cursor-pointer shadow-sm active:scale-95"
+        >
+          Thử kết nối lại
+        </button>
       </div>
     );
   }

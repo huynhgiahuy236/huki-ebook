@@ -47,7 +47,7 @@ function SellerRouteLayoutContent({ children }: { children: React.ReactNode }) {
 
     // Kiểm tra seller đã hoàn tất bước ngân hàng & thiết lập gian hàng chưa
     const isSetupCompleted = Boolean(
-      (typeof window !== 'undefined' && user?.business?.id && localStorage.getItem(`huki_store_setup_completed_`) === 'true') ||
+      (typeof window !== 'undefined' && user?.business?.id && (localStorage.getItem(`huki_store_setup_completed_${user.business.id}`) === 'true' || localStorage.getItem(`huki_store_setup_completed_`) === 'true')) ||
       (user?.business?.bankAccountNumber && user?.business?.bankName)
     );
 
