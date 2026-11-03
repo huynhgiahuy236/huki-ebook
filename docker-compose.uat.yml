@@ -77,6 +77,10 @@ services:
       DATABASE_NAME: huki_uat_identity
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026}@postgres:5432/huki_uat_identity?schema=public
       IDENTITY_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026}@postgres:5432/huki_uat_identity?schema=public
+      FRONTEND_URL: ${FRONTEND_URL:-https://huki-uat.duckdns.org}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-133752145943-qlneica38ablgn1js0hg1an8d9gmsi47.apps.googleusercontent.com}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-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}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-https://huki-uat.duckdns.org/api/v1/auth/google/callback}
       JWT_SECRET: ${JWT_SECRET:-0521ab048d035a99b2c967bcadd4fb2bea5c6ed05b4dc7fe5cc129fe50051890d79a031d1a8c036b29e5b74dc82ab6b1e67cd5be3fb6a0838cb6bb9080f818c0}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-7a9b031d1a8c036b29e5b74dc82ab6b1e67cd5be3fb6a0838cb6bb9080f818c00521ab048d035a99b2c967bcadd4fb2bea5c6ed05b4dc7fe5cc129fe50051890}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
@@ -278,6 +282,7 @@ services:
       NEXT_PUBLIC_GATEWAY_URL: https://huki-uat.duckdns.org
       NEXT_PUBLIC_API_BASE_URL: /api/v1
       NEXT_PUBLIC_SITE_URL: https://huki-uat.duckdns.org
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-133752145943-qlneica38ablgn1js0hg1an8d9gmsi47.apps.googleusercontent.com}
     ports:
       - "127.0.0.1:3110:3100"
     healthcheck:
