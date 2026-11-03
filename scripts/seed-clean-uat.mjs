@@ -17,7 +17,7 @@ async function getConnectedClient(databaseName) {
       if (u.password) passwordsToTry.push(u.password);
     } catch {}
   }
-  passwordsToTry.push('HukiProductionSecure2026!#', 'postgres123');
+  passwordsToTry.push('HukiProductionSecure2026', 'postgres123');
   // Remove duplicates and empty
   passwordsToTry = [...new Set(passwordsToTry.filter(Boolean))];
 
