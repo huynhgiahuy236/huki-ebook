@@ -22,7 +22,7 @@
 - 🤝 **[MOD-05: Hệ Sinh Thái Tiếp Thị Liên Kết Affiliate (9 màn hình)](file:///e:/HuKi/tasks/module-05-affiliate-ecosystem.md)** $\rightarrow$ **[Báo cáo lỗi MOD-05 (17 lỗi)](file:///e:/HuKi/tasks/bug-mod05.md)**
 - 💬 **[MOD-06: Cộng Đồng Độc Giả, Chat & Bé Cáo AI (8 màn hình)](file:///e:/HuKi/tasks/module-06-ai-community-chat.md)** $\rightarrow$ **[Báo cáo lỗi MOD-06 (14 lỗi)](file:///e:/HuKi/tasks/bug-mod06.md)**
 - 🛡️ **[MOD-07: Kiểm Thử An Ninh & Phân Quyền RBAC (Toàn hệ thống)](file:///e:/HuKi/tasks/module-07-security-rbac-audit.md)** $\rightarrow$ **[Báo cáo lỗi MOD-07 (8 lỗi)](file:///e:/HuKi/tasks/bug-mod07.md)**
-- 🤖 **[MOD-08: Robot Playwright Quét Tự Động 141 Màn Hình](file:///e:/HuKi/tasks/module-08-playwright-full-scanner.md)**
+- 🤖 **[MOD-08: Robot Playwright Quét Tự Động Toàn Sàn (102 routes)](file:///e:/HuKi/tasks/module-08-playwright-full-scanner.md)** $\rightarrow$ **[Báo cáo lỗi MOD-08 (5 lỗi)](file:///e:/HuKi/tasks/bug-mod08.md)**
 
 ---
 
