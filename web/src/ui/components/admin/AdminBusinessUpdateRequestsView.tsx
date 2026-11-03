@@ -232,7 +232,7 @@ export function AdminBusinessUpdateRequestsView() {
           status: 'APPROVED',
           requestId: reqId,
         });
-        showToast?.((res as any)?.message || 'Đã phê duyệt và cập nhật thông tin doanh nghiệp vào Database thành công!', 'success');
+        showToast?.((res as any)?.message || 'Đã phê duyệt và cập nhật thông tin doanh nghiệp thành công!', 'success');
         setSelectedRequest(null);
         await fetchRequests();
       } else {

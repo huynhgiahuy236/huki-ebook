@@ -239,14 +239,14 @@ export function SellerRegisterView() {
       );
 
       notify({
-        title: 'Tra cứu CSDL thành công',
+        title: 'Xác thực thông tin thành công',
         message: `Đã đối chiếu & tự động điền dữ liệu pháp nhân của "${data.company_name}". Vui lòng hoàn tất các thông tin người đại diện và kho hàng tiếp theo.`,
         type: 'success',
       });
     } else {
       setIsTaxVerified(false);
       notify({
-        title: 'Chưa có trong CSDL tự động',
+        title: 'Chưa tìm thấy thông tin tự động',
         message: res.error || 'Vui lòng kiểm tra lại MST hoặc nhập thông tin thủ công.',
         type: 'info',
       });
@@ -502,7 +502,7 @@ export function SellerRegisterView() {
   const isHousehold = formData.businessType === 'INDIVIDUAL';
 
   const stepTitles = [
-    { num: 1, title: isHousehold ? '1. Pháp Lý Hộ KD' : '1. Pháp Lý Doanh Nghiệp', desc: 'MST & Tra cứu CSDL' },
+    { num: 1, title: isHousehold ? '1. Pháp Lý Hộ KD' : '1. Pháp Lý Doanh Nghiệp', desc: 'MST & Xác thực pháp lý' },
     { num: 2, title: isHousehold ? '2. Chủ Hộ Kinh Doanh' : '2. Người Đại Diện', desc: 'Đại diện & CCCD e-KYC' },
     { num: 3, title: '3. Kho Hàng Vận Hành', desc: 'Địa chỉ lấy hàng vật lý' },
     { num: 4, title: isHousehold ? '4. ĐKKD & Sách Thật' : '4. Giấy Phép & DRM', desc: isHousehold ? 'Giấy phép & Cam kết' : 'Xuất bản & Bản quyền số' },

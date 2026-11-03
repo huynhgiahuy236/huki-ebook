@@ -407,7 +407,7 @@ export default function AdminUsersView() {
     try {
       const res = await adminApi.toggleLockUser(userId);
       if (res.success) {
-        showToast?.('Đã cập nhật trạng thái tài khoản thành công trong cơ sở dữ liệu.', 'success');
+        showToast?.('Đã cập nhật trạng thái tài khoản thành công.', 'success');
         // Refresh from DB
         loadUsers();
         if (inspectingUser && inspectingUser.id === userId) {
@@ -516,7 +516,7 @@ export default function AdminUsersView() {
             }
           }
         }
-        showToast?.(`Đã cập nhật trạng thái cho ${count} tài khoản trong CSDL.`, 'success');
+        showToast?.(`Đã cập nhật trạng thái cho ${count} tài khoản thành công.`, 'success');
         loadUsers();
       } else if (actionValue === 'REWARD_POINTS') {
         setUsers((prev) =>
@@ -844,7 +844,7 @@ export default function AdminUsersView() {
           <button
             onClick={() => {
               loadUsers();
-              showToast?.('Đã làm mới danh sách người dùng từ Database', 'success');
+              showToast?.('Đã làm mới danh sách người dùng thành công.', 'success');
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-xs font-semibold text-white transition-all cursor-pointer"
           >

@@ -827,7 +827,7 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
       localStorage.removeItem(STORAGE_KEY);
     }
     refreshOrders();
-    showToast({ title: 'Làm mới dữ liệu', message: 'Đã đồng bộ lại toàn bộ đơn hàng thực tế từ CSDL!' }, 'info');
+    showToast({ title: 'Làm mới dữ liệu', message: 'Đã cập nhật lại toàn bộ danh sách đơn hàng mới nhất!' }, 'info');
   };
 
   return (

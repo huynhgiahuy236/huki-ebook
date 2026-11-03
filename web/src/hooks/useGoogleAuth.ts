@@ -54,9 +54,9 @@ export function useGoogleAuth(redirectTarget: string = '/') {
 
     if (!clientId) {
       showToast({
-        title: 'Chưa cấu hình Google Client ID',
-        message: 'Vui lòng điền GOOGLE_CLIENT_ID vào file platform/.env ở Backend.',
-        type: 'error',
+        title: 'Đăng nhập Google tạm thời gián đoạn',
+        message: 'Phương thức đăng nhập qua Google đang được bảo trì. Quý khách vui lòng đăng nhập bằng Email và Mật khẩu.',
+        type: 'warning',
       });
       return;
     }
@@ -84,7 +84,7 @@ export function useGoogleAuth(redirectTarget: string = '/') {
             showToast({
               title: 'Đăng nhập Google thất bại',
               message: tokenResponse.error_description || tokenResponse.error || 'Đã đóng cửa sổ đăng nhập Google.',
-              type: 'error',
+              type: 'warning',
             });
             return;
           }
@@ -120,14 +120,14 @@ export function useGoogleAuth(redirectTarget: string = '/') {
                 showToast({
                   title: 'Đăng nhập thất bại',
                   message: res.error || 'Không thể xác thực thông tin tài khoản với máy chủ.',
-                  type: 'error',
+                  type: 'warning',
                 });
               }
             } catch (err: any) {
               showToast({
                 title: 'Lỗi đăng nhập',
                 message: err?.message || 'Có lỗi xảy ra khi xác thực Google.',
-                type: 'error',
+                type: 'warning',
               });
             } finally {
               setIsGoogleLoading(false);
@@ -145,7 +145,7 @@ export function useGoogleAuth(redirectTarget: string = '/') {
       showToast({
         title: 'Lỗi mở cửa sổ Google',
         message: err?.message || 'Không thể kích hoạt cửa sổ đăng nhập Google.',
-        type: 'error',
+        type: 'warning',
       });
     }
   }, [loginWithGoogle, redirectTarget, router, showToast]);

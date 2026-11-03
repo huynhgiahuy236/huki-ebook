@@ -363,7 +363,7 @@ export function AdminAccountsView() {
         setUsers((prev: any) => [res.data, ...prev]);
         showToast?.({
           title: 'Thêm khách hàng thành công',
-          message: `Đã lưu tài khoản khách hàng "${res.data.fullName}" vào cơ sở dữ liệu.`,
+          message: `Đã tạo tài khoản khách hàng "${res.data.fullName}" thành công.`,
           type: 'success',
         });
       } else {
@@ -402,7 +402,7 @@ export function AdminAccountsView() {
       console.error(err);
       showToast?.({
         title: 'Lỗi',
-        message: 'Không thể tạo khách hàng vào cơ sở dữ liệu.',
+        message: 'Không thể tạo khách hàng. Vui lòng thử lại sau.',
         type: 'error',
       });
     } finally {
@@ -511,14 +511,14 @@ export function AdminAccountsView() {
       setEditingUser(null);
       showToast?.({
         title: 'Cập nhật thành công',
-        message: `Đã lưu thay đổi cho tài khoản "${editForm.fullName}" vào cơ sở dữ liệu.`,
+        message: `Đã cập nhật thông tin tài khoản "${editForm.fullName}" thành công.`,
         type: 'success',
       });
     } catch (err) {
       console.error(err);
       showToast?.({
         title: 'Cập nhật thất bại',
-        message: 'Có lỗi xảy ra khi cập nhật vào cơ sở dữ liệu.',
+        message: 'Có lỗi xảy ra khi cập nhật thông tin. Vui lòng thử lại.',
         type: 'error',
       });
     } finally {
@@ -549,14 +549,14 @@ export function AdminAccountsView() {
       const actionText = nextStatus === 'LOCKED' ? 'Đã khóa tài khoản' : 'Đã mở khóa tài khoản';
       showToast?.({
         title: actionText,
-        message: `${actionText} "${lockingUser.fullName}" trong database thành công.`,
+        message: `${actionText} "${lockingUser.fullName}" thành công.`,
         type: nextStatus === 'LOCKED' ? 'warning' : 'success',
       });
     } catch (err) {
       console.error(err);
       showToast?.({
         title: 'Lỗi',
-        message: 'Không thể cập nhật trạng thái khóa vào database.',
+        message: 'Không thể cập nhật trạng thái tài khoản. Vui lòng thử lại.',
         type: 'error',
       });
     } finally {
@@ -582,14 +582,14 @@ export function AdminAccountsView() {
       setUsers((prev: any) => prev.filter((u: any) => u.id !== deletingUser.id));
       showToast?.({
         title: 'Đã xóa tài khoản',
-        message: `Đã xóa tài khoản "${deletingUser.fullName}" khỏi cơ sở dữ liệu.`,
+        message: `Đã xóa tài khoản "${deletingUser.fullName}" thành công.`,
         type: 'success',
       });
     } catch (err) {
       console.error(err);
       showToast?.({
         title: 'Lỗi',
-        message: 'Không thể xóa người dùng khỏi database.',
+        message: 'Không thể xóa người dùng. Vui lòng thử lại sau.',
         type: 'error',
       });
     } finally {
