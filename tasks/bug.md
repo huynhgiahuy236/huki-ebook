@@ -1,55 +1,37 @@
-# Danh sách lỗi cần xử lý (Bug Tracking)
+# Danh sách lỗi cần xử lý (Bug Tracking) - Kiểm Thử Toàn Diện MOD-02
 
 > **Quy tắc làm việc:**
-> 1. Ghi nhận và phân loại toàn bộ lỗi được người dùng liệt kê vào file này.
-> 2. **Tuyệt đối không tự ý fix trước.**
-> 3. Chỉ khi người dùng nhắc/ghim file này và yêu cầu làm -> Hỏi lại xác nhận: *"Bạn có chắc chắn muốn tiến hành fix các lỗi này không?"*
-> 4. Chỉ bắt đầu thực hiện sau khi người dùng xác nhận chắc chắn.
+> 1. Ghi nhận và bóc tách toàn bộ lỗi phát hiện được trong quá trình kiểm thử chuyên sâu MOD-02 vào file này.
+> 2. **Tuyệt đối không tự ý sửa code trước khi có chỉ đạo từ người dùng.**
+> 3. Mọi lỗi phải có đầy đủ 3 cấu phần: Vị trí (Màn hình/API/Flow), Mô tả hiện tượng (HTTP status/Console error/Log) và Phân tích nguyên nhân gốc rễ (Root Cause).
+> 4. Chỉ bắt tay vào sửa code sau khi người dùng phê duyệt và chỉ định lỗi cụ thể.
 
 ---
 
-## 1. Danh sách lỗi đã ghi nhận
+## 1. Danh Sách Lỗi Phát Hiện (MOD-02: Kênh Người Bán & Xuất Bản)
 
-### [BUG-001] Thiếu file ảnh placeholder `/images/book-placeholder.png` gây vòng lặp vô hạn spam 404
-- **Mô tả & Nguyên nhân:**
-  - Ở `web/src/app/page.tsx` và `web/src/app/book/[id]/page.tsx` bắt sự kiện `onError` gán fallback `src = '/images/book-placeholder.png'`.
-  - Do thư mục `web/public/images/` chưa có file `book-placeholder.png`, dẫn đến HTTP 404.
-  - Khi fallback bị 404, trình duyệt tiếp tục bắn sự kiện `onError` lặp đi lặp lại tạo thành vòng lặp vô hạn spam request 404 liên tục mỗi mili-giây.
-- **Vị trí ảnh hưởng:**
-  - `web/src/app/page.tsx`
-  - `web/src/app/book/[id]/page.tsx`
-  - `web/src/ui/components/sections/FlashSaleSection.tsx`
-  - `web/src/app/seller/affiliate/page.tsx`
-  - `web/src/app/seller/products/page.tsx`
-  - `web/public/images/book-placeholder.png`
-  - `web/public/banners/book-placeholder.jpg`
-- **Kết quả xử lý:**
-  1. Tạo thư mục `web/public/images/` và sinh file ảnh bìa sách chuẩn `book-placeholder.png` (và `banners/book-placeholder.jpg`).
-  2. Bổ sung `target.onerror = null;` tại tất cả các khối `onError` để triệt tiêu vĩnh viễn vòng lặp vô tận ngay cả trong trường hợp mất mạng.
-  3. Cập nhật `.gitignore` để source control theo dõi thư mục `web/public/images/`.
-- **Trạng thái:** [x] Đã hoàn thành (Resolved).
+*(Đang tiến hành rà soát chuyên sâu 35 màn hình quản trị gian hàng đối tác và toàn bộ luồng nghiệp vụ `/seller/*`...)*
 
 ---
 
-### [BUG-002] Lệch cấu hình RabbitMQ EventBus, CORS và Public URL giữa UAT và Production
-- **Mô tả & Nguyên nhân:**
-  - **RabbitMQ:** Toàn bộ Event Bus và Outbox Publisher trong `@huki/shared` đọc biến `RABBITMQ_URL`. Trong `docker-compose.prod.yml`, tất cả các microservices (`identity`, `business`, `commerce`, `shipping`, `community`, `promotion`) đều thiếu biến này, khiến code fallback về `localhost:5672` bên trong container $\rightarrow$ Toàn bộ message queue, bắn sự kiện đơn hàng, outbox sync và notifications trên Production sẽ bị đứt kết nối (Connection Refused).
-  - Tương tự, ở `docker-compose.uat.yml`, 3 services (`business`, `community`, `promotion`) cũng thiếu `RABBITMQ_URL`.
-  - **CORS & Gateway URL ở Prod:** `CORS_ORIGIN` ở `api-gateway` và `NEXT_PUBLIC_GATEWAY_URL` ở `web` mặc định fallback về `localhost:3100` và `http://api-gateway:3000`. Khi deploy lên domain production (`https://hukiebook.duckdns.org`), trình duyệt người dùng từ bên ngoài sẽ bị CORS Blocked hoặc gọi API vào domain ảo của Docker.
-- **Vị trí ảnh hưởng:**
-  - `docker-compose.prod.yml`
-  - `docker-compose.uat.yml`
-- **Kết quả xử lý:**
-  1. Đã đồng bộ `RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672` cho tất cả microservices trong cả `docker-compose.prod.yml` và `docker-compose.uat.yml`.
-  2. Bổ sung `depends_on: rabbitmq: condition: service_healthy` để đảm bảo thứ tự khởi động chuẩn.
-  3. Bổ sung `REDIS_HOST` và `REDIS_PORT` cho `community-service` trên Prod.
-  4. Cấu hình fallback an toàn cho Prod: `CORS_ORIGIN` cho phép cả domain production và localhost, `NEXT_PUBLIC_GATEWAY_URL` và `NEXT_PUBLIC_SITE_URL` fallback về `https://hukiebook.duckdns.org`.
-  5. Đã validate cú pháp bằng `docker compose config --quiet` (exit code 0).
-- **Trạng thái:** [x] Đã hoàn thành (Resolved).
+## 2. Bản Đồ Kiểm Thử Hệ Thống (Master Audit Map)
+- 📘 **[MOD-01: Cổng Độc Giả & Khách Mua Hàng (45 màn hình)](file:///e:/HuKi/tasks/module-01-buyer-public-flows.md)** $\rightarrow$ **[Báo cáo lỗi MOD-01 (26 lỗi)](file:///e:/HuKi/tasks/bug-mod01.md)**
+- 🏪 **[MOD-02: Kênh Người Bán & Xuất Bản (48 màn hình & luồng nghiệp vụ)](file:///e:/HuKi/tasks/module-02-seller-portal-flows.md)** $\rightarrow$ **[Báo cáo lỗi MOD-02 (18 lỗi)](file:///e:/HuKi/tasks/bug-mod02.md)**
+- 👑 **[MOD-03: Cổng Quản Trị Sàn Toàn Diện (35 màn hình)](file:///e:/HuKi/tasks/module-03-admin-portal-flows.md)** $\rightarrow$ **[Báo cáo lỗi MOD-03 (19 lỗi)](file:///e:/HuKi/tasks/bug-mod03.md)**
+- 🚚 **[MOD-04: Cổng Giao Hàng & Đối Soát COD (10 màn hình)](file:///e:/HuKi/tasks/module-04-shipper-portal-flows.md)** $\rightarrow$ **[Báo cáo lỗi MOD-04 (13 lỗi)](file:///e:/HuKi/tasks/bug-mod04.md)**
+- 🤝 **[MOD-05: Hệ Sinh Thái Tiếp Thị Liên Kết Affiliate (9 màn hình)](file:///e:/HuKi/tasks/module-05-affiliate-ecosystem.md)** $\rightarrow$ **[Báo cáo lỗi MOD-05 (17 lỗi)](file:///e:/HuKi/tasks/bug-mod05.md)**
+- 💬 **[MOD-06: Cộng Đồng Độc Giả, Chat & Bé Cáo AI (8 màn hình)](file:///e:/HuKi/tasks/module-06-ai-community-chat.md)** $\rightarrow$ **[Báo cáo lỗi MOD-06 (14 lỗi)](file:///e:/HuKi/tasks/bug-mod06.md)**
+- 🛡️ **[MOD-07: Kiểm Thử An Ninh & Phân Quyền RBAC](file:///e:/HuKi/tasks/module-07-security-rbac-audit.md)**
+- 🤖 **[MOD-08: Robot Playwright Quét Tự Động 141 Màn Hình](file:///e:/HuKi/tasks/module-08-playwright-full-scanner.md)**
 
 ---
 
-## 2. Trạng thái thực hiện
-- [x] Xác nhận yêu cầu từ người dùng
-- [x] Tiến hành xử lý
-- [x] Kiểm thử & Hoàn thành
+## 3. Tiến Độ Thực Hiện MOD-02
+- [x] Khởi tạo tài liệu theo dõi lỗi riêng biệt `tasks/bug-mod02.md`
+- [x] Rà soát Phân hệ 1: Gia Nhập & Thiết Lập Doanh Nghiệp (`/seller/register`, `/seller/stores/setup`, `/seller/dashboard`)
+- [x] Rà soát Phân hệ 2: Quản Lý Sản Phẩm & Đăng Sách Thật (Physical, Ebook DRM, Hybrid, Inventory)
+- [x] Rà soát Phân hệ 3: Quản Lý Đơn Hàng & Vận Chuyển (`/seller/orders`, in vận đơn, đổi trả)
+- [x] Rà soát Phân hệ 4: Marketing & Khuyến Mãi Gian Hàng (Voucher shop, Flash sale, giảm giá)
+- [x] Rà soát Phân hệ 5: Tài Chính, Quyết Toán & Quản Trị Nhân Viên (`/seller/finance`, `/seller/wallet`, `/seller/staff`)
+- [x] Báo cáo tổng thể MOD-02 (14 lỗi) và xin ý kiến chỉ đạo
+- [ ] Báo cáo tổng thể MOD-02 và xin ý kiến chỉ đạo
