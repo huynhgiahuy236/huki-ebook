@@ -1,6 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ROLES_KEY } from '../../../../../../libs/shared/src/decorators/roles.decorator';
+import { ROLES_KEY } from '@huki/shared';
 import { throwForbidden } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
 

@@ -57,7 +57,9 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/apps ./apps
+COPY --from=builder /app/libs ./libs
 COPY --from=builder /app/scripts ./scripts
+RUN mkdir -p node_modules/@huki && ln -sfn ../../dist/libs/shared node_modules/@huki/shared
 
 # Create non-root user
 USER node

@@ -4,6 +4,8 @@
 # Domain: https://huki-uat.duckdns.org
 # ========================================================
 
+name: huki-uat
+
 services:
   # ============================================
   # UAT BACKEND MICROSERVICES

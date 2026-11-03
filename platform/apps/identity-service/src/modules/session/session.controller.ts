@@ -11,7 +11,7 @@ import {
 import { Request } from 'express';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../../../../../libs/shared/src/decorators/current-user.decorator';
+import { CurrentUser } from '@huki/shared';
 import { SessionService } from './session.service';
 
 @ApiTags('Sessions')

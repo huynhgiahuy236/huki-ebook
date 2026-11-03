@@ -12,8 +12,8 @@ import {
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../../../../../libs/shared/src/decorators/roles.decorator';
-import { CurrentUser } from '../../../../../libs/shared/src/decorators/current-user.decorator';
+import { Roles, CurrentUser } from '@huki/shared';
+
 import { UserService } from './user.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 

@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException 
 import { Prisma, User, UserRole, UserStatus } from '../../../prisma/generated/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { AuditAction, AuditDiffHelper, EmailService } from '../../../../../libs/shared/src';
+import { AuditAction, AuditDiffHelper, EmailService } from '@huki/shared';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
