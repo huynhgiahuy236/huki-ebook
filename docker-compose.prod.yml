@@ -113,7 +113,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-this-in-production-min-32-chars-key}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-refresh-min-32-chars-key}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3100}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://hukiebook.duckdns.org,http://localhost:3100}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://hukiebook.duckdns.org,http://localhost:3100}
     ports:
       - "3000:3000"
     healthcheck:
@@ -158,6 +159,7 @@ services:
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/api/v1/health/live"]
       interval: 10s
@@ -167,6 +169,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
       - huki-network
@@ -190,6 +194,7 @@ services:
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       GMAIL_USER: ${GMAIL_USER}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3002/api/v1/health/live"]
       interval: 10s
@@ -197,6 +202,8 @@ services:
       retries: 5
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
       - huki-network
@@ -224,6 +231,7 @@ services:
       REDIS_PORT: 6379
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       GMAIL_USER: ${GMAIL_USER}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
@@ -259,6 +267,7 @@ services:
       DATABASE_NAME: huki_shipping
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_shipping?schema=public
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3004/api/v1/health/live"]
       interval: 10s
@@ -266,6 +275,8 @@ services:
       retries: 5
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
       - huki-network
@@ -282,6 +293,9 @@ services:
       COMMUNITY_SERVICE_PORT: 3005
       MONGODB_URI: mongodb://mongo:27017/community_db
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3005/api/v1/health/live"]
       interval: 10s
@@ -289,6 +303,10 @@ services:
       retries: 5
     depends_on:
       mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
       - huki-network
@@ -312,6 +330,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3007/api/v1/health/live"]
       interval: 10s
@@ -321,6 +340,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
       - huki-network
@@ -365,9 +386,9 @@ services:
     environment:
       PORT: 3100
       API_GATEWAY_URL: http://api-gateway:3000
-      NEXT_PUBLIC_GATEWAY_URL: ${NEXT_PUBLIC_GATEWAY_URL:-http://api-gateway:3000}
+      NEXT_PUBLIC_GATEWAY_URL: ${NEXT_PUBLIC_GATEWAY_URL:-https://hukiebook.duckdns.org}
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
-      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3100}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://hukiebook.duckdns.org}
     ports:
       - "3100:3100"
     healthcheck:

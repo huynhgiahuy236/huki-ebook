@@ -381,7 +381,16 @@ export function extractHumanErrorMessage(body: unknown, status: number): { title
       ? nestedError.code
       : defaultHttp.code;
 
-  // 1. Ưu tiên message cụ thể từ backend nếu có (ví dụ: số lần thử còn lại, tài khoản chưa tồn tại...)
+  // 1. Tra từ điển mã lỗi nghiệp vụ chuẩn (nếu có mã lỗi đã định nghĩa)
+  if (rawCode && BUSINESS_ERROR_TRANSLATIONS[rawCode]) {
+    return {
+      title: BUSINESS_ERROR_TRANSLATIONS[rawCode].title,
+      message: BUSINESS_ERROR_TRANSLATIONS[rawCode].message,
+      code: rawCode,
+    };
+  }
+
+  // 2. Ưu tiên message cụ thể từ backend nếu có (ví dụ: số lần thử còn lại, tài khoản chưa tồn tại...)
   const rawMessage = obj.message
     || nestedError?.message
     || (typeof obj.error === 'string' ? obj.error : null);
@@ -398,20 +407,11 @@ export function extractHumanErrorMessage(body: unknown, status: number): { title
       lower !== 'conflict'
     ) {
       return {
-        title: BUSINESS_ERROR_TRANSLATIONS[rawCode]?.title || defaultHttp.title,
+        title: defaultHttp.title,
         message: translateValidationRule(trimmed),
         code: rawCode || defaultHttp.code,
       };
     }
-  }
-
-  // 1b. Tra từ điển mã lỗi nghiệp vụ nếu không có message cụ thể
-  if (rawCode && BUSINESS_ERROR_TRANSLATIONS[rawCode]) {
-    return {
-      title: BUSINESS_ERROR_TRANSLATIONS[rawCode].title,
-      message: BUSINESS_ERROR_TRANSLATIONS[rawCode].message,
-      code: rawCode,
-    };
   }
 
   // 2. Xử lý mảng validation errors từ NestJS (Class Validator)

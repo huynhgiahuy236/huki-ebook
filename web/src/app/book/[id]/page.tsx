@@ -1001,7 +1001,9 @@ export default function BookDetailPage() {
                     alt={book.title}
                     referrerPolicy="no-referrer"
                     onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = '/images/book-placeholder.png';
+                      const target = e.currentTarget as HTMLImageElement;
+                      target.onerror = null;
+                      target.src = '/images/book-placeholder.png';
                     }}
                     className="w-full h-full object-cover"
                   />

@@ -1,8 +1,21 @@
-import { defineConfig, globalIgnores } from "eslint/config";
+import { defineConfig } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
 const eslintConfig = defineConfig([
+  {
+    // Global ignores must be the first entry in flat config
+    ignores: [
+      "**/node_modules/**",
+      "**/.next/**",
+      "**/out/**",
+      "**/build/**",
+      "**/dist/**",
+      "**/next-env.d.ts",
+      "**/scripts/**",
+      "**/public/**",
+    ],
+  },
   ...nextVitals,
   ...nextTs,
   {
@@ -33,17 +46,6 @@ const eslintConfig = defineConfig([
       "@next/next/no-page-custom-font": "off",
     },
   },
-  // Override default ignores of eslint-config-next.
-  globalIgnores([
-    "node_modules/**",
-    ".next/**",
-    "out/**",
-    "build/**",
-    "dist/**",
-    "next-env.d.ts",
-    "scripts/**",
-    "public/**",
-  ]),
 ]);
 
 export default eslintConfig;

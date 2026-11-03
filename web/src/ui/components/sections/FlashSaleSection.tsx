@@ -43,7 +43,7 @@ export default function FlashSaleSection() {
                 id: item.bookId,
                 title: book?.title || item.bookTitle || `Sách #${item.bookId.slice(0, 6)}`,
                 author: book?.author?.name || 'Tác giả HUKI',
-                cover: book?.coverUrl || '/banners/book-placeholder.jpg',
+                cover: book?.coverUrl || '/images/book-placeholder.png',
                 price: item.salePrice,
                 originalPrice: item.originalPrice,
                 discount: `-${item.discountPercent}%`,
@@ -139,7 +139,17 @@ export default function FlashSaleSection() {
 
             {/* Cover */}
             <div className="aspect-[3/4] w-full rounded-xl overflow-hidden mb-2 bg-[#FAF8F5] relative mt-5">
-              <img src={book.cover} alt={book.title} className="w-full h-full object-cover" loading="lazy" />
+              <img
+                src={book.cover}
+                alt={book.title}
+                className="w-full h-full object-cover"
+                loading="lazy"
+                onError={(e) => {
+                  const target = e.currentTarget as HTMLImageElement;
+                  target.onerror = null;
+                  target.src = '/images/book-placeholder.png';
+                }}
+              />
             </div>
 
             {/* Info */}

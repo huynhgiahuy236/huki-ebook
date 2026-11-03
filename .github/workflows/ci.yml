@@ -127,10 +127,14 @@ jobs:
 
       - name: Run frontend lint and TypeScript typecheck
         working-directory: web
+        env:
+          NODE_OPTIONS: "--max-old-space-size=6144"
         run: npm run check
 
       - name: Run frontend unit & component tests
         working-directory: web
+        env:
+          NODE_OPTIONS: "--max-old-space-size=6144"
         run: npm test
 
       - name: Run production Next.js build
@@ -138,6 +142,7 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: 1
           NODE_ENV: production
+          NODE_OPTIONS: "--max-old-space-size=6144"
         run: npm run build
 
   # ========================================================
@@ -165,6 +170,14 @@ jobs:
 
       - name: Validate all Prisma schemas format and validity
         working-directory: platform
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres123@localhost:5432/test?schema=public"
+          IDENTITY_DATABASE_URL: "postgresql://postgres:postgres123@localhost:5432/test?schema=public"
+          BUSINESS_DATABASE_URL: "postgresql://postgres:postgres123@localhost:5432/test?schema=public"
+          COMMERCE_DATABASE_URL: "postgresql://postgres:postgres123@localhost:5432/test?schema=public"
+          SHIPPING_DATABASE_URL: "postgresql://postgres:postgres123@localhost:5432/test?schema=public"
+          PROMOTION_DATABASE_URL: "postgresql://postgres:postgres123@localhost:5432/test?schema=public"
+          ANALYTICS_DATABASE_URL: "postgresql://postgres:postgres123@localhost:5432/test?schema=public"
         run: |
           for schema in apps/*/prisma/schema.prisma; do
             echo "Validating $schema..."

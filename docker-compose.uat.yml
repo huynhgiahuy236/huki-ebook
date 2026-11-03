@@ -120,6 +120,7 @@ services:
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       GMAIL_USER: ${GMAIL_USER}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3002/api/v1/health/live"]
       interval: 15s
@@ -209,6 +210,7 @@ services:
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3005/api/v1/health/live"]
       interval: 15s
@@ -239,6 +241,7 @@ services:
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3007/api/v1/health/live"]
       interval: 15s

@@ -1434,7 +1434,9 @@ export default function HomePage() {
                         src={combo.covers[0]}
                         referrerPolicy="no-referrer"
                         onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = '/images/book-placeholder.png';
+                          const target = e.currentTarget as HTMLImageElement;
+                          target.onerror = null;
+                          target.src = '/images/book-placeholder.png';
                         }}
                       />
                     </div>
@@ -1447,7 +1449,9 @@ export default function HomePage() {
                         src={combo.covers[1]}
                         referrerPolicy="no-referrer"
                         onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = '/images/book-placeholder.png';
+                          const target = e.currentTarget as HTMLImageElement;
+                          target.onerror = null;
+                          target.src = '/images/book-placeholder.png';
                         }}
                       />
                     </div>
@@ -1460,7 +1464,9 @@ export default function HomePage() {
                         src={combo.covers[2]}
                         referrerPolicy="no-referrer"
                         onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = '/images/book-placeholder.png';
+                          const target = e.currentTarget as HTMLImageElement;
+                          target.onerror = null;
+                          target.src = '/images/book-placeholder.png';
                         }}
                       />
                     </div>

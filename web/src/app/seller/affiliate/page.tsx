@@ -628,7 +628,9 @@ export default function SellerAffiliatePage() {
               alt={item.bookTitle}
               className="w-10 h-13 object-cover rounded-lg border border-slate-200 shadow-2xs shrink-0 bg-slate-100"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&auto=format&fit=crop&q=80';
+                const target = e.currentTarget as HTMLImageElement;
+                target.onerror = null;
+                target.src = '/images/book-placeholder.png';
               }}
             />
             <div className="min-w-0 max-w-[340px]">
@@ -1213,7 +1215,9 @@ export default function SellerAffiliatePage() {
                         alt={book.title}
                         className="w-10 h-14 object-cover rounded-lg border border-slate-200 shadow-2xs shrink-0 bg-slate-100"
                         onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&auto=format&fit=crop&q=80';
+                          const target = e.currentTarget as HTMLImageElement;
+                          target.onerror = null;
+                          target.src = '/images/book-placeholder.png';
                         }}
                       />
                       <div className="min-w-0 max-w-[280px]">
