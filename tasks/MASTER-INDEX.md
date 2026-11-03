@@ -15,7 +15,7 @@
 | **MOD-04** | **Cổng Giao Hàng & Đối Soát COD (Shipper & Logistics)** | 10 Màn hình | [module-04-shipper-portal-flows.md](file:///e:/HuKi/tasks/module-04-shipper-portal-flows.md) | `ĐÃ QUÉT XONG (13 BUGS)` |
 | **MOD-05** | **Hệ Sinh Thái Tiếp Thị Liên Kết (Affiliate & Tracking)** | 9 Màn hình | [module-05-affiliate-ecosystem.md](file:///e:/HuKi/tasks/module-05-affiliate-ecosystem.md) | `ĐÃ QUÉT XONG (17 BUGS)` |
 | **MOD-06** | **Cộng Đồng Đọc Giả, Chat & Bé Cáo AI (Community & AI)** | 8 Màn hình | [module-06-ai-community-chat.md](file:///e:/HuKi/tasks/module-06-ai-community-chat.md) | `ĐÃ QUÉT XONG (14 BUGS)` |
-| **MOD-07** | **Kiểm Thử An Ninh & Phân Quyền (Security & Access Audit)** | Toàn hệ thống | [module-07-security-rbac-audit.md](file:///e:/HuKi/tasks/module-07-security-rbac-audit.md) | `CHỜ TRIỂN KHAI` |
+| **MOD-07** | **Kiểm Thử An Ninh & Phân Quyền (Security & Access Audit)** | Toàn hệ thống | [module-07-security-rbac-audit.md](file:///e:/HuKi/tasks/module-07-security-rbac-audit.md) | `ĐÃ QUÉT XONG (8 BUGS)` |
 | **MOD-08** | **Robot Playwright Quét Tự Động Toàn Sàn (UI/UX Scanner)** | Toàn bộ Routes | [module-08-playwright-full-scanner.md](file:///e:/HuKi/tasks/module-08-playwright-full-scanner.md) | `CHỜ TRIỂN KHAI` |
 
 ---
