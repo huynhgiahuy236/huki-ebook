@@ -13,7 +13,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
 
     steps:
       - name: Trigger Production Deployment on VPS
@@ -24,7 +24,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           password: ${{ secrets.VPS_PASSWORD }}
           script_stop: true
-          command_timeout: 25m
+          command_timeout: 45m
           script: |
             set -e
             echo "=== [1/4] Pulling latest code on main branch ==="
