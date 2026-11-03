@@ -35,7 +35,7 @@ services:
       ANALYTICS_SERVICE_PORT: 3008
       JWT_SECRET: ${JWT_SECRET:-0521ab048d035a99b2c967bcadd4fb2bea5c6ed05b4dc7fe5cc129fe50051890d79a031d1a8c036b29e5b74dc82ab6b1e67cd5be3fb6a0838cb6bb9080f818c0}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-7a9b031d1a8c036b29e5b74dc82ab6b1e67cd5be3fb6a0838cb6bb9080f818c00521ab048d035a99b2c967bcadd4fb2bea5c6ed05b4dc7fe5cc129fe50051890}
-      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key-2026-very-secure}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       CORS_ORIGIN: https://huki-uat.duckdns.org,http://localhost:3100,http://103.67.197.73
       CORS_ORIGINS: https://huki-uat.duckdns.org,http://localhost:3100,http://103.67.197.73
     ports:
@@ -69,14 +69,15 @@ services:
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432
       DATABASE_USER: postgres
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       DATABASE_NAME: huki_uat_identity
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}@postgres:5432/huki_uat_identity?schema=public
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_uat_identity?schema=public
       JWT_SECRET: ${JWT_SECRET:-0521ab048d035a99b2c967bcadd4fb2bea5c6ed05b4dc7fe5cc129fe50051890d79a031d1a8c036b29e5b74dc82ab6b1e67cd5be3fb6a0838cb6bb9080f818c0}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-7a9b031d1a8c036b29e5b74dc82ab6b1e67cd5be3fb6a0838cb6bb9080f818c00521ab048d035a99b2c967bcadd4fb2bea5c6ed05b4dc7fe5cc129fe50051890}
-      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key-2026-very-secure}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/api/v1/health/live"]
       interval: 15s
@@ -99,10 +100,10 @@ services:
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432
       DATABASE_USER: postgres
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       DATABASE_NAME: huki_uat_business
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}@postgres:5432/huki_uat_business?schema=public
-      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key-2026-very-secure}
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_uat_business?schema=public
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3002/api/v1/health/live"]
       interval: 15s
@@ -125,13 +126,13 @@ services:
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432
       DATABASE_USER: postgres
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       DATABASE_NAME: huki_uat_commerce
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}@postgres:5432/huki_uat_commerce?schema=public
-      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key-2026-very-secure}
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_uat_commerce?schema=public
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-hukiapp}:${RABBITMQ_PASS:-HukiRabbitmqPass2026!#}@rabbitmq:5672
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3003/api/v1/health/live"]
       interval: 15s
@@ -154,11 +155,11 @@ services:
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432
       DATABASE_USER: postgres
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       DATABASE_NAME: huki_uat_shipping
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}@postgres:5432/huki_uat_shipping?schema=public
-      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key-2026-very-secure}
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-hukiapp}:${RABBITMQ_PASS:-HukiRabbitmqPass2026!#}@rabbitmq:5672
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_uat_shipping?schema=public
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3004/api/v1/health/live"]
       interval: 15s
@@ -179,7 +180,7 @@ services:
       COMMUNITY_SERVICE_PORT: 3005
       NODE_ENV: staging
       MONGODB_URI: mongodb://mongo:27017/community_uat_db
-      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key-2026-very-secure}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       REDIS_HOST: redis
       REDIS_PORT: 6379
     healthcheck:
@@ -204,10 +205,10 @@ services:
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432
       DATABASE_USER: postgres
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       DATABASE_NAME: huki_uat_promotion
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}@postgres:5432/huki_uat_promotion?schema=public
-      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key-2026-very-secure}
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_uat_promotion?schema=public
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       REDIS_HOST: redis
       REDIS_PORT: 6379
     healthcheck:
@@ -232,10 +233,10 @@ services:
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432
       DATABASE_USER: postgres
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       DATABASE_NAME: huki_uat_analytics
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-HukiProductionSecure2026!#}@postgres:5432/huki_uat_analytics?schema=public
-      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key-2026-very-secure}
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_uat_analytics?schema=public
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3008/api/v1/health/live"]
       interval: 15s

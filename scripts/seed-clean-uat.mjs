@@ -7,7 +7,7 @@ import bcrypt from 'bcrypt';
 
 const { Client } = pg;
 
-const DB_PASS = process.env.POSTGRES_PASSWORD || 'HukiProductionSecure2026!#';
+const DB_PASS = process.env.POSTGRES_PASSWORD || 'postgres123';
 const DB_HOST = process.env.DATABASE_HOST || 'postgres';
 
 const REAL_BOOKS = [
