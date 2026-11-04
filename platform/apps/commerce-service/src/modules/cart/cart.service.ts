@@ -333,10 +333,11 @@ export class CartService {
     }
 
     const businessPort = process.env.BUSINESS_SERVICE_PORT || 3002;
+    const businessBaseUrl = process.env.BUSINESS_SERVICE_URL || `http://localhost:${businessPort}`;
 
     try {
       // 1. Try store by ID
-      const resStore = await fetch(`http://localhost:${businessPort}/api/v1/stores/${storeId}`);
+      const resStore = await fetch(`${businessBaseUrl}/api/v1/stores/${storeId}`);
       if (resStore.ok) {
         const json = await resStore.json() as any;
         const data = json.data || json;
@@ -351,7 +352,7 @@ export class CartService {
 
     try {
       // 2. Try business by ID
-      const resBiz = await fetch(`http://localhost:${businessPort}/api/v1/businesses/${storeId}`);
+      const resBiz = await fetch(`${businessBaseUrl}/api/v1/businesses/${storeId}`);
       if (resBiz.ok) {
         const json = await resBiz.json() as any;
         const data = json.data || json;
@@ -374,10 +375,11 @@ export class CartService {
 
   private async resolveBookPrice(bookId: string, basePrice: number): Promise<number> {
     const promotionPort = process.env.PROMOTION_SERVICE_PORT || 3007;
+    const promotionBaseUrl = process.env.PROMOTION_SERVICE_URL || `http://localhost:${promotionPort}`;
 
     try {
       // 1. Check active flash sale
-      const res = await fetch(`http://localhost:${promotionPort}/api/v1/flash-sales/price/${bookId}`);
+      const res = await fetch(`${promotionBaseUrl}/api/v1/flash-sales/price/${bookId}`);
       if (res.ok) {
         const json = await res.json() as any;
         const data = json.data || json;
@@ -391,7 +393,7 @@ export class CartService {
 
     try {
       // 2. Check active seller book discount
-      const resDiscount = await fetch(`http://localhost:${promotionPort}/api/v1/discounts/active/${bookId}`);
+      const resDiscount = await fetch(`${promotionBaseUrl}/api/v1/discounts/active/${bookId}`);
       if (resDiscount.ok) {
         const json = await resDiscount.json() as any;
         const discount = json.data || json;

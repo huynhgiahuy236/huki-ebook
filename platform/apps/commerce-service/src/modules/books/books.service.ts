@@ -648,8 +648,9 @@ export class BooksService implements OnModuleInit {
     if (!bookIds || bookIds.length === 0) return map;
 
     const promotionPort = process.env.PROMOTION_SERVICE_PORT || 3007;
+    const promotionBaseUrl = process.env.PROMOTION_SERVICE_URL || `http://localhost:${promotionPort}`;
     try {
-      const res = await fetch(`http://localhost:${promotionPort}/api/v1/discounts/batch-active`, {
+      const res = await fetch(`${promotionBaseUrl}/api/v1/discounts/batch-active`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bookIds }),

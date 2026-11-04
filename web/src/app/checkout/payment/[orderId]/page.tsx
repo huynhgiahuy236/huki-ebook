@@ -288,12 +288,16 @@ export default function PayOSPaymentPage() {
   const accountNumber = paymentData?.accountNumber || '0372212378';
   const accountHolder = paymentData?.accountName || 'CÔNG TY CỔ PHẦN PHÁT HÀNH SÁCH HUKI';
 
-  // Build VietQR image URL
+  // Build VietQR image URL (handles both direct image URL and raw EMVCo VietQR string)
+  const rawQr = paymentData?.qrCode;
   const qrCodeUrl =
-    paymentData?.qrCode ||
-    `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=https://payos.vn/web/qr?orderCode=${encodeURIComponent(
-      order.code
-    )}&amount=${grandTotal}&desc=${encodeURIComponent(transferContent)}`;
+    rawQr && (rawQr.startsWith('http://') || rawQr.startsWith('https://') || rawQr.startsWith('data:image/'))
+      ? rawQr
+      : rawQr
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(rawQr)}`
+      : `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=https://payos.vn/web/qr?orderCode=${encodeURIComponent(
+          order.code
+        )}&amount=${grandTotal}&desc=${encodeURIComponent(transferContent)}`;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/60 pb-16">

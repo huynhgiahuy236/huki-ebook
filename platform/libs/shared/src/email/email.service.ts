@@ -170,7 +170,7 @@ export class EmailService {
 
   private frontendUrl(path: string, token: string, email?: string) {
     const isProd = this.config.get<string>("NODE_ENV") === "production";
-    const defaultUrl = isProd ? "https://huki.duckdns.org" : "http://localhost:3100";
+    const defaultUrl = isProd ? "https://hukiebook.duckdns.org" : "http://localhost:3100";
     const baseUrl = (
       this.config.get<string>("FRONTEND_URL") || defaultUrl
     ).replace(/\/$/, "");

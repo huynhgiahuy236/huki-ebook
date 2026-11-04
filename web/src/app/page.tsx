@@ -712,68 +712,7 @@ export default function HomePage() {
     );
   }, [categoryTabOptions, selectedCategoryTab]);
 
-  // 8. Real Dynamic Combos from Real Books
-  const realCombos = useMemo(() => {
-    if (!realBooks || realBooks.length < 4) return [];
-
-    const litBooks = realBooks
-      .filter((b) => {
-        const name = (b.category?.name || '').toLowerCase();
-        return (
-          name.includes('văn học') ||
-          name.includes('kỹ năng') ||
-          name.includes('tâm lý')
-        );
-      })
-      .slice(0, 3);
-
-    const bizBooks = realBooks
-      .filter((b) => {
-        const name = (b.category?.name || '').toLowerCase();
-        return (
-          name.includes('kinh') ||
-          name.includes('công nghệ') ||
-          name.includes('khoa học') ||
-          name.includes('tech')
-        );
-      })
-      .slice(0, 3);
-
-    const combos = [];
-    if (litBooks.length >= 2) {
-      const origTotal = litBooks.reduce((s, b) => s + Number(b.price || 100000), 0);
-      const discount = Math.round(origTotal * 0.15);
-      const price = origTotal - discount;
-      combos.push({
-        id: `combo-lit-${litBooks[0].id.slice(0, 6)}`,
-        title: `Bộ Sách Văn Học & Tư Duy Chọn Lọc (${litBooks.length} cuốn)`,
-        desc: `Gồm: ${litBooks.map((b) => b.title).join(' + ')}`,
-        books: litBooks,
-        discountLabel: `Combo ${litBooks.length} cuốn - Tiết kiệm ${discount.toLocaleString('vi-VN')}₫ (Giảm 15%)`,
-        origPrice: origTotal,
-        price,
-        covers: litBooks.map((b) => b.coverUrl || '/banners/hero-library.jpg'),
-      });
-    }
-
-    if (bizBooks.length >= 2) {
-      const origTotal = bizBooks.reduce((s, b) => s + Number(b.price || 100000), 0);
-      const discount = Math.round(origTotal * 0.15);
-      const price = origTotal - discount;
-      combos.push({
-        id: `combo-biz-${bizBooks[0].id.slice(0, 6)}`,
-        title: `Tủ Sách Kinh Doanh & Đổi Mới Sáng Tạo (${bizBooks.length} cuốn)`,
-        desc: `Gồm: ${bizBooks.map((b) => b.title).join(' + ')}`,
-        books: bizBooks,
-        discountLabel: `Combo ${bizBooks.length} cuốn - Tiết kiệm ${discount.toLocaleString('vi-VN')}₫ (Giảm 15%)`,
-        origPrice: origTotal,
-        price,
-        covers: bizBooks.map((b) => b.coverUrl || '/banners/hero-library.jpg'),
-      });
-    }
-
-    return combos;
-  }, [realBooks]);
+  // 8. Combos (Removed: Sellers do not have combo creation feature)
 
   // 9. Real AI Personalized Recommendations (24 Books)
   const suggestedBooks = useMemo(() => {
@@ -794,24 +733,36 @@ export default function HomePage() {
     }));
   }, [realBooks, personalizationTick]);
 
-  // 10. Real Authors List from Database
+  // 10. Real Authors List from Database (Strictly Deduplicated by Author Name)
   const authorsList = useMemo(() => {
     if (!realAuthors || realAuthors.length === 0) return [];
 
-    const authorsWithCount = realAuthors.map((a: any) => {
+    // Deduplicate authors by trimmed normalized name
+    const uniqueAuthorMap = new Map<string, any>();
+    for (const a of realAuthors) {
+      const cleanName = (a.name || '').trim();
+      if (!cleanName) continue;
+      const key = cleanName.toLowerCase();
+      if (!uniqueAuthorMap.has(key)) {
+        uniqueAuthorMap.set(key, a);
+      }
+    }
+
+    const authorsWithCount = Array.from(uniqueAuthorMap.values()).map((a: any) => {
+      const cleanName = a.name.trim();
       const count = realBooks.filter(
-        (b) => b.author?.name === a.name || b.author?.id === a.id
+        (b) => b.author?.name?.trim().toLowerCase() === cleanName.toLowerCase() || b.author?.id === a.id
       ).length;
       return {
         id: a.id,
-        name: a.name,
+        name: cleanName,
         slug: a.slug,
         books: count > 0 ? `${count} đầu sách` : 'Tác giả HUKI',
         count,
         avatar:
           a.avatar ||
           a.avatarUrl ||
-          `https://ui-avatars.com/api/?name=${encodeURIComponent(a.name || 'Author')}&background=003B2B&color=fff&size=128`,
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=003B2B&color=fff&size=128`,
       };
     });
 
@@ -1420,112 +1371,7 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* =========================================================================
-          SECTION 10: COMBO SÁCH ĐỘC QUYỀN (DYNAMIC TỪ SÁCH THẬT - TIẾT KIỆM 15%)
-      ========================================================================= */}
-      {realCombos.length > 0 && (
-        <section className="bg-gray-50/60 rounded-2xl p-3 sm:p-3.5 border border-gray-200/80 flex flex-col gap-2.5">
-          <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/60">
-            <h3 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-              Combo Sách Tuyển Chọn – Tiết Kiệm Đến 15%
-            </h3>
-            <span className="bg-[#003B2B] text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase hidden sm:inline">
-              HỘP QUÀ TRI THỨC
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 sm:gap-3">
-            {realCombos.map((combo) => (
-              <div
-                key={combo.id}
-                className="bg-white rounded-xl p-3 border border-gray-200/80 flex flex-col sm:flex-row gap-3 items-center hover:border-[#003B2B]/40 transition-all"
-              >
-                <div className="w-[140px] h-[115px] relative shrink-0 flex items-center justify-center">
-                  {combo.covers[0] && (
-                    <div className="w-[65px] h-[95px] rounded shadow absolute left-2 transform -rotate-12 border border-gray-200 overflow-hidden">
-                      <img
-                        className="w-full h-full object-cover"
-                        alt="Bìa 1"
-                        src={combo.covers[0]}
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          const target = e.currentTarget as HTMLImageElement;
-                          target.onerror = null;
-                          target.src = '/images/book-placeholder.png';
-                        }}
-                      />
-                    </div>
-                  )}
-                  {combo.covers[1] && (
-                    <div className="w-[70px] h-[100px] rounded shadow-md relative z-10 border border-gray-200 overflow-hidden">
-                      <img
-                        className="w-full h-full object-cover"
-                        alt="Bìa 2"
-                        src={combo.covers[1]}
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          const target = e.currentTarget as HTMLImageElement;
-                          target.onerror = null;
-                          target.src = '/images/book-placeholder.png';
-                        }}
-                      />
-                    </div>
-                  )}
-                  {combo.covers[2] && (
-                    <div className="w-[65px] h-[95px] rounded shadow absolute right-2 transform rotate-12 border border-gray-200 overflow-hidden">
-                      <img
-                        className="w-full h-full object-cover"
-                        alt="Bìa 3"
-                        src={combo.covers[2]}
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          const target = e.currentTarget as HTMLImageElement;
-                          target.onerror = null;
-                          target.src = '/images/book-placeholder.png';
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex flex-col justify-between flex-1 min-w-0 w-full gap-1.5">
-                  <div>
-                    <span className="bg-emerald-50 text-[#003B2B] text-[9.5px] font-bold px-1.5 py-0.2 rounded inline-block border border-emerald-200">
-                      {combo.discountLabel}
-                    </span>
-                    <h4 className="text-[12.5px] font-bold text-gray-900 mt-1 line-clamp-2 leading-snug">
-                      {combo.title}
-                    </h4>
-                    <p className="text-[10.5px] text-gray-500 mt-0.5 line-clamp-1">
-                      {combo.desc}
-                    </p>
-                  </div>
-
-                  <div className="pt-1.5 border-t border-gray-100 flex items-center justify-between gap-2">
-                    <div>
-                      <span className="text-[14px] font-bold text-[#003B2B]">
-                        {combo.price.toLocaleString("vi-VN")}₫
-                      </span>
-                      <span className="text-[10px] text-gray-400 line-through ml-1.5">
-                        {combo.origPrice.toLocaleString("vi-VN")}₫
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        combo.books.forEach((b: any) => addToCart(b, "paper", 1));
-                        showToast(`Đã thêm combo ${combo.books.length} sách vào giỏ hàng!`, "success");
-                      }}
-                      className="px-3 py-1 rounded-lg bg-[#003B2B] text-white text-[11px] font-bold hover:bg-[#00241A] transition-colors cursor-pointer shadow-2xs"
-                    >
-                      Mua Combo Ngay
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      
 
       {/* =========================================================================
           SECTION 11: GỢI Ý HÔM NAY (100% REAL & CÁ NHÂN HÓA BÉ CÁO AI)

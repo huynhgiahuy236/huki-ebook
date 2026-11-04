@@ -1015,10 +1015,11 @@ export class OrdersService {
     }
 
     const businessPort = process.env.BUSINESS_SERVICE_PORT || 3002;
+    const businessBaseUrl = process.env.BUSINESS_SERVICE_URL || `http://localhost:${businessPort}`;
 
     try {
       // 1. Try store by ID
-      const resStore = await fetch(`http://localhost:${businessPort}/api/v1/stores/${storeId}`);
+      const resStore = await fetch(`${businessBaseUrl}/api/v1/stores/${storeId}`);
       if (resStore.ok) {
         const json = await resStore.json() as any;
         const data = json.data || json;
@@ -1033,7 +1034,7 @@ export class OrdersService {
 
     try {
       // 2. Try business by ID
-      const resBiz = await fetch(`http://localhost:${businessPort}/api/v1/businesses/${storeId}`);
+      const resBiz = await fetch(`${businessBaseUrl}/api/v1/businesses/${storeId}`);
       if (resBiz.ok) {
         const json = await resBiz.json() as any;
         const data = json.data || json;
