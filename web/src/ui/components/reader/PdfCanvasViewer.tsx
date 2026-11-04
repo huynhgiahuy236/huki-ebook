@@ -52,7 +52,7 @@ export default function PdfCanvasViewer({
     setLoading(true);
     setError(null);
 
-    const targetUrl = pdfUrl || '/books/Con_duong_phia_truoc__Bill_Gates.pdf';
+    const targetUrl = pdfUrl || '/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf';
 
     loadPdfDocument(targetUrl)
       .then((doc) => {

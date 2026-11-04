@@ -18,7 +18,7 @@ export default function PdfReaderHeader({
   bookTitle = 'Con Đường Phía Trước',
   bookAuthor = 'Bill Gates',
   bookId = 'con-duong-phia-truoc',
-  pdfUrl = '/books/Con_duong_phia_truoc__Bill_Gates.pdf'
+  pdfUrl = '/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'
 }: PdfReaderHeaderProps) {
   const {
     currentPage,

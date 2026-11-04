@@ -72,7 +72,7 @@ function ReaderContent() {
   const currentTitle = realBook?.title || fallbackMockBook.title;
   const currentAuthor = realBook?.author?.name || fallbackMockBook.author || 'Tác giả HUKI';
   const effectiveBookId = realBook?.id || fallbackMockBook.id;
-  const currentPdfUrl = fallbackMockBook.pdfUrl || '/books/Con_duong_phia_truoc__Bill_Gates.pdf';
+  const currentPdfUrl = fallbackMockBook.pdfUrl || '/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf';
 
   // 2. Kích hoạt phiên đọc DRM, Heartbeat 30s & Cưỡng Chế Thu Hồi Bản Quyền Thời Gian Thực
   useEffect(() => {

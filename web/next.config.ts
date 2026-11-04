@@ -50,7 +50,7 @@ const nextConfig: NextConfig = {
         permanent: false,
       },
       {
-        source: '/books/:slug',
+        source: '/books/:slug((?!.*\\.pdf$).*)',
         destination: '/book/:slug',
         permanent: false,
       },

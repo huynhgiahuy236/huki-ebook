@@ -28,7 +28,7 @@ export const booksData = [
     isbn: "978-0-670-85913-0",
     pages: 166,
     format: "PDF HUKI-DRM, EPUB",
-    pdfUrl: "/books/Con_duong_phia_truoc__Bill_Gates.pdf",
+    pdfUrl: "/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf",
     toc: [
       { id: 1, title: "Lời tựa & Bắt đầu một cuộc cách mạng", page: 1 },
       { id: 2, title: "Sự khởi đầu của thời đại thông tin", page: 12 },

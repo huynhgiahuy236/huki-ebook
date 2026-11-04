@@ -201,6 +201,8 @@ media/
 !web/public/images/*
 !web/public/books/
 !web/public/books/Con_duong_phia_truoc__Bill_Gates.pdf
+!web/public/ebooks/
+!web/public/ebooks/*.pdf
 
 # ============================================
 # Secrets - NEVER COMMIT
