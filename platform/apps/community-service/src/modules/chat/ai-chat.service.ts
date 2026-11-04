@@ -15,10 +15,18 @@ export interface SuggestedBookItem {
   soldCount?: number;
 }
 
+export interface AiChatAction {
+  type: "ADD_TO_CART" | "BUY_NOW" | "TRACK_ORDER" | "VIEW_BOOK";
+  bookId?: string;
+  bookTitle?: string;
+  format?: string;
+}
+
 export interface AiChatResponse {
   reply: string;
   extractedInterests: string[];
   suggestedBooks: SuggestedBookItem[];
+  action?: AiChatAction;
   isFallback: boolean;
 }
 
@@ -469,7 +477,45 @@ export class AiChatService {
       };
     }
 
-    // 9. CÂU HỎI VỀ DỊCH VỤ / HỆ SINH THÁI HUKI
+    // 9. Ý ĐỊNH ĐẶT HÀNG / THÊM GIỎ HÀNG TRỰC TIẾP
+    const isCartOrder =
+      qNorm.includes("them vao gio") ||
+      qNorm.includes("cho vao gio") ||
+      qNorm.includes("mua sach") ||
+      qNorm.includes("dat mua") ||
+      qNorm.includes("mua ngay") ||
+      qNorm.includes("mua cuon") ||
+      qNorm.includes("cho minh cuon") ||
+      qNorm.includes("chot don");
+
+    if (isCartOrder) {
+      const matched = this.searchRelevantBooks(query, allBooks);
+      const target = matched[0] || (sessionCtx.lastSubjectBookId ? allBooks.find((b) => b.id === sessionCtx.lastSubjectBookId) : undefined);
+      return {
+        intent: "CART_ORDER",
+        isFollowUp: true,
+        targetBook: target,
+        candidateBooks: target ? [target] : matched.slice(0, 3),
+      };
+    }
+
+    // 10. Ý ĐỊNH TRA CỨU ĐƠN HÀNG & TIẾN ĐỘ VẬN CHUYỂN
+    const isOrderTracking =
+      qNorm.includes("tra cuu don") ||
+      qNorm.includes("kiem tra don") ||
+      qNorm.includes("don hang cua toi") ||
+      qNorm.includes("tinh trang don") ||
+      qNorm.includes("don hang dau roi");
+
+    if (isOrderTracking) {
+      return {
+        intent: "ORDER_TRACKING",
+        isFollowUp: false,
+        candidateBooks: [],
+      };
+    }
+
+    // 11. CÂU HỎI VỀ DỊCH VỤ / HỆ SINH THÁI HUKI
     if (qNorm.includes("drm") || qNorm.includes("doc nhu the nao") || qNorm.includes("tu sach")) {
       return { intent: "DRM_GUIDE", isFollowUp: false, candidateBooks: [] };
     }
@@ -501,7 +547,7 @@ export class AiChatService {
   }
 
   /**
-   * Gọi Google Gemini RAG với bối cảnh đầy đủ
+   * Gọi Google Gemini RAG với bối cảnh đầy đủ và dự phòng đa mô hình
    */
   private async askGeminiWithContext(
     query: string,
@@ -511,8 +557,19 @@ export class AiChatService {
     apiKey: string
   ): Promise<AiChatResponse> {
     try {
-      const candidateBooks: BookCatalogItem[] =
-        analysis.candidateBooks.length > 0 ? analysis.candidateBooks : this.getTopBestsellers(allBooks, 6);
+      // 1. Tuyển tập kho sách liên quan phong phú (lên đến 25 cuốn) để Gemini có đầy đủ dữ liệu tư vấn
+      const directMatches = this.searchRelevantBooks(query, allBooks);
+      const bestsellers = this.getTopBestsellers(allBooks, 6);
+      const diverseBooks = this.getFreshDiverseBooks(allBooks, sessionCtx.suggestedBookIds, 8);
+
+      const candidateMap = new Map<string, BookCatalogItem>();
+      for (const b of [...directMatches, ...bestsellers, ...diverseBooks, ...analysis.candidateBooks]) {
+        if (!candidateMap.has(b.id)) {
+          candidateMap.set(b.id, b);
+        }
+        if (candidateMap.size >= 25) break;
+      }
+      const candidateBooks = Array.from(candidateMap.values());
 
       const booksContext = candidateBooks.map((b) => ({
         id: b.id,
@@ -522,8 +579,11 @@ export class AiChatService {
         price: b.price,
         format: b.format,
         soldCount: b.soldCount,
-        description: b.description,
+        description: (b.description || "").slice(0, 160),
       }));
+
+      const sampleTitle = candidateBooks[0]?.title || "Đắc Nhân Tâm";
+      const sampleId = candidateBooks[0]?.id || "77777777-0000-4000-8000-000000000001";
 
       const systemInstruction = `Bạn là Bé Cáo HUKI - Trợ lý thủ thư thông thái, đáng yêu, tâm lý và tận tâm của sàn sách HUKI Ebook (hukiebook.vn).
 
@@ -532,19 +592,24 @@ ${JSON.stringify(booksContext, null, 2)}
 
 QUY TẮC BẮT BUỘC KHI GỢI Ý VÀ TƯ VẤN:
 1. Khi nhắc đến cuốn sách nào trong danh sách trên, BẮT BUỘC chèn link trực tiếp theo cú pháp Markdown: [Tên Sách](/book/id)
-   Ví dụ: "Bạn có thể xem cuốn [${candidateBooks[0]?.title || "Sách"}](/book/${candidateBooks[0]?.id}) nhé!"
+   Ví dụ: "Bạn có thể xem cuốn [${sampleTitle}](/book/${sampleId}) nhé!"
 2. TUYỆT ĐỐI KHÔNG BỊA RA sách, tác giả hoặc ID không có trong danh sách trên!
 3. Xưng hô: Xưng "Bé Cáo", gọi "bạn". Giọng văn ấm áp, vui vẻ, tri thức và tự nhiên (📚, 🦊, ✨).
 4. Xử lý cảm xúc & tiếng lóng:
    - Nếu khách chê bai, than chán, bực bội hoặc dùng tiếng lóng ("như qq", "chán vậy", "mày tư vấn kiểu gì thế"): Hãy xin lỗi duyên dáng, thấu cảm, xoa dịu và chân thành hỏi lại để tìm đúng gu sách của khách. Không tranh cãi, không tự ái!
 5. Câu hỏi nối tiếp ("còn cuốn khác không?", "cuốn đầu tiên nói về gì?", "giá bao nhiêu?", "rẻ hơn đi"):
    - Dựa vào lịch sử hội thoại để trả lời chính xác, tránh lặp lại những cuốn sách khách đã từ chối.
-6. Hỗ trợ hệ sinh thái HUKI:
+6. Hỗ trợ mua sắm & giỏ hàng (QUAN TRỌNG):
+   - Nếu khách muốn mua, muốn đặt, thêm vào giỏ hàng hoặc chốt đơn một cuốn sách cụ thể: Hãy vui vẻ xác nhận và thêm mã lệnh [ACTION: ADD_TO_CART: bookId] ở cuối câu.
+   - Nếu khách muốn mua ngay / thanh toán ngay: thêm [ACTION: BUY_NOW: bookId].
+7. Tra cứu đơn hàng & chính sách HUKI:
+   - Nếu khách hỏi về tình trạng đơn hàng, tra cứu mã đơn: Hướng dẫn khách mở trang [Xem Đơn Hàng Của Bạn](/account/orders) và thêm mã lệnh [ACTION: TRACK_ORDER].
    - Ebook DRM: Đọc trực tiếp trên Web Reader bảo mật, sách mở khóa ngay trong Tủ Sách Cá Nhân sau thanh toán.
    - Sách in: Giao hàng 1-2 ngày nội thành, 2-4 ngày toàn quốc. Hỗ trợ đổi trả trong 7 ngày nếu lỗi in ấn.
-7. Cuối phản hồi, BẮT BUỘC thêm 2 dòng siêu dữ liệu:
+8. Cuối phản hồi, BẮT BUỘC thêm các dòng siêu dữ liệu:
    [BOOKS: id1, id2] (danh sách ID của các cuốn sách thật được đề xuất trong câu)
-   [TAGS: tag1, tag2] (thể loại hoặc chủ đề liên quan, tối đa 3 tag)`;
+   [TAGS: tag1, tag2] (thể loại hoặc chủ đề liên quan, tối đa 3 tag)
+   [ACTION: ADD_TO_CART: id] hoặc [ACTION: BUY_NOW: id] hoặc [ACTION: TRACK_ORDER] (nếu khách có ý định mua/đặt/tra cứu)`;
 
       const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [
         {
@@ -553,7 +618,7 @@ QUY TẮC BẮT BUỘC KHI GỢI Ý VÀ TƯ VẤN:
         },
         {
           role: "model",
-          parts: [{ text: "Dạ vâng, Bé Cáo đã ghi nhớ kho sách thật của HUKI, hiểu rõ cảm xúc khách hàng và luôn chèn link [Tên sách](/book/id) chuẩn xác ạ! ✨" }],
+          parts: [{ text: "Dạ vâng, Bé Cáo đã ghi nhớ kho sách thật của HUKI, hiểu rõ cảm xúc khách hàng, sẵn sàng hỗ trợ chọn sách, thêm vào giỏ và luôn chèn link [Tên sách](/book/id) chuẩn xác ạ! ✨" }],
         },
       ];
 
@@ -572,27 +637,48 @@ QUY TẮC BẮT BUỘC KHI GỢI Ý VÀ TƯ VẤN:
         parts: [{ text: query }],
       });
 
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents,
-          generationConfig: {
-            temperature: 0.65,
-            maxOutputTokens: 750,
-          },
-        }),
-      });
+      const preferredModel =
+        this.config.get<string>("GEMINI_MODEL") ||
+        process.env.GEMINI_MODEL ||
+        "gemini-3.5-flash-lite";
 
-      if (!res.ok) {
-        this.logger.warn(`Gemini API returned status ${res.status}, falling back to local intelligence.`);
-        return this.generateSmartLocalResponseWithContext(query, sessionCtx, analysis, allBooks);
+      const candidateModels = Array.from(
+        new Set([preferredModel, "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-flash-latest"])
+      );
+
+      let rawReply = "";
+      for (const model of candidateModels) {
+        try {
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents,
+              generationConfig: {
+                temperature: 0.65,
+                maxOutputTokens: 750,
+              },
+            }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            rawReply = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            if (rawReply) {
+              this.logger.log(`Gemini response received successfully via model '${model}'`);
+              break;
+            }
+          } else {
+            this.logger.warn(`Model '${model}' returned status ${res.status}`);
+          }
+        } catch (fetchErr) {
+          this.logger.warn(`Error calling model '${model}': ${fetchErr}`);
+        }
       }
 
-      const data = await res.json();
-      const rawReply = data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!rawReply) {
+        this.logger.warn("All candidate Gemini models failed or returned empty reply, falling back to local intelligence.");
         return this.generateSmartLocalResponseWithContext(query, sessionCtx, analysis, allBooks);
       }
 
@@ -609,15 +695,36 @@ QUY TẮC BẮT BUỘC KHI GỢI Ý VÀ TƯ VẤN:
         mentionedIds = bookMatch[1].split(",").map((id: string) => id.trim()).filter(Boolean);
       }
 
+      // Trích xuất action nếu có
+      const actionMatch = rawReply.match(/\[ACTION:\s*([A-Z_]+)(?::\s*([^\]]*))?\]/i);
+      let action: AiChatAction | undefined = undefined;
+      if (actionMatch) {
+        const actType = actionMatch[1].trim().toUpperCase() as AiChatAction["type"];
+        const targetId = actionMatch[2]?.trim();
+        const matchedBook = targetId ? allBooks.find((b) => b.id === targetId || b.id.includes(targetId)) : undefined;
+        action = {
+          type: actType,
+          bookId: matchedBook ? matchedBook.id : targetId,
+          bookTitle: matchedBook?.title,
+          format: matchedBook?.format,
+        };
+      }
+
       // Lọc sạch reply
       const cleanReply = rawReply
         .replace(/\[TAGS:\s*[^\]]*\]/gi, "")
         .replace(/\[BOOKS:\s*[^\]]*\]/gi, "")
+        .replace(/\[ACTION:\s*[^\]]*\]/gi, "")
         .trim();
 
-      // Tạo danh sách suggestedBooks có cấu trúc từ DB thật
-      const suggestedBooks: SuggestedBookItem[] = candidateBooks
-        .filter((b) => mentionedIds.includes(b.id) || cleanReply.includes(`/book/${b.id}`))
+      // Tạo danh sách suggestedBooks có cấu trúc từ DB thật (tìm trên toàn bộ allBooks)
+      const suggestedBooks: SuggestedBookItem[] = allBooks
+        .filter(
+          (b) =>
+            mentionedIds.includes(b.id) ||
+            cleanReply.includes(`/book/${b.id}`) ||
+            (action?.bookId && b.id === action.bookId)
+        )
         .slice(0, 4)
         .map((b) => ({
           id: b.id,
@@ -635,6 +742,7 @@ QUY TẮC BẮT BUỘC KHI GỢI Ý VÀ TƯ VẤN:
         reply: cleanReply,
         extractedInterests: tags,
         suggestedBooks,
+        action,
         isFallback: false,
       };
     } catch (err) {
@@ -644,7 +752,7 @@ QUY TẮC BẮT BUỘC KHI GỢI Ý VÀ TƯ VẤN:
   }
 
   /**
-   * Bộ máy AI cục bộ thông minh xử lý đầy đủ 10 kịch bản khi không có Gemini hoặc API lỗi
+   * Bộ máy AI cục bộ thông minh xử lý đầy đủ kịch bản khi không có Gemini hoặc API lỗi
    */
   private generateSmartLocalResponseWithContext(
     query: string,
@@ -653,6 +761,39 @@ QUY TẮC BẮT BUỘC KHI GỢI Ý VÀ TƯ VẤN:
     allBooks: BookCatalogItem[]
   ): AiChatResponse {
     const { intent, candidateBooks, targetBook } = analysis;
+
+    // 0. Ý ĐỊNH ĐẶT HÀNG / THÊM VÀO GIỎ HÀNG
+    if (intent === "CART_ORDER") {
+      const book = targetBook || candidateBooks[0] || (sessionCtx.lastSubjectBookId ? allBooks.find((b) => b.id === sessionCtx.lastSubjectBookId) : undefined) || allBooks[0];
+      const reply = `Dạ Bé Cáo đã ghi nhận bạn muốn chọn cuốn [${book.title}](/book/${book.id}) rồi nè! 🦊🛒\nBé Cáo đã hỗ trợ thêm vào giỏ hàng giúp bạn, bạn có thể kiểm tra giỏ hàng để tiến hành thanh toán nhé! ✨`;
+      return {
+        reply,
+        extractedInterests: [book.category.toLowerCase()],
+        suggestedBooks: this.toSuggestedItems([book]),
+        action: {
+          type: "ADD_TO_CART",
+          bookId: book.id,
+          bookTitle: book.title,
+          format: book.format,
+        },
+        isFallback: true,
+      };
+    }
+
+    // 0.1. Ý ĐỊNH TRA CỨU ĐƠN HÀNG
+    if (intent === "ORDER_TRACKING") {
+      const reply =
+        "📦 Dạ bạn có thể theo dõi tiến độ vận chuyển và trạng thái chi tiết của tất cả đơn hàng tại [Xem Đơn Hàng Của Bạn](/account/orders) nha! Nếu bạn cần kiểm tra mã đơn cụ thể, bạn cứ gửi mã (ví dụ: ORD-xxx) để Bé Cáo hỗ trợ nhé! 🦊✨";
+      return {
+        reply,
+        extractedInterests: [],
+        suggestedBooks: [],
+        action: {
+          type: "TRACK_ORDER",
+        },
+        isFallback: true,
+      };
+    }
 
     // 1. DISSATISFACTION / TIẾNG LÓNG BỰC BỘI ("như qq", "chán vậy", "mày tư vấn kiểu gì thế")
     if (intent === "DISSATISFACTION") {

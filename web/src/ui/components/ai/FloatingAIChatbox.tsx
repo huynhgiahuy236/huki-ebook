@@ -3,6 +3,8 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/ui/context/AuthContext';
+import { useCart } from '@/ui/context/CartContext';
+import { useToast } from '@/ui/context/ToastContext';
 import { apiClient } from '../../api/apiClient';
 import { personalizationService } from '../../services/personalizationService';
 
@@ -18,12 +20,20 @@ export interface SuggestedBookItem {
   soldCount?: number;
 }
 
+export interface AiChatAction {
+  type: 'ADD_TO_CART' | 'BUY_NOW' | 'TRACK_ORDER' | 'VIEW_BOOK';
+  bookId?: string;
+  bookTitle?: string;
+  format?: string;
+}
+
 export interface AIMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   time: string;
   suggestedBooks?: SuggestedBookItem[];
+  action?: AiChatAction;
 }
 
 const QUICK_PROMPTS = [
@@ -47,6 +57,10 @@ export default function FloatingAIChatbox() {
   const router = useRouter();
   const pathname = usePathname();
   const { user } = useAuth();
+  const { addToCart } = useCart();
+  const { showToast } = useToast();
+  const [addingBookId, setAddingBookId] = useState<string | null>(null);
+  const [addedBookIds, setAddedBookIds] = useState<Record<string, boolean>>({});
   const [isOpen, setIsOpen] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -144,6 +158,52 @@ export default function FloatingAIChatbox() {
     }
   }, [isOpen, messages, scrollToBottom]);
 
+  const handleAddToCartItem = async (book: SuggestedBookItem, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    try {
+      setAddingBookId(book.id);
+      await addToCart({
+        id: book.id,
+        bookId: book.id,
+        title: book.title,
+        price: book.price,
+        originalPrice: book.originalPrice,
+        cover: book.coverUrl,
+        format: book.format || 'Sách giấy',
+        type: book.format?.toLowerCase().includes('ebook') ? 'ebook' : 'physical',
+        storeId: 'huki-official',
+      });
+      try {
+        personalizationService.recordBookInteraction(book.id);
+      } catch {}
+      setAddedBookIds((prev) => ({ ...prev, [book.id]: true }));
+      showToast({
+        type: 'success',
+        title: 'Đã thêm vào giỏ hàng',
+        message: `Cuốn "${book.title}" đã được thêm vào giỏ hàng!`,
+      });
+      setTimeout(() => {
+        setAddedBookIds((prev) => ({ ...prev, [book.id]: false }));
+      }, 3000);
+    } catch (err) {
+      console.error('Lỗi khi thêm giỏ hàng từ chat:', err);
+    } finally {
+      setAddingBookId(null);
+    }
+  };
+
+  const handleBuyNowItem = async (book: SuggestedBookItem, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    await handleAddToCartItem(book);
+    router.push('/cart');
+  };
+
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend !== undefined ? textToSend : inputMessage).trim();
     if (!text || isLoading) return;
@@ -174,6 +234,7 @@ export default function FloatingAIChatbox() {
         reply: string;
         extractedInterests?: string[];
         suggestedBooks?: SuggestedBookItem[];
+        action?: AiChatAction;
         isFallback: boolean;
       }>('/chat/ai', {
         method: 'POST',
@@ -199,15 +260,26 @@ export default function FloatingAIChatbox() {
       }
 
       const suggestedBooks = res.data?.suggestedBooks || (res as any)?.suggestedBooks;
+      const action = res.data?.action || (res as any)?.action;
 
       const assistantMsg: AIMessage = {
         id: `assistant-${Date.now()}`,
         role: 'assistant',
         content: replyText,
         suggestedBooks: Array.isArray(suggestedBooks) ? suggestedBooks : undefined,
+        action,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, assistantMsg]);
+
+      if (action?.type === 'ADD_TO_CART' && action.bookId) {
+        const bookToAdd = Array.isArray(suggestedBooks)
+          ? suggestedBooks.find((b: SuggestedBookItem) => b.id === action.bookId)
+          : undefined;
+        if (bookToAdd) {
+          handleAddToCartItem(bookToAdd);
+        }
+      }
     } catch (err) {
       console.error('Lỗi khi gọi API AI Chat backend:', err);
       setMessages((prev) => [
@@ -406,44 +478,98 @@ export default function FloatingAIChatbox() {
                     {renderMessageTextWithLinks(msg.content)}
                   </div>
 
-                  {/* THẺ SÁCH GỢI Ý BẤM RA NGAY TRANG CHI TIẾT SÁCH */}
+                  {/* THẺ SÁCH GỢI Ý BẤM RA NGAY TRANG CHI TIẾT SÁCH HOẶC LÊN ĐƠN TRỰC TIẾP */}
                   {msg.suggestedBooks && msg.suggestedBooks.length > 0 && (
                     <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-col gap-2">
-                      <div className="text-[10px] font-bold text-[#003B2B] flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[13px] text-amber-500">menu_book</span>
-                        <span>Sách trong kho HUKI (bấm xem ngay):</span>
+                      <div className="text-[10px] font-bold text-[#003B2B] flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[13px] text-amber-500">menu_book</span>
+                          <span>Sách trong kho HUKI (mua & xem ngay):</span>
+                        </div>
                       </div>
 
-                      <div className="flex flex-col gap-1.5">
+                      <div className="flex flex-col gap-2">
                         {msg.suggestedBooks.map((book) => (
                           <div
                             key={book.id}
-                            onClick={() => router.push(`/book/${book.id}`)}
-                            className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-50 hover:bg-emerald-50/80 border border-slate-200/80 hover:border-emerald-300 transition-all cursor-pointer group shadow-2xs"
+                            className="p-2.5 rounded-xl bg-slate-50 hover:bg-emerald-50/60 border border-slate-200/80 hover:border-emerald-300 transition-all shadow-2xs group"
                           >
-                            <img
-                              src={book.coverUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80'}
-                              alt={book.title}
-                              className="w-10 h-13 object-cover rounded-md shadow-2xs shrink-0 group-hover:scale-105 transition-transform"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <h4 className="font-bold text-[11px] text-slate-900 group-hover:text-[#003B2B] truncate transition-colors">
-                                {book.title}
-                              </h4>
-                              <p className="text-[10px] text-slate-500 truncate">{book.author}</p>
-                              <div className="flex items-center justify-between mt-1">
-                                <span className="font-bold text-[11px] text-[#003B2B]">
-                                  {book.price.toLocaleString('vi-VN')}đ
-                                </span>
-                                <span className="text-[9.5px] text-emerald-800 bg-emerald-100/80 group-hover:bg-[#003B2B] group-hover:text-white px-2 py-0.5 rounded-full font-bold transition-all flex items-center gap-0.5">
-                                  <span>Xem ngay</span>
-                                  <span className="material-symbols-outlined text-[10px]">arrow_forward</span>
-                                </span>
+                            <div
+                              onClick={() => {
+                                try { personalizationService.recordBookInteraction(book.id); } catch {}
+                                router.push(`/book/${book.id}`);
+                              }}
+                              className="flex items-center gap-2.5 cursor-pointer"
+                            >
+                              <img
+                                src={book.coverUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80'}
+                                alt={book.title}
+                                className="w-10 h-13 object-cover rounded-md shadow-2xs shrink-0 group-hover:scale-105 transition-transform"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <h4 className="font-bold text-[11px] text-slate-900 group-hover:text-[#003B2B] truncate transition-colors">
+                                  {book.title}
+                                </h4>
+                                <p className="text-[10px] text-slate-500 truncate">{book.author}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="font-bold text-[11px] text-[#003B2B]">
+                                    {book.price.toLocaleString('vi-VN')}đ
+                                  </span>
+                                  {book.format && (
+                                    <span className="text-[9px] bg-slate-200/80 text-slate-700 px-1.5 py-0.2 rounded font-medium">
+                                      {book.format}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
+                            </div>
+
+                            {/* Action Buttons: Thêm giỏ & Mua ngay */}
+                            <div className="flex items-center justify-end gap-1.5 mt-2 pt-2 border-t border-slate-200/60">
+                              <button
+                                type="button"
+                                onClick={(e) => handleAddToCartItem(book, e)}
+                                disabled={addingBookId === book.id}
+                                className={`text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1 transition-all cursor-pointer ${
+                                  addedBookIds[book.id]
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-emerald-100 text-emerald-900 hover:bg-[#003B2B] hover:text-white'
+                                }`}
+                                title="Thêm vào giỏ hàng"
+                              >
+                                <span className="material-symbols-outlined text-[12px]">
+                                  {addedBookIds[book.id] ? 'check' : 'add_shopping_cart'}
+                                </span>
+                                <span>{addedBookIds[book.id] ? 'Đã thêm' : '+ Giỏ hàng'}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => handleBuyNowItem(book, e)}
+                                className="text-[10px] font-bold px-2.5 py-1 rounded-md bg-[#003B2B] hover:bg-[#00281d] text-white flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95"
+                                title="Mua ngay cuốn sách này"
+                              >
+                                <span className="material-symbols-outlined text-[12px]">bolt</span>
+                                <span>Mua ngay</span>
+                              </button>
                             </div>
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {/* NÚT HÀNH ĐỘNG TRA CỨU ĐƠN HÀNG */}
+                  {msg.action?.type === 'TRACK_ORDER' && (
+                    <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-start">
+                      <button
+                        type="button"
+                        onClick={() => router.push('/account/orders')}
+                        className="text-[10.5px] font-bold px-3 py-1.5 rounded-lg bg-[#003B2B] hover:bg-[#00281d] text-white flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">local_shipping</span>
+                        <span>Xem chi tiết danh sách Đơn hàng ↗</span>
+                      </button>
                     </div>
                   )}
 
