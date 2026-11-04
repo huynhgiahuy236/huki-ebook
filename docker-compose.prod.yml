@@ -301,6 +301,8 @@ services:
       PORT: 3005
       COMMUNITY_SERVICE_PORT: 3005
       MONGODB_URI: mongodb://mongo:27017/community_db
+      COMMERCE_SERVICE_URL: http://commerce-service:3003
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       JWT_SECRET: ${JWT_SECRET:-change-this-in-production-min-32-chars-key}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-in-production-refresh-token-key}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useAuth } from '@/ui/context/AuthContext';
 import { apiClient } from '../../api/apiClient';
 import { personalizationService } from '../../services/personalizationService';
 
@@ -38,17 +39,45 @@ const DEFAULT_WELCOME_MESSAGE: AIMessage = {
   id: 'welcome',
   role: 'assistant',
   content:
-    'Xin chào bạn! Tôi là tư vấn viên hỗ trợ HUKI.\nTôi có thể giúp bạn tìm kiếm sách trong kho, hướng dẫn đọc Ebook DRM hoặc giải đáp thắc mắc về đơn hàng. Bạn cần tư vấn điều gì hôm nay?',
+    'Dạ Bé Cáo chào bạn nha! 🦊✨ Mình là trợ lý thủ thư thông thái của sàn sách HUKI.\nMình có thể giúp bạn tìm sách theo thể loại hay ngân sách, tóm tắt nội dung, hướng dẫn đọc Ebook DRM hoặc giải đáp thắc mắc về đơn hàng. Hôm nay bạn cần Bé Cáo hỗ trợ điều gì nè?',
   time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
 };
 
 export default function FloatingAIChatbox() {
   const router = useRouter();
+  const pathname = usePathname();
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState('');
   const [messages, setMessages] = useState<AIMessage[]>([DEFAULT_WELCOME_MESSAGE]);
+
+  const lastAssistantMsg = [...messages].reverse().find((m) => m.role === 'assistant');
+  const activePrompts = useMemo(() => {
+    if (lastAssistantMsg?.suggestedBooks && lastAssistantMsg.suggestedBooks.length > 0) {
+      return [
+        'Còn cuốn khác không?',
+        'Cuốn đầu tiên nói về gì?',
+        'Có cuốn nào rẻ hơn không?',
+        'Có bản Ebook không?',
+      ];
+    }
+    if (lastAssistantMsg?.content?.includes('giá niêm yết') || lastAssistantMsg?.content?.includes('nói về')) {
+      return [
+        'Có bản Ebook không?',
+        'Tìm sách rẻ hơn đi',
+        'Còn cuốn khác không?',
+        'Hướng dẫn đọc Ebook DRM',
+      ];
+    }
+    return [
+      'Sách nào hay?',
+      'Có cuốn nào về kinh doanh không?',
+      'Hướng dẫn đọc Ebook DRM',
+      'Thời gian & phí giao hàng',
+    ];
+  }, [lastAssistantMsg]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -152,6 +181,8 @@ export default function FloatingAIChatbox() {
           message: text,
           history: historyPayload,
           sessionId: sessionId || undefined,
+          userId: user?.id || undefined,
+          currentPage: pathname || undefined,
         }),
         skipAuth: true,
       });
@@ -446,7 +477,7 @@ export default function FloatingAIChatbox() {
 
           {/* Quick Prompts Bar */}
           <div className="px-3 py-1.5 bg-white border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
-            {QUICK_PROMPTS.map((prompt, idx) => (
+            {activePrompts.map((prompt, idx) => (
               <button
                 key={idx}
                 type="button"

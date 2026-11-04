@@ -26,4 +26,14 @@ export class AskAiDto {
   @IsOptional()
   @IsString()
   sessionId?: string;
+
+  @ApiPropertyOptional({ description: "Signed in User ID if authenticated" })
+  @IsOptional()
+  @IsString()
+  userId?: string;
+
+  @ApiPropertyOptional({ description: "Current URL path where user triggered chat" })
+  @IsOptional()
+  @IsString()
+  currentPage?: string;
 }

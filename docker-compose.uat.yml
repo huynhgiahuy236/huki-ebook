@@ -216,6 +216,8 @@ services:
       COMMUNITY_SERVICE_PORT: 3005
       NODE_ENV: staging
       MONGODB_URI: mongodb://mongo:27017/community_uat_db
+      COMMERCE_SERVICE_URL: http://commerce-service-uat:3003
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}

@@ -79,8 +79,9 @@ export default function LibraryPage() {
       .then((res) => {
         if (!res || !res.success || !res.data) return;
         const allBooks = Array.isArray(res.data) ? res.data : (res.data as any).data || [];
+        const currentOwnedIds = new Set(books.map((b) => b.bookId || b.id));
         const matched: UserLibraryBook[] = allBooks
-          .filter((b: BookData) => missingIds.includes(b.id))
+          .filter((b: BookData) => missingIds.includes(b.id) && !currentOwnedIds.has(b.id))
           .map((b: BookData) => ({
             accessId: `wishlist-${b.id}`,
             bookId: b.id,
@@ -175,9 +176,13 @@ export default function LibraryPage() {
   };
 
   // Danh sách toàn bộ sách yêu thích thực tế (gộp sách trong tủ + sách ngoài sàn từ DB)
+  // Danh sách toàn bộ sách yêu thích thực tế (gộp sách trong tủ + sách ngoài sàn từ DB, loại bỏ trùng lặp 100%)
   const allFavoriteBooks = useMemo(() => {
     const ownedFavorites = books.filter((b) => wishlistIds.includes(b.bookId || b.id));
-    return [...ownedFavorites, ...externalWishlistBooks];
+    const ownedKeys = new Set(ownedFavorites.map((b) => b.bookId || b.id));
+    // Sách ngoài sàn yêu thích: loại trừ bất kỳ cuốn nào đã có sẵn trong tủ sách cá nhân
+    const uniqueExternal = externalWishlistBooks.filter((b) => !ownedKeys.has(b.bookId || b.id));
+    return [...ownedFavorites, ...uniqueExternal];
   }, [books, wishlistIds, externalWishlistBooks]);
 
   // 4. Thống kê số lượng sách theo từng danh mục (Số lượng khớp 100% với số sách thực tế)
@@ -227,7 +232,18 @@ export default function LibraryPage() {
       );
     }
 
-    return result;
+    // Đảm bảo tuyệt đối không bao giờ có 2 cuốn sách trùng lặp hiển thị trên giao diện
+    const seen = new Set<string>();
+    const deduplicated: UserLibraryBook[] = [];
+    for (const b of result) {
+      const key = b.bookId || b.id || b.slug;
+      if (!key || !seen.has(key)) {
+        if (key) seen.add(key);
+        deduplicated.push(b);
+      }
+    }
+
+    return deduplicated;
   }, [books, activeTab, searchQuery, sortBy, wishlistIds]);
 
   return (
