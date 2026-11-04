@@ -380,4 +380,20 @@ export const reviewApi = {
       };
     }
   },
+
+  /**
+   * Report a review for community guidelines violation (BUG-MOD06-13)
+   */
+  async reportReview(
+    reviewId: string,
+    payload: { reason: 'SPAM' | 'HARASSMENT' | 'OFFENSIVE' | 'MISINFORMATION' | 'COPYRIGHT' | 'OTHER'; description?: string }
+  ): Promise<ApiResponse<{ id: string; status: string }>> {
+    return apiClient<{ id: string; status: string }>(
+      `/reviews/${encodeURIComponent(reviewId)}/report`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+  },
 };

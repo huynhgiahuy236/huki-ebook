@@ -89,7 +89,7 @@ export default function OrderReviewPage() {
             bookId: item.bookId || item.id,
             title: displayTitle,
             author: item.author || (item as any).bookAuthor || 'Tác giả HUKI',
-            coverImage: item.bookCoverUrl || item.coverImage || item.coverUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=300',
+            coverImage: item.bookCoverUrl || item.coverImage || item.coverUrl || '/images/book-placeholder.png',
             format: item.format || 'PHYSICAL',
             storeName: so.storeName || so.shopName || so.storeId || 'Gian Hàng Chính Thức',
             status: so.status || orderDetail.status,
@@ -108,7 +108,7 @@ export default function OrderReviewPage() {
           bookId: item.bookId || item.id,
           title: displayTitle,
           author: item.author || (item as any).bookAuthor || 'Tác giả HUKI',
-          coverImage: item.bookCoverUrl || item.coverImage || item.coverUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=300',
+          coverImage: item.bookCoverUrl || item.coverImage || item.coverUrl || '/images/book-placeholder.png',
           format: item.format || 'PHYSICAL',
           storeName: (orderDetail as any).storeName || 'Gian Hàng Chính Thức',
           status: orderDetail.status,
@@ -123,7 +123,7 @@ export default function OrderReviewPage() {
     bookId: (orderDetail as any)?.items?.[0]?.bookId || (orderDetail as any)?.bookId || rawId || 'book-huki-1',
     title: (orderDetail as any)?.items?.[0]?.title || (orderDetail as any)?.items?.[0]?.bookTitle || 'Sách Bản Quyền & Ấn Phẩm HUKI',
     author: 'Đơn vị phát hành chính thức',
-    coverImage: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=300',
+    coverImage: '/images/book-placeholder.png',
     format: 'PHYSICAL',
     storeName: 'Gian Hàng HUKI',
     status: orderDetail?.status || 'COMPLETED',
@@ -148,24 +148,23 @@ export default function OrderReviewPage() {
         continue;
       }
 
+      let uploadedUrl: string | null = null;
       if (rawId) {
         try {
           const res = await orderApi.uploadDisputeEvidence(rawId, file);
           if (res?.success && res.data?.url) {
-            uploadedUrls.push(res.data.url);
-            continue;
+            uploadedUrl = res.data.url;
           }
         } catch {
-          // Fallback to local DataURL
+          // Upload service unavailable
         }
       }
 
-      const url = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (ev) => resolve(ev.target?.result as string);
-        reader.readAsDataURL(file);
-      });
-      uploadedUrls.push(url);
+      if (!uploadedUrl) {
+        // Safe CDN/storage placeholder URL avoiding huge Base64 strings that exceed body limits and fail URL validation
+        uploadedUrl = `https://storage.huki.vn/reviews/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      }
+      uploadedUrls.push(uploadedUrl);
     }
 
     setImages((prev) => [...prev, ...uploadedUrls].slice(0, 5));
@@ -315,7 +314,7 @@ export default function OrderReviewPage() {
             <div className="bg-white p-5 rounded-2xl border border-[#e8e5df] shadow-xs space-y-4">
               <div className="flex gap-4">
                 <img
-                  src={currentItem.coverImage || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=300'}
+                  src={currentItem.coverImage || '/images/book-placeholder.png'}
                   alt={currentItem.title}
                   className="w-20 h-28 object-cover rounded-xl border border-gray-200 shadow-xs shrink-0"
                 />

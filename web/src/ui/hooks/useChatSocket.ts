@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { tokenStorage } from '../api/tokenStorage';
-import type { ChatMessage } from '../services/chatService';
+import { chatService, type ChatMessage } from '../services/chatService';
 import { realtimeSyncBus } from '../services/realtimeSyncBus';
 
 export interface UseChatSocketOptions {
@@ -88,12 +88,15 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
     socket.on('message:new', handleNewMessage);
     socket.on('new_message', handleNewMessage);
 
-    // Lắng nghe đã đọc
+    // Lắng nghe đã đọc (đồng bộ tức thì - BUG-MOD06-14)
     const handleRead = (receipt: any) => {
       callbacksRef.current.onMessageRead?.(receipt);
+      realtimeSyncBus.publish('CHAT_UNREAD_COUNT_CHANGED', receipt);
     };
     socket.on('message:read', handleRead);
     socket.on('message_read', handleRead);
+    socket.on('conversation:read', handleRead);
+    socket.on('conversation_read', handleRead);
 
     // Lắng nghe đã nhận
     const handleDelivered = (receipt: any) => {
@@ -194,7 +197,7 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
     });
   }, [storeId]);
 
-  // Đánh dấu đã đọc qua Socket
+  // Đánh dấu đã đọc qua Socket & REST API (BUG-MOD06-14)
   const markAsRead = useCallback((conversationId: string, currentStoreId?: string) => {
     if (!isValidConversationId(conversationId)) return;
     if (socketRef.current?.connected) {
@@ -202,7 +205,13 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
         conversationId,
         storeId: currentStoreId || storeId,
       });
+      socketRef.current.emit('conversation:read', {
+        conversationId,
+        storeId: currentStoreId || storeId,
+      });
     }
+    // Đồng bộ REST API để backend cập nhật database và broadcast cho các thiết bị khác
+    chatService.markAsRead(conversationId).catch(() => {});
   }, [storeId]);
 
   // Báo trạng thái đang soạn tin (typing)

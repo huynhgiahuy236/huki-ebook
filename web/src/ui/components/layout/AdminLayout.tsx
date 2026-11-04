@@ -130,6 +130,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     '/admin/escrow': { parent: 'Tài Chính & Vận Hành', title: 'Tài Khoản Trung Gian & Quản Lý Dòng Tiền' },
     '/admin/return-requests': { parent: 'Tài Chính & Vận Hành', title: 'Quản Lý Yêu Cầu Đổi Trả' },
     '/admin/disputes': { parent: 'Tài Chính & Vận Hành', title: 'Trọng Tài Khiếu Nại & Tranh Chấp' },
+    '/admin/moderation': { parent: 'Hậu Mãi & Trọng Tài', title: 'Kiểm Duyệt Nội Dung & Báo Cáo' },
     '/admin/shippers': { parent: 'Tài Chính & Vận Hành', title: 'Quản Lý Đội Ngũ Bưu Tá (Shipper)' },
     '/admin/notifications': { parent: 'Quản Lý Ưu Đãi & Truyền Thông', title: 'Quản Lý & Phát Sóng Thông Báo' },
     '/admin/vouchers': { parent: 'Quản Lý Ưu Đãi & Truyền Thông', title: 'Mã Giảm Giá Toàn Sàn (Voucher)' },
@@ -234,6 +235,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       items: [
         { label: 'Yêu Cầu Đổi Trả', to: '/admin/return-requests', icon: 'assignment_return' },
         { label: 'Trọng Tài Khiếu Nại', to: '/admin/disputes', icon: 'gavel' },
+        { label: 'Kiểm Duyệt Nội Dung', to: '/admin/moderation', icon: 'shield_person' },
       ],
     },
     {

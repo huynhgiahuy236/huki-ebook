@@ -452,7 +452,7 @@ export function DataTableFilterBar<TStatus extends string = string>(props: DataT
 
       {/* 1. Status Filter Tabs (if provided) */}
       {tabs && tabs.length > 0 && (
-        <div className="w-full max-w-full flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+        <div className="w-full max-w-full flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs min-w-0">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key;
             return (

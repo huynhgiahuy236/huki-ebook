@@ -70,7 +70,9 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
     normPath === '/auth/verify-email' ||
     normPath === '/auth/resend-verification' ||
     normPath === '/auth/verify-reset-token' ||
-    normPath.startsWith('/auth/google')
+    normPath.startsWith('/auth/google') ||
+    normPath === '/chat/ai' ||
+    normPath.startsWith('/chat/ai')
   ) {
     return 'PUBLIC';
   }

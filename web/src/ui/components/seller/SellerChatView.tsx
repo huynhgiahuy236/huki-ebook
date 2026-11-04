@@ -837,7 +837,7 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
           <h1 className="text-sm font-bold text-slate-900 flex items-center gap-2">
             <span>Tin Nhắn Khách Hàng</span>
             {customers.some((c) => c.unread > 0) && (
-              <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-extrabold animate-pulse">
+              <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-extrabold">
                 {customers.filter((c) => c.unread > 0).length} mới
               </span>
             )}
@@ -845,7 +845,7 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="w-2 h-2 rounded-full bg-[#00875A] shrink-0 inline-block" />
           <span className="text-xs font-bold text-slate-700">{storeName}</span>
         </div>
       </header>
@@ -894,7 +894,7 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
               >
                 <span>Chưa đọc</span>
                 {customers.filter((c) => c.unread > 0).length > 0 && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0 inline-block" />
                 )}
               </button>
               <button

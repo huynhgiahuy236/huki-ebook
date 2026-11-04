@@ -208,4 +208,13 @@ export const chatService = {
       method: 'PATCH',
     });
   },
+
+  /**
+   * Đánh dấu cuộc trò chuyện đã đọc (REST API sync - BUG-MOD06-14)
+   */
+  async markAsRead(conversationId: string): Promise<ApiResponse<{ message: string }>> {
+    return apiClient<{ message: string }>(`/chat/conversations/${conversationId}/read`, {
+      method: 'PATCH',
+    });
+  },
 };

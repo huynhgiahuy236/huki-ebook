@@ -468,6 +468,14 @@ function MessengerContent() {
           [receipt.conversationId]: msgs.map(m => ({ ...m, status: 'read' })),
         };
       });
+      // Xóa unread badge tức thì trên danh sách hội thoại
+      setChannels(prev =>
+        prev.map(c =>
+          c.id === receipt.conversationId
+            ? { ...c, unread: 0 }
+            : c
+        )
+      );
     },
     onUserTyping: (data: { conversationId: string; userId: string; isTyping: boolean }) => {
       if (data.conversationId === activeChannel) {
@@ -525,6 +533,10 @@ function MessengerContent() {
     loadMessages();
     joinConversation(activeChannel);
     markAsRead(activeChannel);
+    // Xóa ngay unread badge của hội thoại đang mở
+    setChannels(prev =>
+      prev.map(c => (c.id === activeChannel ? { ...c, unread: 0 } : c))
+    );
 
     return () => {
       leaveConversation(activeChannel);
@@ -1548,7 +1560,7 @@ function MessengerContent() {
                     <div className="grid grid-cols-2 gap-2 text-center">
                       <div className="p-2 rounded-xl bg-gray-50 border border-gray-100">
                         <span className="text-gray-400 text-[10px] block">Đánh giá</span>
-                        <strong className="text-gray-900 font-bold">★ {activeChannelData.rating}</strong>
+                        <strong className="text-gray-900 font-bold inline-flex items-center justify-center gap-1"><span className="material-symbols-outlined text-[13px] text-[#fea619]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>{activeChannelData.rating}</strong>
                       </div>
 
                       <div className="p-2 rounded-xl bg-gray-50 border border-gray-100">

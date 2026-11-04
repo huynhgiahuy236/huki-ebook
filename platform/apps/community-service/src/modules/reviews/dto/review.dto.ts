@@ -92,6 +92,7 @@ export class ReviewIdParamDto {
 }
 
 export class ReviewTargetParamDto {
-  @IsUUID()
+  @IsString()
+  @Length(1, 128)
   id!: string;
 }

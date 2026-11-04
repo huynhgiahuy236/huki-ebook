@@ -117,7 +117,7 @@ export default function MyReviewsPage() {
                     storeName: so.storeName || 'Gian Hàng Chính Thức',
                     bookId: bId,
                     title: item.bookTitle || item.title || 'Sách Bản Quyền HUKI',
-                    coverUrl: item.bookCoverUrl || item.coverImage || item.coverUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=200',
+                    coverUrl: item.bookCoverUrl || item.coverImage || item.coverUrl || '/images/book-placeholder.png',
                     format: item.format || 'PHYSICAL',
                     deliveredAt: ord.updatedAt || ord.createdAt,
                   });
@@ -180,12 +180,12 @@ export default function MyReviewsPage() {
 
   return (
     <AccountLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 w-full min-w-0 max-w-full overflow-hidden">
         {/* ================= 1. HEADER & KPI CARDS ================= */}
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200/80 shadow-2xs">
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200/80 shadow-2xs w-full max-w-full overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-100">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold font-editorial text-gray-900 flex items-center gap-2.5">
+              <h1 className="text-xl sm:text-2xl font-bold font-editorial text-gray-900 flex items-center gap-2.5 min-w-0 break-words flex-wrap">
                 <span className="material-symbols-outlined text-[#006953] text-2xl">rate_review</span>
                 Đánh Giá Của Tôi
               </h1>
@@ -244,9 +244,9 @@ export default function MyReviewsPage() {
         </div>
 
         {/* ================= 2. TABS & CONTROLS (Image 2 Pill Style) ================= */}
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-3.5">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-3.5 w-full max-w-full overflow-hidden">
           {/* Filter Tabs (Horizontal Rounded-full Pills) */}
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 custom-scrollbar">
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 custom-scrollbar w-full max-w-full min-w-0">
             {/* 1. Tất Cả */}
             <button
               type="button"

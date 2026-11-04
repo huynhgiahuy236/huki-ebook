@@ -304,7 +304,7 @@ export default function FloatingAIChatbox() {
             <span className="text-xs font-semibold tracking-tight pr-1 hidden sm:inline">
               Tư vấn trực tuyến
             </span>
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-[#00875A] shrink-0 inline-block" />
           </button>
         </div>
       )}
@@ -322,7 +322,7 @@ export default function FloatingAIChatbox() {
               <div>
                 <div className="flex items-center gap-1.5">
                   <h3 className="font-bold text-xs tracking-tight">Tư Vấn Khách Hàng HUKI</h3>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00875A] shrink-0 inline-block" />
                 </div>
                 <p className="text-[10px] text-emerald-200/90 font-medium">
                   Tra cứu sách, đơn hàng &amp; bản quyền DRM

@@ -336,7 +336,9 @@ export default function BookDetailPage() {
   }, [flashSaleInfo?.endsAt]);
 
   const fetchBookReviews = useCallback(() => {
-    const bookTargetId = realBook?.id || id;
+    // If realBook is not loaded yet and id is a slug (not UUID), wait for realBook to resolve
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    const bookTargetId = realBook?.id || (isUUID ? id : null);
     if (!bookTargetId) return;
 
     setIsLoadingReviews(true);
@@ -1484,19 +1486,20 @@ export default function BookDetailPage() {
 
                         {isFollowDropdownOpen && (
                           <div className="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
-                            {/* Option 1: Nhắn tin (disabled) */}
-                            <div
-                              className="w-full px-3 py-2 rounded-lg text-xs font-medium text-gray-400 flex items-center justify-between cursor-not-allowed select-none bg-gray-50/50 mb-1"
-                              title="Chức năng nhắn tin đang được phát triển"
+                            {/* Option 1: Nhắn tin trực tiếp */}
+                            <Link
+                              href={`/account/messages?shop=${encodeURIComponent(publisherProfile.id)}&storeName=${encodeURIComponent(publisherProfile.name)}&bookTitle=${encodeURIComponent(book.title)}`}
+                              onClick={() => setIsFollowDropdownOpen(false)}
+                              className="w-full px-3 py-2 rounded-lg text-xs font-semibold text-gray-700 hover:text-[#006953] hover:bg-emerald-50 flex items-center justify-between transition-colors mb-1 cursor-pointer"
                             >
                               <div className="flex items-center gap-2">
-                                <span className="material-symbols-outlined text-sm text-gray-400">chat</span>
-                                <span>Nhắn tin</span>
+                                <span className="material-symbols-outlined text-sm text-[#006953]">chat</span>
+                                <span>Nhắn tin với Shop</span>
                               </div>
-                              <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-bold">
-                                Sắp ra mắt
+                              <span className="text-[10px] bg-emerald-100 text-[#006953] px-1.5 py-0.5 rounded font-bold">
+                                Trực tuyến
                               </span>
-                            </div>
+                            </Link>
 
                             {/* Option 2: Hủy theo dõi */}
                             <button
@@ -1515,8 +1518,16 @@ export default function BookDetailPage() {
                     )}
 
                     <Link
+                      href={`/account/messages?shop=${encodeURIComponent(publisherProfile.id)}&storeName=${encodeURIComponent(publisherProfile.name)}&bookTitle=${encodeURIComponent(book.title)}`}
+                      className="flex-1 md:flex-initial px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-[#006953] text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
+                      title="Trò chuyện trực tiếp với nhà phát hành sách"
+                    >
+                      <span className="material-symbols-outlined text-sm">chat</span>
+                      <span>Chat Với Shop</span>
+                    </Link>
+                    <Link
                       href={`/shop/${publisherProfile.slug || publisherProfile.id}`}
-                      className="flex-1 md:flex-initial px-4 py-2 rounded-xl border border-[#006953] bg-white hover:bg-[#006953]/5 text-[#006953] text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
+                      className="flex-1 md:flex-initial px-3.5 py-2 rounded-xl border border-[#006953] bg-white hover:bg-[#006953]/5 text-[#006953] text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
                     >
                       <span className="material-symbols-outlined text-sm">storefront</span>
                       <span>Xem Gian Hàng</span>

@@ -52,6 +52,37 @@ export default function ReviewCard({
   const [replyText, setReplyText] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
 
+  // Report review states (BUG-MOD06-13)
+  const [isReporting, setIsReporting] = useState(false);
+  const [reportReason, setReportReason] = useState<'SPAM' | 'HARASSMENT' | 'OFFENSIVE' | 'MISINFORMATION' | 'COPYRIGHT' | 'OTHER'>('SPAM');
+  const [reportDescription, setReportDescription] = useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
+  const handleSendReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!review.id) return;
+
+    setIsSubmittingReport(true);
+    try {
+      const res = await reviewApi.reportReview(String(review.id), {
+        reason: reportReason,
+        description: reportDescription.trim() || undefined,
+      });
+
+      if (res?.success) {
+        showToast('Đã gửi báo cáo vi phạm. Đội ngũ kiểm duyệt HUKI sẽ xử lý trong 24h!', 'success');
+        setIsReporting(false);
+        setReportDescription('');
+      } else {
+        showToast((res as any)?.error?.message || 'Không thể gửi báo cáo vi phạm lúc này.', 'error');
+      }
+    } catch {
+      showToast('Đã có lỗi xảy ra khi gửi báo cáo vi phạm.', 'error');
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
   const formattedDate = review.createdAt
     ? new Date(review.createdAt).toLocaleDateString('vi-VN', {
         year: 'numeric',
@@ -316,24 +347,38 @@ export default function ReviewCard({
 
       {/* Footer / Reactions */}
       <div className="flex items-center justify-between pt-2 border-t border-theme-border text-xs">
-        <button
-          type="button"
-          onClick={handleToggleHelpful}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
-            isHelpful
-              ? 'bg-[#006953]/10 text-[#006953] border-[#006953]/30 font-bold'
-              : 'bg-theme-bg text-[#6b7280] border-theme-border hover:text-on-surface'
-          }`}
-        >
-          <span
-            className={`material-symbols-outlined text-sm ${
-              isHelpful ? 'text-[#006953]' : ''
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleToggleHelpful}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+              isHelpful
+                ? 'bg-[#006953]/10 text-[#006953] border-[#006953]/30 font-bold'
+                : 'bg-theme-bg text-[#6b7280] border-theme-border hover:text-on-surface'
             }`}
           >
-            thumb_up
-          </span>
-          <span>{helpfulCount > 0 ? `Hữu ích (${helpfulCount})` : 'Hữu ích'}</span>
-        </button>
+            <span
+              className={`material-symbols-outlined text-sm ${
+                isHelpful ? 'text-[#006953]' : ''
+              }`}
+            >
+              thumb_up
+            </span>
+            <span>{helpfulCount > 0 ? `Hữu ích (${helpfulCount})` : 'Hữu ích'}</span>
+          </button>
+
+          {!isOwner && (
+            <button
+              type="button"
+              onClick={() => setIsReporting(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-transparent text-gray-400 hover:text-rose-600 hover:bg-rose-50 text-xs font-medium transition-colors cursor-pointer"
+              title="Báo cáo vi phạm tiêu chuẩn cộng đồng"
+            >
+              <span className="material-symbols-outlined text-sm">flag</span>
+              <span>Báo cáo</span>
+            </button>
+          )}
+        </div>
 
         <span className="text-[11px] text-[#6b7280]">
           Đánh giá chính thức trên HUKI
@@ -358,6 +403,88 @@ export default function ReviewCard({
             >
               <span className="material-symbols-outlined text-lg">close</span>
             </button>
+          </div>
+        </div>
+      )}
+      {/* Report Modal (BUG-MOD06-13) */}
+      {isReporting && (
+        <div
+          onClick={() => setIsReporting(false)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-200 p-5 space-y-4"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2 text-rose-600 font-bold text-sm">
+                <span className="material-symbols-outlined text-lg">flag</span>
+                <h3>Báo cáo vi phạm đánh giá</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsReporting(false)}
+                className="w-7 h-7 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-base">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSendReport} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                  Lý do báo cáo vi phạm <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value as any)}
+                  className="w-full text-xs p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 focus:outline-none focus:border-[#006953] cursor-pointer"
+                >
+                  <option value="SPAM">Nội dung rác, quảng cáo, tin spam trùng lặp</option>
+                  <option value="OFFENSIVE">Ngôn từ thô tục, xúc phạm, thiếu văn hóa</option>
+                  <option value="HARASSMENT">Quấy rối, công kích cá nhân, đe dọa</option>
+                  <option value="MISINFORMATION">Thông tin sai lệch, gian lận, lừa đảo</option>
+                  <option value="COPYRIGHT">Vi phạm quyền sở hữu trí tuệ hoặc bản quyền</option>
+                  <option value="OTHER">Lý do khác vi phạm tiêu chuẩn cộng đồng</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                  Mô tả chi tiết <span className="text-gray-400 font-normal">(tùy chọn)</span>
+                </label>
+                <textarea
+                  value={reportDescription}
+                  onChange={(e) => setReportDescription(e.target.value)}
+                  placeholder="Cung cấp thêm thông tin giúp ban quản trị xác minh vi phạm nhanh hơn..."
+                  rows={3}
+                  maxLength={500}
+                  className="w-full text-xs p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#006953] resize-y"
+                />
+                <div className="text-right text-[10px] text-gray-400 mt-1">
+                  {reportDescription.length}/500 ký tự
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setIsReporting(false)}
+                  disabled={isSubmittingReport}
+                  className="px-3.5 py-1.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-medium cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingReport}
+                  className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {isSubmittingReport && <span className="material-symbols-outlined text-xs animate-spin">progress_activity</span>}
+                  <span>Gửi báo cáo</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

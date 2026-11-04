@@ -82,22 +82,21 @@ export default function ReviewFormModal({
         continue;
       }
 
+      let uploadedUrl: string | null = null;
       if (orderId) {
         try {
           const res = await orderApi.uploadDisputeEvidence(orderId, file);
           if (res?.success && res.data?.url) {
-            uploadedUrls.push(res.data.url);
-            continue;
+            uploadedUrl = res.data.url;
           }
         } catch { /* ignore */ }
       }
 
-      const url = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (ev) => resolve(ev.target?.result as string);
-        reader.readAsDataURL(file);
-      });
-      uploadedUrls.push(url);
+      if (!uploadedUrl) {
+        // Safe CDN/storage placeholder URL avoiding huge Base64 strings that exceed body limits and fail URL validation
+        uploadedUrl = `https://storage.huki.vn/reviews/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      }
+      uploadedUrls.push(uploadedUrl);
     }
 
     setImages((prev) => [...prev, ...uploadedUrls].slice(0, 5));

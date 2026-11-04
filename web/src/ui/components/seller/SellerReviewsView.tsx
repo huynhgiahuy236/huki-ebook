@@ -304,11 +304,11 @@ export function SellerReviewsView() {
     { id: 'ALL', label: 'Tất Cả', count: stats.total },
     { id: 'UNREPLIED', label: 'Chưa Phản Hồi', count: stats.unrepliedCount },
     { id: 'REPLIED', label: 'Đã Phản Hồi', count: stats.repliedCount },
-    { id: '5_STAR', label: '5 Sao ★', count: stats.starCounts[5] },
-    { id: '4_STAR', label: '4 Sao ★', count: stats.starCounts[4] },
-    { id: '3_STAR', label: '3 Sao ★', count: stats.starCounts[3] },
-    { id: '2_STAR', label: '2 Sao ★', count: stats.starCounts[2] },
-    { id: '1_STAR', label: '1 Sao ★', count: stats.starCounts[1] },
+    { id: '5_STAR', label: '5 Sao', count: stats.starCounts[5] },
+    { id: '4_STAR', label: '4 Sao', count: stats.starCounts[4] },
+    { id: '3_STAR', label: '3 Sao', count: stats.starCounts[3] },
+    { id: '2_STAR', label: '2 Sao', count: stats.starCounts[2] },
+    { id: '1_STAR', label: '1 Sao', count: stats.starCounts[1] },
   ], [stats]);
 
   // Filtered reviews
@@ -731,7 +731,7 @@ export function SellerReviewsView() {
               {stats.positivePercentage}%
             </div>
             <span className="text-[11px] text-slate-500 font-medium">
-              {stats.starCounts[5] + stats.starCounts[4]} đánh giá 4★ &amp; 5★
+              {stats.starCounts[5] + stats.starCounts[4]} đánh giá 4 & 5 sao
             </span>
           </div>
           <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">

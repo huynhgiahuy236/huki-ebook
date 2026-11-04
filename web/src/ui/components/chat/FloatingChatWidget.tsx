@@ -426,7 +426,7 @@ export default function FloatingChatWidget({ initialStoreId, initialStoreName }:
             chat
           </span>
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+            <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
@@ -450,7 +450,7 @@ export default function FloatingChatWidget({ initialStoreId, initialStoreName }:
               <div className="leading-tight">
                 <h3 className="text-xs font-bold truncate max-w-[170px]">{activeStore.name}</h3>
                 <span className="text-[10px] text-emerald-300 font-medium flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                   <span>Đang trực tuyến • Sẵn sàng tư vấn</span>
                 </span>
               </div>
