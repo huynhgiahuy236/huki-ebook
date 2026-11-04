@@ -54,11 +54,6 @@ export async function apiClient<T = unknown>(
         refreshPromise = (async () => {
           try {
             const refreshToken = tokenStorage.getRefreshToken();
-            const hasCookieRefresh = typeof document !== 'undefined' && document.cookie.includes('refreshToken');
-            if (!refreshToken && !hasCookieRefresh) {
-              tokenStorage.clearTokens();
-              return null;
-            }
             const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
               method: 'POST',
               headers: {
