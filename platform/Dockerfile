@@ -12,7 +12,7 @@ RUN apk add --no-cache openssl libc6-compat python3 make g++
 
 # Install dependencies
 COPY package*.json ./
-RUN npm ci --legacy-peer-deps
+RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
 
 # Copy Prisma schemas and generate Prisma client bindings
 COPY apps/identity-service/prisma ./apps/identity-service/prisma

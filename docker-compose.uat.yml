@@ -11,7 +11,7 @@ services:
   # UAT BACKEND MICROSERVICES
   # ============================================
   api-gateway-uat:
-    image: huki-platform:uat
+    image: ${DOCKERHUB_USERNAME:-huynhgiahuy1506}/huki-platform:uat
     build:
       context: ./platform
       dockerfile: Dockerfile
@@ -59,7 +59,7 @@ services:
       - huki-network
 
   identity-service-uat:
-    image: huki-platform:uat
+    image: ${DOCKERHUB_USERNAME:-huynhgiahuy1506}/huki-platform:uat
     build:
       context: ./platform
       dockerfile: Dockerfile
@@ -102,7 +102,7 @@ services:
       - huki-network
 
   business-service-uat:
-    image: huki-platform:uat
+    image: ${DOCKERHUB_USERNAME:-huynhgiahuy1506}/huki-platform:uat
     build:
       context: ./platform
       dockerfile: Dockerfile
@@ -135,7 +135,7 @@ services:
       - huki-network
 
   commerce-service-uat:
-    image: huki-platform:uat
+    image: ${DOCKERHUB_USERNAME:-huynhgiahuy1506}/huki-platform:uat
     build:
       context: ./platform
       dockerfile: Dockerfile
@@ -203,7 +203,7 @@ services:
       - huki-network
 
   shipping-service-uat:
-    image: huki-platform:uat
+    image: ${DOCKERHUB_USERNAME:-huynhgiahuy1506}/huki-platform:uat
     build:
       context: ./platform
       dockerfile: Dockerfile
@@ -234,7 +234,7 @@ services:
       - huki-network
 
   community-service-uat:
-    image: huki-platform:uat
+    image: ${DOCKERHUB_USERNAME:-huynhgiahuy1506}/huki-platform:uat
     build:
       context: ./platform
       dockerfile: Dockerfile
@@ -263,7 +263,7 @@ services:
       - huki-network
 
   promotion-service-uat:
-    image: huki-platform:uat
+    image: ${DOCKERHUB_USERNAME:-huynhgiahuy1506}/huki-platform:uat
     build:
       context: ./platform
       dockerfile: Dockerfile
@@ -296,7 +296,7 @@ services:
       - huki-network
 
   analytics-service-uat:
-    image: huki-platform:uat
+    image: ${DOCKERHUB_USERNAME:-huynhgiahuy1506}/huki-platform:uat
     build:
       context: ./platform
       dockerfile: Dockerfile
@@ -329,7 +329,7 @@ services:
   # UAT FRONTEND WEB APPLICATION
   # ============================================
   web-uat:
-    image: huki-web:uat
+    image: ${DOCKERHUB_USERNAME:-huynhgiahuy1506}/huki-web:uat
     build:
       context: ./web
       dockerfile: Dockerfile
