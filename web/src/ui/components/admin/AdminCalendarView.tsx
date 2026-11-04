@@ -60,6 +60,15 @@ export function AdminCalendarView() {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
             Lịch Sự Kiện &amp; Hoạt Động Hệ Thống
           </h1>
+
+          <div className="flex items-center gap-2 mt-1">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200">
+              Chế độ xem mẫu (UI Prototype)
+            </span>
+            <p className="text-xs text-gray-500">Lịch trình sự kiện sàn, hội sách và bảo trì hệ thống.</p>
+          </div>
+
+
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">

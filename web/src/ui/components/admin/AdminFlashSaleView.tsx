@@ -213,7 +213,7 @@ export function AdminFlashSaleView() {
     if (ended.length > 0 || activeTab === 'ENDED') {
       result.push({
         groupKey: 'ENDED',
-        title: '⌛ Phiên Flash Sale Đã Kết Thúc (Lịch Sử)',
+        title: 'Phiên Flash Sale Đã Kết Thúc (Lịch Sử)',
         badgeColor: 'bg-gray-100 text-gray-700 border-gray-200',
         icon: 'history',
         sessions: ended,
@@ -636,7 +636,7 @@ export function AdminFlashSaleView() {
           <span className="material-symbols-outlined text-[17px]">stars</span>
           <span>Kiểm Soát Sao Quả Tạ & Thẩm Định Kháng Nghị</span>
           {pendingAppealsCount > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-400 text-gray-900 animate-pulse">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300">
               {pendingAppealsCount} chờ duyệt
             </span>
           )}
@@ -651,7 +651,7 @@ export function AdminFlashSaleView() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
-            <span className="material-symbols-outlined text-2xl animate-pulse">local_fire_department</span>
+            <span className="material-symbols-outlined text-2xl">local_fire_department</span>
           </div>
           <div>
             <span className="text-[11px] text-gray-500 font-medium">Phiên Đang Live</span>

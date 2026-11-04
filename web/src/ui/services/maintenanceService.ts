@@ -6,6 +6,7 @@
 
 import { realtimeSyncBus } from './realtimeSyncBus';
 import { adminNotificationService } from './adminNotificationService';
+import { tokenStorage } from '../api/tokenStorage';
 
 export interface SystemMaintenanceConfig {
   isActive: boolean;
@@ -109,7 +110,7 @@ class MaintenanceService {
     if (typeof window === 'undefined' || this.isSyncing) return this.config;
     this.isSyncing = true;
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('huki_access_token') : null;
+      const token = typeof window !== 'undefined' ? tokenStorage.getAccessToken() : null;
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -198,7 +199,7 @@ class MaintenanceService {
       this.syncCookies();
       this.dispatchLocalEvent();
 
-      const token = localStorage.getItem('huki_access_token');
+      const token = tokenStorage.getAccessToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 

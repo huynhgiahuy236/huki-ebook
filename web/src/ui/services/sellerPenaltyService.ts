@@ -504,7 +504,7 @@ class SellerPenaltyService {
           this.profiles = { ...DEFAULT_SEED_PROFILES, ...json.data };
           try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(this.profiles));
-          } catch {}
+          } catch { }
         }
       }
     } catch {
@@ -541,7 +541,7 @@ class SellerPenaltyService {
     if (typeof window === 'undefined') return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.profiles));
-    } catch {}
+    } catch { }
 
     // Persist to server if running in real browser with origin
     if (typeof window !== 'undefined' && window.location?.origin && window.location.origin.startsWith('http')) {
@@ -552,7 +552,7 @@ class SellerPenaltyService {
         method: 'POST',
         headers,
         body: JSON.stringify({ profiles: this.profiles }),
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }
 

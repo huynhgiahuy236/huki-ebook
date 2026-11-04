@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useToast } from "../../context/ToastContext";
 import { AdminStatusBadge } from './AdminUI';
+import { bannerApi, BannerData } from '@/ui/api/bannerApi';
 
 export interface MarketingBanner {
   id: string;
@@ -181,9 +182,9 @@ export function AdminMarketingView() {
 
   // BUG-03-015: Đồng bộ dữ liệu Banner thật từ promotion-service backend
   useEffect(() => {
-    bannerApi.getBanners().then((res) => {
+    bannerApi.getBanners().then((res: any) => {
       if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-        const backendBanners: MarketingBanner[] = res.data.map((b, idx) => ({
+        const backendBanners: MarketingBanner[] = res.data.map((b: BannerData, idx: number) => ({
           id: b.id,
           title: b.title,
           subtitle: '',
@@ -376,7 +377,7 @@ export function AdminMarketingView() {
         link: newBanner.link,
         position: newBanner.order,
         scope: 'HOMEPAGE',
-      }).then((res) => {
+      }).then((res: any) => {
         if (res.success && res.data?.id) {
           setBanners(curr => curr.map(b => b.id === newBanner.id ? { ...b, id: res.data!.id } : b));
         }

@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { adminApi } from '../../api/adminApi';
 import { orderApi } from '../../api/orderApi';
 import { useToast } from '../../context/ToastContext';
@@ -130,11 +131,20 @@ function formatVietnamDateTime(dateStr?: string | null): string {
 
 export function AdminEscrowView() {
   const { showToast } = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [items, setItems] = useState<EscrowTableItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<string>('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [activeTab, setActiveTab] = useState<string>(() => searchParams?.get('status') || 'ALL');
+  const [searchQuery, setSearchQuery] = useState(() => searchParams?.get('q') || '');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>(() => {
+    const mode = searchParams?.get('dateMode');
+    const startDate = searchParams?.get('startDate') || undefined;
+    const endDate = searchParams?.get('endDate') || undefined;
+    if (mode) return { mode: mode as any, startDate, endDate };
+    return { mode: 'ALL_TIME' };
+  });
   const [selectedOrderCodes, setSelectedOrderCodes] = useState<string[]>([]);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
@@ -153,6 +163,23 @@ export function AdminEscrowView() {
 
     return () => clearInterval(ticker);
   }, []);
+
+  // Sync state to URL Query Params (BUG-03-008)
+  useEffect(() => {
+    if (!mounted) return;
+    const params = new URLSearchParams();
+    if (activeTab && activeTab !== 'ALL') params.set('status', activeTab);
+    if (searchQuery.trim()) params.set('q', searchQuery.trim());
+    if (dateFilter?.mode && dateFilter.mode !== 'ALL_TIME') params.set('dateMode', dateFilter.mode);
+    if (dateFilter?.startDate) params.set('startDate', dateFilter.startDate);
+    if (dateFilter?.endDate) params.set('endDate', dateFilter.endDate);
+
+    const qs = params.toString();
+    const targetUrl = qs ? `/admin/escrow?${qs}` : '/admin/escrow';
+    if (typeof window !== 'undefined' && window.location.pathname + window.location.search !== targetUrl) {
+      router.replace(targetUrl, { scroll: false });
+    }
+  }, [activeTab, searchQuery, dateFilter, mounted, router]);
 
   // Đóng dropdown khi click ra ngoài
   useEffect(() => {

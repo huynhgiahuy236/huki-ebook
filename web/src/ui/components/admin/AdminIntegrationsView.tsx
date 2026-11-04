@@ -87,6 +87,14 @@ export function AdminIntegrationsView() {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
             Kết Nối Dịch Vụ Đối Tác
           </h1>
+
+          <div className="flex items-center gap-2 mt-1">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200">
+              Chế độ xem mẫu (UI Prototype)
+            </span>
+          </div>
+
+
         </div>
       </div>
 

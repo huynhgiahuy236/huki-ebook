@@ -581,9 +581,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
         {/* MOBILE DRAWER SIDEBAR */}
         {isMobileMenuOpen && (
-          <div className="fixed inset-0 z-50 lg:hidden flex">
+          <div className="fixed inset-0 z-50 lg:hidden">
             <div
-              className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
+              className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity cursor-pointer"
+              role="button"
+              tabIndex={0}
+              aria-label="Đóng menu điều hành"
               onClick={() => setIsMobileMenuOpen(false)}
             />
             <div className="relative w-[300px] sm:w-[320px] max-w-[88vw] bg-[#003B2B] text-white h-full flex flex-col shadow-2xl z-10">

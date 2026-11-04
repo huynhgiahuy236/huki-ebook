@@ -10,7 +10,14 @@ function getForwardHeaders(req: NextRequest) {
     'Content-Type': 'application/json',
   };
   const auth = req.headers.get('authorization');
-  if (auth) headers['authorization'] = auth;
+  if (auth) {
+    headers['authorization'] = auth;
+  } else {
+    const token = req.cookies.get('huki_access_token')?.value || req.cookies.get('access_token')?.value;
+    if (token) {
+      headers['authorization'] = `Bearer ${token}`;
+    }
+  }
   const cookie = req.headers.get('cookie');
   if (cookie) headers['cookie'] = cookie;
   return headers;

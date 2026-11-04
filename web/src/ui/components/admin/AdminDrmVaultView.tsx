@@ -43,6 +43,20 @@ export function AdminDrmVaultView() {
     preset: 'ALL',
   });
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
+
+  const handleCopyMasterKey = (licId: string, keyVal: string) => {
+    try {
+      navigator.clipboard.writeText(keyVal);
+      setCopiedKeyId(licId);
+      showToast?.('Đã sao chép DRM Master Key vào bộ nhớ tạm!', 'success');
+      setTimeout(() => {
+        setCopiedKeyId((prev) => (prev === licId ? null : prev));
+      }, 2000);
+    } catch {
+      showToast?.('Không thể sao chép vào bộ nhớ tạm', 'error');
+    }
+  };
 
   // Debounce tìm kiếm 300ms
   useEffect(() => {
@@ -730,7 +744,20 @@ export function AdminDrmVaultView() {
                                     <span className="font-mono font-semibold">{item.isbn}</span>
                                   </div>
                                   <div>
-                                    <span className="text-gray-400">Vân tay SHA-256: </span>
+                                    <div className="flex items-center justify-between text-gray-400">
+                                      <span>Vân tay Master Key AES-256:</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCopyMasterKey(item.id, item.keyFingerprint)}
+                                        className="inline-flex items-center gap-1 text-[10px] font-semibold text-purple-700 hover:text-purple-900 cursor-pointer bg-purple-50 hover:bg-purple-100 px-1.5 py-0.5 rounded transition-colors"
+                                        title="Sao chép Master Key vào bộ nhớ tạm"
+                                      >
+                                        <span className={`material-symbols-outlined text-[12px] ${copiedKeyId === item.id ? 'text-emerald-600' : ''}`}>
+                                          {copiedKeyId === item.id ? 'check' : 'content_copy'}
+                                        </span>
+                                        <span>{copiedKeyId === item.id ? 'Đã chép' : 'Sao chép'}</span>
+                                      </button>
+                                    </div>
                                     <span className="font-mono text-[10px] text-gray-700 block break-all bg-gray-50 p-1.5 rounded border border-gray-100 mt-0.5">
                                       {item.keyFingerprint}
                                     </span>

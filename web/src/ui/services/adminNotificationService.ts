@@ -540,7 +540,6 @@ class AdminNotificationService {
           ? 'HIGH'
           : 'NORMAL';
 
-      const token = tokenStorage.getAccessToken() || '';
 
       fetch('/api/v1/notifications/dispatch', {
         method: 'POST',

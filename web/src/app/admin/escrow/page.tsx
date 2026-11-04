@@ -22,5 +22,9 @@ const AdminEscrowView = dynamic(
 );
 
 export default function AdminEscrowPage() {
-  return <AdminEscrowView />;
+  return (
+    <React.Suspense fallback={<div className="p-8 text-center text-xs text-slate-400">Đang tải sổ cái ký quỹ...</div>}>
+      <AdminEscrowView />
+    </React.Suspense>
+  );
 }

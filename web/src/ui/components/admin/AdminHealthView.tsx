@@ -111,6 +111,27 @@ export default function AdminHealthView() {
 
   useEffect(() => {
     checkHealth();
+
+    let timeoutId: NodeJS.Timeout;
+    const scheduleNextCheck = () => {
+      // 15s base interval + randomized jitter (+-2000ms) to avoid synchronized container load spikes (BUG-03-009)
+      const jitter = (Math.random() - 0.5) * 4000;
+      const delay = Math.max(10000, 15000 + jitter);
+
+      timeoutId = setTimeout(() => {
+        if (typeof document !== 'undefined' && !document.hidden) {
+          checkHealth().finally(() => scheduleNextCheck());
+        } else {
+          scheduleNextCheck();
+        }
+      }, delay);
+    };
+
+    scheduleNextCheck();
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [checkHealth]);
 
   const serviceResults = SERVICES_METADATA.map((meta) => {
@@ -210,7 +231,7 @@ export default function AdminHealthView() {
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                   <div className="flex items-center gap-2.5">
-                    <span className={`w-2.5 h-2.5 rounded-full ${isUp ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                    <span className={`w-2.5 h-2.5 rounded-full ${isUp ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                     <span className="font-bold text-xs text-gray-900">{svc.name}</span>
                   </div>
                   <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md font-bold ${

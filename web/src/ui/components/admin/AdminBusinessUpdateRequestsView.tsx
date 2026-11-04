@@ -258,8 +258,8 @@ export function AdminBusinessUpdateRequestsView() {
   // Xác nhận từ chối
   const handleConfirmReject = async (e: any) => {
     e.preventDefault();
-    if (!rejectReason.trim()) {
-      setRejectReasonError('Vui lòng nhập lý do từ chối cụ thể để thông báo cho Seller.');
+    if (rejectReason.trim().length < 10) {
+      setRejectReasonError('Vui lòng nhập tối thiểu 10 ký tự lý do từ chối cụ thể để giải trình cho NXB.');
       return;
     }
 
@@ -910,7 +910,7 @@ export function AdminBusinessUpdateRequestsView() {
           <form onSubmit={handleConfirmReject} className="space-y-4 text-xs">
             <div>
               <label className="block font-bold text-gray-900 mb-1.5">
-                Lý do từ chối <span className="text-rose-500">*</span>:
+                Lý do từ chối (Bắt buộc, tối thiểu 10 ký tự) <span className="text-rose-500">*</span>:
               </label>
               <textarea
                 rows={4}
@@ -924,6 +924,12 @@ export function AdminBusinessUpdateRequestsView() {
                   rejectReasonError ? 'border-rose-400 focus:border-rose-500 bg-rose-50/30' : 'border-gray-300 focus:border-rose-500'
                 }`}
               />
+              {rejectReason.trim().length > 0 && rejectReason.trim().length < 10 && (
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1 font-medium">
+                  <span className="material-symbols-outlined text-[14px]">info</span>
+                  <span>Đã nhập {rejectReason.trim().length}/10 ký tự (cần thêm {10 - rejectReason.trim().length} ký tự nữa).</span>
+                </p>
+              )}
               {rejectReasonError && (
                 <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
                   <span className="material-symbols-outlined text-[14px]">error</span>
@@ -946,7 +952,7 @@ export function AdminBusinessUpdateRequestsView() {
               </button>
               <button
                 type="submit"
-                disabled={actionLoading}
+                disabled={actionLoading || rejectReason.trim().length < 10}
                 className="px-5 py-2.5 rounded-xl bg-rose-600 text-white font-semibold hover:bg-rose-700 shadow-xs cursor-pointer disabled:opacity-50 text-sm flex items-center gap-1.5"
               >
                 <span className="material-symbols-outlined text-base">cancel</span>

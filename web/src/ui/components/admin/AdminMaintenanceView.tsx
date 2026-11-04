@@ -35,9 +35,11 @@ export default function AdminMaintenanceView() {
 
   // Remaining drain time
   const [remainingDrainSec, setRemainingDrainSec] = useState<number>(0);
+  const [mounted, setMounted] = useState<boolean>(false);
 
   // Sync state
   useEffect(() => {
+    setMounted(true);
     const handleUpdate = () => {
       const current = maintenanceService.getConfig();
       setConfig(current);
@@ -332,7 +334,7 @@ export default function AdminMaintenanceView() {
                   ĐANG HẸN GIỜ TỰ ĐỘNG
                 </span>
                 <span className="text-xs text-slate-500 font-medium">
-                  Kích hoạt lúc: {new Date(config.scheduledStartTime).toLocaleString('vi-VN')}
+                  Kích hoạt lúc: {mounted && config.scheduledStartTime ? new Date(config.scheduledStartTime).toLocaleString('vi-VN') : '--:--'}
                 </span>
               </div>
               <h3 className="text-base font-bold text-slate-900">
@@ -572,7 +574,7 @@ export default function AdminMaintenanceView() {
                 <span>Cấu Hình Thông Số & Cổng Thoát Hiểm</span>
               </h3>
               <span className="text-[11px] text-slate-400">
-                Lần cập nhật cuối: {new Date(config.updatedAt).toLocaleTimeString('vi-VN')} ({config.updatedBy})
+                Lần cập nhật cuối: {mounted && config.updatedAt ? new Date(config.updatedAt).toLocaleTimeString('vi-VN') : '--:--'} ({config.updatedBy})
               </span>
             </div>
 

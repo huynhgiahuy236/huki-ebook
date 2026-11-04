@@ -112,6 +112,14 @@ export function AdminSupportView() {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
             Hỗ Trợ &amp; Xử Lý Khiếu Nại
           </h1>
+
+          <div className="flex items-center gap-2 mt-1">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200">
+              Chế độ xem mẫu (UI Prototype)
+            </span>
+          </div>
+
+
           <p className="text-xs text-gray-500 mt-0.5">Tiếp nhận và giải quyết yêu cầu kỹ thuật DRM, khiếu nại bản quyền và hỗ trợ đơn hàng</p>
         </div>
       </div>
@@ -276,7 +284,7 @@ export function AdminSupportView() {
 
           <div>
             <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
               {selectedTicket.title}
             </h3>
             <div className="text-xs text-gray-500 mt-1">Người gửi: <strong className="text-gray-800">{selectedTicket.sender}</strong></div>

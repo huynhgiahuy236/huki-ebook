@@ -36,6 +36,7 @@ export function AdminAccountsView() {
   const [editingUser, setEditingUser] = useState<any>(null);
   const [lockingUser, setLockingUser] = useState<any>(null);
   const [deletingUser, setDeletingUser] = useState<any>(null);
+  const [auditReason, setAuditReason] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form state for Add Customer
@@ -529,6 +530,14 @@ export function AdminAccountsView() {
   // Toggle Lock Confirm
   const handleConfirmLock = async () => {
     if (!lockingUser) return;
+    if (auditReason.trim().length < 10) {
+      showToast?.({
+        title: 'Thiếu lý do kiểm toán',
+        message: 'Vui lòng nhập tối thiểu 10 ký tự lý do giải trình để ghi vào Sổ Cái Kiểm Toán.',
+        type: 'warning',
+      });
+      return;
+    }
     if (lockingUser.role === 'PLATFORM_ADMIN') {
       showToast?.({
         title: 'Thao tác bị chặn',
@@ -567,6 +576,14 @@ export function AdminAccountsView() {
   // Delete User Confirm
   const handleConfirmDelete = async () => {
     if (!deletingUser) return;
+    if (auditReason.trim().length < 10) {
+      showToast?.({
+        title: 'Thiếu lý do kiểm toán',
+        message: 'Vui lòng nhập tối thiểu 10 ký tự lý do giải trình để ghi vào Sổ Cái Kiểm Toán.',
+        type: 'warning',
+      });
+      return;
+    }
     if (deletingUser.role === 'PLATFORM_ADMIN') {
       showToast?.({
         title: 'Thao tác bị chặn',
@@ -753,7 +770,7 @@ export function AdminAccountsView() {
               {!isPlatformAdmin && (
                 <button
                   type="button"
-                  onClick={() => setLockingUser(u)}
+                  onClick={() => { setAuditReason(''); setLockingUser(u); }}
                   className={`p-1 rounded-lg border transition-colors cursor-pointer ${
                     isLocked
                       ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
@@ -1484,10 +1501,28 @@ export function AdminAccountsView() {
               : 'Khi bị khóa, tài khoản này sẽ bị thu hồi phiên đăng nhập ngay lập tức và không thể thực hiện các giao dịch trên sàn.'}
           </p>
 
+          <div className="space-y-1.5 pt-1">
+            <label className="block text-xs font-bold text-gray-700">
+              Lý do giải trình kiểm toán (Bắt buộc, tối thiểu 10 ký tự):
+            </label>
+            <textarea
+              value={auditReason}
+              onChange={(e) => setAuditReason(e.target.value)}
+              placeholder="Nhập lý do thực hiện thao tác kiểm toán bảo mật (VD: Phát hiện vi phạm quy chế sàn hoặc yêu cầu pháp lý)..."
+              rows={2}
+              className="w-full text-xs p-2.5 rounded-xl border border-amber-300 focus:outline-none focus:border-amber-500 bg-white"
+            />
+            {auditReason.trim().length < 10 && (
+              <p className="text-[11px] text-amber-800 font-medium">
+                * Cần nhập tối thiểu 10 ký tự lý do giải trình ({auditReason.trim().length}/10 ký tự).
+              </p>
+            )}
+          </div>
+
           <div className="flex items-center justify-end gap-3 pt-2 border-t border-amber-200/60">
             <button
               type="button"
-              onClick={() => setLockingUser(null)}
+              onClick={() => { setLockingUser(null); setAuditReason(''); }}
               className="px-4 py-2 text-xs font-semibold bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
             >
               Hủy
@@ -1495,11 +1530,13 @@ export function AdminAccountsView() {
             <button
               type="button"
               onClick={handleConfirmLock}
-              className={`px-4 py-2 text-xs font-bold text-white rounded-xl transition-colors cursor-pointer shadow-xs ${
+              disabled={auditReason.trim().length < 10}
+              className={`px-4 py-2 text-xs font-bold text-white rounded-xl transition-colors shadow-xs ${
+                auditReason.trim().length < 10 ? 'opacity-50 cursor-not-allowed bg-gray-400' :
                 lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'
               }`}
             >
-              {lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'Xác nhận Mở khóa' : 'Xác nhận Khóa'}
+              {lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'Xác nhận Mở khóa' : 'Xác nhận Khóa (Ghi Sổ Cái)'}
             </button>
           </div>
         </div>
@@ -1522,10 +1559,28 @@ export function AdminAccountsView() {
             Bạn có chắc chắn muốn xóa tài khoản này khỏi database không? Hành động này sẽ vô hiệu hóa hoàn toàn thông tin người dùng khỏi hệ thống.
           </p>
 
+          <div className="space-y-1.5 pt-1">
+            <label className="block text-xs font-bold text-gray-700">
+              Lý do xóa tài khoản / thu hồi quyền (Bắt buộc, tối thiểu 10 ký tự):
+            </label>
+            <textarea
+              value={auditReason}
+              onChange={(e) => setAuditReason(e.target.value)}
+              placeholder="Nhập lý do thực hiện thao tác xóa tài khoản hoặc thu hồi quyền truy cập..."
+              rows={2}
+              className="w-full text-xs p-2.5 rounded-xl border border-rose-300 focus:outline-none focus:border-rose-500 bg-white"
+            />
+            {auditReason.trim().length < 10 && (
+              <p className="text-[11px] text-rose-800 font-medium">
+                * Cần nhập tối thiểu 10 ký tự lý do giải trình ({auditReason.trim().length}/10 ký tự).
+              </p>
+            )}
+          </div>
+
           <div className="flex items-center justify-end gap-3 pt-2 border-t border-rose-200/60">
             <button
               type="button"
-              onClick={() => setDeletingUser(null)}
+              onClick={() => { setDeletingUser(null); setAuditReason(''); }}
               className="px-4 py-2 text-xs font-semibold bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
             >
               Hủy
@@ -1533,9 +1588,14 @@ export function AdminAccountsView() {
             <button
               type="button"
               onClick={handleConfirmDelete}
-              className="px-4 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition-colors cursor-pointer shadow-xs"
+              disabled={auditReason.trim().length < 10}
+              className={`px-4 py-2 text-xs font-bold text-white rounded-xl transition-colors shadow-xs ${
+                auditReason.trim().length < 10
+                  ? 'opacity-50 cursor-not-allowed bg-gray-400'
+                  : 'bg-rose-600 hover:bg-rose-700 cursor-pointer'
+              }`}
             >
-              Xác nhận Xóa
+              Xác nhận Xóa (Ghi Sổ Cái)
             </button>
           </div>
         </div>

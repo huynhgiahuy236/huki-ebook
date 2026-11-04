@@ -21,6 +21,7 @@ export interface SellerFeature {
 
 import { realtimeSyncBus } from './realtimeSyncBus';
 import { adminNotificationService } from './adminNotificationService';
+import { tokenStorage } from '../api/tokenStorage';
 
 const STORAGE_KEY = 'huki_seller_feature_flags';
 
@@ -322,7 +323,7 @@ class FeatureFlagsService {
     if (typeof window === 'undefined' || this.isSyncing) return this.getStoredFeatures();
     this.isSyncing = true;
     try {
-      const token = localStorage.getItem('huki_access_token');
+      const token = tokenStorage.getAccessToken();
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -440,7 +441,7 @@ class FeatureFlagsService {
     this.saveFeatures(updated);
 
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('huki_access_token');
+      const token = tokenStorage.getAccessToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -541,7 +542,7 @@ class FeatureFlagsService {
 
     // Sync to server API
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('huki_access_token');
+      const token = tokenStorage.getAccessToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -611,7 +612,7 @@ class FeatureFlagsService {
     this.saveFeatures(updated);
 
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('huki_access_token');
+      const token = tokenStorage.getAccessToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -728,7 +729,7 @@ class FeatureFlagsService {
     this.saveFeatures(updated);
 
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('huki_access_token');
+      const token = tokenStorage.getAccessToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -767,7 +768,7 @@ class FeatureFlagsService {
     this.saveFeatures(updated);
 
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('huki_access_token');
+      const token = tokenStorage.getAccessToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -809,7 +810,7 @@ class FeatureFlagsService {
     this.saveFeatures(updated);
 
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('huki_access_token');
+      const token = tokenStorage.getAccessToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
