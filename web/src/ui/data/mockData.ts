@@ -14,6 +14,7 @@ export const booksData = [
     rating: 5.0,
     reviewCount: 3890,
     readCount: 24500,
+    price: 165000,
     pricePaper: 165000,
     originalPricePaper: 220000,
     priceEbook: 89000,

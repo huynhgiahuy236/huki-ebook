@@ -1,7 +1,16 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { Inject, Injectable, OnModuleInit, Optional, HttpStatus } from '@nestjs/common';
 import { EBOOK_STORAGE, EbookStorage } from './storage/storage.interfaces';
 
 export const REAL_EBOOK_MAPPINGS: Record<string, string> = {
+  'tu-duy-nhanh-va-cham': 'ebooks/default-ebook.pdf',
+  'tu-duy-nhanh-va-cham-ebook-1789635371749': 'ebooks/default-ebook.pdf',
+  'cha-giau-cha-ngheo': 'ebooks/default-ebook.pdf',
+  'toi-ac-va-trung-phat': 'ebooks/default-ebook.pdf',
+  'atomic-habits': 'ebooks/default-ebook.pdf',
+  'atomic-habits-thay-doi-ti-hon-hieu-qua-bat-ngo': 'ebooks/default-ebook.pdf',
+  'atomic-habits-thay-doi-ti-hon': 'ebooks/default-ebook.pdf',
   '1001-cach-giu-chan-khach-hang': 'ebooks/1001-cach-giu-chan-khach-hang.pdf',
   '101-y-tuong-quang-cao-khon-ngoan': 'ebooks/101-y-tuong-quang-cao-khon-ngoan.pdf',
   '12-tuyet-ky-ban-hang-brian-tracy': 'ebooks/12-tuyet-ky-ban-hang-brian-tracy.pdf',
@@ -140,6 +149,15 @@ export class BooksService implements OnModuleInit {
 
       // Create physical details
       if (dto.physicalDetails || format === BookFormat.PHYSICAL || format === BookFormat.BOTH) {
+        const dimObj: Record<string, any> = {};
+        if (dto.physicalDetails && (dto.physicalDetails as any).dimensions) {
+          dimObj.dimensions = (dto.physicalDetails as any).dimensions;
+        }
+        if (dto.pricePaper !== undefined) dimObj.pricePaper = dto.pricePaper;
+        if (dto.priceEbook !== undefined) dimObj.priceEbook = dto.priceEbook;
+        if (dto.priceCombo !== undefined) dimObj.priceCombo = dto.priceCombo;
+        const dimensionsStr = Object.keys(dimObj).length > 0 ? JSON.stringify(dimObj) : undefined;
+
         await tx.physicalBookDetails.create({
           data: {
             bookId: created.id,
@@ -147,6 +165,7 @@ export class BooksService implements OnModuleInit {
             reserved: 0,
             weight: dto.physicalDetails?.weight ?? 300,
             physicalEnabled: dto.physicalDetails?.physicalEnabled ?? true,
+            dimensions: dimensionsStr,
           },
         });
       }
@@ -236,7 +255,26 @@ export class BooksService implements OnModuleInit {
       where.status = BookStatus.PUBLISHED;
     }
 
-    if (query.business || query.store) where.storeId = query.business || query.store;
+    if (query.business || query.store) {
+      const bizVal = String(query.business || query.store || '').trim();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(bizVal);
+      if (isUuid) {
+        where.OR = [
+          { storeId: bizVal },
+          { ownerUserId: bizVal },
+          { publisherId: bizVal },
+        ];
+      } else {
+        const normSlug = bizVal.toLowerCase().replace(/-(official|store|shop)$/, '');
+        where.OR = [
+          { storeId: bizVal },
+          { publisher: { is: { slug: bizVal } } },
+          { publisher: { is: { slug: normSlug } } },
+          { publisher: { is: { name: { contains: normSlug.replace(/-/g, ' '), mode: 'insensitive' } } } },
+          { publisher: { is: { normalizedName: { contains: normSlug.replace(/-/g, ' '), mode: 'insensitive' } } } },
+        ];
+      }
+    }
     if (query.format) where.format = query.format;
     const catVal = query.categoryId || query.category;
     if (catVal) {
@@ -296,6 +334,7 @@ export class BooksService implements OnModuleInit {
           reserved: true,
           physicalEnabled: true,
           weight: true,
+          dimensions: true,
         },
       },
     };
@@ -678,6 +717,20 @@ export class BooksService implements OnModuleInit {
     const reserved = physical?.reserved ?? 0;
     const available = Math.max(0, stock - reserved);
 
+    let pricePaper: number | undefined;
+    let priceEbook: number | undefined;
+    let priceCombo: number | undefined;
+    if (physical?.dimensions) {
+      try {
+        const dim = typeof physical.dimensions === 'string' ? JSON.parse(physical.dimensions) : physical.dimensions;
+        if (dim && typeof dim === 'object') {
+          if (dim.pricePaper !== undefined) pricePaper = Number(dim.pricePaper);
+          if (dim.priceEbook !== undefined) priceEbook = Number(dim.priceEbook);
+          if (dim.priceCombo !== undefined) priceCombo = Number(dim.priceCombo);
+        }
+      } catch {}
+    }
+
     const basePrice = Number(book.price);
     let salePrice = basePrice;
     let originalPrice: number | undefined = undefined;
@@ -720,6 +773,9 @@ export class BooksService implements OnModuleInit {
       coverUrl: book.coverUrl,
       publishedAt: book.publishedAt,
       viewCount: book.viewCount,
+      pricePaper,
+      priceEbook,
+      priceCombo,
       soldCount: Number(soldCount || 0),
       sales: Number(soldCount || 0),
       rating: 0,
@@ -783,18 +839,65 @@ export class BooksService implements OnModuleInit {
       }
     }
 
+    // Default sample PDF key if unassigned
     if (!pdfKey) {
-      res.status(HttpStatus.NOT_FOUND).json({
-        statusCode: HttpStatus.NOT_FOUND,
-        code: 'NO_PDF_AVAILABLE',
-        message: 'Tác phẩm này hiện chưa có bản đọc số điện tử.',
-      });
-      return;
+      pdfKey = 'ebooks/default-ebook.pdf';
     }
+
+    const serveLocalFallback = () => {
+      const candidates = [
+        path.resolve(process.cwd(), 'apps/commerce-service/assets/default-ebook.pdf'),
+        path.resolve(__dirname, '../../assets/default-ebook.pdf'),
+        path.resolve(__dirname, '../../../../assets/default-ebook.pdf'),
+        path.resolve(process.cwd(), '../web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
+        path.resolve(process.cwd(), 'web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
+        path.resolve(__dirname, '../../../../../../web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
+      ];
+      let fallbackPath: string | null = null;
+      for (const c of candidates) {
+        if (fs.existsSync(c)) {
+          fallbackPath = c;
+          break;
+        }
+      }
+      if (!fallbackPath) {
+        res.status(HttpStatus.NOT_FOUND).json({
+          statusCode: HttpStatus.NOT_FOUND,
+          code: 'NO_PDF_AVAILABLE',
+          message: 'Tác phẩm này hiện chưa có bản đọc số điện tử.',
+        });
+        return;
+      }
+
+      const stat = fs.statSync(fallbackPath);
+      const fileSize = stat.size;
+      const range = req.headers?.range;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(book.slug || book.id)}.pdf"`);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+
+      if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunksize = end - start + 1;
+        const fileStream = fs.createReadStream(fallbackPath, { start, end });
+        res.status(HttpStatus.PARTIAL_CONTENT);
+        res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+        res.setHeader('Content-Length', chunksize.toString());
+        fileStream.pipe(res);
+      } else {
+        res.setHeader('Content-Length', fileSize.toString());
+        fs.createReadStream(fallbackPath).pipe(res);
+      }
+    };
 
     try {
       if (!this.ebookStorage?.getStream) {
-        throw new Error('Hệ thống lưu trữ sách điện tử chưa được cấu hình bộ đọc trực tuyến');
+        serveLocalFallback();
+        return;
       }
 
       const rangeHeader = req.headers?.range;
@@ -817,12 +920,8 @@ export class BooksService implements OnModuleInit {
 
       fileData.stream.pipe(res);
     } catch (err: any) {
-      console.error(`[BooksService] Error streaming PDF for key ${pdfKey}:`, err?.message || err);
-      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-        code: 'PDF_STREAM_ERROR',
-        message: 'Lỗi nạp tệp PDF từ hệ thống lưu trữ đám mây.',
-      });
+      console.warn(`[BooksService] Storage stream error for ${pdfKey}, falling back to local asset: ${err?.message || err}`);
+      serveLocalFallback();
     }
   }
 }

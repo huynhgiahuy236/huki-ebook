@@ -246,7 +246,7 @@ export default function StoreHeader({
     if (isAdmin) return 'Super Admin';
     if (user.role === 'BUSINESS') return 'Chủ Doanh Nghiệp';
     if (user.role === 'DELIVERY_STAFF' || user.role === 'SHIPPER') return 'Bưu Tá HuKi';
-    if (user.role === 'USER') return 'Độc Giả HUKI';
+    if (user.role === 'USER') return 'Độc Giả Cá Nhân';
     return user.role || 'Hội viên';
   }, [user, isAdmin]);
 

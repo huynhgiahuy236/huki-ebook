@@ -781,7 +781,7 @@ export default function CheckoutPage() {
         const shippingVoucherCode = appliedShippingVoucher?.code;
 
         const payload: any = {
-          addressId: selectedAddressId || undefined,
+          addressId: effectiveHasPhysical ? (selectedAddressId || undefined) : undefined,
           shippingAddress:
             !selectedAddressId && effectiveHasPhysical && activeAddress
               ? {
@@ -801,6 +801,10 @@ export default function CheckoutPage() {
         };
 
         if (isDirectMode && directItem) {
+          const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(directItem.bookId || directItem.id);
+          if (!isUUID) {
+            return;
+          }
           payload.directItem = {
             bookId: directItem.bookId || directItem.id,
             format:
@@ -812,7 +816,7 @@ export default function CheckoutPage() {
         } else {
           payload.cartItemIds = checkedItems
             .map((it: any) => it.id)
-            .filter(Boolean);
+            .filter((id: any) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
         }
 
         const res = await checkoutApi.previewCheckout(payload);
@@ -1097,7 +1101,7 @@ export default function CheckoutPage() {
           typeof id === "string" &&
           /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
-        const validAddressId = isUUID(selectedAddressId) ? selectedAddressId : undefined;
+        const validAddressId = effectiveHasPhysical && isUUID(selectedAddressId) ? selectedAddressId : undefined;
 
         const previewPayload: any = {
           addressId: validAddressId,
@@ -1110,6 +1114,18 @@ export default function CheckoutPage() {
         };
 
         if (isDirectMode && directItem) {
+          const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(directItem.bookId || directItem.id);
+          if (!isUUID) {
+            setIsSubmitting(false);
+            showToast(
+              {
+                title: "Ấn phẩm thử nghiệm",
+                message: "Cuốn sách này là dữ liệu mẫu demo, vui lòng chọn các tác phẩm chính thức từ Trang chủ để hoàn tất đặt hàng.",
+              },
+              "warning"
+            );
+            return;
+          }
           previewPayload.directItem = {
             bookId: directItem.bookId || directItem.id,
             format:
@@ -1121,7 +1137,7 @@ export default function CheckoutPage() {
         } else {
           previewPayload.cartItemIds = checkedItems
             .map((it: any) => it.id)
-            .filter(Boolean);
+            .filter((id: any) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
         }
 
         const previewRes = await checkoutApi.previewCheckout(previewPayload);
@@ -1232,6 +1248,29 @@ export default function CheckoutPage() {
             }
           } catch (invErr) {
             console.warn('Could not broadcast inventory update:', invErr);
+          }
+
+          // Free order / 0đ handling
+          if (Number(orderData.grandTotal) <= 0 || orderData.paymentStatus === 'SUCCEEDED') {
+            setIsSubmitting(false);
+            if (isDirectMode && typeof window !== "undefined") {
+              sessionStorage.removeItem("huki_direct_checkout_item");
+            } else {
+              clearCart();
+            }
+            showToast(
+              {
+                title: "Đặt hàng thành công!",
+                message: `Đơn hàng #${orderData.code} đã được kích hoạt thành công vào Tủ Sách HUKI.`,
+              },
+              "success"
+            );
+            setTimeout(() => {
+              router.push(
+                `/order-success?orderId=${orderData.id}&code=${orderData.code}&paymentMethod=FREE`
+              );
+            }, 300);
+            return;
           }
 
           if (isOnline) {

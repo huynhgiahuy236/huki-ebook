@@ -98,4 +98,22 @@ export class CreateBookDto {
   @IsOptional()
   @Type(() => Boolean)
   enableAffiliate?: boolean;
+
+  @ApiPropertyOptional({ description: 'Paperback price for hybrid products' })
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  pricePaper?: number;
+
+  @ApiPropertyOptional({ description: 'Ebook price for hybrid products' })
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  priceEbook?: number;
+
+  @ApiPropertyOptional({ description: 'Combo price for hybrid products' })
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  priceCombo?: number;
 }

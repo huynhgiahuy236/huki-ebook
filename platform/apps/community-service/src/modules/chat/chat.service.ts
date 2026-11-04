@@ -1,3 +1,11 @@
+const OFFICIAL_STORE_ALIASES = [
+  '77777777-0000-4000-8000-000000000001',
+  '3094e54e-2549-42cc-92fb-14a8f8589277',
+  '1079fc76-a467-48a9-8034-b072aaa5afea',
+  'nha-sach-huki-official',
+  'huki-official',
+];
+
 import { Injectable, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { randomUUID } from "crypto";

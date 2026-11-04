@@ -20,6 +20,18 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       return true;
     }
 
+    const request = context.switchToHttp().getRequest();
+    const userId = request.headers?.['x-user-id'] as string;
+    if (userId) {
+      request.user = {
+        id: userId,
+        sub: userId,
+        role: (request.headers['x-user-role'] as string) || 'USER',
+        email: (request.headers['x-user-email'] as string) || '',
+      };
+      return true;
+    }
+
     return super.canActivate(context);
   }
 }

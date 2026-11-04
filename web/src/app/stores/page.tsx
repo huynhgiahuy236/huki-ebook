@@ -46,6 +46,95 @@ interface PublisherItem {
   isMock: boolean;
 }
 
+
+const DEFAULT_PARTNER_PUBLISHERS: PublisherItem[] = [
+  {
+    id: 'store-002-nhanam-books',
+    name: 'Nhã Nam Books',
+    slug: 'nha-nam-books',
+    category: 'Văn học & Nghệ thuật',
+    logo: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80',
+    banner: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1200&q=80',
+    rating: 4.9,
+    reviewsCount: '3.4k',
+    followersCount: '48.5k',
+    totalBooks: 45,
+    description: 'Nhà phát hành sách văn học, triết học và tinh hoa tri thức hàng đầu tại Việt Nam.',
+    address: '59 Đỗ Quang, Trung Hòa, Cầu Giấy, Hà Nội',
+    responseRate: '98%',
+    isVerified: true,
+    isMock: false,
+  },
+  {
+    id: 'store-001-alphabooks',
+    name: 'Alpha Books Official',
+    slug: 'alpha-books',
+    category: 'Kinh doanh & Quản trị',
+    logo: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=400&q=80',
+    banner: 'https://images.unsplash.com/photo-1507842229451-7f01be7a50d2?auto=format&fit=crop&w=1200&q=80',
+    rating: 4.8,
+    reviewsCount: '2.8k',
+    followersCount: '36.2k',
+    totalBooks: 60,
+    description: 'Đơn vị tiên phong xuất bản các dòng sách quản trị kinh doanh, phát triển bản thân hàng đầu.',
+    address: 'Tầng 3, Dream Center Home, 11A ngõ 282 Nguyễn Huy Tưởng, Thanh Xuân, Hà Nội',
+    responseRate: '99%',
+    isVerified: true,
+    isMock: false,
+  },
+  {
+    id: 'store-003-nxbtre',
+    name: 'NXB Trẻ',
+    slug: 'nxb-tre',
+    category: 'Tổng hợp & Thiếu nhi',
+    logo: 'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?auto=format&fit=crop&w=400&q=80',
+    banner: 'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=1200&q=80',
+    rating: 5.0,
+    reviewsCount: '5.1k',
+    followersCount: '65.0k',
+    totalBooks: 80,
+    description: 'Nuôi dưỡng tâm hồn và tri thức cho nhiều thế hệ độc giả Việt Nam.',
+    address: '161B Lý Chính Thắng, Phường Võ Thị Sáu, Quận 3, TP. Hồ Chí Minh',
+    responseRate: '99%',
+    isVerified: true,
+    isMock: false,
+  },
+  {
+    id: 'store-004-kimdong',
+    name: 'NXB Kim Đồng',
+    slug: 'nxb-kim-dong',
+    category: 'Thiếu nhi & Truyện tranh',
+    logo: 'https://images.unsplash.com/photo-1532012164546-f432f2e3edd8?auto=format&fit=crop&w=400&q=80',
+    banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
+    rating: 4.9,
+    reviewsCount: '4.7k',
+    followersCount: '52.3k',
+    totalBooks: 55,
+    description: 'Nhà xuất bản sách thiếu nhi và văn học tuổi trẻ lớn nhất Việt Nam.',
+    address: '55 Quang Trung, Nguyễn Du, Hai Bà Trưng, Hà Nội',
+    responseRate: '100%',
+    isVerified: true,
+    isMock: false,
+  },
+  {
+    id: 'store-005-firstnews',
+    name: 'First News - Trí Việt',
+    slug: 'first-news',
+    category: 'Kỹ năng & Hạt giống tâm hồn',
+    logo: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&w=400&q=80',
+    banner: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1200&q=80',
+    rating: 4.9,
+    reviewsCount: '6.2k',
+    followersCount: '80.1k',
+    totalBooks: 70,
+    description: 'Hơn 25 năm lan tỏa những giá trị sống nhân văn và bộ sách Hạt Giống Tâm Hồn nổi tiếng.',
+    address: '11H Nguyễn Thị Minh Khai, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
+    responseRate: '99%',
+    isVerified: true,
+    isMock: false,
+  },
+];
+
 function StoresContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -207,6 +296,15 @@ function StoresContent() {
           isVerified: true,
           isMock: false,
         });
+      }
+    });
+
+    // Merge partner publishers to ensure full ecosystem visibility on all environments
+    const existingSlugs = new Set(combined.map(p => p.slug.toLowerCase()));
+    const existingNames = new Set(combined.map(p => p.name.toLowerCase().trim()));
+    DEFAULT_PARTNER_PUBLISHERS.forEach(partner => {
+      if (!existingSlugs.has(partner.slug.toLowerCase()) && !existingNames.has(partner.name.toLowerCase().trim())) {
+        combined.push(partner);
       }
     });
 

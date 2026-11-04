@@ -153,6 +153,17 @@ export default function LibraryPage() {
   }, [user?.id, isAuthLoading]);
 
   // 3. Toggle yêu thích trực tiếp trong tủ sách
+  const handleRemoveBook = async (bookId: string, title: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm(`Bạn có chắc chắn muốn bỏ cuốn sách "${title}" khỏi Tủ Sách cá nhân?`)) {
+      return;
+    }
+    const success = await libraryApi.removeBookFromLibrary(bookId);
+    setBooks((prev) => prev.filter((b) => (b.bookId || b.id) !== bookId));
+    setExternalWishlistBooks((prev) => prev.filter((b) => (b.bookId || b.id) !== bookId));
+  };
+
   const handleToggleFavorite = (bookId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -644,6 +655,15 @@ export default function LibraryPage() {
                           {book.status === 'WISHLIST' ? 'visibility' : 'headphones'}
                         </span>
                       </Link>
+
+                      <button
+                        type="button"
+                        onClick={(e) => handleRemoveBook(bookKey, book.title, e)}
+                        className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors flex items-center justify-center cursor-pointer"
+                        title="Bỏ khỏi tủ sách"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">delete</span>
+                      </button>
                     </div>
                   </div>
                 );

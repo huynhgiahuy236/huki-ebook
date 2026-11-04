@@ -104,8 +104,30 @@ export class PaymentsService
     if (active?.checkoutUrl) return this.paymentView(active);
 
     const amount = Number(o.grandTotal);
-    if (!Number.isSafeInteger(amount) || amount <= 0) {
+    if (!Number.isSafeInteger(amount) || amount < 0) {
       throwBadRequest(ErrorCode.VALIDATION_MIN_VALUE);
+    }
+    if (amount === 0) {
+      await this.prisma.order.update({
+        where: { id: orderId },
+        data: {
+          paymentStatus: PaymentStatus.SUCCEEDED,
+          status: o.status === 'PENDING_PAYMENT' ? 'COMPLETED' : o.status,
+        },
+      });
+      return {
+        id: `free-pay-${orderId}`,
+        orderId,
+        orderCode: o.code,
+        amount: 0,
+        status: PaymentStatus.SUCCEEDED,
+        method: PaymentMethod.ONLINE_PAYMENT,
+        provider: 'FREE',
+        checkoutUrl: '',
+        qrCode: '',
+        paymentLinkId: 'free-order',
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      };
     }
     const orderCode =
       Math.floor(Date.now() / 1000) * 1000 + Math.floor(Math.random() * 1000);

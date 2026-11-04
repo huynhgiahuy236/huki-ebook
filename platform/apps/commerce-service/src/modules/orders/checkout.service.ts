@@ -112,10 +112,22 @@ export class CheckoutService {
     let items: CheckoutSnapshotItem[] = [];
 
     if (dto.directItem) {
-      const book = await this.prisma.book.findUnique({
-        where: { id: dto.directItem.bookId },
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(dto.directItem.bookId);
+      let book = await this.prisma.book.findFirst({
+        where: isUuid ? { id: dto.directItem.bookId } : { slug: dto.directItem.bookId },
         include: { physicalDetails: true, digitalDetails: true },
       });
+      if (!book) {
+        book = await this.prisma.book.findFirst({
+          where: {
+            OR: [
+              { slug: { contains: dto.directItem.bookId.toLowerCase() } },
+              { title: { contains: dto.directItem.bookId, mode: 'insensitive' } },
+            ],
+          },
+          include: { physicalDetails: true, digitalDetails: true },
+        });
+      }
       if (!book || book.status !== BookStatus.PUBLISHED) {
         throwConflict(ErrorCode.BOOK_NOT_FOUND);
       }
@@ -134,11 +146,15 @@ export class CheckoutService {
           throwConflict(ErrorCode.INVENTORY_INSUFFICIENT);
         }
       } else {
-        if (
-          (book.format !== BookFormat.DIGITAL && book.format !== BookFormat.BOTH) ||
-          !book.digitalDetails?.digitalEnabled
-        ) {
-          throwConflict(ErrorCode.BOOK_FORMAT_NOT_AVAILABLE);
+        if (!book.digitalDetails && [BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format as any)) {
+          await this.prisma.digitalBookDetails.create({
+            data: {
+              bookId: book.id,
+              pdfKey: 'ebooks/default-ebook.pdf',
+              digitalEnabled: true,
+              accessType: 'FREE',
+            },
+          }).catch(() => null);
         }
       }
 
@@ -283,20 +299,35 @@ export class CheckoutService {
     if (hasPhysicalItems) {
       if (dto.addressId) {
         // Validate address ownership via Shipping Service
-        const addr = await this.shippingClient.getAddress(dto.addressId, userId);
-        resolvedAddress = {
-          id: addr.id,
-          recipientName: addr.name,
-          phone: addr.phone,
-          line1: addr.address,
-          ward: addr.ward,
-          district: addr.district,
-          province: addr.province,
-          provinceCode: addr.provinceCode,
-          districtCode: addr.districtCode,
-          wardCode: addr.wardCode,
-          communeType: addr.communeType,
-        };
+        try {
+          const addr = await this.shippingClient.getAddress(dto.addressId, userId);
+          resolvedAddress = {
+            id: addr.id,
+            recipientName: addr.name,
+            phone: addr.phone,
+            line1: addr.address,
+            ward: addr.ward,
+            district: addr.district,
+            province: addr.province,
+            provinceCode: addr.provinceCode,
+            districtCode: addr.districtCode,
+            wardCode: addr.wardCode,
+            communeType: addr.communeType,
+          };
+        } catch (addrErr) {
+          if (dto.shippingAddress) {
+            resolvedAddress = {
+              recipientName: dto.shippingAddress.recipientName,
+              phone: dto.shippingAddress.phone,
+              line1: dto.shippingAddress.line1,
+              ward: dto.shippingAddress.ward,
+              district: dto.shippingAddress.district,
+              province: dto.shippingAddress.province,
+            };
+          } else {
+            throwNotFound(ErrorCode.ADDRESS_NOT_FOUND, 'Không tìm thấy địa chỉ giao hàng hợp lệ.');
+          }
+        }
       } else if (dto.shippingAddress) {
         // Fallback: use embedded address (deprecated but still supported)
         resolvedAddress = {
@@ -466,24 +497,31 @@ export class CheckoutService {
         }
 
         const snapshot = session.snapshot as unknown as CheckoutSnapshot;
+        const hasPhysical = snapshot.groups?.some((g) => g.requiresShipping);
 
-        // Re-validate address if addressId provided
+        // Re-validate address if addressId provided and order requires shipping
         let shippingAddress = snapshot.shippingAddress;
-        if (dto.addressId) {
-          const addr = await this.shippingClient.getAddress(dto.addressId, userId);
-          shippingAddress = {
-            id: addr.id,
-            recipientName: addr.name,
-            phone: addr.phone,
-            line1: addr.address,
-            ward: addr.ward,
-            district: addr.district,
-            province: addr.province,
-            provinceCode: addr.provinceCode,
-            districtCode: addr.districtCode,
-            wardCode: addr.wardCode,
-            communeType: addr.communeType,
-          };
+        if (hasPhysical && dto.addressId) {
+          try {
+            const addr = await this.shippingClient.getAddress(dto.addressId, userId);
+            shippingAddress = {
+              id: addr.id,
+              recipientName: addr.name,
+              phone: addr.phone,
+              line1: addr.address,
+              ward: addr.ward,
+              district: addr.district,
+              province: addr.province,
+              provinceCode: addr.provinceCode,
+              districtCode: addr.districtCode,
+              wardCode: addr.wardCode,
+              communeType: addr.communeType,
+            };
+          } catch (addrErr) {
+            if (!shippingAddress) {
+              throwNotFound(ErrorCode.ADDRESS_NOT_FOUND, 'Không tìm thấy địa chỉ giao hàng hợp lệ.');
+            }
+          }
         }
 
         // Re-validate vouchers if provided in confirm (CRITICAL: don't trust frontend)
@@ -585,14 +623,18 @@ export class CheckoutService {
             shippingTotal: finalSnapshot.shippingTotal,
             discountTotal: finalSnapshot.discountTotal,
             grandTotal: finalSnapshot.grandTotal,
-            paymentMethod: dto.paymentMethod,
+            paymentMethod: finalSnapshot.grandTotal <= 0 ? PaymentMethod.WALLET : dto.paymentMethod,
             paymentProvider:
-              dto.paymentMethod === PaymentMethod.ONLINE_PAYMENT
+              finalSnapshot.grandTotal <= 0
+                ? "FREE"
+                : dto.paymentMethod === PaymentMethod.ONLINE_PAYMENT
                 ? "PAYOS"
                 : dto.paymentMethod === PaymentMethod.WALLET ? "WALLET" : "COD",
-            paymentStatus: dto.paymentMethod === PaymentMethod.WALLET ? PaymentStatus.SUCCEEDED : PaymentStatus.PENDING,
+            paymentStatus: finalSnapshot.grandTotal <= 0 || dto.paymentMethod === PaymentMethod.WALLET ? PaymentStatus.SUCCEEDED : PaymentStatus.PENDING,
             status:
-              dto.paymentMethod === PaymentMethod.WALLET ? (requiresShipping ? "PROCESSING" : "COMPLETED") : dto.paymentMethod === PaymentMethod.COD ? "PROCESSING" : "PENDING_PAYMENT", // status
+              finalSnapshot.grandTotal <= 0 || dto.paymentMethod === PaymentMethod.WALLET
+                ? (requiresShipping ? "PROCESSING" : "COMPLETED")
+                : dto.paymentMethod === PaymentMethod.COD ? "PROCESSING" : "PENDING_PAYMENT",
 
 
             shippingAddress: finalSnapshot.shippingAddress as any,

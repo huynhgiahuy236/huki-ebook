@@ -437,12 +437,8 @@ export function SellerFlashSaleView() {
           : [];
       }
 
-      const finalBooks = bizId
-        ? books.filter((b) => {
-            const bStore = b.storeId || b.businessId || (b as any).business?.id;
-            return !bStore || bStore === bizId;
-          })
-        : books;
+      // catalogApi.getSellerBooks already scopes books strictly to the authenticated seller
+      const finalBooks = books;
 
       setRawBooks(finalBooks);
 

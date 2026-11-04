@@ -267,6 +267,9 @@ export class BookAccessService {
       where: {
         userId,
         status: 'ACTIVE',
+        NOT: {
+          orderId: { startsWith: 'ORD-WELCOME-' },
+        },
       },
       include: {
         book: {
@@ -282,59 +285,6 @@ export class BookAccessService {
         updatedAt: 'desc',
       },
     });
-
-    // Nếu user mới chưa có sách nào trong tủ sách, tự động tặng 3 cuốn sách số đọc thử từ DB thật
-    if (accesses.length === 0) {
-      try {
-        const freeBooks = await this.prisma.book.findMany({
-          where: {
-            status: 'PUBLISHED',
-            format: { in: ['DIGITAL', 'BOTH'] as any },
-          },
-          take: 3,
-          orderBy: { createdAt: 'desc' },
-        });
-
-        if (freeBooks.length > 0) {
-          for (let i = 0; i < freeBooks.length; i++) {
-            const b = freeBooks[i];
-            await this.prisma.bookAccess.create({
-              data: {
-                userId,
-                bookId: b.id,
-                orderId: `ORD-WELCOME-${b.id.substring(0, 8)}`,
-                readingProgress: i === 0 ? 35 : i === 1 ? 12 : 0,
-                status: 'ACTIVE',
-                accessType: 'FREE' as any,
-              },
-            }).catch(() => null);
-          }
-
-          accesses = await this.prisma.bookAccess.findMany({
-            where: {
-              userId,
-              status: 'ACTIVE',
-            },
-            include: {
-              book: {
-                include: {
-                  author: true,
-                  publisher: true,
-                  category: true,
-                  digitalDetails: true,
-                },
-              },
-            },
-            orderBy: {
-              updatedAt: 'desc',
-            },
-          });
-        }
-      } catch (err) {
-        console.warn('[BookAccessService] Tự động cấp sách chào mừng cho tủ sách thất bại:', err);
-      }
-    }
-
 
     return accesses.map((acc) => ({
       accessId: acc.id,
@@ -357,5 +307,21 @@ export class BookAccessService {
       accessType: acc.accessType,
       status: acc.status,
     }));
+  }
+  async removeBookFromLibrary(userId: string, bookId: string) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(bookId);
+    let targetBookId = bookId;
+    if (!isUuid) {
+      const b = await this.prisma.book.findFirst({ where: { slug: bookId } });
+      if (b) targetBookId = b.id;
+    }
+
+    const deleted = await this.prisma.bookAccess.deleteMany({
+      where: {
+        userId,
+        bookId: targetBookId,
+      },
+    });
+    return { success: true, count: deleted.count };
   }
 }

@@ -919,27 +919,36 @@ export class VouchersService {
       throwBadRequest(ErrorCode.VOUCHER_EXPIRED);
     }
 
-    return this.prisma.voucher.create({
-      data: {
-        code: dto.code.toUpperCase(),
-        name: dto.name,
-        description: dto.description,
-        type: dto.type as any,
-        value: dto.value,
-        minOrderAmount: dto.minOrderAmount ?? 0,
-        maxDiscountAmount: dto.maxDiscountAmount,
-        scope: 'STORE',
-        storeId: dto.storeId,
-        targetAudience: (dto.targetAudience as any) ?? 'ALL',
-        minFollowDays: dto.minFollowDays ?? 0,
-        totalUsage: dto.totalUsage ?? 0,
-        maxUsagePerUser: dto.maxUsagePerUser,
-        currentUsage: 0,
-        startsAt,
-        expiresAt,
-        status: 'ACTIVE',
-      },
-    });
+    const createData: any = {
+      code: dto.code.toUpperCase(),
+      name: dto.name,
+      description: dto.description,
+      type: dto.type as any,
+      value: dto.value,
+      minOrderAmount: dto.minOrderAmount ?? 0,
+      maxDiscountAmount: dto.maxDiscountAmount,
+      scope: 'STORE',
+      storeId: dto.storeId || businessId,
+      targetAudience: (dto.targetAudience as any) ?? 'ALL',
+      minFollowDays: dto.minFollowDays ?? 0,
+      totalUsage: dto.totalUsage ?? 0,
+      maxUsagePerUser: dto.maxUsagePerUser,
+      currentUsage: 0,
+      startsAt,
+      expiresAt,
+      status: 'ACTIVE',
+    };
+
+    try {
+      return await this.prisma.voucher.create({ data: createData });
+    } catch (e: any) {
+      if (e?.message?.includes('target_audience') || e?.message?.includes('min_follow_days')) {
+        delete createData.targetAudience;
+        delete createData.minFollowDays;
+        return await this.prisma.voucher.create({ data: createData });
+      }
+      throw e;
+    }
   }
 
   /**

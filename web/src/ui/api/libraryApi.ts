@@ -23,6 +23,19 @@ export interface UserLibraryBook {
 }
 
 export const libraryApi = {
+  async removeBookFromLibrary(bookId: string): Promise<boolean> {
+    try {
+      const res = await apiClient<{ success: boolean }>(`/books/library/${encodeURIComponent(bookId)}`, {
+        method: 'DELETE',
+        skipAuth: false,
+      });
+      return Boolean(res?.success || (res as any)?.data?.success);
+    } catch (err) {
+      console.warn('Could not remove book from library:', err);
+      return false;
+    }
+  },
+
   async getMyLibrary(userId?: string): Promise<UserLibraryBook[]> {
     if (!userId) {
       return [];

@@ -25,26 +25,28 @@ function deleteCookie(name: string): void {
 export const tokenStorage = {
   getTokens(): AuthTokens | null {
     const accessToken = this.getAccessToken();
-    return accessToken ? { accessToken, refreshToken: '' } : null;
+    const refreshToken = this.getRefreshToken() || '';
+    return accessToken ? { accessToken, refreshToken } : null;
   },
 
   setTokens(tokens: AuthTokens): void {
     if (typeof window !== 'undefined' && window.localStorage) {
       if (tokens.accessToken) localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
-      // Security: Do not store refreshToken in localStorage; clean up legacy key
-      localStorage.removeItem(REFRESH_TOKEN_KEY);
+      if (tokens.refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
     }
     if (tokens.accessToken) setCookie(ACCESS_TOKEN_KEY, tokens.accessToken, 7);
-    deleteCookie(REFRESH_TOKEN_KEY);
+    if (tokens.refreshToken) setCookie(REFRESH_TOKEN_KEY, tokens.refreshToken, 7);
   },
 
   clearTokens(): void {
     if (typeof window !== 'undefined' && window.localStorage) {
       localStorage.removeItem(ACCESS_TOKEN_KEY);
       localStorage.removeItem(REFRESH_TOKEN_KEY);
+      localStorage.removeItem('token');
     }
     deleteCookie(ACCESS_TOKEN_KEY);
     deleteCookie(REFRESH_TOKEN_KEY);
+    deleteCookie('token');
   },
 
   getAccessToken(): string | null {
@@ -56,8 +58,10 @@ export const tokenStorage = {
   },
 
   getRefreshToken(): string | null {
-    // Refresh token is maintained exclusively in HttpOnly cookies by the browser.
-    return null;
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const token = localStorage.getItem(REFRESH_TOKEN_KEY);
+      if (token) return token;
+    }
+    return getCookie(REFRESH_TOKEN_KEY) || getCookie('refreshToken');
   },
 };
-

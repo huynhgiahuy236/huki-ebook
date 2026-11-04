@@ -68,6 +68,16 @@ export class BooksController {
     return { data: books };
   }
 
+  @Delete('library/:bookId')
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({ summary: 'Remove a book from personal library' })
+  async removeBookFromLibrary(
+    @Param('bookId') bookId: string,
+    @CurrentBookActor() actor: BookActor,
+  ) {
+    return this.bookAccessService.removeBookFromLibrary(actor.sub, bookId);
+  }
+
   @Get('slug/:slug')
   @UseGuards(OptionalBookAuthGuard)
   @ApiOperation({ summary: 'Get a book by slug' })

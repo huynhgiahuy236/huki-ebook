@@ -25,8 +25,8 @@ export interface ShippingAddress {
 }
 
 export class DirectCheckoutItemDto {
-  @ApiProperty()
-  @IsUUID()
+  @ApiProperty({ description: 'Book ID (UUID) or Book Slug' })
+  @IsString()
   bookId: string;
 
   @ApiProperty({ enum: CartItemFormat })
@@ -42,14 +42,14 @@ export class DirectCheckoutItemDto {
 export class ShippingAddressDto implements ShippingAddress {
   @ApiProperty()
   @IsString()
-  @MinLength(2)
+  @MinLength(1)
   @MaxLength(100)
   recipientName: string;
-  @ApiProperty() @IsPhoneNumber('VN') phone: string;
-  @ApiProperty() @IsString() @MinLength(3) @MaxLength(250) line1: string;
-  @ApiProperty() @IsString() @MinLength(2) @MaxLength(100) ward: string;
-  @ApiProperty() @IsString() @MinLength(2) @MaxLength(100) district: string;
-  @ApiProperty() @IsString() @MinLength(2) @MaxLength(100) province: string;
+  @ApiProperty() @IsString() phone: string;
+  @ApiProperty() @IsString() @MinLength(1) @MaxLength(250) line1: string;
+  @ApiProperty() @IsString() @MinLength(1) @MaxLength(100) ward: string;
+  @ApiProperty() @IsString() @MinLength(1) @MaxLength(100) district: string;
+  @ApiProperty() @IsString() @MinLength(1) @MaxLength(100) province: string;
 }
 
 export class CheckoutPreviewDto {
@@ -62,7 +62,7 @@ export class CheckoutPreviewDto {
   @ApiPropertyOptional({ type: [String], description: 'Selected cart item IDs to checkout' })
   @IsOptional()
   @IsArray()
-  @IsUUID('all', { each: true })
+  @IsString({ each: true })
   cartItemIds?: string[];
 
   @ApiPropertyOptional({ description: 'Address ID - validated against user ownership' })

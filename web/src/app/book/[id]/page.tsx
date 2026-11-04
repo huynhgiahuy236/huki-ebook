@@ -641,9 +641,9 @@ export default function BookDetailPage() {
         coverImage: realBook.coverUrl || realBook.coverImage,
         description: realBook.description || 'Cuốn sách được xuất bản chính thức trên hệ thống HUKI.',
         price: priceVal,
-        priceEbook: realBook.format === 'DIGITAL' || realBook.format === 'BOTH' ? priceVal : Math.round(priceVal * 0.6),
-        pricePaper: realBook.format === 'PHYSICAL' || realBook.format === 'BOTH' ? priceVal : priceVal,
-        priceCombo: Math.round(priceVal * 1.3),
+        priceEbook: Number(realBook.priceEbook || (realBook as any).ebookPrice) || (realBook.format === 'DIGITAL' ? priceVal : Math.round(priceVal * 0.6)),
+        pricePaper: Number(realBook.pricePaper || (realBook as any).physicalPrice) || priceVal,
+        priceCombo: Number(realBook.priceCombo || (realBook as any).comboPrice) || (realBook.format === 'BOTH' ? priceVal : Math.round(priceVal * 1.3)),
         originalPrice: originalPriceVal,
         rating: 5.0,
         reviewCount: 120,
@@ -832,11 +832,13 @@ export default function BookDetailPage() {
     const comboSalePrice = salePrice;
 
     const physicalOriginalPrice =
-      Number(realBook?.pricePaper || (realBook as any)?.physicalPrice) || Math.round(comboOriginalPrice * 0.75);
+      Number(realBook?.pricePaper || (realBook as any)?.physicalPrice) ||
+      (comboOriginalPrice > 0 ? Math.round(comboOriginalPrice * 0.75) : 0);
     const physicalSalePrice = calcSalePrice(physicalOriginalPrice);
 
     const ebookOriginalPrice =
-      Number(realBook?.priceEbook || (realBook as any)?.ebookPrice) || Math.round(comboOriginalPrice * 0.45);
+      Number(realBook?.priceEbook || (realBook as any)?.ebookPrice) ||
+      (comboOriginalPrice > 0 ? Math.round(comboOriginalPrice * 0.45) : 0);
     const ebookSalePrice = calcSalePrice(ebookOriginalPrice);
 
     return {

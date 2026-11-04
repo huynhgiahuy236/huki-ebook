@@ -349,25 +349,37 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let bookId = '';
 
       if (itemOrBook && typeof itemOrBook === 'object' && itemOrBook.title && itemOrBook.price) {
+        const fmtStr = String(itemOrBook.format || '').toLowerCase();
+        const typeStr = String(itemOrBook.type || '').toLowerCase();
+        const argFmt = String(format || '').toLowerCase();
+
         const isEbook =
-          itemOrBook.type === 'ebook' ||
-          format === 'ebook' ||
-          (itemOrBook.format && (itemOrBook.format === 'Ebook Số' || itemOrBook.format === 'DIGITAL' || itemOrBook.format === 'ebook'));
+          typeStr === 'ebook' ||
+          typeStr === 'digital' ||
+          argFmt === 'ebook' ||
+          argFmt === 'digital' ||
+          fmtStr === 'digital' ||
+          fmtStr.includes('ebook') ||
+          fmtStr.includes('số') ||
+          fmtStr.includes('drm');
 
         const isCombo =
-          itemOrBook.type === 'hybrid' ||
-          itemOrBook.type === 'combo' ||
-          format === 'combo' ||
-          format === 'hybrid' ||
-          (itemOrBook.format && (itemOrBook.format.toLowerCase().includes('combo') || itemOrBook.format.toLowerCase().includes('hybrid')));
+          typeStr === 'hybrid' ||
+          typeStr === 'combo' ||
+          argFmt === 'combo' ||
+          argFmt === 'hybrid' ||
+          fmtStr.includes('combo') ||
+          fmtStr.includes('hybrid');
 
         const isPhysical =
           !isEbook &&
-          (itemOrBook.type === 'physical' ||
-            format === 'paper' ||
-            format === 'physical' ||
+          (typeStr === 'physical' ||
+            argFmt === 'paper' ||
+            argFmt === 'physical' ||
             Boolean(isCombo) ||
-            (itemOrBook.format && (itemOrBook.format.toLowerCase().includes('giấy') || itemOrBook.format === 'PHYSICAL')));
+            fmtStr.includes('giấy') ||
+            fmtStr.includes('in') ||
+            fmtStr === 'physical');
 
         apiFormat = isPhysical ? 'PHYSICAL' : 'DIGITAL';
         bookId = itemOrBook.bookId || itemOrBook.id;
