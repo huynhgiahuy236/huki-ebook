@@ -5,8 +5,8 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { Client } = require('e:/HuKi/platform/node_modules/pg');
-const bcrypt = require('e:/HuKi/platform/node_modules/bcrypt');
+const { Client } = require('pg');
+const bcrypt = require('bcrypt');
 
 // Resolve database configuration
 const DB_HOST = process.env.DATABASE_HOST || 'localhost';
@@ -61,11 +61,12 @@ async function runSeed() {
   console.log('🚀 BẮT ĐẦU SEED HỆ SINH THÁI ĐỒNG BỘ 100% PK/FK CHO HUKI EBOOK');
   console.log('===============================================================\n');
 
-  const idClient = getDbClient('huki_identity');
-  const bizClient = getDbClient('huki_business');
-  const comClient = getDbClient('huki_commerce');
-  const shipClient = getDbClient('huki_shipping');
-  const proClient = getDbClient('huki_promotion');
+  const dbPrefix = process.env.DB_PREFIX || process.env.DB_NAME_PREFIX || 'huki';
+  const idClient = getDbClient(`${dbPrefix}_identity`);
+  const bizClient = getDbClient(`${dbPrefix}_business`);
+  const comClient = getDbClient(`${dbPrefix}_commerce`);
+  const shipClient = getDbClient(`${dbPrefix}_shipping`);
+  const proClient = getDbClient(`${dbPrefix}_promotion`);
 
   await idClient.connect();
   await bizClient.connect();
