@@ -41,9 +41,13 @@ describe('AffiliateLinkService - Phase 5 Link, Attribution & Analytics (Unit Tes
       affiliatePolicy: {
         findFirst: jest.fn().mockResolvedValue(mockActivePolicy),
       },
-      book: {
-        findUnique: jest.fn(),
-      },
+      book: (() => {
+        const bookMock = jest.fn();
+        return {
+          findUnique: bookMock,
+          findFirst: bookMock,
+        };
+      })(),
       storeAffiliateSetting: {
         findUnique: jest.fn(),
       },

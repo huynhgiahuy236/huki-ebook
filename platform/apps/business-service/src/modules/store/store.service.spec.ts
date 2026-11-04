@@ -15,6 +15,7 @@ describe('StoreService', () => {
     },
     business: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
     },
     $transaction: jest.fn(),
   };

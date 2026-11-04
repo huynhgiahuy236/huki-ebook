@@ -2,6 +2,39 @@ import { defineConfig } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
+const reactCompilerRules = [
+  'hooks',
+  'capitalized-calls',
+  'static-components',
+  'use-memo',
+  'void-use-memo',
+  'preserve-manual-memoization',
+  'memo-dependencies',
+  'incompatible-library',
+  'immutability',
+  'globals',
+  'refs',
+  'memoized-effect-dependencies',
+  'exhaustive-effect-dependencies',
+  'set-state-in-effect',
+  'no-deriving-state-in-effects',
+  'error-boundaries',
+  'purity',
+  'set-state-in-render',
+  'invariant',
+  'todo',
+  'syntax',
+  'unsupported-syntax',
+  'config',
+  'gating',
+  'rule-suppression',
+  'fbt',
+  'component-hook-factories'
+].reduce((acc, rule) => {
+  acc[`react-hooks/${rule}`] = 'off';
+  return acc;
+}, {});
+
 const eslintConfig = defineConfig([
   {
     // Global ignores must be the first entry in flat config
@@ -30,12 +63,8 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-explicit-any": "warn",
       "react/no-unescaped-entities": "off",
       "react-hooks/exhaustive-deps": "off",
-      "react-hooks/immutability": "off",
-      "react-hooks/preserve-manual-memoization": "off",
-      "react-hooks/purity": "off",
-      "react-hooks/refs": "off",
-      "react-hooks/use-memo": "off",
-      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/rules-of-hooks": "error",
+      ...reactCompilerRules,
       "@typescript-eslint/ban-ts-comment": "off",
       "prefer-const": "warn",
     },
