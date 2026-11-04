@@ -1021,4 +1021,253 @@ export class WalletService {
       limit,
     };
   }
+
+  async getMyWallet(userId: string): Promise<WalletView> {
+    const storeId = `user_${userId}`;
+    let wallet = await this.prisma.wallet.findFirst({
+      where: {
+        OR: [{ storeId }, { ownerUserId: userId }],
+      },
+    });
+    if (!wallet) {
+      wallet = await this.prisma.wallet.create({
+        data: {
+          storeId,
+          ownerUserId: userId,
+          availableBalance: new Decimal(0),
+          pendingBalance: new Decimal(0),
+          frozenBalance: new Decimal(0),
+          currency: 'VND',
+        },
+      });
+    }
+    return this.formatWalletView(wallet);
+  }
+
+  async topupMyWallet(userId: string, amount: number): Promise<WalletView> {
+    if (!amount || amount <= 0) {
+      throwBadRequest(ErrorCode.VALIDATION_ERROR, 'Số tiền nạp phải lớn hơn 0');
+    }
+    const storeId = `user_${userId}`;
+    let wallet = await this.prisma.wallet.findFirst({
+      where: {
+        OR: [{ storeId }, { ownerUserId: userId }],
+      },
+    });
+    if (!wallet) {
+      wallet = await this.prisma.wallet.create({
+        data: {
+          storeId,
+          ownerUserId: userId,
+          availableBalance: new Decimal(0),
+          pendingBalance: new Decimal(0),
+          frozenBalance: new Decimal(0),
+          currency: 'VND',
+        },
+      });
+    }
+
+    const availableBefore = wallet.availableBalance;
+    const availableAfter = new Decimal(availableBefore).plus(amount);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const up = await tx.wallet.update({
+        where: { id: wallet.id },
+        data: {
+          availableBalance: availableAfter,
+        },
+      });
+
+      await tx.walletTransaction.create({
+        data: {
+          walletId: wallet.id,
+          type: 'CREDIT_AVAILABLE',
+          amount: new Decimal(amount),
+          availableBefore,
+          availableAfter,
+          pendingBefore: wallet.pendingBalance,
+          pendingAfter: wallet.pendingBalance,
+          frozenBefore: wallet.frozenBalance,
+          frozenAfter: wallet.frozenBalance,
+          referenceType: 'TOPUP',
+          description: `Nạp ${amount.toLocaleString('vi-VN')} Xu vào ví`,
+        },
+      });
+
+      return up;
+    });
+
+    return this.formatWalletView(updated);
+  }
+
+  async getMyTransactions(userId: string, page = 1, limit = 10) {
+    const storeId = `user_${userId}`;
+    const wallet = await this.prisma.wallet.findFirst({
+      where: {
+        OR: [{ storeId }, { ownerUserId: userId }],
+      },
+    });
+    if (!wallet) {
+      return { data: [], total: 0, page, limit, totalPages: 0 };
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.walletTransaction.findMany({
+        where: { walletId: wallet.id },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.walletTransaction.count({
+        where: { walletId: wallet.id },
+      }),
+    ]);
+
+    return {
+      data: items.map((t) => ({
+        id: t.id,
+        type: t.type,
+        amount: Number(t.amount),
+        availableBefore: Number(t.availableBefore),
+        availableAfter: Number(t.availableAfter),
+        description: t.description,
+        createdAt: t.createdAt.toISOString(),
+      })),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+
+    return {
+      })),
+      total,
+      page,
+      limit,
+    };
+  }
+
+  async getMyWallet(userId: string): Promise<WalletView> {
+    const storeId = `user_${userId}`;
+    let myWallet = await this.prisma.wallet.findFirst({
+      where: {
+        OR: [{ storeId }, { ownerUserId: userId }],
+      },
+    });
+    if (!myWallet) {
+      myWallet = await this.prisma.wallet.create({
+        data: {
+          storeId,
+          ownerUserId: userId,
+          availableBalance: new Decimal(0),
+          pendingBalance: new Decimal(0),
+          frozenBalance: new Decimal(0),
+          currency: 'VND',
+        },
+      });
+    }
+    return this.formatWalletView(myWallet);
+  }
+
+  async topupMyWallet(userId: string, amount: number): Promise<WalletView> {
+    if (!amount || amount <= 0) {
+      throw new BadRequestException('Số tiền nạp phải lớn hơn 0');
+    }
+    const storeId = `user_${userId}`;
+    let myWallet = await this.prisma.wallet.findFirst({
+      where: {
+        OR: [{ storeId }, { ownerUserId: userId }],
+      },
+    });
+    if (!myWallet) {
+      myWallet = await this.prisma.wallet.create({
+        data: {
+          storeId,
+          ownerUserId: userId,
+          availableBalance: new Decimal(0),
+          pendingBalance: new Decimal(0),
+          frozenBalance: new Decimal(0),
+          currency: 'VND',
+        },
+      });
+    }
+
+    const availableBefore = myWallet.availableBalance;
+    const availableAfter = new Decimal(availableBefore).plus(amount);
+    const targetWalletId = myWallet.id;
+    const pendingBalance = myWallet.pendingBalance;
+    const frozenBalance = myWallet.frozenBalance;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const up = await tx.wallet.update({
+        where: { id: targetWalletId },
+        data: {
+          availableBalance: availableAfter,
+        },
+      });
+
+      await tx.walletTransaction.create({
+        data: {
+          walletId: targetWalletId,
+          type: 'CREDIT_AVAILABLE',
+          amount: new Decimal(amount),
+          availableBefore,
+          availableAfter,
+          pendingBefore: pendingBalance,
+          pendingAfter: pendingBalance,
+          frozenBefore: frozenBalance,
+          frozenAfter: frozenBalance,
+          referenceType: 'TOPUP',
+          description: `Nạp ${amount.toLocaleString('vi-VN')} Xu vào ví`,
+        },
+      });
+
+      return up;
+    });
+
+    return this.formatWalletView(updated);
+  }
+
+  async getMyTransactions(userId: string, page = 1, limit = 10) {
+    const storeId = `user_${userId}`;
+    const myWallet = await this.prisma.wallet.findFirst({
+      where: {
+        OR: [{ storeId }, { ownerUserId: userId }],
+      },
+    });
+    if (!myWallet) {
+      return { data: [], total: 0, page, limit, totalPages: 0 };
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.walletTransaction.findMany({
+        where: { walletId: myWallet.id },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.walletTransaction.count({
+        where: { walletId: myWallet.id },
+      }),
+    ]);
+
+    return {
+      data: items.map((t) => ({
+        id: t.id,
+        type: t.type,
+        amount: Number(t.amount),
+        availableBefore: Number(t.availableBefore),
+        availableAfter: Number(t.availableAfter),
+        description: t.description,
+        createdAt: t.createdAt.toISOString(),
+      })),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
 }

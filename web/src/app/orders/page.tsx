@@ -442,7 +442,7 @@ export default function OrdersPage() {
 
   return (
     <AccountLayout>
-      <div className="p-4 sm:p-6 space-y-4">
+      <div className="p-4 sm:p-6 space-y-4 w-full min-w-0 max-w-full overflow-hidden">
         {/* ================= 1. UNIVERSAL DATA TABLE FILTER BAR ================= */}
         <DataTableFilterBar
           tabs={[

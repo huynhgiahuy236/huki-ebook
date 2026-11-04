@@ -55,6 +55,11 @@ export class BookListQueryDto {
   @IsString()
   category?: string;
 
+  @ApiPropertyOptional({ description: 'Category UUID or slug alias for category' })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
   @ApiPropertyOptional({ default: false })
   @Transform(({ value }) => value === true || value === 'true')
   @IsOptional()

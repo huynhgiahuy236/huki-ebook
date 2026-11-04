@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { walletApi } from '@/ui/api/walletApi';
 import Link from 'next/link';
 import { useToast } from '@/ui/context/ToastContext';
 import AccountLayout from '@/ui/components/layout/AccountLayout';
@@ -13,10 +14,48 @@ export default function WalletPage() {
   const [rewardPoints, setRewardPoints] = useState(0);
   const [activeHistoryTab, setActiveHistoryTab] = useState('all');
   const [showTopupModal, setShowTopupModal] = useState(false);
+  const [isTopupLoading, setIsTopupLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedTopupAmount, setSelectedTopupAmount] = useState(300000);
-  const [transactions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
+
+  const loadWalletData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const [wRes, txRes] = await Promise.all([
+        walletApi.getMyWallet(),
+        walletApi.getMyTransactions({ page: 1, limit: 50 })
+      ]);
+      if (wRes && wRes.data) {
+        setWalletBalance(wRes.data.availableBalance || 0);
+      }
+      if (txRes && txRes.data && Array.isArray(txRes.data.items)) {
+        const mapped = txRes.data.items.map((t: any) => ({
+          id: t.id,
+          type: t.type === 'CREDIT_AVAILABLE' ? 'topup' : 'purchase',
+          title: t.description || (t.type === 'CREDIT_AVAILABLE' ? 'Nạp xu vào ví HUKI' : 'Thanh toán mua sách'),
+          amount: (t.type === 'CREDIT_AVAILABLE' ? '+' : '-') + t.amount.toLocaleString('vi-VN') + ' Xu',
+          rawAmount: t.amount,
+          isPositive: t.type === 'CREDIT_AVAILABLE',
+          date: new Date(t.createdAt).toLocaleString('vi-VN', {
+            hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric'
+          }),
+          icon: t.type === 'CREDIT_AVAILABLE' ? 'add_card' : 'shopping_bag',
+        }));
+        setTransactions(mapped);
+      }
+    } catch (err) {
+      console.warn('Lỗi tải dữ liệu ví:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadWalletData();
+  }, [loadWalletData]);
 
   const topupPackages = [
     {
@@ -92,11 +131,24 @@ export default function WalletPage() {
     }
   ];
 
-  const handleExecuteTopup = () => {
-    setWalletBalance(prev => prev + selectedTopupAmount);
-    setRewardPoints(prev => prev + 150);
-    setShowTopupModal(false);
-    showToast(`Nạp thành công ${selectedTopupAmount.toLocaleString('vi-VN')} Xu vào ví!`, 'success');
+  const handleExecuteTopup = async () => {
+    try {
+      setIsTopupLoading(true);
+      const res = await walletApi.topupMyWallet(selectedTopupAmount);
+      if (res && res.data) {
+        setWalletBalance(res.data.availableBalance);
+        setRewardPoints(prev => prev + 150);
+        showToast(`Nạp thành công ${selectedTopupAmount.toLocaleString('vi-VN')} Xu vào ví!`, 'success');
+        setShowTopupModal(false);
+        loadWalletData();
+      } else {
+        showToast(res?.error?.message || 'Nạp xu không thành công. Vui lòng thử lại.', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Lỗi kết nối khi nạp xu', 'error');
+    } finally {
+      setIsTopupLoading(false);
+    }
   };
 
   const handleRedeemReward = (item: any) => {

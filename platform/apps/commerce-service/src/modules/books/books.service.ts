@@ -156,7 +156,15 @@ export class BooksService {
 
     if (query.business || query.store) where.storeId = query.business || query.store;
     if (query.format) where.format = query.format;
-    if (query.category) where.categoryId = query.category;
+    const catVal = query.categoryId || query.category;
+    if (catVal) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(catVal);
+      if (isUuid) {
+        where.categoryId = catVal;
+      } else {
+        where.category = { is: { slug: catVal } };
+      }
+    }
     if (query.author) where.authorId = query.author;
     if (query.publisher) where.publisherId = query.publisher;
     if (query.search) {

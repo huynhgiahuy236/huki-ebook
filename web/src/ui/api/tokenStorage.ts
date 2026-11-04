@@ -49,10 +49,10 @@ export const tokenStorage = {
 
   getAccessToken(): string | null {
     if (typeof window !== 'undefined' && window.localStorage) {
-      const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+      const token = localStorage.getItem(ACCESS_TOKEN_KEY) || localStorage.getItem('token');
       if (token) return token;
     }
-    return getCookie(ACCESS_TOKEN_KEY);
+    return getCookie(ACCESS_TOKEN_KEY) || getCookie('token');
   },
 
   getRefreshToken(): string | null {

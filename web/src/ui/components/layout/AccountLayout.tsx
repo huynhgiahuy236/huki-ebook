@@ -184,7 +184,7 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
         </nav>
 
         {/* 2-Column Responsive Layout */}
-        <div className="flex flex-col md:flex-row gap-5 items-start">
+        <div className="flex flex-col md:flex-row gap-5 items-start w-full min-w-0">
           
           {/* ================= LEFT ACCOUNT SIDEBAR ================= */}
           <aside className="w-full md:w-72 lg:w-80 shrink-0 bg-white rounded-2xl border border-gray-200/80 shadow-xs p-4 sm:p-5 space-y-5">
@@ -253,7 +253,7 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
           </aside>
 
           {/* ================= RIGHT MAIN CONTENT PANEL ================= */}
-          <main className="flex-1 min-w-0 bg-white rounded-xl border border-gray-200/80 shadow-2xs overflow-hidden">
+          <main className="w-full flex-1 min-w-0 bg-white rounded-xl border border-gray-200/80 shadow-2xs overflow-hidden">
             {children}
           </main>
         </div>

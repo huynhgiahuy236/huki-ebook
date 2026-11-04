@@ -589,12 +589,12 @@ export class CheckoutService {
             paymentProvider:
               dto.paymentMethod === PaymentMethod.ONLINE_PAYMENT
                 ? "PAYOS"
-                : "COD",
-            paymentStatus: PaymentStatus.PENDING,
+                : dto.paymentMethod === PaymentMethod.WALLET ? "WALLET" : "COD",
+            paymentStatus: dto.paymentMethod === PaymentMethod.WALLET ? PaymentStatus.SUCCEEDED : PaymentStatus.PENDING,
             status:
-              dto.paymentMethod === PaymentMethod.COD
-                ? "PROCESSING"
-                : "PENDING_PAYMENT",
+              dto.paymentMethod === PaymentMethod.WALLET ? (requiresShipping ? "PROCESSING" : "COMPLETED") : dto.paymentMethod === PaymentMethod.COD ? "PROCESSING" : "PENDING_PAYMENT", // status
+
+
             shippingAddress: finalSnapshot.shippingAddress as any,
             note: finalSnapshot.note,
           },
@@ -606,6 +606,58 @@ export class CheckoutService {
         if (flashSaleItems.length) {
           await this.flashSales.reserveOrder(order.id, userId, flashSaleItems);
           flashSaleReservationOrderId = order.id;
+        }
+
+        if (dto.paymentMethod === PaymentMethod.WALLET) {
+          const buyerWallet = await tx.wallet.findFirst({
+            where: {
+              OR: [
+                { storeId: `user_${userId}` },
+                { ownerUserId: userId },
+              ],
+            },
+          });
+          const available = buyerWallet ? Number(buyerWallet.availableBalance) : 0;
+          if (!buyerWallet || available < Number(order.grandTotal)) {
+            throwBadRequest(
+              ErrorCode.PAYMENT_PROVIDER_INVALID,
+              `Số dư Ví HUKI không đủ để thanh toán (Khả dụng: ${available.toLocaleString('vi-VN')}đ, Cần thanh toán: ${Number(order.grandTotal).toLocaleString('vi-VN')}đ).`,
+            );
+          }
+
+          await tx.wallet.update({
+            where: { id: buyerWallet.id },
+            data: {
+              availableBalance: { decrement: order.grandTotal },
+            },
+          });
+
+          await tx.walletTransaction.create({
+            data: {
+              walletId: buyerWallet.id,
+              type: 'DEBIT_AVAILABLE',
+              amount: order.grandTotal,
+              availableBefore: buyerWallet.availableBalance,
+              availableAfter: new Prisma.Decimal(available).minus(order.grandTotal),
+              pendingBefore: buyerWallet.pendingBalance,
+              pendingAfter: buyerWallet.pendingBalance,
+              frozenBefore: buyerWallet.frozenBalance,
+              frozenAfter: buyerWallet.frozenBalance,
+              referenceId: order.id,
+              referenceType: 'ORDER',
+              description: `Thanh toán đơn hàng ${order.code} bằng Ví HUKI`,
+            },
+          });
+
+          await tx.payment.create({
+            data: {
+              orderId: order.id,
+              amount: order.grandTotal,
+              method: PaymentMethod.WALLET,
+              status: PaymentStatus.SUCCEEDED,
+              provider: "WALLET",
+            },
+          });
         }
 
         if (dto.paymentMethod === PaymentMethod.COD) {
@@ -728,7 +780,7 @@ export class CheckoutService {
               0,
             ),
             codAmount:
-              dto.paymentMethod === PaymentMethod.COD ? group.grandTotal : 0,
+              dto.paymentMethod === PaymentMethod.COD ? Number(group.grandTotal) : 0,
           });
 
           // Reserve inventory for physical books

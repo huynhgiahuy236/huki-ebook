@@ -13,6 +13,7 @@ import BookCover from './BookCover';
 
 export interface BookCardData {
   id: string;
+  slug?: string;
   title: string;
   price?: number;
   priceEbook?: number;
@@ -231,7 +232,7 @@ export default function BookCard({
         authorName
       );
     } catch {}
-    router.push(`/book/${book.id}`);
+    router.push(`/book/${book.slug || book.id}`);
   };
 
   const handleAddToCart = (e: React.MouseEvent) => {

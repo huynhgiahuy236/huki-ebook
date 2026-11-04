@@ -607,25 +607,36 @@ function CatalogPageContent() {
             </form>
           </div>
 
-          {/* 6. Đánh giá */}
+          {/* 6. Đánh giá (BUG-017: Material Symbols Vector Icons) */}
           <div className="py-3 border-b border-gray-100">
             <h4 className="font-bold text-xs text-gray-900 mb-2">Đánh Giá</h4>
             <div className="space-y-1 text-xs">
               {[
-                { rating: '5', stars: '★★★★★', label: '5 sao' },
-                { rating: '4', stars: '★★★★☆', label: 'Từ 4 sao' },
-                { rating: '3', stars: '★★★☆☆', label: 'Từ 3 sao' },
+                { rating: 5, label: '5 sao' },
+                { rating: 4, label: 'Từ 4 sao' },
+                { rating: 3, label: 'Từ 3 sao' },
               ].map((r) => (
                 <button
                   key={r.rating}
                   type="button"
-                  onClick={() => updateParam('rating', selectedRating === r.rating ? 'all' : r.rating)}
-                  className={`w-full flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer transition-colors text-left ${
-                    selectedRating === r.rating ? 'bg-[#e6f4f0] text-[#003b2b] font-semibold border border-[#003b2b]/30' : 'hover:bg-gray-50 text-gray-700'
+                  onClick={() => updateParam('rating', selectedRating === String(r.rating) ? 'all' : String(r.rating))}
+                  className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer transition-colors text-left ${
+                    selectedRating === String(r.rating) ? 'bg-[#e6f4f0] text-[#003b2b] font-semibold border border-[#003b2b]/30' : 'hover:bg-gray-50 text-gray-700'
                   }`}
                 >
-                  <span className="text-amber-500 tracking-wider text-xs">{r.stars}</span>
-                  <span className="text-[11px] text-gray-600">{r.label}</span>
+                  <div className="flex items-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <span
+                        key={star}
+                        className={`material-symbols-outlined text-[15px] ${
+                          star <= r.rating ? 'text-amber-400 fill' : 'text-slate-200'
+                        }`}
+                      >
+                        {star <= r.rating ? 'star' : 'star'}
+                      </span>
+                    ))}
+                  </div>
+                  <span className="text-[11px] text-gray-600 font-medium">{r.label}</span>
                 </button>
               ))}
             </div>

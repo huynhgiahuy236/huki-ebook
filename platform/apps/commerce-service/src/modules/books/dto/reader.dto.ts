@@ -51,6 +51,13 @@ export class SaveProgressDto {
   @Min(1)
   currentPage: number;
 
+  @ApiPropertyOptional({ description: 'Total pages count', example: 100 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  totalPages?: number;
+
   @ApiPropertyOptional({ description: 'Reading percentage complete (0.00 - 100.00)', example: 35.5 })
   @IsOptional()
   @Type(() => Number)

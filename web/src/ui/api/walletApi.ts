@@ -82,6 +82,38 @@ export interface TwoFactorVerifyResult {
 
 export const walletApi = {
   /**
+   * BUG-026: Get Buyer's personal wallet
+   */
+  getMyWallet: async (): Promise<ApiResponse<WalletData>> => {
+    return apiClient<WalletData>('/wallet/me', {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * BUG-026: Top-up Buyer's personal wallet
+   */
+  topupMyWallet: async (amount: number): Promise<ApiResponse<WalletData>> => {
+    return apiClient<WalletData>('/wallet/me/topup', {
+      method: 'POST',
+      body: JSON.stringify({ amount }),
+    });
+  },
+
+  /**
+   * BUG-026: Get Buyer's wallet transaction history
+   */
+  getMyTransactions: async (params?: { page?: number; limit?: number }): Promise<ApiResponse<WalletTransactionsData>> => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    const suffix = q.toString() ? `?${q.toString()}` : '';
+    return apiClient<WalletTransactionsData>(`/wallet/me/transactions${suffix}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
    * Get 3-Tier Wallet Balance for a store (Available, Pending, Frozen, Total)
    * WAL-001 Invariant: Total = Available + Pending + Frozen
    */

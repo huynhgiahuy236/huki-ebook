@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState, useMemo, Suspense } from 'reac
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { businessApi, type BusinessData } from '@/ui/api/businessApi';
+import { catalogApi } from '@/ui/api/catalogApi';
 import { useToast } from '@/ui/context/ToastContext';
 import { useAuth } from '@/ui/context/AuthContext';
 
@@ -45,236 +46,6 @@ interface PublisherItem {
   isMock: boolean;
 }
 
-// Danh mục tác giả mẫu
-const INITIAL_AUTHORS: AuthorItem[] = [
-  {
-    id: 'james-clear',
-    name: 'James Clear',
-    title: 'Tác giả & Chuyên gia Hành vi học',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-    coverBg: 'from-amber-600/20 to-amber-900/10',
-    followersCount: '58.4k',
-    worksCount: 4,
-    rating: 4.98,
-    category: 'Phát triển bản thân & Năng suất',
-    description: 'Tác giả cuốn sách bán chạy số 1 toàn cầu "Atomic Habits" với hơn 15 triệu bản in trên toàn thế giới.',
-    notableWorks: ['Atomic Habits', 'The Clear Habit Journal', 'Transform Habits'],
-    isVerified: true,
-    isMock: true
-  },
-  {
-    id: 'morgan-housel',
-    name: 'Morgan Housel',
-    title: 'Cựu chuyên gia tài chính The Wall Street Journal',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-    coverBg: 'from-emerald-600/20 to-emerald-900/10',
-    followersCount: '42.1k',
-    worksCount: 3,
-    rating: 4.95,
-    category: 'Tài chính & Đầu tư',
-    description: 'Tác giả cuốn sách kinh điển "Tâm Lý Học Về Tiền", chuyên gia về hành vi tài chính và quyết định đầu tư.',
-    notableWorks: ['Tâm Lý Học Về Tiền', 'Same as Ever', 'The Psychology of Money'],
-    isVerified: true,
-    isMock: true
-  },
-  {
-    id: 'yuval-noah-harari',
-    name: 'Yuval Noah Harari',
-    title: 'Giáo sư Lịch sử Đại học Hebrew',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
-    coverBg: 'from-blue-600/20 to-blue-900/10',
-    followersCount: '65.8k',
-    worksCount: 5,
-    rating: 4.92,
-    category: 'Lịch sử & Triết học tương lai',
-    description: 'Tác giả bộ ba sách lịch sử nhân loại đình đám: Sapiens, Homo Deus và 21 Bài học cho thế kỷ 21.',
-    notableWorks: ['Sapiens: Lược Sử Loài Người', 'Homo Deus', '21 Bài Học Cho Thế Kỷ 21'],
-    isVerified: true,
-    isMock: true
-  },
-  {
-    id: 'nguyen-nhat-anh',
-    name: 'Nguyễn Nhật Ánh',
-    title: 'Nhà văn Tuổi trẻ & Ký ức',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=400&q=80',
-    coverBg: 'from-teal-600/20 to-teal-900/10',
-    followersCount: '92.3k',
-    worksCount: 32,
-    rating: 4.97,
-    category: 'Văn học thanh thiếu niên',
-    description: 'Nhà văn được yêu thích bậc nhất Việt Nam với những câu chuyện trong trẻo, hoài niệm về tuổi học trò.',
-    notableWorks: ['Mắt Biếc', 'Tôi Thấy Hoa Vàng Trên Cỏ Xanh', 'Cho Tôi Xin Một Vé Đi Tuổi Thơ'],
-    isVerified: true,
-    isMock: true
-  },
-  {
-    id: 'thich-nhat-hanh',
-    name: 'Thiền sư Thích Nhất Hạnh',
-    title: 'Thiền sư & Tác giả Chánh niệm',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
-    coverBg: 'from-orange-600/20 to-orange-900/10',
-    followersCount: '88.5k',
-    worksCount: 24,
-    rating: 4.99,
-    category: 'Tâm thức & Tỉnh thức',
-    description: 'Bậc thầy về chánh niệm, tác giả của hàng chục cuốn sách nuôi dưỡng tâm hồn và chữa lành thế giới.',
-    notableWorks: ['Phép Lạ Của Sự Tỉnh Thức', 'Giận', 'An Lạc Từng Bước Chân'],
-    isVerified: true,
-    isMock: true
-  },
-  {
-    id: 'paulo-coelho',
-    name: 'Paulo Coelho',
-    title: 'Nhà văn biểu tượng văn học',
-    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=400&q=80',
-    coverBg: 'from-purple-600/20 to-purple-900/10',
-    followersCount: '71.2k',
-    worksCount: 12,
-    rating: 4.94,
-    category: 'Văn học & Hiện sinh',
-    description: 'Tác giả kiệt tác "Nhà Giả Kim" - một trong những cuốn sách bán chạy nhất mọi thời đại được dịch ra 80+ thứ tiếng.',
-    notableWorks: ['Nhà Giả Kim', 'Phù Thủy Phố Portobello', 'Cơn Lốc Cuộc Đời'],
-    isVerified: true,
-    isMock: true
-  },
-  {
-    id: 'bill-gates',
-    name: 'Bill Gates',
-    title: 'Nhà sáng lập Microsoft & Tác giả',
-    avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=400&q=80',
-    coverBg: 'from-cyan-600/20 to-cyan-900/10',
-    followersCount: '49.0k',
-    worksCount: 4,
-    rating: 4.88,
-    category: 'Công nghệ & Tương lai',
-    description: 'Đồng sáng lập Microsoft, chia sẻ những tầm nhìn chiến lược về chuyển dịch công nghệ và khí hậu.',
-    notableWorks: ['Con Đường Phía Trước', 'Cách Tránh Thảm Họa Khí Hậu', 'Kinh Doanh Thời Đại Số'],
-    isVerified: true,
-    isMock: true
-  },
-  {
-    id: 'cal-newport',
-    name: 'Cal Newport',
-    title: 'Giáo sư Khoa học Máy tính',
-    avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=400&q=80',
-    coverBg: 'from-rose-600/20 to-rose-900/10',
-    followersCount: '36.8k',
-    worksCount: 6,
-    rating: 4.89,
-    category: 'Năng suất & Tư duy làm việc',
-    description: 'Nhà tư tưởng hàng đầu về hiệu suất làm việc sâu và tác hại của sự phân tâm công nghệ trong kỷ nguyên số.',
-    notableWorks: ['Deep Work: Làm Ra Làm, Chơi Ra Chơi', 'So Good They Can\'t Ignore You', 'Digital Minimalism'],
-    isVerified: true,
-    isMock: true
-  }
-];
-
-// Danh sách nhà xuất bản đối tác mẫu
-const DEFAULT_PARTNER_PUBLISHERS: PublisherItem[] = [
-  {
-    id: 'alpha-books',
-    name: 'Alpha Books Official',
-    slug: 'alpha-books',
-    category: 'Kinh tế & Quản trị',
-    logo: null,
-    banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=800&q=80',
-    rating: 4.95,
-    reviewsCount: '18.4k',
-    followersCount: '39.1k',
-    totalBooks: 48,
-    description: 'Nhà xuất bản hàng đầu Việt Nam về sách Kinh tế, Quản trị kinh doanh, Khởi nghiệp và Kỹ năng lãnh đạo.',
-    address: 'Hà Nội & TP. Hồ Chí Minh',
-    responseRate: '99%',
-    isVerified: true,
-    isMock: true
-  },
-  {
-    id: 'nxb-tre',
-    name: 'NXB Trẻ',
-    slug: 'nxb-tre',
-    category: 'Văn học & Tri thức',
-    logo: null,
-    banner: 'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=800&q=80',
-    rating: 4.98,
-    reviewsCount: '24.2k',
-    followersCount: '42.5k',
-    totalBooks: 120,
-    description: 'Thương hiệu xuất bản uy tín lâu đời với hàng ngàn đầu sách văn học, khoa học xã hội và tư duy trẻ.',
-    address: '161B Lý Chính Thắng, Q.3, TP. Hồ Chí Minh',
-    responseRate: '98%',
-    isVerified: true,
-    isMock: true
-  },
-  {
-    id: 'nha-nam',
-    name: 'Nhã Nam',
-    slug: 'nha-nam',
-    category: 'Văn học & Nghệ thuật',
-    logo: null,
-    banner: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=800&q=80',
-    rating: 4.99,
-    reviewsCount: '38.0k',
-    followersCount: '68.2k',
-    totalBooks: 95,
-    description: 'Không gian của những tác phẩm văn học kinh điển, triết học hiện đại và sách tranh nghệ thuật tinh tuyển.',
-    address: 'Tô Ngọc Vân, Tây Hồ, Hà Nội',
-    responseRate: '99%',
-    isVerified: true,
-    isMock: true
-  },
-  {
-    id: 'nxb-kim-dong',
-    name: 'NXB Kim Đồng',
-    slug: 'nxb-kim-dong',
-    category: 'Thiếu nhi & Truyện tranh',
-    logo: null,
-    banner: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=800&q=80',
-    rating: 4.96,
-    reviewsCount: '31.5k',
-    followersCount: '51.9k',
-    totalBooks: 140,
-    description: 'Nhà xuất bản thiếu nhi lớn nhất Việt Nam, sở hữu bản quyền các bộ truyện tranh và sách giáo dục nổi tiếng.',
-    address: '55 Quang Trung, Hai Bà Trưng, Hà Nội',
-    responseRate: '99%',
-    isVerified: true,
-    isMock: true
-  },
-  {
-    id: 'first-news',
-    name: 'First News Trí Việt',
-    slug: 'first-news',
-    category: 'Hạt giống tâm hồn',
-    logo: null,
-    banner: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=800&q=80',
-    rating: 4.94,
-    reviewsCount: '21.0k',
-    followersCount: '45.8k',
-    totalBooks: 64,
-    description: 'Đơn vị tiên phong bảo vệ bản quyền sách và truyền cảm hứng sống tích cực với tủ sách Hạt Giống Tâm Hồn.',
-    address: '11H Nguyễn Thị Minh Khai, Q.1, TP. Hồ Chí Minh',
-    responseRate: '97%',
-    isVerified: true,
-    isMock: true
-  },
-  {
-    id: 'thai-ha-books',
-    name: 'Thái Hà Books',
-    slug: 'thai-ha-books',
-    category: 'Phật pháp & Khởi nghiệp',
-    logo: null,
-    banner: 'https://images.unsplash.com/photo-1532012164546-f432f2e3edd3?auto=format&fit=crop&w=800&q=80',
-    rating: 4.92,
-    reviewsCount: '15.6k',
-    followersCount: '29.3k',
-    totalBooks: 52,
-    description: 'Chuyên sâu các dòng sách văn hóa đọc, Phật pháp ứng dụng, kinh tế tri thức và giáo dục gia đình.',
-    address: 'Phạm Văn Đồng, Cầu Giấy, Hà Nội',
-    responseRate: '98%',
-    isVerified: true,
-    isMock: true
-  }
-];
-
 function StoresContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -289,7 +60,38 @@ function StoresContent() {
 
   const [searchInput, setSearchInput] = useState(searchQuery);
   const [realBusinesses, setRealBusinesses] = useState<BusinessData[]>([]);
+  const [realAuthors, setRealAuthors] = useState<AuthorItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isLoadingAuthors, setIsLoadingAuthors] = useState(true);
+
+  const loadAuthors = useCallback(async () => {
+    setIsLoadingAuthors(true);
+    try {
+      const res = await catalogApi.getAuthors();
+      if (res && res.data && Array.isArray(res.data)) {
+        const mapped: AuthorItem[] = res.data.map((a: any, idx: number) => ({
+          id: a.id,
+          name: a.name,
+          title: a.bio ? 'Tác giả' : 'Tác giả HUKI',
+          avatar: a.avatar || '',
+          coverBg: idx % 3 === 0 ? 'from-emerald-600/20 to-teal-900/10' : idx % 3 === 1 ? 'from-amber-600/20 to-amber-900/10' : 'from-blue-600/20 to-blue-900/10',
+          followersCount: '1.2k',
+          worksCount: 1,
+          rating: 5.0,
+          category: 'Văn học & Tri thức',
+          description: a.bio || 'Tác giả tham gia xuất bản tác phẩm trên nền tảng HUKI.',
+          notableWorks: [],
+          isVerified: true,
+          isMock: false,
+        }));
+        setRealAuthors(mapped);
+      }
+    } catch (err) {
+      console.warn('Failed to load authors:', err);
+    } finally {
+      setIsLoadingAuthors(false);
+    }
+  }, []);
   const [followedIds, setFollowedIds] = useState<Record<string, boolean>>(() => {
     try {
       const raw = localStorage.getItem('huki_followed_stores');
@@ -352,8 +154,9 @@ function StoresContent() {
 
   useEffect(() => {
     loadBusinesses();
+    loadAuthors();
     loadFollowed();
-  }, [loadBusinesses, loadFollowed]);
+  }, [loadBusinesses, loadAuthors, loadFollowed]);
 
   const updateQueryParams = useCallback((updater: (params: URLSearchParams) => void) => {
     const next = new URLSearchParams(searchParams.toString());
@@ -361,36 +164,49 @@ function StoresContent() {
     router.push(`/stores?${next.toString()}`);
   }, [router, searchParams]);
 
-  // Hợp nhất danh sách NXB
+  // Hợp nhất danh sách NXB từ Doanh nghiệp & Gian hàng thực tế (BUG-018)
   const combinedAllPublishers = useMemo<PublisherItem[]>(() => {
     const combined: PublisherItem[] = [];
 
-    // 1.1 Thêm các Doanh nghiệp thực tế từ DB (isMock: false)
     realBusinesses.forEach(biz => {
-      combined.push({
-        id: biz.id,
-        name: biz.name,
-        slug: biz.slug || biz.id,
-        category: 'Doanh nghiệp Xuất bản',
-        logo: biz.logo || null,
-        banner: biz.banner || 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=800&q=80',
-        rating: 5.0,
-        reviewsCount: 'Mới',
-        followersCount: '1.2k',
-        totalBooks: 12,
-        description: biz.description || 'Gian hàng chính hãng đã được xác thực giấy phép xuất bản bởi HUKI.',
-        address: biz.address || 'Việt Nam',
-        responseRate: '100%',
-        isVerified: true,
-        isMock: false
-      });
-    });
-
-    // 1.2 Thêm các NXB đối tác mẫu (isMock: true)
-    DEFAULT_PARTNER_PUBLISHERS.forEach(partner => {
-      const alreadyAdded = combined.some(p => p.id === partner.id || p.slug === partner.slug || p.name.toLowerCase() === partner.name.toLowerCase());
-      if (!alreadyAdded) {
-        combined.push(partner);
+      if (biz.stores && biz.stores.length > 0) {
+        biz.stores.forEach(st => {
+          combined.push({
+            id: st.id,
+            name: st.name,
+            slug: st.slug || st.id,
+            category: 'Nhà Xuất Bản & Đối Tác',
+            logo: st.logo || null,
+            banner: st.banner || 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=800&q=80',
+            rating: 5.0,
+            reviewsCount: 'Mới',
+            followersCount: '1.2k',
+            totalBooks: 12,
+            description: biz.description || 'Gian hàng chính hãng đã được xác thực giấy phép xuất bản bởi HUKI.',
+            address: biz.address || 'Việt Nam',
+            responseRate: '100%',
+            isVerified: true,
+            isMock: false,
+          });
+        });
+      } else {
+        combined.push({
+          id: biz.id,
+          name: biz.name,
+          slug: biz.slug || biz.id,
+          category: 'Doanh nghiệp Xuất bản',
+          logo: biz.logo || null,
+          banner: biz.banner || 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=800&q=80',
+          rating: 5.0,
+          reviewsCount: 'Mới',
+          followersCount: '1.2k',
+          totalBooks: 12,
+          description: biz.description || 'Gian hàng chính hãng đã được xác thực giấy phép xuất bản bởi HUKI.',
+          address: biz.address || 'Việt Nam',
+          responseRate: '100%',
+          isVerified: true,
+          isMock: false,
+        });
       }
     });
 
@@ -418,9 +234,9 @@ function StoresContent() {
     return combinedAllPublishers.filter(p => Boolean(followedIds[p.id] || (p.slug && followedIds[p.slug]))).length;
   }, [combinedAllPublishers, followedIds]);
 
-  // Danh sách tác giả lọc
+  // Danh sách tác giả lọc từ CSDL thực tế (BUG-018)
   const authorsList = useMemo(() => {
-    let list = INITIAL_AUTHORS;
+    let list = realAuthors;
     if (filterFollowing) {
       list = list.filter(author => Boolean(followedIds[author.id]));
     }
@@ -428,16 +244,15 @@ function StoresContent() {
     return list.filter(author => {
       const matchSearch = !searchQuery ||
         author.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        author.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        author.notableWorks.some(w => w.toLowerCase().includes(searchQuery.toLowerCase()));
+        author.description.toLowerCase().includes(searchQuery.toLowerCase());
       const matchCat = selectedCategory === 'all' || author.category.toLowerCase().includes(selectedCategory.toLowerCase());
       return matchSearch && matchCat;
     });
-  }, [filterFollowing, followedIds, searchQuery, selectedCategory]);
+  }, [realAuthors, filterFollowing, followedIds, searchQuery, selectedCategory]);
 
   const followedAuthorsCount = useMemo(() => {
-    return INITIAL_AUTHORS.filter(a => Boolean(followedIds[a.id])).length;
-  }, [followedIds]);
+    return realAuthors.filter(a => Boolean(followedIds[a.id])).length;
+  }, [realAuthors, followedIds]);
 
   // Phân trang dữ liệu
   const currentItems = activeTab === 'publishers' ? publishersList : authorsList;
@@ -544,8 +359,7 @@ function StoresContent() {
     <main className="min-h-screen bg-surface-container-lowest pb-16">
       {/* HERO BANNER */}
       <section className="relative bg-gradient-to-r from-primary to-primary-container text-white py-12 px-4 sm:px-6 lg:px-8 overflow-hidden shadow-sm">
-        <div className="absolute -right-20 -top-20 w-96 h-96 rounded-full bg-white/5 blur-3xl pointer-events-none" />
-        <div className="absolute -left-20 -bottom-20 w-96 h-96 rounded-full bg-tertiary/10 blur-3xl pointer-events-none" />
+        {/* BUG-014: Removed overflow blur-3xl decorative orbs */}
 
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -566,7 +380,7 @@ function StoresContent() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="bg-white/10 backdrop-blur-md p-3.5 rounded-2xl border border-white/15 text-center">
                 <span className="block font-editorial text-2xl font-bold text-tertiary-fixed">
-                  {realBusinesses.length + DEFAULT_PARTNER_PUBLISHERS.length}+
+                  {combinedAllPublishers.length}+
                 </span>
                 <span className="text-[11px] text-white/75 font-medium">NXB &amp; Doanh Nghiệp</span>
               </div>
@@ -744,7 +558,7 @@ function StoresContent() {
                 <p className="text-xs text-on-surface-variant mt-1">
                   {filterFollowing
                     ? 'Bạn chưa theo dõi Nhà xuất bản nào trong danh mục này.'
-                    : 'Thử tìm kiếm với từ khóa khác hoặc xóa bộ lọc.'}
+                    : 'Danh mục tác giả đang được ban biên tập HUKI cập nhật ấn phẩm mới.'}
                 </p>
                 <button
                   onClick={() => {
@@ -1017,11 +831,17 @@ function StoresContent() {
                           {/* Avatar with gradient halo */}
                           <div className="relative w-20 h-20 mx-auto mb-3">
                             <div className={`w-full h-full rounded-full p-1 bg-gradient-to-tr ${author.coverBg} border-2 border-primary/40 shadow-xs`}>
-                              <img
-                                src={author.avatar}
-                                alt={author.name}
-                                className="w-full h-full object-cover rounded-full"
-                              />
+                              {author.avatar ? (
+                                <img
+                                  src={author.avatar}
+                                  alt={author.name}
+                                  className="w-full h-full object-cover rounded-full"
+                                />
+                              ) : (
+                                <div className="w-full h-full rounded-full bg-primary text-on-primary font-bold text-lg flex items-center justify-center">
+                                  {author.name.charAt(0).toUpperCase()}
+                                </div>
+                              )}
                             </div>
                             {author.isVerified && (
                               <span className="absolute bottom-0 right-0 bg-primary text-on-primary rounded-full p-0.5 shadow-xs" title="Tác giả xác thực">

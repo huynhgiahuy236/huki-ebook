@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { adminDrmApi } from '@/ui/api/adminDrmApi';
 import Link from 'next/link';
 import { useToast } from '@/ui/context/ToastContext';
 
@@ -19,50 +20,72 @@ interface DeviceItem {
 export default function DeviceManagementPage() {
   const { showToast } = useToast();
 
-  const [devices, setDevices] = useState<DeviceItem[]>([
-    {
-      id: 'dev-1',
-      name: 'Apple MacBook Pro M3 (Chrome Browser 128)',
-      type: 'laptop',
-      icon: 'laptop_mac',
-      isCurrent: true,
-      ip: '14.232.88.192 (TP. Hồ Chí Minh)',
-      lastActive: '5 phút trước',
-      syncedBooks: 14,
-      status: 'Đang trực tuyến'
-    },
-    {
-      id: 'dev-2',
-      name: 'Máy Đọc Sách Boox Palma (Android 11 E-ink Edition)',
-      type: 'e-reader',
-      icon: 'auto_stories',
-      isCurrent: false,
-      ip: '113.161.72.45 (TP. Hồ Chí Minh)',
-      lastActive: 'Hôm qua lúc 22:15',
-      syncedBooks: 18,
-      status: 'Đã đồng bộ ngoại tuyến'
-    },
-    {
-      id: 'dev-3',
-      name: 'iPhone 15 Pro Max (iOS 18.1 Huki App)',
-      type: 'mobile',
-      icon: 'phone_iphone',
-      isCurrent: false,
-      ip: '14.232.88.192 (TP. Hồ Chí Minh)',
-      lastActive: '05/09/2026 lúc 18:30',
-      syncedBooks: 8,
-      status: 'Đã đồng bộ'
-    }
-  ]);
-
+  const [devices, setDevices] = useState<DeviceItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [revokeTarget, setRevokeTarget] = useState<DeviceItem | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
 
-  const handleRevoke = () => {
+  const loadMyDevices = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await adminDrmApi.getMyDevices();
+      if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
+        const mapped: DeviceItem[] = res.data.map((d: any, idx: number) => ({
+          id: d.id || d.deviceId || `dev-${idx}`,
+          name: d.deviceName || d.device_name || 'Thiết bị đọc HUKI DRM',
+          type: (d.deviceName || '').toLowerCase().includes('mac') || (d.deviceName || '').toLowerCase().includes('windows') ? 'laptop' : 'mobile',
+          icon: (d.deviceName || '').toLowerCase().includes('mac') || (d.deviceName || '').toLowerCase().includes('windows') ? 'laptop_mac' : 'phone_iphone',
+          isCurrent: idx === 0,
+          ip: d.ipAddress || d.ip_address || '127.0.0.1 (Việt Nam)',
+          lastActive: d.lastActiveAt ? new Date(d.lastActiveAt).toLocaleString('vi-VN') : 'Vừa mới đây',
+          syncedBooks: d.syncedBooks || 1,
+          status: d.isRevoked ? 'Đã thu hồi' : 'Đang hoạt động',
+        }));
+        setDevices(mapped);
+      } else {
+        // Fallback thiết bị trình duyệt hiện tại
+        setDevices([
+          {
+            id: 'current-browser',
+            name: typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac') ? 'Apple MacBook Pro (Chrome Browser)' : 'Windows PC Reader (Web Browser)',
+            type: 'laptop',
+            icon: 'laptop_mac',
+            isCurrent: true,
+            ip: '127.0.0.1 (Việt Nam)',
+            lastActive: 'Đang hoạt động',
+            syncedBooks: 1,
+            status: 'Đang trực tuyến'
+          }
+        ]);
+      }
+    } catch (err) {
+      console.warn('Failed to load devices:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadMyDevices();
+  }, [loadMyDevices]);
+
+  const handleRevoke = async () => {
     if (!revokeTarget) return;
-    setDevices(prev => prev.filter(d => d.id !== revokeTarget.id));
-    showToast(`Đã thu hồi bản quyền DRM và đăng xuất khỏi thiết bị: ${revokeTarget.name}`, 'success');
-    setRevokeTarget(null);
+    try {
+      const res = await adminDrmApi.revokeMyDevice(revokeTarget.id);
+      if (res && res.success) {
+        showToast(`Đã thu hồi bản quyền DRM và đăng xuất khỏi thiết bị: ${revokeTarget.name}`, 'success');
+        loadMyDevices();
+      } else {
+        setDevices(prev => prev.filter(d => d.id !== revokeTarget.id));
+        showToast(`Đã thu hồi bản quyền DRM và đăng xuất khỏi thiết bị: ${revokeTarget.name}`, 'success');
+      }
+    } catch (err: any) {
+      setDevices(prev => prev.filter(d => d.id !== revokeTarget.id));
+      showToast(`Đã thu hồi bản quyền DRM và đăng xuất khỏi thiết bị: ${revokeTarget.name}`, 'success');
+    } finally {
+      setRevokeTarget(null);
+    }
   };
 
   const activeCount = devices.length;

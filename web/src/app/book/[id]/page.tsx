@@ -153,7 +153,9 @@ export default function BookDetailPage() {
       const url = new URL(shareUrl);
       url.searchParams.delete('ref');
       await navigator.clipboard?.writeText(url.toString());
-      showToast('Đã sao chép liên kết sách!', 'success');
+      setIsShareCopied(true);
+      setTimeout(() => setIsShareCopied(false), 2000);
+      showToast('Đã sao chép liên kết sách thành công!', 'success');
     } catch (err) {
       showToast('Không thể sao chép liên kết', 'error');
     }
@@ -174,6 +176,16 @@ export default function BookDetailPage() {
   const [reviewsFilterRating, setReviewsFilterRating] = useState<number | undefined>(undefined);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isShareCopied, setIsShareCopied] = useState(false);
+
+  const handleOpenReviewModal = () => {
+    if (!isLoggedIn) {
+      showToast('Vui lòng đăng nhập để viết đánh giá sách!', 'warning');
+      router.push(`/auth/login?redirect=${encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname : `/book/${id}`)}`);
+      return;
+    }
+    setIsReviewModalOpen(prev => !prev);
+  };
 
   // Track view time for analytics
   const pageLoadTimeRef = useRef<number>(Date.now());
@@ -633,7 +645,7 @@ export default function BookDetailPage() {
         rating: 5.0,
         reviewCount: 120,
         readCount: 850,
-        pages: realBook.physicalDetails?.pages || realBook.physicalDetails?.pageCount || realBook.pageCount || undefined,
+        pages: realBook.physicalDetails?.pages || realBook.physicalDetails?.pageCount || (realBook as any)?.pages || (realBook as any)?.pageCount || realBook.pageCount || undefined,
         stock: stockVal,
         reserved: reservedVal,
         available: availableVal,
@@ -1024,7 +1036,9 @@ export default function BookDetailPage() {
                     title="Chia sẻ liên kết sách"
                     className="absolute top-2.5 right-2.5 z-10 w-8 h-8 rounded-full bg-white/85 backdrop-blur-md shadow-sm border border-white/60 flex items-center justify-center text-gray-700 hover:text-[#006953] hover:scale-110 active:scale-95 transition-all"
                   >
-                    <span className="material-symbols-outlined text-[17px] leading-none">share</span>
+                    <span className={`material-symbols-outlined text-[17px] leading-none transition-colors ${isShareCopied ? 'text-emerald-600 font-bold' : ''}`}>
+                      {isShareCopied ? 'check' : 'share'}
+                    </span>
                   </button>
 
                   {book.isBestseller && (
@@ -1098,9 +1112,9 @@ export default function BookDetailPage() {
 
                 {/* 4 Specs Mini Grid */}
                 <div className="grid grid-cols-4 gap-2 text-center">
-                  <div className="bg-[#f8f6f1]/80 p-2 rounded-lg border border-[#e8e5df]/70"><span className="block text-gray-400 text-[9.5px]">Số trang</span><strong className="text-xs text-[#17201f]">{book.pages ? `${book.pages} tr.` : 'Chuẩn DRM'}</strong></div>
-                  <div className="bg-[#f8f6f1]/80 p-2 rounded-lg border border-[#e8e5df]/70"><span className="block text-gray-400 text-[9.5px]">Ngôn ngữ</span><strong className="text-xs text-[#17201f]">Tiếng Việt</strong></div>
-                  <div className="bg-[#f8f6f1]/80 p-2 rounded-lg border border-[#e8e5df]/70"><span className="block text-gray-400 text-[9.5px]">Định dạng</span><strong className="text-xs text-[#006953]">PDF / EPUB</strong></div>
+                  <div className="bg-[#f8f6f1]/80 p-2 rounded-lg border border-[#e8e5df]/70"><span className="block text-gray-400 text-[9.5px]">Số trang</span><strong className="text-xs text-[#17201f]">{book.pages ? `${book.pages} tr.` : (realBook?.physicalDetails?.pages || (realBook as any)?.pages ? `${realBook?.physicalDetails?.pages || (realBook as any)?.pages} tr.` : 'Chuẩn DRM')}</strong></div>
+                  <div className="bg-[#f8f6f1]/80 p-2 rounded-lg border border-[#e8e5df]/70"><span className="block text-gray-400 text-[9.5px]">Ngôn ngữ</span><strong className="text-xs text-[#17201f]">{(realBook as any)?.language || (realBook as any)?.language_code || 'Tiếng Việt'}</strong></div>
+                  <div className="bg-[#f8f6f1]/80 p-2 rounded-lg border border-[#e8e5df]/70"><span className="block text-gray-400 text-[9.5px]">Định dạng</span><strong className="text-xs text-[#006953]">{realBook?.format === 'DIGITAL' ? 'Ebook DRM' : realBook?.format === 'PHYSICAL' ? 'Bìa mềm' : 'Sách in & DRM'}</strong></div>
                   <div className="bg-[#f8f6f1]/80 p-2 rounded-lg border border-[#e8e5df]/70"><span className="block text-gray-400 text-[9.5px]">Đọc thử</span><strong className="text-xs text-[#17201f]">Miễn phí</strong></div>
                 </div>
 
@@ -1601,7 +1615,7 @@ export default function BookDetailPage() {
 
                   <button
                     type="button"
-                    onClick={() => setIsReviewModalOpen(!isReviewModalOpen)}
+                    onClick={handleOpenReviewModal}
                     className={`px-4 py-2.5 rounded-xl text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${currentUserReview ? 'bg-[#004d3d] hover:bg-[#003c30]' : 'bg-[#006953] hover:bg-[#00523c]'
                       }`}
                   >
@@ -1715,7 +1729,7 @@ export default function BookDetailPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setIsReviewModalOpen(true)}
+                      onClick={handleOpenReviewModal}
                       className="mt-2 px-4 py-2 rounded-xl bg-[#006953] hover:bg-[#00523c] text-white text-xs font-bold transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
                     >
                       <span className="material-symbols-outlined text-base">rate_review</span>

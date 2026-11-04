@@ -81,7 +81,7 @@ export class BooksController {
   @UseGuards(AuthenticatedGuard)
   @ApiOperation({ summary: 'Check reader/ebook access authorization for current user' })
   async checkAccess(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @CurrentBookActor() actor: BookActor,
   ) {
     const access = await this.bookAccessService.checkAccess(actor.sub, id);
@@ -92,10 +92,14 @@ export class BooksController {
   @UseGuards(OptionalBookAuthGuard)
   @ApiOperation({ summary: 'Get a book by id' })
   async findOne(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @CurrentBookActor() actor?: BookActor,
   ) {
-    return { data: await this.booksService.findOne(id, actor) };
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+    if (isUuid) {
+      return { data: await this.booksService.findOne(id, actor) };
+    }
+    return { data: await this.booksService.findBySlug(id, actor) };
   }
 
   @Post()
@@ -111,7 +115,7 @@ export class BooksController {
   @UseGuards(BookWriteGuard)
   @ApiOperation({ summary: 'Update a book owned by the current business' })
   async update(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Body() dto: UpdateBookDto,
     @CurrentBookActor() actor: BookActor,
   ) {
@@ -124,7 +128,7 @@ export class BooksController {
   @UseGuards(BookWriteGuard)
   @ApiOperation({ summary: 'Soft-delete a book' })
   async remove(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @CurrentBookActor() actor: BookActor,
   ) {
     await this.booksService.remove(id, actor);

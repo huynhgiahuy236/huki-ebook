@@ -48,7 +48,8 @@ export async function apiClient<T = unknown>(
     });
 
     // Handle 401 Unauthorized & Token Refresh
-    if (response.status === 401 && !skipAuth && !endpoint.includes('/auth/refresh') && !endpoint.includes('/auth/login')) {
+    const hadToken = Boolean(tokenStorage.getAccessToken());
+    if (response.status === 401 && hadToken && !skipAuth && !endpoint.includes('/auth/refresh') && !endpoint.includes('/auth/login')) {
       if (!refreshPromise) {
         refreshPromise = (async () => {
           try {

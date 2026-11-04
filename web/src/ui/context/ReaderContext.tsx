@@ -100,7 +100,7 @@ export const ReaderProvider = ({ children }: { children: ReactNode }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   // PDF Navigation State
-  const [activeBookId, setActiveBookId] = useState('con-duong-phia-truoc');
+  const [activeBookId, setActiveBookId] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(166);
   const [zoom, setZoom] = useState(100);
@@ -126,6 +126,19 @@ export const ReaderProvider = ({ children }: { children: ReactNode }) => {
   // Initial client load
   useEffect(() => {
     try {
+      const savedSettings = localStorage.getItem('huki_reader_settings');
+      if (savedSettings) {
+        try {
+          const parsed = JSON.parse(savedSettings);
+          if (parsed.theme) setTheme(parsed.theme);
+          if (parsed.fontSize) setFontSize(Number(parsed.fontSize));
+          if (parsed.fontFamily) setFontFamily(parsed.fontFamily);
+          if (parsed.lineHeight) setLineHeight(Number(parsed.lineHeight));
+          if (parsed.margin) setMargin(parsed.margin);
+        } catch (e) {
+          console.warn('Failed to parse huki_reader_settings:', e);
+        }
+      }
       const savedTheme = localStorage.getItem('huki_reader_theme');
       if (savedTheme) setTheme(savedTheme);
       const savedFont = localStorage.getItem('huki_reader_font_size');
@@ -190,10 +203,25 @@ export const ReaderProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [margin]);
 
+  // Sync unified reader settings (BUG-009)
+  useEffect(() => {
+    try {
+      localStorage.setItem('huki_reader_settings', JSON.stringify({
+        theme,
+        fontSize,
+        fontFamily,
+        lineHeight,
+        margin,
+      }));
+    } catch {
+      // ignore
+    }
+  }, [theme, fontSize, fontFamily, lineHeight, margin]);
+
 
   // Fetch remote bookmarks and progress on activeBookId change
   useEffect(() => {
-    if (!activeBookId) return;
+    if (!activeBookId || activeBookId === 'con-duong-phia-truoc') return;
 
     // 1. Fetch bookmarks
     const loadRemoteBookmarks = async () => {
@@ -248,7 +276,7 @@ export const ReaderProvider = ({ children }: { children: ReactNode }) => {
 
   // Auto-save page progress for active book (Debounced)
   useEffect(() => {
-    if (!activeBookId || currentPage < 1) return;
+    if (!activeBookId || activeBookId === 'con-duong-phia-truoc' || currentPage < 1) return;
     setIsSavedProgress(false);
 
     try {

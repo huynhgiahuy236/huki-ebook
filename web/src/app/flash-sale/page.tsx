@@ -366,8 +366,7 @@ export default function FlashSalePage() {
       >
         {/* Ambient Lighting & Particles */}
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-yellow-400/20 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-red-900/40 rounded-full blur-3xl pointer-events-none"></div>
+        {/* BUG-016: Removed blur-3xl decorative orbs */}
 
         <div className="max-w-[1440px] mx-auto relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="space-y-3 text-center md:text-left">
@@ -525,7 +524,7 @@ export default function FlashSalePage() {
                       >
                         <div className="flex items-center gap-1.5 font-black text-sm">
                           {isActive && (
-                            <span className="material-symbols-outlined text-yellow-300 text-base animate-pulse">
+                            <span className="material-symbols-outlined text-yellow-300 text-base">
                               bolt
                             </span>
                           )}
@@ -573,7 +572,7 @@ export default function FlashSalePage() {
                     <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 flex-wrap">
                       <span>{currentPlatformSlot.name}</span>
                       {timeRemaining[currentPlatformSlot.id]?.mode === "active" && (
-                        <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black tracking-wider animate-pulse">
+                        <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black tracking-wider">
                           SÀN HUKI TRỢ GIÁ
                         </span>
                       )}
@@ -589,7 +588,7 @@ export default function FlashSalePage() {
                 <div
                   className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border shrink-0 ${
                     isPlatformCountdownUrgent
-                      ? "bg-red-950/80 border-red-500 animate-pulse"
+                      ? "bg-red-950/80 border-rose-600 shadow-sm"
                       : "bg-slate-800/80 border-slate-700"
                   }`}
                 >
@@ -675,7 +674,7 @@ export default function FlashSalePage() {
                   </div>
                   <div className="flex items-center gap-2 font-mono text-xl sm:text-2xl font-black bg-slate-950/60 backdrop-blur-md px-5 py-2.5 rounded-2xl border border-white/20 shadow-inner">
                     <span className="text-yellow-300">{timeRemaining[currentPlatformSlot?.id || ""]?.m || "00"}</span>
-                    <span className="text-white/60 animate-pulse">:</span>
+                    <span className="text-white/60">:</span>
                     <span className="text-yellow-300">{timeRemaining[currentPlatformSlot?.id || ""]?.s || "00"}</span>
                   </div>
                   <div className="text-[11px] font-extrabold text-white bg-white/20 px-3 py-1 rounded-full border border-white/20">
@@ -831,7 +830,7 @@ export default function FlashSalePage() {
                                 }
                                 className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold text-xs transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
                               >
-                                <span className="material-symbols-outlined text-sm animate-pulse">
+                                <span className="material-symbols-outlined text-sm">
                                   timer
                                 </span>
                                 <span>Sắp Mở Bán ({timeRemaining[currentPlatformSlot?.id || ""]?.m || "00"}:{timeRemaining[currentPlatformSlot?.id || ""]?.s || "00"})</span>
@@ -1065,7 +1064,7 @@ export default function FlashSalePage() {
                                 </div>
                                 <div className="flex items-center gap-2 font-mono text-xl sm:text-2xl font-black bg-slate-950/60 backdrop-blur-md px-5 py-2.5 rounded-2xl border border-white/20 shadow-inner">
                                   <span className="text-yellow-300">{timer.m}</span>
-                                  <span className="text-white/60 animate-pulse">:</span>
+                                  <span className="text-white/60">:</span>
                                   <span className="text-yellow-300">{timer.s}</span>
                                 </div>
                                 <div className="text-[11px] font-extrabold text-white bg-white/20 px-3 py-1 rounded-full border border-white/20">

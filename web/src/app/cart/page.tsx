@@ -8,6 +8,7 @@ import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import EmptyState from '@/ui/components/common/EmptyState';
 import { voucherApi } from '@/ui/api/voucherApi';
+import { tokenStorage } from '@/ui/api/tokenStorage';
 
 /**
  * CartPage - Migrated to Next.js App Router
@@ -53,7 +54,8 @@ export default function CartPage() {
     const loadVouchers = async () => {
       setLoadingVouchers(true);
       try {
-        const res = await voucherApi.getAvailableVouchers();
+        const hasToken = typeof window !== "undefined" && Boolean(tokenStorage.getAccessToken());
+        const res = hasToken ? await voucherApi.getAvailableVouchers() : await voucherApi.getPlatformVouchers();
         if (res.success && Array.isArray(res.data)) {
           const platformVouchers = res.data
             .filter((v: any) => v.scope === 'PLATFORM')

@@ -36,7 +36,7 @@ export default function StoreHeader({
   const { showToast } = useToast();
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
-  const debouncedQuery = useDebounce(searchQuery, 250);
+  const debouncedQuery = useDebounce(searchQuery, 350);
   const [apiSearchResults, setApiSearchResults] = useState<BookData[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
@@ -358,7 +358,7 @@ export default function StoreHeader({
   return (
     <header className="sticky top-0 z-40 bg-[var(--theme-surface,#ffffff)] border-b border-[var(--theme-border,#e8e5df)] shadow-2xs shrink-0 transition-colors duration-200">
       {/* Top Utility Bar (h-[28px]) - Ẩn trên mobile để chống vỡ/tràn 2 dòng */}
-      <div className="hidden md:flex h-[28px] bg-[var(--theme-header-top,#003b2b)] text-[var(--theme-header-top-text,#ffffff)] text-[10.5px] px-4 md:px-6 items-center justify-between font-medium shrink-0 whitespace-nowrap transition-colors duration-200">
+      <div className="hidden lg:flex h-[28px] bg-[var(--theme-header-top,#003b2b)] text-[var(--theme-header-top-text,#ffffff)] text-[10.5px] px-4 lg:px-6 items-center justify-between font-medium shrink-0 whitespace-nowrap transition-colors duration-200">
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1">
             <span className="material-symbols-outlined text-[13px] text-[var(--theme-header-top-accent,#94f5d6)]">verified_user</span>

@@ -48,6 +48,7 @@ enum OrderStatus {
 enum PaymentMethod {
   COD
   ONLINE_PAYMENT
+  WALLET
 }
 
 enum PaymentStatus {

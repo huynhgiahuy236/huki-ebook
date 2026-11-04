@@ -71,64 +71,64 @@ export default function BookPreviewPage() {
   };
 
   return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${themeStyles[theme]}`}>
+    <div className={`min-h-screen flex flex-col transition-colors duration-300 w-full max-w-full overflow-x-hidden ${themeStyles[theme]}`}>
       {/* Top Floating Control Bar */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#e8e5df] px-4 md:px-8 py-2.5 flex items-center justify-between shadow-xs">
-        <div className="flex items-center gap-3">
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#e8e5df] px-3 sm:px-6 md:px-8 py-2 flex items-center justify-between shadow-xs w-full max-w-full overflow-hidden">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           <Link
             href={`/book/${book.id}`}
-            className="p-1.5 rounded-xl hover:bg-black/5 text-[#17201f] transition-colors flex items-center gap-1 text-xs font-bold"
+            className="p-1 rounded-xl hover:bg-black/5 text-[#17201f] transition-colors flex items-center gap-1 text-xs font-bold shrink-0"
             title="Quay lại chi tiết sách"
           >
             <span className="material-symbols-outlined text-lg">arrow_back</span>
             <span className="hidden sm:inline">Chi tiết sách</span>
           </Link>
-          <div className="h-4 w-[1px] bg-[#e8e5df] hidden sm:block"></div>
-          <div>
-            <h1 className="font-editorial text-sm sm:text-base font-bold text-[#17201f] truncate max-w-xs sm:max-w-md">
+          <div className="h-4 w-[1px] bg-[#e8e5df] hidden sm:block shrink-0"></div>
+          <div className="min-w-0 pr-1">
+            <h1 className="font-editorial text-xs sm:text-base font-bold text-[#17201f] truncate max-w-[120px] xs:max-w-[160px] sm:max-w-md">
               {book.title}
             </h1>
-            <p className="text-[11px] text-[#6b7280]">Đang đọc thử 25 trang đầu miễn phí</p>
+            <p className="text-[10px] sm:text-[11px] text-[#6b7280] truncate">Đang đọc thử 25 trang đầu</p>
           </div>
         </div>
 
         {/* Reader Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Table of Contents button */}
           <button
             onClick={() => setShowToc(!showToc)}
-            className="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-theme-secondary-subtle text-theme-primary border border-theme-border hover:bg-theme-primary hover:text-white transition-all flex items-center gap-1"
+            className="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-semibold bg-theme-secondary-subtle text-theme-primary border border-theme-border hover:bg-theme-primary hover:text-white transition-all flex items-center gap-1"
           >
             <span className="material-symbols-outlined text-base">format_list_bulleted</span>
             <span className="hidden md:inline">Mục Lục</span>
           </button>
 
           {/* Theme Switcher */}
-          <div className="flex items-center bg-[#f8f6f1] p-0.5 rounded-xl border border-[#e8e5df]">
+          <div className="flex items-center bg-[#f8f6f1] p-0.5 rounded-xl border border-[#e8e5df] text-[11px]">
             <button
               onClick={() => setTheme('paper')}
-              className={`px-2 py-1 rounded-lg text-xs font-medium ${theme === 'paper' ? 'bg-white text-[#17201f] shadow-xs' : 'text-[#6b7280]'}`}
+              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg font-medium ${theme === 'paper' ? 'bg-white text-[#17201f] shadow-xs' : 'text-[#6b7280]'}`}
               title="Chế độ trang giấy"
             >
               Giấy
             </button>
             <button
               onClick={() => setTheme('sepia')}
-              className={`px-2 py-1 rounded-lg text-xs font-medium ${theme === 'sepia' ? 'bg-[#f4ecd8] text-[#433422] shadow-xs' : 'text-[#6b7280]'}`}
+              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg font-medium ${theme === 'sepia' ? 'bg-[#f4ecd8] text-[#433422] shadow-xs' : 'text-[#6b7280]'}`}
               title="Chế độ cổ điển Sepia"
             >
               Sepia
             </button>
             <button
               onClick={() => setTheme('dark')}
-              className={`px-2 py-1 rounded-lg text-xs font-medium ${theme === 'dark' ? 'bg-[#181a1b] text-white shadow-xs' : 'text-[#6b7280]'}`}
+              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg font-medium ${theme === 'dark' ? 'bg-[#181a1b] text-white shadow-xs' : 'text-[#6b7280]'}`}
               title="Chế độ ban đêm"
             >
               Đêm
             </button>
           </div>
 
-          {/* Font Size */}
+          {/* Font Size (hidden on mobile, visible on sm+) */}
           <div className="hidden sm:flex items-center bg-[#f8f6f1] p-0.5 rounded-xl border border-[#e8e5df]">
             <button
               onClick={() => setFontSize(Math.max(14, fontSize - 2))}

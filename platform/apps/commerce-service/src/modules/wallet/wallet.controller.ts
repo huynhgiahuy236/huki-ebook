@@ -43,6 +43,44 @@ export class WalletController {
     private readonly walletSecurityService: WalletSecurityService,
   ) {}
 
+  @Get('me')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({ summary: 'Get buyer personal wallet balance' })
+  async getMyWallet(@CurrentBookActor() actor: BookActor) {
+    const data = await this.walletService.getMyWallet(actor.sub);
+    return { success: true, data };
+  }
+
+  @Post('me/topup')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({ summary: 'Top up coins to buyer personal wallet' })
+  async topupMyWallet(
+    @CurrentBookActor() actor: BookActor,
+    @Body() body: { amount: number },
+  ) {
+    const data = await this.walletService.topupMyWallet(actor.sub, body.amount);
+    return { success: true, message: 'Nạp Xu thành công', data };
+  }
+
+  @Get('me/transactions')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({ summary: 'Get buyer personal wallet transaction history' })
+  async getMyTransactions(
+    @CurrentBookActor() actor: BookActor,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const result = await this.walletService.getMyTransactions(
+      actor.sub,
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 10,
+    );
+    return { success: true, ...result };
+  }
+
   @Get('admin/transactions')
   @ApiBearerAuth()
   @UseGuards(AuthenticatedGuard)

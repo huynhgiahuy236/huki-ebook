@@ -87,4 +87,25 @@ export class DrmVaultController {
     const data = await this.drmVaultService.restoreLicense(id);
     return { success: true, message: 'Đã khôi phục giấy phép DRM thành công', data };
   }
+
+  @Get('my-devices')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({ summary: 'Lấy danh sách thiết bị đọc DRM của độc giả' })
+  async getMyDevices(@CurrentBookActor() actor: BookActor) {
+    const data = await this.drmVaultService.getUserDevices(actor.sub);
+    return { success: true, data };
+  }
+
+  @Post('my-devices/:deviceId/revoke')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({ summary: 'Thu hồi quyền truy cập DRM của một thiết bị' })
+  async revokeMyDevice(
+    @CurrentBookActor() actor: BookActor,
+    @Param('deviceId') deviceId: string,
+  ) {
+    await this.drmVaultService.revokeUserDevice(actor.sub, deviceId);
+    return { success: true, message: 'Đã thu hồi bản quyền DRM trên thiết bị thành công' };
+  }
 }

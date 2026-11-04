@@ -132,6 +132,24 @@ export const adminDrmApi = {
   /**
    * Khôi phục giấy phép DRM hợp lệ
    */
+  /**
+   * BUG-026: Lấy danh sách thiết bị DRM của người dùng hiện tại
+   */
+  async getMyDevices(): Promise<ApiResponse<any[]>> {
+    return apiClient<any[]>(resolveDrmUrl('/admin/drm/my-devices'), {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * BUG-026: Thu hồi thiết bị DRM của người dùng hiện tại
+   */
+  async revokeMyDevice(deviceId: string): Promise<ApiResponse<any>> {
+    return apiClient<any>(resolveDrmUrl(`/admin/drm/my-devices/${encodeURIComponent(deviceId)}/revoke`), {
+      method: 'POST',
+    });
+  },
+
   async restoreLicense(licenseIdOrCode: string): Promise<ApiResponse<any>> {
     return apiClient<any>(resolveDrmUrl(`/admin/drm/licenses/${encodeURIComponent(licenseIdOrCode)}/restore`), {
       method: 'POST',

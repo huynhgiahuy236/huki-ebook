@@ -448,10 +448,11 @@ export function DataTableFilterBar<TStatus extends string = string>(props: DataT
   };
 
   return (
-    <div className={`space-y-3 ${className}`}>
+    <div className={`space-y-3 w-full min-w-0 max-w-full overflow-hidden ${className}`}>
+
       {/* 1. Status Filter Tabs (if provided) */}
       {tabs && tabs.length > 0 && (
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+        <div className="w-full max-w-full flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key;
             return (

@@ -9,6 +9,7 @@ import { useAuth } from "@/ui/context/AuthContext";
 import { catalogApi, type BookData, type CatalogEntity, type CategoryData } from "@/ui/api/catalogApi";
 import { flashSaleApi, type FlashSaleSlot, type FlashSaleItem } from "@/ui/api/flashSaleApi";
 import { voucherApi } from "@/ui/api/voucherApi";
+import { tokenStorage } from "@/ui/api/tokenStorage";
 import { reviewApi } from "@/ui/api/reviewApi";
 import BookCard from "@/ui/components/common/BookCard";
 import { personalizationService } from "@/ui/services/personalizationService";
@@ -127,8 +128,10 @@ export default function HomePage() {
       .catch(() => {});
 
     // Fetch Real Vouchers
-    voucherApi
-      .getAvailableVouchers()
+    (() => {
+    const hasToken = typeof window !== "undefined" && Boolean(tokenStorage.getAccessToken());
+    return hasToken ? voucherApi.getAvailableVouchers() : voucherApi.getPlatformVouchers();
+  })()
       .then((res) => {
         if (res.success && Array.isArray(res.data) && res.data.length > 0) {
           setRealVouchers(res.data);
@@ -898,17 +901,29 @@ export default function HomePage() {
 
           {/* 1.2 CỘT GIỮA: BANNER HERO LỚN VỚI HÌNH ẢNH NỀN */}
           <div
-            className="col-span-12 lg:col-span-6 rounded-2xl overflow-hidden relative shadow-xs flex flex-col justify-end p-5 sm:p-7 min-h-[280px] sm:min-h-[320px] transition-all group"
+            className="col-span-12 lg:col-span-6 rounded-2xl overflow-hidden relative shadow-xs flex flex-col justify-end min-h-[280px] sm:min-h-[320px] transition-all group"
             onMouseEnter={() => setIsHeroHovered(true)}
             onMouseLeave={() => setIsHeroHovered(false)}
-            style={{
-              backgroundImage: `${heroSlides[activeHeroSlide]?.overlay || ''}, url('${heroSlides[activeHeroSlide]?.bgImage || ''}')`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-            }}
           >
+            {/* Cross-fade Background Layers */}
+            {heroSlides.map((slide, idx) => (
+              <Link
+                key={slide.id || idx}
+                href={slide.primaryBtn?.to || "/books"}
+                onClick={() => {
+                  if (slide.id) recordBannerClick(slide.id);
+                }}
+                className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ease-in-out cursor-pointer ${
+                  activeHeroSlide === idx ? 'opacity-100 z-0' : 'opacity-0 pointer-events-none'
+                }`}
+                style={{
+                  backgroundImage: `${slide.overlay || ''}, url('${slide.bgImage || ''}')`,
+                }}
+              />
+            ))}
+
             {/* Content Container */}
-            <div className="relative z-10 max-w-[460px] text-white">
+            <div className="relative z-10 max-w-[460px] text-white p-5 sm:p-7 pointer-events-auto">
               <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-bold uppercase tracking-wider mb-2 border border-white/20">
                 {heroSlides[activeHeroSlide]?.badge}
               </span>
