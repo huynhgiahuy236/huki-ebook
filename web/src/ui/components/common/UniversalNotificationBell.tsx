@@ -26,6 +26,7 @@ type FilterCategory =
   | 'ALL'
   | 'PENDING_ORDER'
   | 'ORDER'
+  | 'AFFILIATE'
   | 'REVIEW'
   | 'SHIPPING'
   | 'SYSTEM';
@@ -50,6 +51,7 @@ interface UnifiedCard {
   category:
     | 'ORDER_PENDING'
     | 'ORDER_OTHER'
+    | 'AFFILIATE'
     | 'REVIEW'
     | 'SHIPPING'
     | 'FINANCE'
@@ -503,6 +505,32 @@ export default function UniversalNotificationBell({
         return;
       }
 
+      // Kiểm tra có phải thông báo Hoa hồng / Tiếp thị liên kết (Affiliate)
+      const isAffiliateNotif =
+        n.type?.startsWith('AFFILIATE_') ||
+        n.type?.startsWith('COMMISSION_') ||
+        lowerTitle.includes('hoa hồng') ||
+        lowerMsg.includes('hoa hồng') ||
+        lowerTitle.includes('tiếp thị') ||
+        lowerMsg.includes('tiếp thị') ||
+        lowerTitle.includes('affiliate') ||
+        lowerMsg.includes('affiliate');
+
+      if (isAffiliateNotif) {
+        list.push({
+          id: n.id,
+          notifId: n.id,
+          category: 'AFFILIATE',
+          title: n.title || 'Hoa hồng & Tiếp thị liên kết',
+          message: n.message,
+          createdAt: n.createdAt,
+          isRead: n.isRead,
+          actionUrl: n.actionUrl || '/affiliate/dashboard',
+          actionLabel: 'Xem chi tiết hoa hồng',
+        });
+        return;
+      }
+
       // Kiểm tra có phải thông báo Đánh giá
       const isReviewNotif =
         n.type === 'NEW_REVIEW' ||
@@ -667,6 +695,7 @@ export default function UniversalNotificationBell({
   const counts = useMemo(() => {
     let pending = 0;
     let order = 0;
+    let affiliate = 0;
     let review = 0;
     let shipping = 0;
     let system = 0;
@@ -683,6 +712,8 @@ export default function UniversalNotificationBell({
         order++;
       } else if (c.category === 'ORDER_OTHER') {
         order++;
+      } else if (c.category === 'AFFILIATE') {
+        affiliate++;
       } else if (c.category === 'REVIEW') {
         review++;
       } else if (c.category === 'SHIPPING') {
@@ -700,7 +731,7 @@ export default function UniversalNotificationBell({
       );
     }).length;
 
-    return { total, pending, order, review, shipping, system };
+    return { total, pending, order, affiliate, review, shipping, system };
   }, [unifiedCards, processedOrderIds]);
 
   // Lọc theo Tab được chọn
@@ -717,6 +748,8 @@ export default function UniversalNotificationBell({
           return c.category === 'ORDER_PENDING';
         case 'ORDER':
           return c.category === 'ORDER_PENDING' || c.category === 'ORDER_OTHER';
+        case 'AFFILIATE':
+          return c.category === 'AFFILIATE';
         case 'REVIEW':
           return c.category === 'REVIEW';
         case 'SHIPPING':
@@ -937,6 +970,66 @@ export default function UniversalNotificationBell({
       ];
     }
 
+    if (variant === 'user') {
+      return [
+        {
+          id: 'ALL' as const,
+          label: 'Tất cả',
+          count: counts.total,
+          icon: 'notifications',
+        },
+        {
+          id: 'ORDER' as const,
+          label: 'Đơn mua',
+          count: counts.order,
+          icon: 'shopping_bag',
+        },
+        {
+          id: 'AFFILIATE' as const,
+          label: 'Tiếp thị & Hoa hồng',
+          count: counts.affiliate,
+          icon: 'monetization_on',
+          highlight: counts.affiliate > 0,
+        },
+        {
+          id: 'SHIPPING' as const,
+          label: 'Vận chuyển',
+          count: counts.shipping,
+          icon: 'local_shipping',
+        },
+        {
+          id: 'SYSTEM' as const,
+          label: 'Khuyến mãi & Hệ thống',
+          count: counts.system,
+          icon: 'campaign',
+        },
+      ];
+    }
+
+    if (variant === 'shipper') {
+      return [
+        {
+          id: 'ALL' as const,
+          label: 'Tất cả',
+          count: counts.total,
+          icon: 'notifications',
+        },
+        {
+          id: 'SHIPPING' as const,
+          label: 'Đơn giao hàng',
+          count: counts.shipping + counts.order,
+          icon: 'local_shipping',
+        },
+        {
+          id: 'SYSTEM' as const,
+          label: 'Ví & Đối soát COD',
+          count: counts.system,
+          icon: 'account_balance_wallet',
+        },
+      ];
+    }
+
+    // Default: Seller
     return [
       {
         id: 'ALL' as const,
@@ -976,7 +1069,7 @@ export default function UniversalNotificationBell({
         icon: 'account_balance_wallet',
       },
     ];
-  }, [isAdmin, counts]);
+  }, [isAdmin, variant, counts]);
 
   return (
     <>
@@ -1174,6 +1267,14 @@ export default function UniversalNotificationBell({
                             ) : isReview ? (
                               <span className="px-1.5 py-0.2 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300 font-bold text-[10px]">
                                 ⭐ Đánh giá
+                              </span>
+                            ) : card.category === 'AFFILIATE' ? (
+                              <span className="px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 font-bold text-[10px]">
+                                🪙 Hoa hồng
+                              </span>
+                            ) : card.category === 'SHIPPING' ? (
+                              <span className="px-1.5 py-0.2 rounded bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 font-bold text-[10px]">
+                                🚚 Vận chuyển
                               </span>
                             ) : (
                               <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 dark:bg-zinc-800 text-[10px]">

@@ -109,6 +109,8 @@ export class NotificationDeliveryService {
         this.gateway.sendToRoom("seller_channel", view);
       } else if (input.recipientType === "DELIVERY") {
         this.gateway.sendToRoom("shipper_channel", view);
+      } else if ((input.recipientType as string) === "AFFILIATE" || input.recipientId === "affiliate_channel") {
+        this.gateway.sendToRoom("affiliate_channel", view);
       } else {
         this.gateway.broadcast(view);
       }

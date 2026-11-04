@@ -67,6 +67,9 @@ export class NotificationGateway implements OnGatewayConnection {
         await client.join("shipper_channel");
         await client.join(`shipper:${actor.sub}`);
       }
+
+      await client.join(`affiliate:${actor.sub}`);
+      await client.join("affiliate_channel");
     } catch (error) {
       this.logger.warn(
         `Notification socket authentication failed: ${error instanceof Error ? error.message : String(error)}`,
