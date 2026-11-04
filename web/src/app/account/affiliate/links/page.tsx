@@ -470,6 +470,7 @@ export default function AffiliateLinksPage() {
         />
 
         {/* Grouped Data Table Standardized */}
+        <div className="w-full max-w-full overflow-x-auto min-w-0 rounded-2xl border border-slate-200 bg-white shadow-2xs">
         <GroupedDataTable<AffiliateLinkItem>
           columns={linkColumns}
           data={links}
@@ -497,6 +498,7 @@ export default function AffiliateLinksPage() {
           }}
           className="w-full"
         />
+        </div>
 
         {/* MODAL: CREATE LINK */}
         {createModalOpen && (
@@ -609,9 +611,15 @@ export default function AffiliateLinksPage() {
 
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col items-center justify-center">
                 {/* Clean inline SVG QR Placeholder with direct scan URL */}
-                <div className="w-48 h-48 bg-white p-3 rounded-xl border border-slate-300 flex flex-col items-center justify-center space-y-2 shadow-inner">
-                  <span className="material-symbols-outlined text-6xl text-emerald-800">qr_code_2</span>
-                  <span className="font-mono text-[10px] text-slate-600 break-all px-2 text-center">
+                <div className="flex flex-col items-center justify-center space-y-2.5">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(
+                      typeof window !== 'undefined' ? `${window.location.origin}/r/${qrModalLink.shortCode}` : `https://huki.vn/r/${qrModalLink.shortCode}`
+                    )}&margin=10`}
+                    alt="QR Code"
+                    className="w-48 h-48 rounded-xl bg-white p-2 border border-slate-200 shadow-sm object-contain"
+                  />
+                  <span className="font-mono text-[11px] text-slate-700 font-semibold break-all px-2 text-center">
                     /r/{qrModalLink.shortCode}
                   </span>
                 </div>
@@ -621,10 +629,22 @@ export default function AffiliateLinksPage() {
                 Quét mã QR để mở trực tiếp liên kết tiếp thị trên điện thoại hoặc chèn vào hình ảnh ấn phẩm.
               </p>
 
+              <a
+                href={`https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(
+                  typeof window !== 'undefined' ? `${window.location.origin}/r/${qrModalLink.shortCode}` : `https://huki.vn/r/${qrModalLink.shortCode}`
+                )}&margin=15`}
+                download={`huki-qr-${qrModalLink.shortCode}.png`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">download</span>
+                <span>Tải Ảnh QR Sắc Nét (PNG 1000px)</span>
+              </a>
               <button
                 type="button"
                 onClick={() => setQrModalLink(null)}
-                className="w-full py-2 bg-emerald-800 text-white text-xs font-bold rounded-xl"
+                className="w-full py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
               >
                 Đóng
               </button>

@@ -172,7 +172,7 @@ export default function AffiliateDashboardPage() {
               </h1>
               {isLive ? (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mr-1 animate-pulse"></span>
+                  <span className="w-2 h-2 rounded-full bg-[#00875A] mr-1.5 shrink-0 inline-block"></span>
                   Đang hoạt động
                 </span>
               ) : (

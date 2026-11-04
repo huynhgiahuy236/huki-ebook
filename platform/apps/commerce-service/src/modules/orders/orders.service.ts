@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, Logger } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, Optional } from "@nestjs/common";
+import { AffiliateLifecycleService } from "../affiliate/services/affiliate-lifecycle.service";
 import { ConfigService } from "@nestjs/config";
 import { randomBytes, randomUUID } from "crypto";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -57,6 +58,7 @@ export class OrdersService {
     private readonly escrow: EscrowService,
     private readonly configService: ConfigService,
     private readonly voucherClient: VoucherClientService,
+    @Optional() private readonly affiliateLifecycle?: AffiliateLifecycleService,
   ) {}
 
   async buyerList(userId: string, query: OrderQueryDto) {
@@ -328,6 +330,15 @@ export class OrdersService {
         },
       });
 
+      // Reverse / cancel affiliate commissions (BUG-MOD05-16)
+      if (this.affiliateLifecycle) {
+        try {
+          await this.affiliateLifecycle.handleOrderCancelled(id, `Đơn hàng bị hủy bởi người mua: ${dto.reason}`, tx);
+        } catch (err) {
+          this.logger.warn(`Failed to cancel affiliate commission for order ${id}: ${err}`);
+        }
+      }
+
       const newStatus = OrderStatus.CANCELLED;
 
       await tx.order.update({
@@ -459,6 +470,15 @@ export class OrdersService {
           cancelledAt: allCancelled ? now : undefined,
         },
       });
+
+      // Reverse / cancel affiliate commissions (BUG-MOD05-16)
+      if (this.affiliateLifecycle) {
+        try {
+          await this.affiliateLifecycle.handleOrderCancelled(o.id, `Người mua hủy kiện hàng: ${dto.reason}`, tx);
+        } catch (err) {
+          this.logger.warn(`Failed to cancel affiliate commission for sub-order ${sellerOrderId}: ${err}`);
+        }
+      }
 
       await tx.outboxEvent.create({
         data: {
@@ -2829,6 +2849,15 @@ export class OrdersService {
           replacementStatus: 'REFUNDED',
         },
       });
+
+      // Reverse / cancel affiliate commissions on item refund (BUG-MOD05-16)
+      if (this.affiliateLifecycle) {
+        try {
+          await this.affiliateLifecycle.handleOrderItemRefunded(item.id, `Trả hàng hoàn tiền món: ${item.bookTitle}`);
+        } catch (err) {
+          this.logger.warn(`Failed to refund affiliate commission for item ${item.id}: ${err}`);
+        }
+      }
     }
 
     if (dto.status === 'RELEASED') {

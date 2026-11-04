@@ -225,17 +225,17 @@ export default function BookAffiliateCard({
 
   // Branch 2: Chưa là CTV (hoặc khách) -> Banner mời tham gia chương trình affiliate (Full-width, clean vertical stack)
   return (
-    <div className={`mt-3 p-3.5 bg-gradient-to-br from-amber-50/60 via-amber-50/20 to-white rounded-2xl border border-amber-200 shadow-2xs font-sans space-y-2.5 ${className}`}>
+    <div className={`mt-3 p-3.5 bg-gradient-to-br from-emerald-50/60 via-emerald-50/20 to-white rounded-2xl border border-emerald-200/80 shadow-2xs font-sans space-y-2.5 ${className}`}>
       {/* Header */}
       <div className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-800 flex items-center justify-center shrink-0">
-          <span className="material-symbols-outlined text-[16px]">monetization_on</span>
+        <div className="w-7 h-7 rounded-lg bg-emerald-700/10 text-emerald-800 flex items-center justify-center shrink-0">
+          <span className="material-symbols-outlined text-[16px] text-emerald-700">auto_stories</span>
         </div>
         <div className="flex-1 min-w-0">
           <h4 className="text-xs font-bold text-gray-900 truncate">
-            Tiếp Thị &amp; Kiếm Tiền
+            Lan Tỏa Sách Hay &amp; Nhận Hoa Hồng
           </h4>
-          <span className="text-[10px] text-amber-800 font-bold block">
+          <span className="text-[10px] text-emerald-800 font-bold block">
             Hoa hồng lên tới {effectiveRate}%
           </span>
         </div>
@@ -249,10 +249,10 @@ export default function BookAffiliateCard({
       {/* Full-width Action Link */}
       <Link
         href={isLoggedIn ? '/account/affiliate/application' : '/affiliate'}
-        className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 text-center"
+        className="w-full py-2 bg-[#003B2B] hover:bg-[#00281d] text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 text-center"
       >
         <span className="material-symbols-outlined text-[15px]">campaign</span>
-        <span>Tham Gia Làm Đối Tác CTV</span>
+        <span>Tham Gia HuKi Partner</span>
       </Link>
     </div>
   );

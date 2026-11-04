@@ -157,9 +157,9 @@ export default function AffiliateMarketplacePage() {
                 Kho Sách Tiếp Thị
               </span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <span className="material-symbols-outlined text-emerald-700 text-[26px]">storefront</span>
-              <span>Kho Sách Tiếp Thị &amp; Mức Hoa Hồng Thực Tế</span>
+            <h1 className="text-lg sm:text-2xl font-bold text-gray-900 flex items-center gap-2 min-w-0 flex-wrap">
+              <span className="material-symbols-outlined text-emerald-700 text-[24px] shrink-0">storefront</span>
+              <span className="break-words">Kho Sách Tiếp Thị &amp; Hoa Hồng Thực Tế</span>
             </h1>
             <p className="text-xs sm:text-sm text-gray-600 mt-1">
               Danh mục các đầu sách từ những gian hàng <strong>đang mở chương trình tiếp thị liên kết</strong>. Bấm &quot;Lấy Link Tiếp Thị&quot; để tạo link rút gọn và chia sẻ nhận hoa hồng.
@@ -547,6 +547,16 @@ export default function AffiliateMarketplacePage() {
                   <span className="material-symbols-outlined text-[15px]">content_copy</span>
                   <span>{copiedKey === 'qr_url' ? 'Đã Chép!' : 'Sao Chép Link'}</span>
                 </button>
+                <a
+                  href={`https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(qrModalData.url)}&margin=15`}
+                  download={`huki-qr-${qrModalData.shortCode}.png`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                >
+                  <span className="material-symbols-outlined text-[15px]">download</span>
+                  <span>Tải QR 1000px</span>
+                </a>
                 <a
                   href={qrModalData.url}
                   target="_blank"

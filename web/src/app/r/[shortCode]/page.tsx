@@ -34,9 +34,11 @@ export default function AffiliateRedirectPage() {
           if (res.data.cookieToken) {
             const token = res.data.cookieToken;
             const maxAge = res.data.cookieMaxAgeSeconds || 30 * 86400;
+            const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+            const secureFlag = isSecure ? '; Secure' : '';
             document.cookie = `huki_aff_click=${encodeURIComponent(
               token,
-            )}; path=/; max-age=${maxAge}; SameSite=Lax`;
+            )}; path=/; max-age=${maxAge}; SameSite=Lax${secureFlag}`;
 
             try {
               localStorage.setItem('huki_aff_click', token);
@@ -57,16 +59,12 @@ export default function AffiliateRedirectPage() {
 
           setStatus('REDIRECTING');
 
-          // Smooth redirect
-          setTimeout(() => {
-            if (isMounted) {
-              if (destination.startsWith('http://') || destination.startsWith('https://')) {
-                window.location.href = destination;
-              } else {
-                router.replace(destination);
-              }
-            }
-          }, 400);
+          // Instant redirect without delay
+          if (destination.startsWith('http://') || destination.startsWith('https://')) {
+            window.location.href = destination;
+          } else {
+            router.replace(destination);
+          }
         } else {
           setStatus('NOT_FOUND');
           setErrorMessage('Liên kết tiếp thị không tồn tại hoặc đã ngừng hoạt động.');

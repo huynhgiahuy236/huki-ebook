@@ -756,10 +756,10 @@ export default function SellerAffiliatePage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200 overflow-x-auto no-scrollbar w-full max-w-full">
+      <div className="flex border-b border-slate-200 overflow-x-auto scrollbar-none flex-nowrap w-full max-w-full">
         <button
           onClick={() => setActiveTab('DASHBOARD')}
-          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all ${
+          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 shrink-0 whitespace-nowrap transition-all ${
             activeTab === 'DASHBOARD'
               ? 'border-emerald-700 text-emerald-800 bg-emerald-50/40 rounded-t-xl'
               : 'border-transparent text-slate-600 hover:text-slate-900'
@@ -770,7 +770,7 @@ export default function SellerAffiliatePage() {
         </button>
         <button
           onClick={() => setActiveTab('BOOKS')}
-          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all ${
+          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 shrink-0 whitespace-nowrap transition-all ${
             activeTab === 'BOOKS'
               ? 'border-emerald-700 text-emerald-800 bg-emerald-50/40 rounded-t-xl'
               : 'border-transparent text-slate-600 hover:text-slate-900'
@@ -781,7 +781,7 @@ export default function SellerAffiliatePage() {
         </button>
         <button
           onClick={() => setActiveTab('SETTINGS')}
-          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all ${
+          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 shrink-0 whitespace-nowrap transition-all ${
             activeTab === 'SETTINGS'
               ? 'border-emerald-700 text-emerald-800 bg-emerald-50/40 rounded-t-xl'
               : 'border-transparent text-slate-600 hover:text-slate-900'
@@ -962,6 +962,7 @@ export default function SellerAffiliatePage() {
                 />
 
                 {/* Grouped Data Table */}
+                <div className="w-full max-w-full overflow-x-auto min-w-0">
                 <GroupedDataTable
                   columns={topBooksColumns}
                   data={paginatedTopBooks}
@@ -983,6 +984,7 @@ export default function SellerAffiliatePage() {
                   }
                   className="border border-slate-200/80 rounded-2xl overflow-hidden shadow-2xs"
                 />
+                </div>
               </div>
             </>
           )}
@@ -1198,6 +1200,7 @@ export default function SellerAffiliatePage() {
           />
 
           {/* Standard Grouped Data Table */}
+          <div className="w-full max-w-full overflow-x-auto min-w-0">
           <GroupedDataTable
             columns={[
               {
@@ -1369,6 +1372,7 @@ export default function SellerAffiliatePage() {
                 : 'Tất cả các sách đang hoạt động tiếp thị bình thường.'
             }
           />
+          </div>
         </div>
       )}
 

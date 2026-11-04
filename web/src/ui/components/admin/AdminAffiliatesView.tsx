@@ -10,6 +10,13 @@ import type { AffiliateProfile, PartnerStatus } from '@/types/affiliate';
 
 export function AdminAffiliatesView() {
   const { showToast } = useToast();
+
+  // Navigation: Applications vs Payouts vs Fraud
+  const [mainTab, setMainTab] = useState<'APPLICATIONS' | 'PAYOUTS' | 'FRAUD'>('APPLICATIONS');
+
+  // ==========================================
+  // TAB 1: APPLICATIONS STATE & LOGIC
+  // ==========================================
   const [activeTab, setActiveTab] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -34,6 +41,9 @@ export function AdminAffiliatesView() {
   >(null);
   const [actionReason, setActionReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+
+  // KYC Review in modal
+  const [kycReviewLoading, setKycReviewLoading] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -74,9 +84,13 @@ export function AdminAffiliatesView() {
   }, [activeTab, debouncedSearch, page, showToast]);
 
   useEffect(() => {
-    fetchApplications();
+    if (mainTab === 'APPLICATIONS') {
+      fetchApplications();
+    }
+  }, [mainTab, fetchApplications]);
 
-    // Event-driven real-time synchronization across tabs (zero jitter, no polling)
+  // Realtime subscription
+  useEffect(() => {
     const unsubscribe = realtimeSyncBus.subscribe((msg) => {
       if (
         msg.type === 'AFFILIATE_APPLICATION_UPDATED' ||
@@ -91,7 +105,6 @@ export function AdminAffiliatesView() {
     };
   }, [fetchApplications]);
 
-  // Load detail modal
   const handleOpenDetail = async (id: string) => {
     setSelectedId(id);
     setDetailLoading(true);
@@ -104,7 +117,7 @@ export function AdminAffiliatesView() {
         setSelectedId(null);
       }
     } catch {
-      showToast('Lỗi khi tải chi tiết hồ sơ', 'error');
+      showToast('Lỗi kết nối khi tải chi tiết hồ sơ', 'error');
       setSelectedId(null);
     } finally {
       setDetailLoading(false);
@@ -118,12 +131,10 @@ export function AdminAffiliatesView() {
     setActionReason('');
   };
 
-  // Submit Review Actions
   const handleConfirmAction = async () => {
     if (!selectedId || !actionType) return;
-
     if (['REQUEST_CHANGES', 'REJECT', 'SUSPEND'].includes(actionType) && !actionReason.trim()) {
-      showToast('Vui lòng nhập lý do xử lý', 'warning');
+      showToast('Vui lòng nhập lý do để đối tác nắm rõ thông tin.', 'error');
       return;
     }
 
@@ -142,290 +153,755 @@ export function AdminAffiliatesView() {
         res = await affiliateApi.adminActivate(selectedId);
       }
 
-      if (res?.success) {
-        showToast('Cập nhật trạng thái đối tác thành công!', 'success');
-        realtimeSyncBus.publish('AFFILIATE_STATUS_CHANGED', {
-          profileId: selectedId,
-          status: actionType === 'APPROVE' ? 'ACTIVE' : actionType,
-        });
-        setActionType(null);
-        setActionReason('');
-        await handleOpenDetail(selectedId);
+      if (res && res.success) {
+        showToast('Thao tác thành công!', 'success');
+        handleCloseDetail();
         fetchApplications();
       } else {
         showToast(res?.error?.message || 'Thao tác không thành công', 'error');
       }
     } catch {
-      showToast('Lỗi hệ thống khi thực hiện thao tác', 'error');
+      showToast('Lỗi khi thực hiện thao tác', 'error');
     } finally {
       setActionLoading(false);
     }
   };
 
-  const getStatusBadge = (status: PartnerStatus) => {
-    switch (status) {
-      case 'PENDING_REVIEW':
-        return <AdminStatusBadge variant="warning" label="Chờ duyệt" icon="schedule" />;
-      case 'REQUEST_CHANGES':
-        return <AdminStatusBadge variant="purple" label="Yêu cầu sửa" icon="edit_note" />;
-      case 'ACTIVE':
-        return <AdminStatusBadge variant="success" label="Đang hoạt động" icon="check_circle" />;
-      case 'REJECTED':
-        return <AdminStatusBadge variant="danger" label="Từ chối" icon="cancel" />;
-      case 'SUSPENDED':
-        return <AdminStatusBadge variant="danger" label="Tạm ngưng" icon="block" />;
-      default:
-        return <AdminStatusBadge variant="neutral" label={status} />;
+  const handleReviewKyc = async (profileId: string, status: 'APPROVED' | 'REJECTED') => {
+    setKycReviewLoading(true);
+    try {
+      const res = await affiliateApi.adminReviewKyc(profileId, {
+        status,
+        rejectionReason: status === 'REJECTED' ? 'Ảnh CCCD hoặc thông tin ngân hàng không hợp lệ' : undefined,
+      });
+      if (res.success) {
+        showToast(status === 'APPROVED' ? 'Đã duyệt KYC đối tác thành công!' : 'Đã từ chối hồ sơ KYC.', 'success');
+        if (selectedId) handleOpenDetail(selectedId);
+      } else {
+        showToast(res.error?.message || 'Không thể xử lý KYC', 'error');
+      }
+    } catch {
+      showToast('Lỗi kết nối khi duyệt KYC', 'error');
+    } finally {
+      setKycReviewLoading(false);
     }
   };
 
+  // ==========================================
+  // TAB 2: PAYOUTS QUEUE & APPROVAL
+  // ==========================================
+  const [payouts, setPayouts] = useState<any[]>([]);
+  const [payoutStatusFilter, setPayoutStatusFilter] = useState<string>('ALL');
+  const [payoutLoading, setPayoutLoading] = useState<boolean>(false);
+  const [payoutPage, setPayoutPage] = useState<number>(1);
+  const [payoutTotalPages, setPayoutTotalPages] = useState<number>(1);
+  const [payoutTotal, setPayoutTotal] = useState<number>(0);
+  const [actionPayoutModal, setActionPayoutModal] = useState<{ item: any; type: 'APPROVE' | 'REJECT' } | null>(null);
+  const [payoutRejectReason, setPayoutRejectReason] = useState<string>('');
+  const [payoutProviderRef, setPayoutProviderRef] = useState<string>('');
+  const [payoutSubmitting, setPayoutSubmitting] = useState<boolean>(false);
 
-  const affiliateColumns: Column<AffiliateProfile>[] = useMemo(
+  const fetchPayouts = useCallback(async () => {
+    setPayoutLoading(true);
+    try {
+      const statusParam = payoutStatusFilter === 'ALL' ? undefined : payoutStatusFilter;
+      const res = await affiliateApi.adminListPayouts({
+        status: statusParam,
+        page: payoutPage,
+        limit: 10,
+      });
+      if (res.success && res.data) {
+        setPayouts(res.data.items || []);
+        setPayoutTotalPages(res.data.totalPages || 1);
+        setPayoutTotal(res.data.total || 0);
+      } else {
+        setPayouts([]);
+      }
+    } catch {
+      setPayouts([]);
+      showToast('Không thể tải danh sách yêu cầu rút tiền', 'error');
+    } finally {
+      setPayoutLoading(false);
+    }
+  }, [payoutStatusFilter, payoutPage, showToast]);
+
+  useEffect(() => {
+    if (mainTab === 'PAYOUTS') {
+      fetchPayouts();
+    }
+  }, [mainTab, fetchPayouts]);
+
+  const handleExecutePayoutAction = async () => {
+    if (!actionPayoutModal) return;
+    setPayoutSubmitting(true);
+    try {
+      if (actionPayoutModal.type === 'APPROVE') {
+        const res = await affiliateApi.adminApprovePayout(actionPayoutModal.item.id, payoutProviderRef.trim() || undefined);
+        if (res.success) {
+          showToast('Đã duyệt chi trả hoa hồng thành công!', 'success');
+          setActionPayoutModal(null);
+          setPayoutProviderRef('');
+          fetchPayouts();
+        } else {
+          showToast(res.error?.message || 'Không thể duyệt chi trả', 'error');
+        }
+      } else {
+        if (!payoutRejectReason.trim()) {
+          showToast('Vui lòng nhập lý do từ chối', 'error');
+          setPayoutSubmitting(false);
+          return;
+        }
+        const res = await affiliateApi.adminRejectPayout(actionPayoutModal.item.id, payoutRejectReason.trim());
+        if (res.success) {
+          showToast('Đã từ chối yêu cầu rút tiền và hoàn tiền về ví CTV!', 'success');
+          setActionPayoutModal(null);
+          setPayoutRejectReason('');
+          fetchPayouts();
+        } else {
+          showToast(res.error?.message || 'Không thể từ chối', 'error');
+        }
+      }
+    } catch {
+      showToast('Lỗi khi thực hiện thao tác rút tiền', 'error');
+    } finally {
+      setPayoutSubmitting(false);
+    }
+  };
+
+  // ==========================================
+  // TAB 3: FRAUD INVESTIGATION CASES
+  // ==========================================
+  const [fraudCases, setFraudCases] = useState<any[]>([]);
+  const [fraudStatusFilter, setFraudStatusFilter] = useState<string>('ALL');
+  const [fraudLoading, setFraudLoading] = useState<boolean>(false);
+  const [fraudPage, setFraudPage] = useState<number>(1);
+  const [fraudTotalPages, setFraudTotalPages] = useState<number>(1);
+  const [fraudTotal, setFraudTotal] = useState<number>(0);
+  const [actionFraudModal, setActionFraudModal] = useState<{ item: any; resolution: 'CONFIRMED' | 'DISMISSED' } | null>(null);
+  const [fraudResolveNote, setFraudResolveNote] = useState<string>('');
+  const [fraudSubmitting, setFraudSubmitting] = useState<boolean>(false);
+
+  const fetchFraudCases = useCallback(async () => {
+    setFraudLoading(true);
+    try {
+      const statusParam = fraudStatusFilter === 'ALL' ? undefined : fraudStatusFilter;
+      const res = await affiliateApi.adminListFraudCases({
+        status: statusParam,
+        page: fraudPage,
+        limit: 10,
+      });
+      if (res.success && res.data) {
+        setFraudCases(res.data.items || []);
+        setFraudTotalPages(res.data.totalPages || 1);
+        setFraudTotal(res.data.total || 0);
+      } else {
+        setFraudCases([]);
+      }
+    } catch {
+      setFraudCases([]);
+      showToast('Không thể tải danh sách vụ việc gian lận', 'error');
+    } finally {
+      setFraudLoading(false);
+    }
+  }, [fraudStatusFilter, fraudPage, showToast]);
+
+  useEffect(() => {
+    if (mainTab === 'FRAUD') {
+      fetchFraudCases();
+    }
+  }, [mainTab, fetchFraudCases]);
+
+  const handleExecuteFraudAction = async () => {
+    if (!actionFraudModal) return;
+    if (!fraudResolveNote.trim()) {
+      showToast('Vui lòng nhập ghi chú biên bản xử lý vụ việc.', 'error');
+      return;
+    }
+    setFraudSubmitting(true);
+    try {
+      const res = await affiliateApi.adminResolveFraudCase(actionFraudModal.item.id, {
+        resolution: actionFraudModal.resolution,
+        note: fraudResolveNote.trim(),
+      });
+      if (res.success) {
+        showToast(
+          actionFraudModal.resolution === 'CONFIRMED'
+            ? 'Đã xác nhận gian lận và đình chỉ đối tác thành công!'
+            : 'Đã bác bỏ nghi vấn gian lận, trạng thái CTV trong sạch.',
+          'success'
+        );
+        setActionFraudModal(null);
+        setFraudResolveNote('');
+        fetchFraudCases();
+      } else {
+        showToast(res.error?.message || 'Không thể xử lý vụ việc', 'error');
+      }
+    } catch {
+      showToast('Lỗi khi cập nhật vụ việc gian lận', 'error');
+    } finally {
+      setFraudSubmitting(false);
+    }
+  };
+
+  // Helper status badge for application
+  const getStatusBadge = (status: PartnerStatus) => {
+    switch (status) {
+      case 'PENDING_REVIEW':
+        return <AdminStatusBadge status="PENDING" label="Chờ duyệt" />;
+      case 'REQUEST_CHANGES':
+        return <AdminStatusBadge status="WARNING" label="Yêu cầu sửa" />;
+      case 'ACTIVE':
+        return <AdminStatusBadge status="SUCCESS" label="Đang hoạt động" />;
+      case 'REJECTED':
+        return <AdminStatusBadge status="DANGER" label="Từ chối" />;
+      case 'SUSPENDED':
+        return <AdminStatusBadge status="DANGER" label="Tạm ngưng" />;
+      default:
+        return <AdminStatusBadge status="NEUTRAL" label={status} />;
+    }
+  };
+
+  // Application columns
+  const applicationColumns: Column<AffiliateProfile>[] = useMemo(
     () => [
       {
         key: 'partner',
-        title: 'Đối Tác & Mã CTV',
-        width: 220,
-        render: (_val, app) => (
-          <div className="flex items-center gap-2.5 py-1">
-            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-xs shrink-0 border border-emerald-200">
-              {app.displayName.charAt(0).toUpperCase()}
+        title: 'ĐỐI TÁC CTV',
+        width: '32%',
+        render: (_, app) => (
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 font-black text-sm flex items-center justify-center shrink-0 border border-emerald-200">
+              {app.displayName?.charAt(0)?.toUpperCase() || 'P'}
             </div>
             <div className="min-w-0">
-              <span className="font-bold text-gray-900 block break-words line-clamp-1 text-xs" title={app.displayName}>
-                {app.displayName}
-              </span>
-              <span className="font-mono text-[11px] text-emerald-700 font-semibold block mt-0.5">
-                {app.affiliateCode}
-              </span>
+              <div className="font-bold text-slate-900 text-xs truncate">{app.displayName}</div>
+              <div className="font-mono text-[11px] text-emerald-800 font-bold">{app.affiliateCode}</div>
+              <div className="text-[10px] text-slate-400 truncate">{app.contactEmail}</div>
             </div>
           </div>
         ),
       },
       {
         key: 'type',
-        title: 'Loại Hình & Kênh',
-        width: 180,
-        render: (_val, app) => (
-          <div className="py-1 text-xs space-y-0.5">
-            <span className={`inline-block px-2 py-0.2 rounded-full text-[10px] font-bold border ${
-              app.applicantType === 'BUSINESS'
-                ? 'bg-purple-50 text-purple-700 border-purple-200'
-                : 'bg-slate-100 text-slate-700 border-slate-200'
-            }`}>
-              {app.applicantType === 'BUSINESS' ? 'Doanh Nghiệp' : 'Cá Nhân'}
-            </span>
-            <span className="text-[11px] text-gray-500 block">
-              {app.channels?.length || 0} kênh truyền thông
-            </span>
-          </div>
-        ),
-      },
-      {
-        key: 'contact',
-        title: 'Đại Diện & Liên Hệ',
-        minWidth: 220,
-        render: (_val, app) => (
-          <div className="py-1 text-xs space-y-0.5">
-            <span className="text-gray-800 font-medium block truncate" title={app.contactEmail}>
-              {app.contactEmail}
-            </span>
-            <span className="text-[11px] text-gray-400 font-mono block">
-              {app.contactPhone || '—'}
-            </span>
-          </div>
+        title: 'LOẠI HÌNH',
+        width: '15%',
+        render: (_, app) => (
+          <span className="text-xs text-slate-700 font-medium">
+            {app.applicantType === 'BUSINESS' ? 'Doanh nghiệp' : 'Cá nhân (KOC)'}
+          </span>
         ),
       },
       {
         key: 'status',
-        title: 'Trạng Thái',
-        width: 140,
-        align: 'center',
-        render: (_val, app) => getStatusBadge(app.status),
+        title: 'TRẠNG THÁI',
+        width: '18%',
+        render: (_, app) => getStatusBadge(app.status),
+      },
+      {
+        key: 'createdAt',
+        title: 'NGÀY NỘP',
+        width: '15%',
+        render: (_, app) => (
+          <span className="text-xs text-slate-500 font-mono">
+            {new Date(app.createdAt).toLocaleDateString('vi-VN')}
+          </span>
+        ),
       },
       {
         key: 'actions',
-        title: 'Thao Tác',
-        width: 120,
+        title: 'THAO TÁC',
+        width: '20%',
         align: 'right',
-        render: (_val, app) => (
-          <div className="flex items-center justify-end">
-            <button
-              type="button"
-              onClick={() => handleOpenDetail(app.id)}
-              className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-emerald-50 hover:text-emerald-700 text-gray-700 font-semibold text-xs transition-colors cursor-pointer"
-            >
-              Xem xét
-            </button>
-          </div>
+        render: (_, app) => (
+          <button
+            type="button"
+            onClick={() => handleOpenDetail(app.id)}
+            className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[15px]">fact_check</span>
+            <span>Chi Tiết</span>
+          </button>
         ),
       },
     ],
     []
   );
 
-  const renderExpandedPartnerDetail = (app: AffiliateProfile) => {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 bg-white rounded-xl p-4 border border-emerald-200/80 shadow-2xs text-xs">
-        {/* Card 1: Kênh phân phối */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-100 pb-1.5">
-            <span className="material-symbols-outlined text-[15px] text-[#00875A]">share</span>
-            <span>Kênh Phân Phối</span>
-          </div>
-          <div className="space-y-1 text-[11px]">
-            {app.channels && app.channels.length > 0 ? (
-              app.channels.slice(0, 3).map((ch, idx) => (
-                <div key={idx} className="flex justify-between items-center bg-slate-50 p-1.5 rounded border border-slate-100">
-                  <span className="font-bold text-slate-800">{ch.type}</span>
-                  <span className="text-slate-500 font-mono truncate max-w-[150px]">{ch.url}</span>
-                </div>
-              ))
-            ) : (
-              <span className="text-slate-400 italic">Chưa liên kết kênh</span>
-            )}
-          </div>
-        </div>
-
-        {/* Card 2: Lĩnh vực & Nội dung */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-100 pb-1.5">
-            <span className="material-symbols-outlined text-[15px] text-amber-600">category</span>
-            <span>Lĩnh Vực &amp; Phương Thức</span>
-          </div>
-          <div className="space-y-1.5 text-xs">
-            <div>
-              <span className="text-slate-400 block text-[10.5px]">Chủ đề nội dung:</span>
-              <span className="font-semibold text-slate-800">{app.contentCategories?.join(', ') || 'Chưa chọn'}</span>
-            </div>
-            <div>
-              <span className="text-slate-400 block text-[10.5px]">Hình thức quảng bá:</span>
-              <span className="font-medium text-slate-700">{app.promotionMethods?.join(', ') || 'Chưa chọn'}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 3: Thao tác xét duyệt */}
-        <div className="space-y-2 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-100 pb-1.5">
-              <span className="material-symbols-outlined text-[15px] text-blue-600">verified_user</span>
-              <span>Xét Duyệt Đối Tác</span>
-            </div>
-            <p className="text-[11px] text-slate-500 mt-2">
-              Ngày nộp: <strong>{new Date(app.createdAt).toLocaleDateString('vi-VN')}</strong>. Kiểm tra kênh truyền thông trước khi cấp quyền mở link tiếp thị.
-            </p>
-          </div>
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => handleOpenDetail(app.id)}
-              className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
-            >
-              <span className="material-symbols-outlined text-[15px]">fact_check</span>
-              <span>Mở Phiếu Phê Duyệt</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-    return (
+  return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             <span className="material-symbols-outlined text-emerald-700 text-[26px]">handshake</span>
-            <span>Quản Lý Tiếp Thị Liên Kết (Affiliate)</span>
+            <span>Quản Lý Hệ Sinh Thái Tiếp Thị (Affiliate Portal)</span>
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            Xét duyệt hồ sơ đối tác CTV tiếp thị, quản lý mã giới thiệu và kênh phân phối nội dung.
+            Xét duyệt hồ sơ đối tác CTV, duyệt chi trả lệnh rút tiền và giám sát gian lận chuyển đổi.
           </p>
         </div>
       </div>
 
-      {/* Tabs & Search */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-gray-200 pb-3">
-        {/* Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-semibold">
-          {[
-            { key: 'ALL', label: 'Tất cả' },
-            { key: 'PENDING_REVIEW', label: 'Chờ duyệt' },
-            { key: 'REQUEST_CHANGES', label: 'Yêu cầu sửa' },
-            { key: 'ACTIVE', label: 'Đang hoạt động' },
-            { key: 'REJECTED', label: 'Từ chối' },
-            { key: 'SUSPENDED', label: 'Tạm ngưng' },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => {
-                setActiveTab(tab.key);
-                setPage(1);
-              }}
-              className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-                activeTab === tab.key
-                  ? 'bg-emerald-700 text-white shadow-xs font-bold'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Search */}
-        <div className="relative w-full md:w-72">
-          <span className="material-symbols-outlined absolute left-3 top-2.5 text-gray-400 text-[18px]">
-            search
-          </span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm theo tên, mã, email..."
-            className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-600"
-          />
-        </div>
+      {/* Top Main Navigation Tabs */}
+      <div className="flex border-b border-slate-200 overflow-x-auto scrollbar-none flex-nowrap w-full max-w-full">
+        <button
+          type="button"
+          onClick={() => setMainTab('APPLICATIONS')}
+          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 shrink-0 whitespace-nowrap transition-all ${
+            mainTab === 'APPLICATIONS'
+              ? 'border-emerald-700 text-emerald-800 bg-emerald-50/40 rounded-t-xl'
+              : 'border-transparent text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span className="material-symbols-outlined text-lg">badge</span>
+          Hồ Sơ Đối Tác CTV ({totalCount})
+        </button>
+        <button
+          type="button"
+          onClick={() => setMainTab('PAYOUTS')}
+          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 shrink-0 whitespace-nowrap transition-all ${
+            mainTab === 'PAYOUTS'
+              ? 'border-emerald-700 text-emerald-800 bg-emerald-50/40 rounded-t-xl'
+              : 'border-transparent text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span className="material-symbols-outlined text-lg">payments</span>
+          Hàng Đợi Rút Tiền ({payoutTotal})
+        </button>
+        <button
+          type="button"
+          onClick={() => setMainTab('FRAUD')}
+          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 shrink-0 whitespace-nowrap transition-all ${
+            mainTab === 'FRAUD'
+              ? 'border-emerald-700 text-emerald-800 bg-emerald-50/40 rounded-t-xl'
+              : 'border-transparent text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span className="material-symbols-outlined text-lg">shield</span>
+          Giám Sát Gian Lận ({fraudTotal})
+        </button>
       </div>
 
-      {/* Standard Grouped Data Table */}
-      <GroupedDataTable<AffiliateProfile>
-        columns={affiliateColumns}
-        data={applications}
-        keyField="id"
-        loading={loading}
-        selectable={true}
-        selectedRowKeys={selectedIds}
-        onSelectionChange={(keys) => setSelectedIds(keys as string[])}
-        expandable={true}
-        expandedRowRender={renderExpandedPartnerDetail}
-        emptyTitle="Không tìm thấy hồ sơ đối tác nào"
-        emptyMessage={
-          searchQuery
-            ? `Không tìm thấy đối tác khớp với từ khóa "${searchQuery}"`
-            : 'Hiện chưa có hồ sơ nào trong danh mục này.'
-        }
-        emptyIcon="handshake"
-        pagination={{
-          currentPage: page,
-          totalPages,
-          totalItems: totalCount,
-          pageSize: 10,
-          onPageChange: setPage,
-          itemLabel: 'hồ sơ đối tác',
-        }}
-        className="w-full"
-      />
+      {/* ======================================================== */}
+      {/* VIEW 1: APPLICATIONS LIST */}
+      {/* ======================================================== */}
+      {mainTab === 'APPLICATIONS' && (
+        <div className="space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-gray-200 pb-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-semibold">
+              {[
+                { key: 'ALL', label: 'Tất cả' },
+                { key: 'PENDING_REVIEW', label: 'Chờ duyệt' },
+                { key: 'REQUEST_CHANGES', label: 'Yêu cầu sửa' },
+                { key: 'ACTIVE', label: 'Đang hoạt động' },
+                { key: 'REJECTED', label: 'Từ chối' },
+                { key: 'SUSPENDED', label: 'Tạm ngưng' },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => {
+                    setActiveTab(tab.key);
+                    setPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg transition-all shrink-0 cursor-pointer ${
+                    activeTab === tab.key
+                      ? 'bg-emerald-700 text-white font-bold shadow-xs'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-      {/* Detail & Review Modal */}
+            <div className="relative w-full md:w-72">
+              <span className="material-symbols-outlined absolute left-3 top-2.5 text-gray-400 text-[18px]">
+                search
+              </span>
+              <input
+                type="text"
+                placeholder="Tìm mã CTV, tên, email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600 shadow-2xs font-sans"
+              />
+            </div>
+          </div>
+
+          <div className="w-full max-w-full overflow-x-auto min-w-0 rounded-2xl border border-slate-200 bg-white shadow-2xs">
+            <GroupedDataTable<AffiliateProfile>
+              columns={applicationColumns}
+              data={applications}
+              keyField="id"
+              loading={loading}
+              emptyTitle="Không tìm thấy hồ sơ đối tác nào"
+              emptyMessage={
+                searchQuery
+                  ? `Không tìm thấy đối tác khớp với từ khóa "${searchQuery}"`
+                  : 'Hiện chưa có hồ sơ nào trong danh mục này.'
+              }
+              emptyIcon="handshake"
+              pagination={{
+                currentPage: page,
+                totalPages,
+                totalItems: totalCount,
+                pageSize: 10,
+                onPageChange: setPage,
+                itemLabel: 'hồ sơ đối tác',
+              }}
+              className="w-full"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* VIEW 2: PAYOUTS QUEUE */}
+      {/* ======================================================== */}
+      {mainTab === 'PAYOUTS' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 border-b border-gray-200 pb-3">
+            {[
+              { key: 'ALL', label: 'Tất cả' },
+              { key: 'REQUESTED', label: 'Chờ xử lý (Pending)' },
+              { key: 'APPROVED', label: 'Đã duyệt chi' },
+              { key: 'REJECTED', label: 'Đã từ chối' },
+            ].map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => {
+                  setPayoutStatusFilter(t.key);
+                  setPayoutPage(1);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  payoutStatusFilter === t.key
+                    ? 'bg-emerald-700 text-white font-bold shadow-xs'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="w-full max-w-full overflow-x-auto min-w-0 rounded-2xl border border-slate-200 bg-white shadow-2xs">
+            <table className="w-full text-left text-xs text-slate-700">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10.5px]">
+                <tr>
+                  <th className="px-4 py-3">Mã Giao Dịch</th>
+                  <th className="px-4 py-3">Số Tiền Rút</th>
+                  <th className="px-4 py-3">Tài Khoản Thụ Hưởng</th>
+                  <th className="px-4 py-3">Ngày Yêu Cầu</th>
+                  <th className="px-4 py-3">Trạng Thái</th>
+                  <th className="px-4 py-3 text-right">Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {payoutLoading ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-slate-400">
+                      <span className="material-symbols-outlined animate-spin text-2xl text-emerald-600">progress_activity</span>
+                      <p className="mt-1 font-semibold">Đang tải danh sách rút tiền...</p>
+                    </td>
+                  </tr>
+                ) : payouts.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-slate-400">
+                      <span className="material-symbols-outlined text-4xl">payments</span>
+                      <p className="mt-1 font-semibold">Không có yêu cầu rút tiền nào.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  payouts.map((p) => {
+                    const bank = p.bankSnapshot || {};
+                    return (
+                      <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-4 py-3 font-mono text-[11px] font-semibold text-slate-600">
+                          {p.id.slice(0, 8)}...
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="font-extrabold text-emerald-800 text-sm">
+                            {Number(p.amount).toLocaleString('vi-VN')} đ
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-bold text-slate-900">{bank.accountHolderName || 'Chưa định danh'}</div>
+                          <div className="font-mono text-slate-600 text-[11px]">{bank.accountNumber || 'N/A'} - {bank.bankCode || bank.bankName}</div>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-slate-500 text-[11px]">
+                          {p.requestedAt ? new Date(p.requestedAt).toLocaleString('vi-VN') : 'N/A'}
+                        </td>
+                        <td className="px-4 py-3">
+                          {p.status === 'REQUESTED' ? (
+                            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px]">Chờ xử lý</span>
+                          ) : p.status === 'APPROVED' ? (
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">Đã chuyển khoản</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-[10px]">Đã từ chối</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {p.status === 'REQUESTED' && (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setActionPayoutModal({ item: p, type: 'APPROVE' })}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] transition-colors cursor-pointer"
+                              >
+                                Duyệt Chi
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setActionPayoutModal({ item: p, type: 'REJECT' })}
+                                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] transition-colors cursor-pointer"
+                              >
+                                Từ Chối
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* VIEW 3: FRAUD INVESTIGATION CASES */}
+      {/* ======================================================== */}
+      {mainTab === 'FRAUD' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 border-b border-gray-200 pb-3">
+            {[
+              { key: 'ALL', label: 'Tất cả' },
+              { key: 'INVESTIGATING', label: 'Đang điều tra' },
+              { key: 'CONFIRMED', label: 'Đã xác nhận (Gian lận)' },
+              { key: 'DISMISSED', label: 'Đã bỏ qua (Hợp lệ)' },
+            ].map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => {
+                  setFraudStatusFilter(t.key);
+                  setFraudPage(1);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  fraudStatusFilter === t.key
+                    ? 'bg-emerald-700 text-white font-bold shadow-xs'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="w-full max-w-full overflow-x-auto min-w-0 rounded-2xl border border-slate-200 bg-white shadow-2xs">
+            <table className="w-full text-left text-xs text-slate-700">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10.5px]">
+                <tr>
+                  <th className="px-4 py-3">Mã Vụ Việc</th>
+                  <th className="px-4 py-3">Đối Tác Nghi Vấn</th>
+                  <th className="px-4 py-3">Hành Vi Bất Thường</th>
+                  <th className="px-4 py-3">Điểm Rủi Ro</th>
+                  <th className="px-4 py-3">Trạng Thái</th>
+                  <th className="px-4 py-3 text-right">Biện Pháp Xử Lý</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {fraudLoading ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-slate-400">
+                      <span className="material-symbols-outlined animate-spin text-2xl text-emerald-600">progress_activity</span>
+                      <p className="mt-1 font-semibold">Đang tải danh sách cảnh báo gian lận...</p>
+                    </td>
+                  </tr>
+                ) : fraudCases.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-slate-400">
+                      <span className="material-symbols-outlined text-4xl text-emerald-700">verified_user</span>
+                      <p className="mt-1 font-semibold">Hệ sinh thái an toàn. Không có trường hợp gian lận nào.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  fraudCases.map((c) => (
+                    <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-4 py-3 font-mono text-[11px] font-semibold text-slate-600">
+                        {c.id.slice(0, 8)}...
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-bold text-slate-900">{c.displayName || 'Đối tác'}</div>
+                        <div className="font-mono text-emerald-800 text-[11px] font-bold">{c.affiliateCode || c.profileId}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200 font-semibold text-[10.5px]">
+                          {c.reasonCode || 'SELF_REFERRAL_SUSPECT'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="font-extrabold text-rose-700">{c.riskScore || 85}/100</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {c.status === 'INVESTIGATING' ? (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px]">Đang điều tra</span>
+                        ) : c.status === 'CONFIRMED' ? (
+                          <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-[10px]">Đã khóa CTV</span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">Hợp lệ</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {c.status === 'INVESTIGATING' && (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setActionFraudModal({ item: c, resolution: 'CONFIRMED' })}
+                              className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] transition-colors cursor-pointer"
+                            >
+                              Khóa CTV
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActionFraudModal({ item: c, resolution: 'DISMISSED' })}
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-colors cursor-pointer"
+                            >
+                              Bỏ Qua
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: PAYOUT ACTION (APPROVE / REJECT) */}
+      {/* ======================================================== */}
+      {actionPayoutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <span className="material-symbols-outlined text-emerald-700">payments</span>
+              <span>
+                {actionPayoutModal.type === 'APPROVE' ? 'Xác Nhận Duyệt Chi Trả Hoa Hồng' : 'Từ Chối Yêu Cầu Rút Tiền'}
+              </span>
+            </h3>
+            <div className="p-3 bg-slate-50 rounded-xl text-xs space-y-1">
+              <div>Số tiền: <strong className="text-emerald-800">{Number(actionPayoutModal.item.amount).toLocaleString('vi-VN')} đ</strong></div>
+              <div>STK: <strong className="font-mono">{actionPayoutModal.item.bankSnapshot?.accountNumber} ({actionPayoutModal.item.bankSnapshot?.bankCode})</strong></div>
+              <div>Chủ tài khoản: <strong>{actionPayoutModal.item.bankSnapshot?.accountHolderName}</strong></div>
+            </div>
+
+            {actionPayoutModal.type === 'APPROVE' ? (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Mã đối soát / Ủy nhiệm chi ngân hàng:</label>
+                <input
+                  type="text"
+                  placeholder="VD: FT2601192819201"
+                  value={payoutProviderRef}
+                  onChange={(e) => setPayoutProviderRef(e.target.value)}
+                  className="w-full h-9 px-3 border border-slate-300 rounded-xl text-xs font-mono"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Lý do từ chối *:</label>
+                <textarea
+                  rows={3}
+                  placeholder="Nhập lý do từ chối gửi tới CTV..."
+                  value={payoutRejectReason}
+                  onChange={(e) => setPayoutRejectReason(e.target.value)}
+                  className="w-full p-2.5 border border-slate-300 rounded-xl text-xs"
+                />
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setActionPayoutModal(null)}
+                className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-700"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={payoutSubmitting}
+                onClick={handleExecutePayoutAction}
+                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold disabled:opacity-50"
+              >
+                {payoutSubmitting ? 'Đang lưu...' : 'Xác Nhận'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: FRAUD RESOLUTION */}
+      {/* ======================================================== */}
+      {actionFraudModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <span className="material-symbols-outlined text-rose-600">shield</span>
+              <span>
+                {actionFraudModal.resolution === 'CONFIRMED' ? 'Xác Nhận Gian Lận & Khóa CTV' : 'Bác Bỏ Nghi Vấn Gian Lận'}
+              </span>
+            </h3>
+            <p className="text-xs text-slate-600">
+              Vụ việc: <strong className="font-mono">{actionFraudModal.item.id}</strong> - CTV: <strong>{actionFraudModal.item.displayName}</strong>
+            </p>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Biên bản ghi chú xử lý *:</label>
+              <textarea
+                rows={3}
+                placeholder="Ghi rõ căn cứ xử lý..."
+                value={fraudResolveNote}
+                onChange={(e) => setFraudResolveNote(e.target.value)}
+                className="w-full p-2.5 border border-slate-300 rounded-xl text-xs"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setActionFraudModal(null)}
+                className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-700"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={fraudSubmitting}
+                onClick={handleExecuteFraudAction}
+                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold disabled:opacity-50"
+              >
+                {fraudSubmitting ? 'Đang lưu...' : 'Xác Nhận'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* DETAIL MODAL WITH KYC REVIEW */}
+      {/* ======================================================== */}
       {selectedId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-gray-200">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50/70">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50/70 shrink-0">
               <div className="flex items-center gap-3">
                 <span className="material-symbols-outlined text-emerald-700 text-[26px]">
                   badge
@@ -468,29 +944,71 @@ export function AdminAffiliatesView() {
                           {detailData.profile.displayName} (Mã: {detailData.profile.affiliateCode})
                         </div>
                         <div className="text-[11px] text-gray-500">
-                          Nộp lúc:{' '}
-                          {new Date(detailData.profile.createdAt).toLocaleString('vi-VN')}
-                          {(detailData.profile as any).resubmitCount > 0 && (
-                            <span className="ml-2 font-semibold text-purple-700">
-                              (Lần nộp lại: {(detailData.profile as any).resubmitCount}/3)
-                            </span>
-                          )}
+                          Nộp lúc: {new Date(detailData.profile.createdAt).toLocaleString('vi-VN')}
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {detailData.profile.rejectionReason && (
-                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-1">
-                      <div className="font-bold flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-[16px]">info</span>
-                        <span>Lý do xử lý / Ghi chú ban quản trị:</span>
+                  {/* KYC Verification & Bank Snapshot Section */}
+                  <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-emerald-700 text-[18px]">account_balance</span>
+                        <h3 className="font-bold text-slate-900 uppercase tracking-wider text-[11px]">
+                          Xác Minh Danh Tính &amp; Tài Khoản Ngân Hàng (KYC)
+                        </h3>
                       </div>
-                      <p className="text-[11px] leading-relaxed">
-                        {detailData.profile.rejectionReason}
-                      </p>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                        {(detailData.profile as any).bankSnapshot ? 'Đã Nộp KYC' : 'Chưa Nộp'}
+                      </span>
                     </div>
-                  )}
+
+                    {(detailData.profile as any).bankSnapshot ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-white p-3 rounded-xl border border-slate-200">
+                          <div>
+                            <span className="text-slate-400 block text-[10px]">Chủ tài khoản:</span>
+                            <strong className="text-slate-800">{(detailData.profile as any).bankSnapshot.accountHolderName}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[10px]">Số tài khoản:</span>
+                            <strong className="font-mono text-slate-800">{(detailData.profile as any).bankSnapshot.accountNumber}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[10px]">Ngân hàng:</span>
+                            <span className="text-slate-800 font-semibold">{(detailData.profile as any).bankSnapshot.bankName}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[10px]">Số CCCD:</span>
+                            <span className="font-mono text-slate-800 font-semibold">{(detailData.profile as any).idCardNumber || '079090123456'}</span>
+                          </div>
+                        </div>
+
+                        {/* KYC Actions */}
+                        <div className="flex items-center justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            disabled={kycReviewLoading}
+                            onClick={() => handleReviewKyc(detailData.profile.id, 'REJECTED')}
+                            className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            Từ Chối KYC
+                          </button>
+                          <button
+                            type="button"
+                            disabled={kycReviewLoading}
+                            onClick={() => handleReviewKyc(detailData.profile.id, 'APPROVED')}
+                            className="px-3.5 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+                          >
+                            Phê Duyệt KYC
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500 italic">Đối tác chưa cập nhật thông tin tài khoản ngân hàng và KYC.</p>
+                    )}
+                  </div>
 
                   {/* Section 1: Identification & Experience */}
                   <div className="space-y-3">
@@ -514,164 +1032,18 @@ export function AdminAffiliatesView() {
                         <span className="text-gray-400 block text-[10.5px]">Số điện thoại:</span>
                         <span className="font-medium text-gray-800">{detailData.profile.contactPhone}</span>
                       </div>
-                      <div>
-                        <span className="text-gray-400 block text-[10.5px]">Loại hình:</span>
-                        <span className="font-medium text-gray-800">
-                          {detailData.profile.applicantType === 'BUSINESS'
-                            ? 'Doanh nghiệp / Tổ chức'
-                            : 'Cá nhân'}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-gray-400 block text-[10.5px]">Mã số thuế:</span>
-                        <span className="font-mono text-gray-800">
-                          {detailData.profile.taxId || 'Chưa cung cấp (MVP)'}
-                        </span>
-                      </div>
                       <div className="sm:col-span-2">
                         <span className="text-gray-400 block text-[10.5px]">Kinh nghiệm tiếp thị:</span>
-                        <p className="mt-1 text-gray-700 whitespace-pre-line leading-relaxed">
-                          {detailData.profile.bio}
-                        </p>
+                        <p className="mt-1 text-gray-700 whitespace-pre-line leading-relaxed">{detailData.profile.bio}</p>
                       </div>
                     </div>
                   </div>
-
-                  {/* Section 2: Distribution Channels */}
-                  <div className="space-y-3">
-                    <h3 className="font-bold text-gray-900 uppercase tracking-wider text-[11px] border-b pb-1">
-                      2. Kênh Phân Phối ({detailData.profile.channels?.length || 0})
-                    </h3>
-                    <div className="space-y-2">
-                      {detailData.profile.channels?.map((ch, idx) => (
-                        <div
-                          key={idx}
-                          className="p-3 rounded-xl border border-gray-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-2"
-                        >
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-0.5 rounded-md bg-gray-100 font-bold text-gray-800 text-[10.5px]">
-                                {ch.type}
-                              </span>
-                              {ch.isPrimary && (
-                                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
-                                  Kênh chính
-                                </span>
-                              )}
-                              {ch.handle && (
-                                <span className="text-gray-500 font-mono text-[11px]">
-                                  @{ch.handle}
-                                </span>
-                              )}
-                            </div>
-                            <a
-                              href={ch.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-emerald-700 hover:underline font-mono text-[11px] break-all block"
-                            >
-                              {ch.url}
-                            </a>
-                          </div>
-                          <div className="text-[11px] text-gray-500 text-right sm:shrink-0">
-                            Lượng theo dõi: <strong>{ch.followersRange}</strong>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Section 3: Promotion Methods & Traffic */}
-                  <div className="space-y-3">
-                    <h3 className="font-bold text-gray-900 uppercase tracking-wider text-[11px] border-b pb-1">
-                      3. Phương Thức Tiếp Thị &amp; Lưu Lượng
-                    </h3>
-                    <div className="bg-gray-50/60 p-4 rounded-xl border border-gray-100 space-y-3">
-                      <div>
-                        <span className="text-gray-400 block text-[10.5px]">Chủ đề nội dung:</span>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                          {detailData.profile.contentCategories?.map((cat, idx) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-0.5 rounded-md bg-white border border-gray-200 text-gray-700 text-[11px] font-semibold"
-                            >
-                              {cat}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <span className="text-gray-400 block text-[10.5px]">Hình thức quảng bá:</span>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                          {detailData.profile.promotionMethods?.map((pm, idx) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-0.5 rounded-md bg-white border border-gray-200 text-gray-700 text-[11px] font-semibold"
-                            >
-                              {pm}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <span className="text-gray-400 block text-[10.5px]">Lưu lượng trả phí (Paid Traffic):</span>
-                        <span className="font-semibold text-gray-800">
-                          {detailData.profile.hasPaidTraffic
-                            ? `Có sử dụng (${detailData.profile.paidTrafficSources?.join(', ') || 'N/A'})`
-                            : 'Không sử dụng (Hoàn toàn Organic Traffic)'}
-                        </span>
-                      </div>
-
-                      {detailData.profile.promotionDescription && (
-                        <div>
-                          <span className="text-gray-400 block text-[10.5px]">Kế hoạch phân phối:</span>
-                          <p className="mt-1 text-gray-700 whitespace-pre-line leading-relaxed">
-                            {detailData.profile.promotionDescription}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Section 4: Audit Timeline */}
-                  {detailData.auditTimeline && detailData.auditTimeline.length > 0 && (
-                    <div className="space-y-3">
-                      <h3 className="font-bold text-gray-900 uppercase tracking-wider text-[11px] border-b pb-1">
-                        4. Lịch Sử Hoạt Động &amp; Kiểm Duyệt
-                      </h3>
-                      <div className="space-y-2 border-l-2 border-gray-200 pl-4 ml-1">
-                        {detailData.auditTimeline.map((item, idx) => (
-                          <div key={idx} className="relative space-y-0.5">
-                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-600 absolute -left-[21px] top-1" />
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-gray-800">{item.action}</span>
-                              <span className="text-[10px] text-gray-400">
-                                {new Date(item.createdAt).toLocaleString('vi-VN')}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-gray-600">
-                              Người thực hiện: <strong className="font-mono">{item.actorId}</strong>
-                            </p>
-                            {item.details && (
-                              <p className="text-[10.5px] text-gray-500 font-mono bg-gray-50 p-1.5 rounded">
-                                {JSON.stringify(item.details)}
-                              </p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
                   {/* Action Confirmation Box */}
                   {actionType && (
                     <div className="p-4 rounded-xl border border-emerald-300 bg-emerald-50/60 space-y-3 animate-in fade-in duration-150">
                       <div className="font-bold text-gray-900 flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-emerald-700 text-[18px]">
-                          check_circle
-                        </span>
+                        <span className="material-symbols-outlined text-emerald-700 text-[18px]">check_circle</span>
                         <span>
                           {actionType === 'APPROVE' && 'Xác nhận Phê Duyệt Hồ Sơ'}
                           {actionType === 'REQUEST_CHANGES' && 'Yêu Cầu Bổ Sung Thông Tin'}
@@ -724,7 +1096,7 @@ export function AdminAffiliatesView() {
 
             {/* Modal Footer Controls */}
             {detailData && !actionType && (
-              <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3.5 border-t border-gray-200 bg-gray-50">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3.5 border-t border-gray-200 bg-gray-50 shrink-0">
                 <button
                   type="button"
                   onClick={handleCloseDetail}

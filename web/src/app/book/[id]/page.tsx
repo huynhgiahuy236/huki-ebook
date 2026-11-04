@@ -21,6 +21,7 @@ import { personalizationService } from '@/ui/services/personalizationService';
 import { realtimeSyncBus, InventoryUpdatePayload } from '@/ui/services/realtimeSyncBus';
 import { reviewSummaryService } from '@/ui/services/reviewSummaryService';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
+import BookAffiliateCard from '@/ui/components/affiliate/BookAffiliateCard';
 import { userApi } from '@/ui/api/userApi';
 
 export interface TableOfContentItem {
@@ -1288,6 +1289,13 @@ export default function BookDetailPage() {
                   </div>
                 )}
               </div>
+
+              {/* Book Affiliate Creator Commerce Card */}
+              <BookAffiliateCard
+                bookId={book.id}
+                bookTitle={book.title}
+                className="w-full"
+              />
 
               {/* Trust & E-Commerce Guarantees */}
               <div className="p-3 rounded-xl bg-[#f8f6f1]/80 border border-[#e8e5df]/70 space-y-1.5 text-[11px] text-gray-700">

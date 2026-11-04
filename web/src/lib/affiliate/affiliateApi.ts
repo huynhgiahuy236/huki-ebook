@@ -890,6 +890,82 @@ export const affiliateApi = {
       method: 'GET',
     });
   },
+
+  /**
+   * Admin: List payout requests
+   */
+  async adminListPayouts(params: {
+    status?: string;
+    profileId?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<ApiResponse<{ items: any[]; total: number; page: number; limit: number; totalPages: number }>> {
+    const query = new URLSearchParams();
+    if (params.status) query.set('status', params.status);
+    if (params.profileId) query.set('profileId', params.profileId);
+    if (params.page) query.set('page', String(params.page));
+    if (params.limit) query.set('limit', String(params.limit));
+
+    const qs = query.toString();
+    return apiClient(`/admin/affiliates/payouts${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
+  /**
+   * Admin: Approve payout and execute bank disbursal
+   */
+  async adminApprovePayout(id: string, providerRef?: string): Promise<ApiResponse<any>> {
+    return apiClient(`/admin/affiliates/payouts/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ providerRef: providerRef || `BANK_TRANSFER_${Date.now()}` }),
+    });
+  },
+
+  /**
+   * Admin: Reject payout request
+   */
+  async adminRejectPayout(id: string, reason: string): Promise<ApiResponse<any>> {
+    return apiClient(`/admin/affiliates/payouts/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason || 'Yêu cầu không hợp lệ' }),
+    });
+  },
+
+  /**
+   * Admin: Review and verify/reject CTV KYC & bank account
+   */
+  async adminReviewKyc(profileId: string, data: { status: 'APPROVED' | 'REJECTED'; rejectionReason?: string }): Promise<ApiResponse<any>> {
+    return apiClient(`/admin/affiliates/kyc/${profileId}/review`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Admin: List fraud investigation cases
+   */
+  async adminListFraudCases(params: {
+    status?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<ApiResponse<{ items: any[]; total: number; page: number; limit: number; totalPages: number }>> {
+    const query = new URLSearchParams();
+    if (params.status) query.set('status', params.status);
+    if (params.page) query.set('page', String(params.page));
+    if (params.limit) query.set('limit', String(params.limit));
+
+    const qs = query.toString();
+    return apiClient(`/admin/affiliates/fraud${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
+  /**
+   * Admin: Resolve fraud investigation case
+   */
+  async adminResolveFraudCase(id: string, data: { resolution: 'CONFIRMED' | 'DISMISSED'; note: string }): Promise<ApiResponse<any>> {
+    return apiClient(`/admin/affiliates/fraud/${id}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 

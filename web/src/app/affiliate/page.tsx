@@ -220,22 +220,19 @@ export default function AffiliateLandingPage() {
       <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="p-8 sm:p-10 rounded-3xl bg-gradient-to-r from-emerald-800 to-teal-900 text-white text-center space-y-4 shadow-xl relative overflow-hidden">
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Tìm Hiểu Chương Trình Đối Tác Tiếp Thị HuKi
+            Sẵn Sàng Lan Tỏa Văn Hóa Đọc Cùng HuKi Partner?
           </h2>
           <p className="text-xs sm:text-sm text-emerald-100 max-w-xl mx-auto">
-            Xem trước quy trình 4 bước chuẩn bị hồ sơ và các yêu cầu kết nối kênh phân phối trước khi cổng đăng ký mở chính thức.
+            Đăng ký hồ sơ trực tuyến hoàn toàn miễn phí, nhận mã đối tác và bắt đầu tạo link tiếp thị sách bản quyền ngay hôm nay.
           </p>
           <div className="pt-2 flex flex-col items-center gap-1.5">
             <Link
               href="/account/affiliate/register"
               className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-emerald-900 font-extrabold text-sm shadow-md hover:bg-emerald-50 transition-all cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[18px]">visibility</span>
-              Xem trước mẫu đăng ký
+              <span className="material-symbols-outlined text-[18px]">how_to_reg</span>
+              Đăng Ký Tham Gia Ngay
             </Link>
-            <span className="text-[11px] text-emerald-200">
-              (Cổng đăng ký chưa mở tiếp nhận chính thức)
-            </span>
           </div>
         </div>
       </section>

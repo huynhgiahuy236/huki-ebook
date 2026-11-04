@@ -78,14 +78,24 @@ export class AffiliateLinkService {
       dto.targetStoreId,
     );
 
-    // 3. If target is BOOK, verify book exists and check affiliate eligibility
+    // 3. If target is BOOK, verify book exists (by ID or SEO slug) and check affiliate eligibility
     if (parsedTarget.targetBookId) {
-      const book = await this.prisma.book.findUnique({
-        where: { id: parsedTarget.targetBookId },
+      const book = await this.prisma.book.findFirst({
+        where: {
+          OR: [
+            { id: parsedTarget.targetBookId },
+            { slug: parsedTarget.targetBookId },
+          ],
+        },
         include: {
           affiliateSetting: true,
         },
       });
+
+      if (book) {
+        // Normalize to canonical book UUID for foreign key integrity
+        parsedTarget.targetBookId = book.id;
+      }
 
       if (!book) {
         throw new NotFoundException('Sách không tồn tại trong hệ thống');
@@ -364,8 +374,13 @@ export class AffiliateLinkService {
    * 4. Get Book Commission Details & Active Link for /book/:id card
    */
   async getBookCommissionForAffiliate(userId: string | null, bookId: string) {
-    const book = await this.prisma.book.findUnique({
-      where: { id: bookId },
+    const book = await this.prisma.book.findFirst({
+      where: {
+        OR: [
+          { id: bookId },
+          { slug: bookId },
+        ],
+      },
       include: {
         affiliateSetting: true,
       },
