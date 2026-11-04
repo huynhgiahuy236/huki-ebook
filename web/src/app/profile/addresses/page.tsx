@@ -32,32 +32,38 @@ export default function UserAddressesPage() {
 
   const loadAddresses = useCallback(async () => {
     setIsLoading(true);
+    let resolvedList: any[] = [];
+
     if (isLoggedIn) {
       try {
         const res = await addressApi.getAddresses();
-        if (res.success && Array.isArray(res.data)) {
-          setAddresses(res.data);
-          // If no addresses, switch to form tab automatically
-          if (res.data.length === 0) {
-            setActiveTab('form');
-          }
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          resolvedList = res.data;
+          try {
+            window.localStorage.setItem('huki.user.addresses', JSON.stringify(res.data));
+          } catch {}
         }
       } catch {
         // Fallback to local
       }
-    } else {
+    }
+
+    // Fallback to localStorage if server returned empty or is offline
+    if (resolvedList.length === 0 && typeof window !== 'undefined') {
       try {
         const saved = window.localStorage.getItem('huki.user.addresses');
         if (saved) {
           const parsed = JSON.parse(saved);
-          setAddresses(parsed);
-          if (parsed.length === 0) setActiveTab('form');
-        } else {
-          setActiveTab('form');
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            resolvedList = parsed;
+          }
         }
-      } catch {
-        // Fallback
-      }
+      } catch {}
+    }
+
+    setAddresses(resolvedList);
+    if (resolvedList.length === 0) {
+      setActiveTab('form');
     }
     setIsLoading(false);
   }, [isLoggedIn]);
@@ -67,54 +73,46 @@ export default function UserAddressesPage() {
   }, [loadAddresses]);
 
   const handleSetDefault = async (addr: any) => {
-    if (isLoggedIn && addr.id) {
+    if (isLoggedIn && addr.id && !String(addr.id).startsWith('addr-')) {
       try {
         await addressApi.updateAddress(addr.id, { isDefault: true });
-        await loadAddresses();
-        showToast(
-          {
-            title: 'Đặt địa chỉ mặc định',
-            message: `Đã đặt "${addr.address}" làm địa chỉ giao sách mặc định!`,
-          },
-          'success'
-        );
-        return;
       } catch {
         // Fallback
       }
     }
 
-    setAddresses((prev) =>
-      prev.map((a) => ({ ...a, isDefault: a.id === addr.id }))
-    );
+    const updated = addresses.map((a) => ({ ...a, isDefault: a.id === addr.id }));
+    setAddresses(updated);
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem('huki.user.addresses', JSON.stringify(updated));
+      } catch {}
+    }
     showToast(
       {
         title: 'Đặt địa chỉ mặc định',
-        message: 'Đã đặt địa chỉ giao sách mặc định!',
+        message: `Đã đặt "${addr.address}" làm địa chỉ giao sách mặc định!`,
       },
       'success'
     );
   };
 
   const handleDelete = async (id: string | number) => {
-    if (isLoggedIn && id) {
+    if (isLoggedIn && id && !String(id).startsWith('addr-')) {
       try {
         await addressApi.deleteAddress(String(id));
-        await loadAddresses();
-        showToast(
-          {
-            title: 'Đã xóa địa chỉ',
-            message: 'Địa chỉ đã được xóa khỏi sổ địa chỉ của bạn.',
-          },
-          'info'
-        );
-        return;
       } catch {
         // Fallback
       }
     }
 
-    setAddresses((prev) => prev.filter((a) => a.id !== id));
+    const updated = addresses.filter((a) => a.id !== id);
+    setAddresses(updated);
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem('huki.user.addresses', JSON.stringify(updated));
+      } catch {}
+    }
     showToast(
       {
         title: 'Đã xóa địa chỉ',
@@ -137,89 +135,76 @@ export default function UserAddressesPage() {
       return;
     }
 
-    if (isLoggedIn) {
-      try {
-        if (editingAddressId) {
-          const res = await addressApi.updateAddress(String(editingAddressId), {
-            name: formData.name.trim(),
-            phone: formData.phone.trim(),
-            province: formData.province.trim(),
-            district: formData.district.trim(),
-            ward: formData.ward.trim(),
-            address: formData.address.trim(),
-            isDefault: formData.isDefault,
-          });
-          if (res.success) {
-            showToast(
-              {
-                title: 'Cập nhật thành công',
-                message: 'Thông tin địa chỉ nhận sách đã được cập nhật!',
-              },
-              'success'
-            );
-            setEditingAddressId(null);
-            setActiveTab('list');
-            await loadAddresses();
-            return;
-          }
-        } else {
-          const res = await addressApi.createAddress({
-            name: formData.name.trim(),
-            phone: formData.phone.trim(),
-            province: formData.province.trim(),
-            district: formData.district.trim(),
-            ward: formData.ward.trim(),
-            address: formData.address.trim(),
-            isDefault: formData.isDefault || addresses.length === 0,
-          });
-          if (res.success) {
-            showToast(
-              {
-                title: 'Thêm địa chỉ thành công',
-                message: 'Địa chỉ mới đã được lưu vào sổ địa chỉ.',
-              },
-              'success'
-            );
-            setEditingAddressId(null);
-            setActiveTab('list');
-            await loadAddresses();
-            return;
-          }
-        }
-      } catch {
-        // Fallback
-      }
-    }
-
-    // Local Fallback
-    const newAddr = {
-      id: editingAddressId || `addr-${Date.now()}`,
-      name: formData.name,
-      phone: formData.phone,
-      province: formData.province,
-      district: formData.district,
-      ward: formData.ward,
-      address: formData.address,
+    let savedId = editingAddressId || `addr-${Date.now()}`;
+    let newAddr: any = {
+      id: savedId,
+      name: formData.name.trim(),
+      phone: formData.phone.trim(),
+      province: formData.province.trim(),
+      district: formData.district.trim(),
+      ward: formData.ward.trim(),
+      address: formData.address.trim(),
       addressType: formData.addressType || 'HOME',
       isDefault: formData.isDefault || addresses.length === 0,
     };
 
+    if (isLoggedIn) {
+      try {
+        if (editingAddressId && !String(editingAddressId).startsWith('addr-')) {
+          const res = await addressApi.updateAddress(String(editingAddressId), {
+            name: newAddr.name,
+            phone: newAddr.phone,
+            province: newAddr.province,
+            district: newAddr.district,
+            ward: newAddr.ward,
+            address: newAddr.address,
+            isDefault: newAddr.isDefault,
+          });
+          if (res.success && res.data) {
+            newAddr = res.data;
+          }
+        } else {
+          const res = await addressApi.createAddress({
+            name: newAddr.name,
+            phone: newAddr.phone,
+            province: newAddr.province,
+            district: newAddr.district,
+            ward: newAddr.ward,
+            address: newAddr.address,
+            isDefault: newAddr.isDefault,
+          });
+          if (res.success && res.data) {
+            savedId = res.data.id;
+            newAddr = res.data;
+          }
+        }
+      } catch (err) {
+        console.warn("[Profile Addresses] Failed to persist to server, keeping locally:", err);
+      }
+    }
+
+    let updatedList: any[];
     if (editingAddressId) {
-      setAddresses((prev) =>
-        prev.map((a) => (a.id === editingAddressId ? newAddr : a))
-      );
+      updatedList = addresses.map((a) => (a.id === editingAddressId ? newAddr : a));
     } else if (newAddr.isDefault) {
-      setAddresses([newAddr, ...addresses.map((a) => ({ ...a, isDefault: false }))]);
+      updatedList = [newAddr, ...addresses.map((a) => ({ ...a, isDefault: false }))];
     } else {
-      setAddresses([...addresses, newAddr]);
+      updatedList = [...addresses, newAddr];
+    }
+
+    setAddresses(updatedList);
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem('huki.user.addresses', JSON.stringify(updatedList));
+      } catch {}
     }
 
     setEditingAddressId(null);
     setActiveTab('list');
     showToast(
       {
-        title: 'Lưu địa chỉ thành công',
-        message: 'Đã cập nhật danh sách địa chỉ nhận sách!',
+        title: editingAddressId ? 'Cập nhật thành công' : 'Lưu địa chỉ thành công',
+        message: 'Thông tin địa chỉ giao nhận sách đã được lưu vào hệ thống!',
       },
       'success'
     );

@@ -149,41 +149,66 @@ export default function CheckoutPage() {
   const shippingFee = effectiveHasPhysical ? 30000 : 0;
   const grandTotal = rawSubtotal + shippingFee;
 
-  // Load user addresses if logged in
+  // Load user addresses with 2-way sync (Server API + LocalStorage persistence)
   const loadAddresses = useCallback(async () => {
-    if (!isLoggedIn) return;
-    try {
-      const res = await addressApi.getAddresses();
-      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-        setAddresses(res.data);
-        const defaultAddr = res.data.find((a: any) => a.isDefault) || res.data[0];
-        setSelectedAddressId(defaultAddr.id);
-        setAddressForm({
-          name: defaultAddr.name || user?.fullName || user?.name || "",
-          phone: defaultAddr.phone || user?.phone || "",
-          province: defaultAddr.province || "",
-          district: defaultAddr.district || "",
-          ward: defaultAddr.ward || "",
-          address: defaultAddr.address || "",
-          isDefault: defaultAddr.isDefault ?? true,
-        });
-        setShowNewAddressForm(false);
-      } else {
-        setAddresses([]);
-        setSelectedAddressId("");
-        setAddressForm({
-          name: user?.fullName || user?.name || "",
-          phone: user?.phone || "",
-          province: "",
-          district: "",
-          ward: "",
-          address: "",
-          isDefault: true,
-        });
-        setShowNewAddressForm(true);
+    let resolvedList: any[] = [];
+
+    // 1. Load from server API if logged in
+    if (isLoggedIn) {
+      try {
+        const res = await addressApi.getAddresses();
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          resolvedList = res.data;
+          try {
+            window.localStorage.setItem("huki.user.addresses", JSON.stringify(res.data));
+          } catch {}
+        }
+      } catch (err) {
+        console.warn("[Checkout] Failed to load server addresses, trying local cache:", err);
       }
-    } catch {
-      // ignore
+    }
+
+    // 2. Fallback to localStorage if server returned empty or is offline
+    if (resolvedList.length === 0 && typeof window !== "undefined") {
+      try {
+        const saved = window.localStorage.getItem("huki.user.addresses");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            resolvedList = parsed;
+          }
+        }
+      } catch {}
+    }
+
+    // 3. Set address state and active address
+    if (resolvedList.length > 0) {
+      setAddresses(resolvedList);
+      const defaultAddr = resolvedList.find((a: any) => a.isDefault) || resolvedList[0];
+      setSelectedAddressId(defaultAddr.id);
+      setAddressForm({
+        name: defaultAddr.name || user?.fullName || user?.name || "",
+        phone: defaultAddr.phone || user?.phone || "",
+        province: defaultAddr.province || "",
+        district: defaultAddr.district || "",
+        ward: defaultAddr.ward || "",
+        address: defaultAddr.address || "",
+        isDefault: Boolean(defaultAddr.isDefault),
+      });
+      setShowNewAddressForm(false);
+    } else {
+      setAddresses([]);
+      setSelectedAddressId("");
+      setAddressForm({
+        name: user?.fullName || user?.name || "",
+        phone: user?.phone || "",
+        province: "",
+        district: "",
+        ward: "",
+        address: "",
+        isDefault: true,
+      });
+      setShowNewAddressForm(true);
     }
   }, [isLoggedIn, user]);
 
@@ -893,43 +918,55 @@ export default function CheckoutPage() {
       return;
     }
 
+    let savedId = `addr-${Date.now()}`;
+    let newAddrRecord: any = {
+      id: savedId,
+      name: addressForm.name.trim(),
+      phone: addressForm.phone.trim(),
+      province: addressForm.province.trim(),
+      district: addressForm.district.trim(),
+      ward: addressForm.ward.trim(),
+      address: addressForm.address.trim(),
+      isDefault: Boolean(addressForm.isDefault),
+    };
+
     if (isLoggedIn) {
       try {
         const res = await addressApi.createAddress({
-          name: addressForm.name.trim(),
-          phone: addressForm.phone.trim(),
-          province: addressForm.province.trim(),
-          district: addressForm.district.trim(),
-          ward: addressForm.ward.trim(),
-          address: addressForm.address.trim(),
-          isDefault: addressForm.isDefault,
+          name: newAddrRecord.name,
+          phone: newAddrRecord.phone,
+          province: newAddrRecord.province,
+          district: newAddrRecord.district,
+          ward: newAddrRecord.ward,
+          address: newAddrRecord.address,
+          isDefault: newAddrRecord.isDefault,
         });
 
         if (res.success && res.data) {
-          showToast(
-            {
-              title: "Lưu địa chỉ thành công",
-              message: "Địa chỉ giao hàng mới đã được thêm vào sổ địa chỉ.",
-            },
-            "success"
-          );
-          await loadAddresses();
-          setSelectedAddressId(res.data.id);
-          setShowNewAddressForm(false);
-          setShowAddressList(false);
-          return;
+          savedId = res.data.id;
+          newAddrRecord = res.data;
         }
-      } catch {
-        // Fallback
+      } catch (err) {
+        console.warn("[Checkout] Failed to persist address to server, saving locally:", err);
       }
+    }
+
+    // Always persist to localStorage for 2-way sync with /profile/addresses
+    const nextList = [newAddrRecord, ...addresses.filter((a: any) => a.id !== savedId)];
+    setAddresses(nextList);
+    setSelectedAddressId(savedId);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem("huki.user.addresses", JSON.stringify(nextList));
+      } catch {}
     }
 
     setShowNewAddressForm(false);
     setShowAddressList(false);
     showToast(
       {
-        title: "Cập nhật địa chỉ",
-        message: "Đã cập nhật thông tin nhận hàng cho đơn này.",
+        title: "Lưu địa chỉ thành công",
+        message: "Địa chỉ giao hàng đã được lưu và áp dụng cho các lần mua sau.",
       },
       "success"
     );
@@ -1056,9 +1093,15 @@ export default function CheckoutPage() {
           province: activeAddress?.province || "Hồ Chí Minh",
         };
 
+        const isUUID = (id: string | null | undefined) =>
+          typeof id === "string" &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+        const validAddressId = isUUID(selectedAddressId) ? selectedAddressId : undefined;
+
         const previewPayload: any = {
-          addressId: selectedAddressId || undefined,
-          shippingAddress: !selectedAddressId && effectiveHasPhysical ? shippingAddressPayload : undefined,
+          addressId: validAddressId,
+          shippingAddress: !validAddressId && effectiveHasPhysical ? shippingAddressPayload : undefined,
           note: finalNote,
           platformVoucherCode: appliedPlatformVoucher?.code,
           storeVoucherCodes:
@@ -1107,7 +1150,7 @@ export default function CheckoutPage() {
         const confirmRes = await checkoutApi.confirmCheckout(
           {
             sessionId: currentSessionId,
-            addressId: selectedAddressId || undefined,
+            addressId: validAddressId,
             paymentMethod: isOnline ? "ONLINE_PAYMENT" : "COD",
             paymentProvider: isOnline ? "PAYOS" : undefined,
             platformVoucherCode: appliedPlatformVoucher?.code,

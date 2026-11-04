@@ -117,6 +117,8 @@ services:
       DATABASE_NAME: huki_uat_business
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_business?schema=public
       BUSINESS_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_business?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       GMAIL_USER: ${GMAIL_USER}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
@@ -149,8 +151,13 @@ services:
       PROMOTION_SERVICE_URL: http://promotion-service-uat:3007
       PROMOTION_SERVICE_HOST: promotion-service-uat
       PROMOTION_SERVICE_PORT: 3007
+      SHIPPING_SERVICE_URL: http://shipping-service-uat:3004
+      SHIPPING_SERVICE_HOST: shipping-service-uat
+      SHIPPING_SERVICE_PORT: 3004
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_commerce?schema=public
       COMMERCE_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_commerce?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       GMAIL_USER: ${GMAIL_USER}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
@@ -172,7 +179,7 @@ services:
       dockerfile: Dockerfile
     container_name: huki-uat-shipping-service
     restart: unless-stopped
-    command: ["node", "dist/out-tsc/shipping-service/apps/shipping-service/src/main.js"]
+    command: ["sh", "-c", "npx prisma migrate deploy --schema=apps/shipping-service/prisma/schema.prisma && node dist/out-tsc/shipping-service/apps/shipping-service/src/main.js"]
     environment:
       PORT: 3004
       SHIPPING_SERVICE_PORT: 3004
@@ -184,6 +191,8 @@ services:
       DATABASE_NAME: huki_uat_shipping
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_shipping?schema=public
       SHIPPING_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_shipping?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672
     healthcheck:
@@ -207,6 +216,8 @@ services:
       COMMUNITY_SERVICE_PORT: 3005
       NODE_ENV: staging
       MONGODB_URI: mongodb://mongo:27017/community_uat_db
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -226,7 +237,7 @@ services:
       dockerfile: Dockerfile
     container_name: huki-uat-promotion-service
     restart: unless-stopped
-    command: ["node", "dist/out-tsc/promotion-service/apps/promotion-service/src/main.js"]
+    command: ["sh", "-c", "npx prisma migrate deploy --schema=apps/promotion-service/prisma/schema.prisma && node dist/out-tsc/promotion-service/apps/promotion-service/src/main.js"]
     environment:
       PORT: 3007
       PROMOTION_SERVICE_PORT: 3007
@@ -238,6 +249,8 @@ services:
       DATABASE_NAME: huki_uat_promotion
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_promotion?schema=public
       PROMOTION_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_promotion?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -269,6 +282,8 @@ services:
       DATABASE_NAME: huki_uat_analytics
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_analytics?schema=public
       ANALYTICS_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_analytics?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3008/api/v1/health/live"]

@@ -191,6 +191,8 @@ services:
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       DATABASE_NAME: huki_business
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_business?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production-min-32-chars-key}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-in-production-refresh-token-key}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       GMAIL_USER: ${GMAIL_USER}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
@@ -226,7 +228,12 @@ services:
       PROMOTION_SERVICE_URL: http://promotion-service:3007
       PROMOTION_SERVICE_HOST: promotion-service
       PROMOTION_SERVICE_PORT: 3007
+      SHIPPING_SERVICE_URL: http://shipping-service:3004
+      SHIPPING_SERVICE_HOST: shipping-service
+      SHIPPING_SERVICE_PORT: 3004
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_commerce?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production-min-32-chars-key}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-in-production-refresh-token-key}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       RABBITMQ_HOST: rabbitmq
@@ -266,6 +273,8 @@ services:
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       DATABASE_NAME: huki_shipping
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_shipping?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production-min-32-chars-key}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-in-production-refresh-token-key}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672
     healthcheck:
@@ -292,6 +301,8 @@ services:
       PORT: 3005
       COMMUNITY_SERVICE_PORT: 3005
       MONGODB_URI: mongodb://mongo:27017/community_db
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production-min-32-chars-key}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-in-production-refresh-token-key}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -327,6 +338,8 @@ services:
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       DATABASE_NAME: huki_promotion
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_promotion?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production-min-32-chars-key}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-in-production-refresh-token-key}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
@@ -362,6 +375,8 @@ services:
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       DATABASE_NAME: huki_analytics
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_analytics?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production-min-32-chars-key}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-in-production-refresh-token-key}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3008/api/v1/health/live"]

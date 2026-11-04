@@ -453,33 +453,82 @@ const PROVINCES_MAP: Record<string, { lat: number; lng: number; hub: string; eta
   },
 };
 
-// Sub-District Hotspots to refine coordinates when specific major cities are selected
-const SUB_DISTRICT_HOTSPOTS: Record<string, { lat: number; lng: number }> = {
-  'cao lanh': { lat: 10.4600, lng: 105.6333 },
-  'sa dec': { lat: 10.2941, lng: 105.7570 },
-  'hong ngu': { lat: 10.8144, lng: 105.3400 },
-  'my tho': { lat: 10.3544, lng: 106.3639 },
-  'cai lay': { lat: 10.4133, lng: 106.1167 },
-  'go cong': { lat: 10.3600, lng: 106.6600 },
-  'long xuyen': { lat: 10.3833, lng: 105.4167 },
-  'chau doc': { lat: 10.7000, lng: 105.1167 },
-  'rach gia': { lat: 10.0125, lng: 105.0809 },
-  'phu quoc': { lat: 10.2899, lng: 103.9840 },
-  'nha trang': { lat: 12.2388, lng: 109.1967 },
-  'cam ranh': { lat: 11.9214, lng: 109.1591 },
-  'da lat': { lat: 11.9404, lng: 108.4583 },
-  'bao loc': { lat: 11.5478, lng: 107.8083 },
-  'buon ma thuot': { lat: 12.6667, lng: 108.0383 },
-  'pleiku': { lat: 13.9833, lng: 108.0000 },
-  'quy nhon': { lat: 13.7820, lng: 109.2197 },
-  'tam ky': { lat: 15.5683, lng: 108.4817 },
-  'hoi an': { lat: 15.8801, lng: 108.3380 },
-  'hue': { lat: 16.4637, lng: 107.5909 },
-  'vinh': { lat: 18.6734, lng: 105.6813 },
-  'ha long': { lat: 20.9505, lng: 107.0734 },
-  'bien hoa': { lat: 10.9574, lng: 106.8427 },
-  'thu dau mot': { lat: 10.9804, lng: 106.6519 },
-  'vung tau': { lat: 10.3460, lng: 107.0843 },
+// Sub-District Hotspots to refine coordinates when specific major districts or cities are selected
+const SUB_DISTRICT_HOTSPOTS: Record<string, { lat: number; lng: number; zoom?: number; hub?: string }> = {
+  // --- TP. Hồ Chí Minh (Đầy đủ tất cả các quận huyện & phường trọng điểm) ---
+  'phuong 5 go vap': { lat: 10.8222, lng: 106.6875, zoom: 16, hub: 'Điểm Bưu Tá Phát Nhanh Phường 5, Gò Vấp (Khu ĐH Công Nghiệp TP.HCM)' },
+  'phuong 5': { lat: 10.8222, lng: 106.6875, zoom: 16, hub: 'Điểm Giao Nhận Phường 5 - Trung Tâm Bưu Tá Địa Phương' },
+  'go vap': { lat: 10.8388, lng: 106.6653, zoom: 15, hub: 'Bưu Cục Gò Vấp (Hub Quang Trung - Phan Văn Trị)' },
+  'quan 1': { lat: 10.7769, lng: 106.7009, zoom: 15, hub: 'Bưu Điện Trung Tâm Sài Gòn (Hub Quận 1)' },
+  'quan 3': { lat: 10.7844, lng: 106.6844, zoom: 15, hub: 'Bưu Cục Võ Văn Tần (Hub Quận 3)' },
+  'quan 4': { lat: 10.7578, lng: 106.7011, zoom: 15, hub: 'Bưu Cục Đoàn Văn Bơ (Hub Quận 4)' },
+  'quan 5': { lat: 10.7540, lng: 106.6634, zoom: 15, hub: 'Bưu Cục Chợ Lớn (Hub Quận 5)' },
+  'quan 6': { lat: 10.7475, lng: 106.6353, zoom: 15, hub: 'Bưu Cục Hậu Giang (Hub Quận 6)' },
+  'quan 7': { lat: 10.7340, lng: 106.7219, zoom: 15, hub: 'Bưu Cục Phú Mỹ Hưng (Hub Quận 7)' },
+  'quan 8': { lat: 10.7241, lng: 106.6286, zoom: 15, hub: 'Bưu Cục Phạm Thế Hiển (Hub Quận 8)' },
+  'quan 10': { lat: 10.7716, lng: 106.6675, zoom: 15, hub: 'Bưu Cục Ba Tháng Hai (Hub Quận 10)' },
+  'quan 11': { lat: 10.7629, lng: 106.6504, zoom: 15, hub: 'Bưu Cục Lạc Long Quân (Hub Quận 11)' },
+  'quan 12': { lat: 10.8672, lng: 106.6413, zoom: 14, hub: 'Bưu Cục An Phú Đông (Hub Quận 12)' },
+  'binh thanh': { lat: 10.8106, lng: 106.7091, zoom: 15, hub: 'Bưu Cục Bạch Đằng (Hub Bình Thạnh)' },
+  'tan binh': { lat: 10.8015, lng: 106.6526, zoom: 15, hub: 'Tổng Kho Phân Loại Tân Bình (SPX/GHTK Hub)' },
+  'tan phu': { lat: 10.7900, lng: 106.6284, zoom: 15, hub: 'Bưu Cục Lũy Bán Bích (Hub Tân Phú)' },
+  'phu nhuan': { lat: 10.7992, lng: 106.6803, zoom: 15, hub: 'Bưu Cục Phan Xích Long (Hub Phú Nhuận)' },
+  'thu duc': { lat: 10.8494, lng: 106.7537, zoom: 14, hub: 'Trung Tâm Khai Thác TP. Thủ Đức (Hub Đông Sài Gòn)' },
+  'binh tan': { lat: 10.7654, lng: 106.6049, zoom: 14, hub: 'Bưu Cục Tên Lửa (Hub Bình Tân)' },
+  'hoc mon': { lat: 10.8839, lng: 106.5932, zoom: 14, hub: 'Bưu Cục Thị Trấn Hóc Môn' },
+  'cu chi': { lat: 11.0067, lng: 106.4947, zoom: 13, hub: 'Bưu Cục Thị Trấn Củ Chi' },
+  'nha be': { lat: 10.6953, lng: 106.7276, zoom: 14, hub: 'Bưu Cục Nhà Bè (Huỳnh Tấn Phát)' },
+  'binh chanh': { lat: 10.6874, lng: 106.5939, zoom: 13, hub: 'Bưu Cục Tân Túc - Bình Chánh' },
+  'can gio': { lat: 10.4114, lng: 106.9546, zoom: 12, hub: 'Bưu Cục Cần Thạnh - Cần Giờ' },
+
+  // --- Hà Nội ---
+  'hoan kiem': { lat: 21.0285, lng: 105.8542, zoom: 15, hub: 'Bưu Điện Bờ Hồ (Hub Hoàn Kiếm)' },
+  'ba dinh': { lat: 21.0341, lng: 105.8244, zoom: 15, hub: 'Bưu Cục Ba Đình (Đội Cấn Hub)' },
+  'dong da': { lat: 21.0181, lng: 105.8299, zoom: 15, hub: 'Bưu Cục Đống Đa (Thái Hà Hub)' },
+  'cau giay': { lat: 21.0362, lng: 105.7906, zoom: 15, hub: 'Bưu Cục Cầu Giấy (Xuân Thủy Hub)' },
+  'hai ba trung': { lat: 21.0076, lng: 105.8524, zoom: 15, hub: 'Bưu Cục Hai Bà Trưng (Bạch Mai Hub)' },
+  'thanh xuan': { lat: 20.9937, lng: 105.8123, zoom: 15, hub: 'Bưu Cục Thanh Xuân (Nguyễn Trãi Hub)' },
+  'tay ho': { lat: 21.0667, lng: 105.8197, zoom: 15, hub: 'Bưu Cục Tây Hồ (Lạc Long Quân Hub)' },
+  'hoang mai': { lat: 20.9765, lng: 105.8560, zoom: 15, hub: 'Bưu Cục Hoàng Mai (Linh Đàm Hub)' },
+  'long bien': { lat: 21.0360, lng: 105.8943, zoom: 14, hub: 'Bưu Cục Long Biên (Nguyễn Văn Cừ Hub)' },
+  'nam tu liem': { lat: 21.0146, lng: 105.7656, zoom: 14, hub: 'Bưu Cục Nam Từ Liêm (Mỹ Đình Hub)' },
+  'bac tu liem': { lat: 21.0628, lng: 105.7538, zoom: 14, hub: 'Bưu Cục Bắc Từ Liêm (Cổ Nhuế Hub)' },
+  'ha dong': { lat: 20.9721, lng: 105.7772, zoom: 14, hub: 'Bưu Cục Hà Đông (Quang Trung Hub)' },
+
+  // --- Đà Nẵng ---
+  'hai chau': { lat: 16.0544, lng: 108.2022, zoom: 15, hub: 'Bưu Cục Trung Tâm Hải Châu' },
+  'thanh khe': { lat: 16.0619, lng: 108.1818, zoom: 15, hub: 'Bưu Cục Thanh Khê' },
+  'son tra': { lat: 16.0903, lng: 108.2438, zoom: 14, hub: 'Bưu Cục Sơn Trà' },
+  'ngu hanh son': { lat: 16.0227, lng: 108.2541, zoom: 14, hub: 'Bưu Cục Ngũ Hành Sơn' },
+  'lien chieu': { lat: 16.0886, lng: 108.1444, zoom: 14, hub: 'Bưu Cục Liên Chiểu' },
+  'cam le': { lat: 15.9988, lng: 108.1963, zoom: 14, hub: 'Bưu Cục Cẩm Lệ' },
+
+  // --- Các thành phố tỉnh lẻ nổi bật ---
+  'cao lanh': { lat: 10.4600, lng: 105.6333, zoom: 15, hub: 'Bưu Cục TP. Cao Lãnh' },
+  'sa dec': { lat: 10.2941, lng: 105.7570, zoom: 15, hub: 'Bưu Cục TP. Sa Đéc' },
+  'hong ngu': { lat: 10.8144, lng: 105.3400, zoom: 15, hub: 'Bưu Cục Hồng Ngự' },
+  'my tho': { lat: 10.3544, lng: 106.3639, zoom: 15, hub: 'Bưu Cục TP. Mỹ Tho' },
+  'cai lay': { lat: 10.4133, lng: 106.1167, zoom: 15, hub: 'Bưu Cục TX. Cai Lậy' },
+  'go cong': { lat: 10.3600, lng: 106.6600, zoom: 15, hub: 'Bưu Cục TX. Gò Công' },
+  'long xuyen': { lat: 10.3833, lng: 105.4167, zoom: 15, hub: 'Bưu Cục Long Xuyên' },
+  'chau doc': { lat: 10.7000, lng: 105.1167, zoom: 15, hub: 'Bưu Cục Châu Đốc' },
+  'rach gia': { lat: 10.0125, lng: 105.0809, zoom: 15, hub: 'Bưu Cục Rạch Giá' },
+  'phu quoc': { lat: 10.2899, lng: 103.9840, zoom: 14, hub: 'Bưu Cục TP. Phú Quốc' },
+  'nha trang': { lat: 12.2388, lng: 109.1967, zoom: 15, hub: 'Bưu Cục TP. Nha Trang' },
+  'cam ranh': { lat: 11.9214, lng: 109.1591, zoom: 15, hub: 'Bưu Cục Cam Ranh' },
+  'da lat': { lat: 11.9404, lng: 108.4583, zoom: 15, hub: 'Bưu Cục TP. Đà Lạt' },
+  'bao loc': { lat: 11.5478, lng: 107.8083, zoom: 15, hub: 'Bưu Cục TP. Bảo Lộc' },
+  'buon ma thuot': { lat: 12.6667, lng: 108.0383, zoom: 15, hub: 'Bưu Cục Buôn Ma Thuột' },
+  'pleiku': { lat: 13.9833, lng: 108.0000, zoom: 15, hub: 'Bưu Cục Pleiku' },
+  'quy nhon': { lat: 13.7820, lng: 109.2197, zoom: 15, hub: 'Bưu Cục Quy Nhơn' },
+  'tam ky': { lat: 15.5683, lng: 108.4817, zoom: 15, hub: 'Bưu Cục Tam Kỳ' },
+  'hoi an': { lat: 15.8801, lng: 108.3380, zoom: 15, hub: 'Bưu Cục Hội An' },
+  'hue': { lat: 16.4637, lng: 107.5909, zoom: 15, hub: 'Bưu Cục TP. Huế' },
+  'vinh': { lat: 18.6734, lng: 105.6813, zoom: 15, hub: 'Bưu Cục TP. Vinh' },
+  'ha long': { lat: 20.9505, lng: 107.0734, zoom: 15, hub: 'Bưu Cục Hạ Long' },
+  'bien hoa': { lat: 10.9574, lng: 106.8427, zoom: 15, hub: 'Bưu Cục TP. Biên Hòa' },
+  'thu dau mot': { lat: 10.9804, lng: 106.6519, zoom: 15, hub: 'Bưu Cục Thủ Dầu Một' },
+  'vung tau': { lat: 10.3460, lng: 107.0843, zoom: 15, hub: 'Bưu Cục Vũng Tàu' },
 };
 
 function cleanText(str: string) {
@@ -526,22 +575,36 @@ function resolveLocation(provinceStr: string, wardStr: string, districtStr: stri
   const provData = PROVINCES_MAP[targetProvinceKey] || PROVINCES_MAP['hồ chí minh'];
   let lat = provData.lat;
   let lng = provData.lng;
-  const hub = provData.hub;
-  const eta = provData.eta;
+  let hub = provData.hub;
+  let eta = provData.eta;
+  let zoom = 13;
 
-  // 3. Refine coordinates if ward or district mentions a specific major city hotspot
+  // 3. Priority check: compound ward + district (e.g. "phuong 5 go vap")
+  const compoundKey = `${cleanWard} ${cleanDist}`.trim();
+  if (compoundKey && SUB_DISTRICT_HOTSPOTS[compoundKey]) {
+    const spot = SUB_DISTRICT_HOTSPOTS[compoundKey];
+    lat = spot.lat;
+    lng = spot.lng;
+    if (spot.zoom) zoom = spot.zoom;
+    if (spot.hub) hub = spot.hub;
+    return { lat, lng, hub, eta, zoom };
+  }
+
+  // 4. Refine coordinates if ward or district mentions a specific major city hotspot
   const subTexts = [cleanWard, cleanDist, cleanAddr].filter(Boolean);
   for (const text of subTexts) {
     for (const [spotKey, coords] of Object.entries(SUB_DISTRICT_HOTSPOTS)) {
       if (text === spotKey || text.includes(spotKey)) {
         lat = coords.lat;
         lng = coords.lng;
-        break;
+        if (coords.zoom) zoom = coords.zoom;
+        if (coords.hub) hub = coords.hub;
+        return { lat, lng, hub, eta, zoom };
       }
     }
   }
 
-  return { lat, lng, hub, eta };
+  return { lat, lng, hub, eta, zoom };
 }
 
 export interface AddressMapPreviewProps {
@@ -572,6 +635,9 @@ export default function AddressMapPreview({
   const [zoomLevel, setZoomLevel] = useState(13); // Zoom 13 is ideal district/ward level
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isLeafletReady, setIsLeafletReady] = useState(false);
+  const [exactCoords, setExactCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [isManualPinned, setIsManualPinned] = useState(false);
 
   const fullAddressText = useMemo(() => {
     return [address, ward, district, province].filter(Boolean).join(', ');
@@ -580,6 +646,42 @@ export default function AddressMapPreview({
   const locationInfo = useMemo(() => {
     return resolveLocation(province, ward, district, address);
   }, [province, ward, district, address]);
+
+  // Live Geocoding to Pinpoint EXACT street & house number
+  useEffect(() => {
+    if (!fullAddressText || fullAddressText.length < 5) {
+      setExactCoords(null);
+      setIsManualPinned(false);
+      return;
+    }
+
+    if (isManualPinned) return; // Don't override if user manually clicked on map
+
+    const timer = setTimeout(async () => {
+      setIsGeocoding(true);
+      try {
+        const res = await fetch(`/api/geocode?q=${encodeURIComponent(fullAddressText)}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data?.lat && json.data?.lng) {
+            setExactCoords({ lat: json.data.lat, lng: json.data.lng });
+          } else {
+            setExactCoords(null);
+          }
+        }
+      } catch {
+        setExactCoords(null);
+      } finally {
+        setIsGeocoding(false);
+      }
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [fullAddressText, isManualPinned]);
+
+  const activeLat = exactCoords ? exactCoords.lat : locationInfo.lat;
+  const activeLng = exactCoords ? exactCoords.lng : locationInfo.lng;
+  const activeZoom = exactCoords ? (isManualPinned ? 17 : 16) : (locationInfo.zoom || zoomLevel);
 
   // Initialize Leaflet Map once container is mounted
   useEffect(() => {
@@ -592,17 +694,17 @@ export default function AddressMapPreview({
       if (!isMounted || !mapContainerRef.current) return;
 
       const map = L.map(mapContainerRef.current, {
-        center: [locationInfo.lat, locationInfo.lng],
-        zoom: zoomLevel,
+        center: [activeLat, activeLng],
+        zoom: activeZoom,
         zoomControl: false,
         attributionControl: false,
       });
 
-      // High Performance OpenStreetMap tiles (100% Free, No Watermark, Vietnamese Street & City Labels)
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      // High Performance CartoDB Voyager tiles (100% Reliable in VN, Fast Singapore CDN, Crisp Vietnamese Labels)
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         maxZoom: 19,
-        subdomains: ['a', 'b', 'c'],
-        attribution: '© OpenStreetMap contributors',
+        subdomains: ['a', 'b', 'c', 'd'],
+        attribution: '© OpenStreetMap contributors © CARTO',
       }).addTo(map);
 
       // Custom Center Marker
@@ -623,11 +725,32 @@ export default function AddressMapPreview({
         iconAnchor: [0, 0],
       });
 
-      const marker = L.marker([locationInfo.lat, locationInfo.lng], { icon: customIcon }).addTo(map);
+      const marker = L.marker([activeLat, activeLng], { icon: customIcon }).addTo(map);
+
+      // Click to pin anywhere for 100% precision
+      map.on('click', (e: any) => {
+        const { lat, lng } = e.latlng;
+        setExactCoords({ lat, lng });
+        setIsManualPinned(true);
+        marker.setLatLng([lat, lng]);
+        map.panTo([lat, lng]);
+      });
 
       mapInstanceRef.current = map;
       markerInstanceRef.current = marker;
       setIsLeafletReady(true);
+
+      // Invalidate size to guarantee tiles render immediately (prevents blank grey container)
+      setTimeout(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      }, 150);
+      setTimeout(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      }, 500);
     }
 
     initMap();
@@ -645,15 +768,16 @@ export default function AddressMapPreview({
   useEffect(() => {
     if (!mapInstanceRef.current || !isLeafletReady) return;
 
-    mapInstanceRef.current.flyTo([locationInfo.lat, locationInfo.lng], zoomLevel, {
+    mapInstanceRef.current.invalidateSize();
+    mapInstanceRef.current.flyTo([activeLat, activeLng], activeZoom, {
       duration: 1.0,
       easeLinearity: 0.25,
     });
 
     if (markerInstanceRef.current) {
-      markerInstanceRef.current.setLatLng([locationInfo.lat, locationInfo.lng]);
+      markerInstanceRef.current.setLatLng([activeLat, activeLng]);
     }
-  }, [locationInfo.lat, locationInfo.lng, zoomLevel, isLeafletReady]);
+  }, [activeLat, activeLng, activeZoom, isLeafletReady]);
 
   // Handle Zoom change
   const handleZoom = (delta: number) => {
@@ -756,9 +880,28 @@ export default function AddressMapPreview({
         </div>
 
         {/* Live Status Pill Top Right */}
-        <div className="hidden sm:flex absolute top-3 right-3 px-3 py-1.5 rounded-none bg-emerald-950/85 backdrop-blur-md text-emerald-300 text-[11px] font-bold border border-emerald-500/30 shadow-md items-center gap-1.5 z-[400]">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>Sẵn sàng kết nối Hub</span>
+        <div className="hidden sm:flex absolute top-3 right-3 px-3 py-1.5 rounded-none bg-neutral-900/90 backdrop-blur-md text-[11px] font-bold border border-white/10 shadow-md items-center gap-1.5 z-[400]">
+          {isManualPinned ? (
+            <>
+              <span className="material-symbols-outlined text-xs text-amber-400">edit_location</span>
+              <span className="text-amber-300">Đã ghim theo click bản đồ</span>
+            </>
+          ) : exactCoords ? (
+            <>
+              <span className="material-symbols-outlined text-xs text-emerald-400">gps_fixed</span>
+              <span className="text-emerald-300">Đã định vị chính xác số nhà / đường</span>
+            </>
+          ) : isGeocoding ? (
+            <>
+              <span className="material-symbols-outlined text-xs animate-spin text-sky-400">sync</span>
+              <span className="text-sky-300">Đang đồng bộ tọa độ...</span>
+            </>
+          ) : (
+            <>
+              <span className="material-symbols-outlined text-xs text-emerald-400">near_me</span>
+              <span className="text-emerald-300">Định vị theo Phường/Xã (Click để chỉnh)</span>
+            </>
+          )}
         </div>
       </div>
 

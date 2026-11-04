@@ -37,6 +37,11 @@ jobs:
             docker compose -f docker-compose.prod.yml up -d postgres mongo redis rabbitmq
             sleep 5
 
+            echo "=== Ensuring UAT databases exist in PostgreSQL ==="
+            for db in huki_uat_identity huki_uat_business huki_uat_commerce huki_uat_shipping huki_uat_promotion huki_uat_analytics; do
+              docker exec huki-postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$db'" | grep -q 1 || docker exec huki-postgres psql -U postgres -c "CREATE DATABASE $db;"
+            done
+
             echo "=== [3/4] Rebuilding and updating UAT services with Docker Compose ==="
             DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 docker compose -f docker-compose.uat.yml up -d --build --remove-orphans
 
