@@ -1,4 +1,46 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit, Optional, HttpStatus } from '@nestjs/common';
+import { EBOOK_STORAGE, EbookStorage } from './storage/storage.interfaces';
+
+export const REAL_EBOOK_MAPPINGS: Record<string, string> = {
+  '1001-cach-giu-chan-khach-hang': 'ebooks/1001-cach-giu-chan-khach-hang.pdf',
+  '101-y-tuong-quang-cao-khon-ngoan': 'ebooks/101-y-tuong-quang-cao-khon-ngoan.pdf',
+  '12-tuyet-ky-ban-hang-brian-tracy': 'ebooks/12-tuyet-ky-ban-hang-brian-tracy.pdf',
+  '7-thoi-quen-de-thanh-dat': 'ebooks/7-thoi-quen-de-thanh-dat.pdf',
+  'ai-lay-mieng-phomat-cua-toi': 'ebooks/ai-lay-mieng-phomat-cua-toi.pdf',
+  'bi-quyet-gay-dung-co-nghiep-bac-ty': 'ebooks/bi-quyet-gay-dung-co-ngo-bac-ty.pdf',
+  'chiec-lexus-va-cay-oliu': 'ebooks/chiec-lexus-va-cay-oliu.pdf',
+  'chien-thang-con-quy-trong-ban': 'ebooks/chien-thang-con-quy-trong-ban.pdf',
+  'con-duong-phia-truoc': 'ebooks/con-duong-phia-truoc.pdf',
+  'dac-nhan-tam': 'ebooks/dac-nhan-tam.pdf',
+  'dam-chap-nhan': 'ebooks/dam-chap-nhan.pdf',
+  'dam-nghi-lon': 'ebooks/dam-nghi-lon.pdf',
+  'danh-cap-y-tuong': 'ebooks/danh-cap-y-tuong.pdf',
+  'doc-vi-bat-ky-ai': 'ebooks/doc-vi-bat-ky-ai.pdf',
+  'doc-vi-khach-hang': 'ebooks/doc-vi-khach-hang.pdf',
+  'dung-bao-gio-di-an-mot-minh': 'ebooks/dung-bao-gio-di-an-mot-minh.pdf',
+  'facebook-marketing-tu-a-den-z': 'ebooks/facebook-marketing-a-z.pdf',
+  'hanh-trinh-ve-phuong-dong': 'ebooks/hanh-trinh-ve-phuong-dong.pdf',
+  'hen-ban-tren-dinh-thanh-cong': 'ebooks/hen-ban-tren-dinh-thanh-cong.pdf',
+  'kotler-ban-ve-tiep-thi': 'ebooks/kotler-ban-ve-tiep-thi.pdf',
+  'lam-chu-tu-duy-thay-doi-van-menh': 'ebooks/lam-chu-tu-duy-thay-doi-van-menh.pdf',
+  'ngay-xua-co-mot-con-bo': 'ebooks/ngay-xua-co-mot-con-bo.pdf',
+  'nha-gia-kim': 'ebooks/nhagiakim.pdf',
+  'nghe-thuat-ban-hang-bac-cao': 'ebooks/nghe-thuat-ban-hang-bac-cao.pdf',
+  'nghi-lon-de-thanh-cong': 'ebooks/nghi-lon-de-thanh-cong.pdf',
+  'nghi-lon-va-lam-giau': 'ebooks/nghi-lon-va-lam-giau.pdf',
+  'the-gioi-phang': 'ebooks/the-gioi-phang.pdf',
+  'the-gioi-phang-the-world-is-flat': 'ebooks/the-gioi-phang.pdf',
+  'toi-tai-gioi-ban-cung-the': 'ebooks/toi-tai-gioi-ban-cung-the.pdf',
+  'tren-duong-bang-tony-buoi-sang': 'ebooks/tren-duong-bang-tony-buoi-sang.pdf',
+  'tren-duong-bang': 'ebooks/tren-duong-bang-tony-buoi-sang.pdf',
+  'tu-duy-dot-pha': 'ebooks/tu-duy-dot-pha.pdf',
+  'tu-huyet-cam-xuc': 'ebooks/tu-huyet-cam-xuc.pdf',
+  'tu-tot-den-vi-dai': 'ebooks/tu-tot-den-vi-dai.pdf',
+  'tuoi-tre-dang-gia-bao-nhieu': 'ebooks/tuoi-tre-dang-gia-bao-nhieu.pdf',
+  'ty-phu-ban-giay': 'ebooks/ty-phu-ban-giay.pdf',
+  'ty-phu-ban-giay-delivering-happiness': 'ebooks/ty-phu-ban-giay.pdf',
+  'vi-giam-doc-mot-phut-va-xay-dung-nhom-lam-viec-hieu-qua': 'ebooks/vi-giam-doc-mot-phut-va-xay-dung-nhom-lam-viec-hieu-qua.pdf',
+};
 import { PrismaService } from '../../prisma/prisma.service';
 import { BookActor } from '../../common/book-auth.guard';
 import { getSellerScope } from '../../common/seller-scope.util';
@@ -14,12 +56,47 @@ import { SanctionsService } from '../sanctions/sanctions.service';
 import { DrmVaultService } from './drm-vault.service';
 
 @Injectable()
-export class BooksService {
+export class BooksService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly sanctionsService?: SanctionsService,
     @Optional() private readonly drmVaultService?: DrmVaultService,
+    @Optional() @Inject(EBOOK_STORAGE) private readonly ebookStorage?: EbookStorage,
   ) {}
+
+  async onModuleInit() {
+    try {
+      await this.syncRealPdfKeys();
+    } catch (err: any) {
+      console.warn('[BooksService] Tự động đồng bộ khóa PDF khởi động:', err?.message || err);
+    }
+  }
+
+  async syncRealPdfKeys() {
+    for (const [slug, pdfKey] of Object.entries(REAL_EBOOK_MAPPINGS)) {
+      const book = await this.prisma.book.findFirst({
+        where: { slug },
+        include: { digitalDetails: true },
+      });
+      if (book) {
+        if (!book.digitalDetails) {
+          await this.prisma.digitalBookDetails.create({
+            data: {
+              bookId: book.id,
+              pdfKey,
+              digitalEnabled: true,
+              accessType: 'FREE',
+            },
+          }).catch(() => null);
+        } else if (book.digitalDetails.pdfKey !== pdfKey) {
+          await this.prisma.digitalBookDetails.update({
+            where: { bookId: book.id },
+            data: { pdfKey, digitalEnabled: true },
+          }).catch(() => null);
+        }
+      }
+    }
+  }
 
   async create(dto: CreateBookDto, actor: BookActor) {
     const scope = await getSellerScope(actor);
@@ -668,5 +745,83 @@ export class BooksService {
       }),
     };
   }
-}
 
+  async streamPdf(idOrSlug: string, req: any, res: any) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idOrSlug);
+    const book = await this.prisma.book.findFirst({
+      where: isUuid ? { id: idOrSlug } : { slug: idOrSlug },
+      include: { digitalDetails: true },
+    });
+
+    if (!book) {
+      res.status(HttpStatus.NOT_FOUND).json({
+        statusCode: HttpStatus.NOT_FOUND,
+        code: 'BOOK_NOT_FOUND',
+        message: 'Không tìm thấy tác phẩm trong hệ thống',
+      });
+      return;
+    }
+
+    let pdfKey = book.digitalDetails?.pdfKey;
+    if (!pdfKey && REAL_EBOOK_MAPPINGS[book.slug]) {
+      pdfKey = REAL_EBOOK_MAPPINGS[book.slug];
+      if (!book.digitalDetails) {
+        await this.prisma.digitalBookDetails.create({
+          data: {
+            bookId: book.id,
+            pdfKey,
+            digitalEnabled: true,
+            accessType: 'FREE',
+          },
+        }).catch(() => null);
+      } else {
+        await this.prisma.digitalBookDetails.update({
+          where: { bookId: book.id },
+          data: { pdfKey, digitalEnabled: true },
+        }).catch(() => null);
+      }
+    }
+
+    if (!pdfKey) {
+      res.status(HttpStatus.NOT_FOUND).json({
+        statusCode: HttpStatus.NOT_FOUND,
+        code: 'NO_PDF_AVAILABLE',
+        message: 'Tác phẩm này hiện chưa có bản đọc số điện tử.',
+      });
+      return;
+    }
+
+    try {
+      if (!this.ebookStorage?.getStream) {
+        throw new Error('Hệ thống lưu trữ sách điện tử chưa được cấu hình bộ đọc trực tuyến');
+      }
+
+      const rangeHeader = req.headers?.range;
+      const fileData = await this.ebookStorage.getStream(pdfKey, rangeHeader);
+
+      res.setHeader('Content-Type', fileData.contentType || 'application/pdf');
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(book.slug || book.id)}.pdf"`);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+
+      if (rangeHeader && fileData.contentRange) {
+        res.status(HttpStatus.PARTIAL_CONTENT);
+        res.setHeader('Content-Range', fileData.contentRange);
+        if (fileData.contentLength !== undefined) {
+          res.setHeader('Content-Length', fileData.contentLength.toString());
+        }
+      } else if (fileData.contentLength !== undefined) {
+        res.setHeader('Content-Length', fileData.contentLength.toString());
+      }
+
+      fileData.stream.pipe(res);
+    } catch (err: any) {
+      console.error(`[BooksService] Error streaming PDF for key ${pdfKey}:`, err?.message || err);
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        code: 'PDF_STREAM_ERROR',
+        message: 'Lỗi nạp tệp PDF từ hệ thống lưu trữ đám mây.',
+      });
+    }
+  }
+}

@@ -19,7 +19,7 @@ export default function AiVoiceNarratorBar({
   bookTitle = 'Sách số',
   bookAuthor = 'Tác giả',
   bookId,
-  pdfUrl = '/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf',
+  pdfUrl = '',
   currentPage = 1,
   totalPages = 166,
   onPageChange,

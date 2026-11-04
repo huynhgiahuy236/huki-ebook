@@ -11,7 +11,15 @@ export interface CoverStorage {
   delete(key: string): Promise<void>;
 }
 
+export interface EbookStreamResult {
+  stream: any;
+  contentLength?: number;
+  contentType?: string;
+  contentRange?: string;
+}
+
 export interface EbookStorage {
   upload(buffer: Buffer, key: string, contentType: string): Promise<void>;
   delete(key: string): Promise<void>;
+  getStream?(key: string, range?: string): Promise<EbookStreamResult>;
 }

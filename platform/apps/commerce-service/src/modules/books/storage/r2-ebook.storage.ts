@@ -1,7 +1,7 @@
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { EbookStorage } from './storage.interfaces';
+import { EbookStorage, EbookStreamResult } from './storage.interfaces';
 
 @Injectable()
 export class R2EbookStorage implements EbookStorage {
@@ -33,5 +33,21 @@ export class R2EbookStorage implements EbookStorage {
 
   async delete(key: string): Promise<void> {
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+  }
+
+  async getStream(key: string, range?: string): Promise<EbookStreamResult> {
+    const res = await this.client.send(
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        ...(range ? { Range: range } : {}),
+      }),
+    );
+    return {
+      stream: res.Body,
+      contentLength: res.ContentLength,
+      contentType: res.ContentType,
+      contentRange: res.ContentRange,
+    };
   }
 }

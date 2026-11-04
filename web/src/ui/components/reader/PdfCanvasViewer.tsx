@@ -52,9 +52,13 @@ export default function PdfCanvasViewer({
     setLoading(true);
     setError(null);
 
-    const targetUrl = pdfUrl || '/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf';
+    if (!pdfUrl) {
+      setError('Tác phẩm này hiện chưa có bản đọc số điện tử.');
+      setLoading(false);
+      return;
+    }
 
-    loadPdfDocument(targetUrl)
+    loadPdfDocument(pdfUrl)
       .then((doc) => {
         if (!isMounted) return;
         setPdfDoc(doc);
@@ -64,7 +68,7 @@ export default function PdfCanvasViewer({
       .catch((err) => {
         if (!isMounted) return;
         console.error('Lỗi khi tải PDF:', err);
-        setError('Không thể nạp tệp PDF. Vui lòng kiểm tra lại kết nối.');
+        setError('Tác phẩm này hiện chưa có bản đọc số điện tử.');
         setLoading(false);
       });
 
@@ -371,23 +375,27 @@ export default function PdfCanvasViewer({
 
       {/* Error state */}
       {error && (
-        <div className="my-auto p-6 bg-red-950/70 border border-red-800/80 rounded-2xl text-white max-w-md text-center shadow-2xl flex flex-col items-center">
-          <span className="material-symbols-outlined text-4xl text-red-400 mb-2">error</span>
-          <p className="font-bold text-sm mb-1">{error}</p>
-          <p className="text-xs text-zinc-400 mb-4">Tác phẩm có thể chưa có bản xem thử số hoặc kết nối bị gián đoạn.</p>
-          <div className="flex items-center gap-2.5">
+        <div className="my-auto p-8 bg-[#1a1a1e] border border-white/10 rounded-3xl text-white max-w-md text-center shadow-2xl flex flex-col items-center animate-fade-in">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center mb-3">
+            <span className="material-symbols-outlined text-3xl">menu_book</span>
+          </div>
+          <p className="font-editorial text-xl font-bold mb-1.5">Chưa Có Bản Đọc Số</p>
+          <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
+            {error || 'Tác phẩm này hiện chưa có bản đọc số điện tử. Bạn có thể đón đọc các ấn bản khác tại gian hàng.'}
+          </p>
+          <div className="flex items-center gap-3">
             <Link
               href="/library"
-              className="px-4 py-2 bg-[#006953] hover:bg-[#00523c] text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5"
+              className="px-4 py-2.5 bg-[#006953] hover:bg-[#00523c] text-white text-xs font-semibold rounded-xl transition-colors flex items-center gap-1.5 shadow-md"
             >
-              <span className="material-symbols-outlined text-[16px]">auto_stories</span>Về Tủ Sách Cá Nhân
+              <span className="material-symbols-outlined text-[16px]">auto_stories</span>Về Tủ Sách
             </Link>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-lg transition-colors"
+            <Link
+              href="/store"
+              className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-xl transition-colors flex items-center gap-1.5"
             >
-              Thử tải lại
-            </button>
+              <span className="material-symbols-outlined text-[16px]">storefront</span>Cửa Hàng Sách
+            </Link>
           </div>
         </div>
       )}

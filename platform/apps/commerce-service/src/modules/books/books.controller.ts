@@ -6,6 +6,8 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Req,
+  Res,
   ParseUUIDPipe,
   Patch,
   Post,
@@ -86,6 +88,16 @@ export class BooksController {
   ) {
     const access = await this.bookAccessService.checkAccess(actor.sub, id);
     return { data: access };
+  }
+
+  @Get(':id/pdf')
+  @ApiOperation({ summary: 'Stream public preview / full ebook PDF from R2 storage' })
+  async streamPdf(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Res() res: any,
+  ) {
+    await this.booksService.streamPdf(id, req, res);
   }
 
   @Get(':id')
