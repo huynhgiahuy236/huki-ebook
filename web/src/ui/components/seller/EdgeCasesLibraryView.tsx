@@ -23,7 +23,6 @@ export function EdgeCasesLibraryView() {
       <main className="max-w-[1680px] mx-auto px-4 md:px-6 py-2 space-y-space-3xl">
 
 <section className="bg-surface-container-lowest p-space-xl rounded-xl border border-outline-variant shadow-sm relative overflow-hidden">
-<div className="absolute -right-16 -top-16 w-64 h-64 bg-tertiary-fixed-dim/20 rounded-full blur-3xl pointer-events-none"></div>
 <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-lg relative z-10">
 <div>
 <div className="flex flex-wrap items-center gap-2 mb-3">

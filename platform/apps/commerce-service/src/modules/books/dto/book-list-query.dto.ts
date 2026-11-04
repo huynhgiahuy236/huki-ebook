@@ -86,6 +86,11 @@ export class BookListQueryDto {
   @IsUUID()
   business?: string;
 
+  @ApiPropertyOptional({ description: 'Filter books by status (PUBLISHED, DRAFT, SUSPENDED, ARCHIVED, ALL)' })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
   @ApiPropertyOptional({ enum: BookFormat })
   @IsOptional()
   @IsEnum(BookFormat)

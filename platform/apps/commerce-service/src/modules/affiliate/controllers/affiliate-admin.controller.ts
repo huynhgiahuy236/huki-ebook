@@ -71,14 +71,6 @@ export class AffiliateAdminController {
   }
 
   /**
-   * Admin: View application detail and audit history
-   */
-  @Get(':id')
-  async getApplicationDetail(@Param('id') id: string) {
-    return this.applicationService.adminGetApplicationDetail(id);
-  }
-
-  /**
    * Admin: Approve application
    */
   @Post(':id/approve')
@@ -413,5 +405,12 @@ export class AffiliateAdminController {
   @Get('health')
   async getHealth() {
     return this.healthService.checkHealth();
+  }
+  /**
+   * Admin: View application detail and audit history (Placed at end of controller to avoid shadowing static routes - BUG-03-013)
+   */
+  @Get(':id')
+  async getApplicationDetail(@Param('id') id: string) {
+    return this.applicationService.adminGetApplicationDetail(id);
   }
 }

@@ -427,46 +427,6 @@ export class DrmVaultService {
 
     if (!license || license.activeReaders <= 0) {
       return { success: true };
-  }
-
-  async getUserDevices(userId: string) {
-    const devices = await this.prisma.drmDevice.findMany({
-      where: { userId },
-      orderBy: { lastActiveAt: 'desc' },
-    });
-    return devices.map((d) => ({
-      id: d.id,
-      deviceId: d.deviceId,
-      name: d.deviceName || 'Trình duyệt Web Huki DRM',
-      type: d.deviceModel || 'web',
-      icon: (d.deviceName || '').toLowerCase().includes('mac') || (d.deviceName || '').toLowerCase().includes('laptop')
-        ? 'laptop_mac'
-        : (d.deviceName || '').toLowerCase().includes('boox') || (d.deviceName || '').toLowerCase().includes('kindle')
-          ? 'auto_stories'
-          : (d.deviceName || '').toLowerCase().includes('phone') || (d.deviceName || '').toLowerCase().includes('ios') || (d.deviceName || '').toLowerCase().includes('android')
-            ? 'phone_iphone'
-            : 'devices',
-      isCurrent: false,
-      ip: d.ipAddress || '127.0.0.1',
-      lastActive: d.lastActiveAt.toISOString(),
-      syncedBooks: 1,
-      status: d.isRevoked ? 'Đã thu hồi' : 'Đang trực tuyến',
-      isRevoked: d.isRevoked,
-    }));
-  }
-
-  async revokeUserDevice(userId: string, deviceId: string) {
-    return this.prisma.drmDevice.updateMany({
-      where: {
-        userId,
-        OR: [{ id: deviceId }, { deviceId }],
-      },
-      data: {
-        isRevoked: true,
-        revokedAt: new Date(),
-        revokedReason: 'Người dùng thu hồi từ trang quản lý thiết bị',
-      },
-    });
     }
 
     await this.prisma.drmLicense.update({
@@ -477,40 +437,6 @@ export class DrmVaultService {
     });
 
     return { success: true };
-  }
-
-  async getUserDevices(userId: string) {
-    const devices = await this.prisma.drmDevice.findMany({
-      where: { userId },
-      orderBy: { lastActiveAt: 'desc' },
-    });
-    return devices.map((d) => ({
-      id: d.id,
-      deviceId: d.deviceId,
-      name: d.deviceName || 'Trình duyệt Web Huki DRM',
-      type: d.deviceModel || 'web',
-      icon: (d.deviceName || '').toLowerCase().includes('mac') || (d.deviceName || '').toLowerCase().includes('laptop') ? 'laptop_mac' : (d.deviceName || '').toLowerCase().includes('boox') || (d.deviceName || '').toLowerCase().includes('kindle') ? 'auto_stories' : (d.deviceName || '').toLowerCase().includes('phone') || (d.deviceName || '').toLowerCase().includes('ios') || (d.deviceName || '').toLowerCase().includes('android') ? 'phone_iphone' : 'devices',
-      isCurrent: false,
-      ip: d.ipAddress || '127.0.0.1',
-      lastActive: d.lastActiveAt.toISOString(),
-      syncedBooks: 1,
-      status: d.isRevoked ? 'Đã thu hồi' : 'Đang trực tuyến',
-      isRevoked: d.isRevoked,
-    }));
-  }
-
-  async revokeUserDevice(userId: string, deviceId: string) {
-    return this.prisma.drmDevice.updateMany({
-      where: {
-        userId,
-        OR: [{ id: deviceId }, { deviceId }],
-      },
-      data: {
-        isRevoked: true,
-        revokedAt: new Date(),
-        revokedReason: 'Người dùng thu hồi từ trang quản lý thiết bị',
-      },
-    });
   }
 
   async getUserDevices(userId: string) {

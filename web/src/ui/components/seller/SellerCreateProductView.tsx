@@ -1029,7 +1029,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
 
   return (
     <div className="w-full bg-background text-on-surface font-body-md text-body-md antialiased min-h-screen pt-4 pb-0 flex flex-col justify-between">
-      <main className="w-full max-w-[1600px] mx-auto px-3 sm:px-5 lg:px-6 space-y-4 flex-1 pb-8">
+      <main className="w-full max-w-[1600px] mx-auto px-3 sm:px-5 lg:px-6 space-y-4 flex-1 pb-8 min-w-0 max-w-full overflow-hidden">
 
         {/* Top Header & Breadcrumbs */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-theme-border/60 pb-3.5">
@@ -1199,7 +1199,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
         </div>
 
         {/* Setup Stepper Navigation (Order Status / Timeline Style) */}
-        <div className="bg-surface-container-lowest rounded-2xl p-4 sm:p-5 border border-theme-border/70 shadow-xs">
+        <div className="bg-surface-container-lowest rounded-2xl p-3 sm:p-5 border border-theme-border/70 shadow-xs w-full max-w-full overflow-x-auto no-scrollbar">
           <div className="flex items-start justify-between w-full">
             {[
               { id: 'sec-basic', num: '1', title: 'Thông Tin Cơ Bản', short: 'Cơ Bản', done: !!form.title && !!form.description, hasError: sectionErrors.basic },

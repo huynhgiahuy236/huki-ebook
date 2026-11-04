@@ -45,10 +45,15 @@ function SellerRouteLayoutContent({ children }: { children: React.ReactNode }) {
     const bizStatus = user?.business?.status;
     const isApprovedSeller = user?.role === 'BUSINESS' || Boolean(user?.hasApprovedBusiness) || bizStatus === 'APPROVED';
 
-    // Kiểm tra seller đã hoàn tất bước ngân hàng & thiết lập gian hàng chưa
+    // Kiểm tra seller đã hoàn tất bước ngân hàng & thiết lập gian hàng chưa (BUG-02-013)
     const isSetupCompleted = Boolean(
-      (typeof window !== 'undefined' && user?.business?.id && (localStorage.getItem(`huki_store_setup_completed_${user.business.id}`) === 'true' || localStorage.getItem(`huki_store_setup_completed_`) === 'true')) ||
-      (user?.business?.bankAccountNumber && user?.business?.bankName)
+      (user?.business as any)?.isSetupCompleted ||
+      ((user?.business as any)?.stores && (user?.business as any).stores.length > 0) ||
+      (user?.business?.bankAccountNumber && user?.business?.bankName) ||
+      (typeof window !== 'undefined' && (
+        (user?.business?.id && localStorage.getItem(`huki_store_setup_completed_${user.business.id}`) === 'true') ||
+        localStorage.getItem('huki_store_setup_completed_') === 'true'
+      ))
     );
 
     // THỨ TỰ BẮT BUỘC: 1. Regis -> 2. Pending -> 3. Ngân Hàng (Setup) -> 4. Seller Dashboard
@@ -73,6 +78,14 @@ function SellerRouteLayoutContent({ children }: { children: React.ReactNode }) {
     // Bắt buộc phải qua step ngân hàng (/seller/stores/setup), không được nhảy cóc vào dashboard
     if (isApprovedSeller && !isSetupCompleted) {
       if (pathname !== '/seller' && !pathname.startsWith('/seller/stores/setup')) {
+        const loopGuard = typeof window !== 'undefined' ? sessionStorage.getItem('huki_setup_loop_guard') : null;
+        if (loopGuard && Date.now() - Number(loopGuard) < 3000) {
+          console.warn('[SellerLayout] Prevented rapid onboarding redirect loop');
+          return;
+        }
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('huki_setup_loop_guard', String(Date.now()));
+        }
         router.replace('/seller/stores/setup');
         return;
       }

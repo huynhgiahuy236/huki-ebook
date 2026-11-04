@@ -5,6 +5,7 @@
  */
 
 import { realtimeSyncBus } from './realtimeSyncBus';
+import { tokenStorage } from '../api/tokenStorage';
 
 export type ViolationType =
   | 'NON_FULFILLMENT'       // Tỷ lệ hủy đơn cao do lỗi người bán (+1 hoặc +2 điểm)
@@ -493,7 +494,10 @@ class SellerPenaltyService {
     if (typeof window === 'undefined' || this.isSyncing) return;
     this.isSyncing = true;
     try {
-      const res = await fetch('/api/seller/penalties', { cache: 'no-store' });
+      const token = tokenStorage.getAccessToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch('/api/seller/penalties', { headers, cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data && typeof json.data === 'object') {
@@ -541,9 +545,12 @@ class SellerPenaltyService {
 
     // Persist to server if running in real browser with origin
     if (typeof window !== 'undefined' && window.location?.origin && window.location.origin.startsWith('http')) {
+      const token = tokenStorage.getAccessToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       fetch('/api/seller/penalties', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ profiles: this.profiles }),
       }).catch(() => {});
     }

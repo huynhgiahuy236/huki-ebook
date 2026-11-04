@@ -102,6 +102,11 @@ export default function SellerNotificationsView() {
   const [dateFilter, setDateFilter] = useState<DateRangeFilter>('all');
   const [sortOrder, setSortOrder] = useState<SortOrderFilter>('newest');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Multi-select bulk state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);

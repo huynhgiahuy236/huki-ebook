@@ -44,7 +44,7 @@ import { ErrorCode } from '@huki/shared/errors';
 @ApiTags('Seller - Vouchers')
 @ApiBearerAuth()
 @UseGuards(BusinessRolesGuard)
-@Controller('seller/vouchers')
+@Controller(['seller/vouchers', 'vouchers/seller'])
 export class SellerVouchersController {
   constructor(private readonly vouchers: VouchersService) {}
 

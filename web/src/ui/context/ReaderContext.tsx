@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { tokenStorage } from '@/ui/api/tokenStorage';
+import { usePathname } from 'next/navigation';
+import { readerApi } from '@/ui/api/readerApi';
 
 export const HIGHLIGHT_COLORS = [
   { id: 'yellow', name: 'Vàng Dạ Quang', color: '#fef08a', bgClass: 'bg-yellow-200' },
@@ -91,6 +93,8 @@ export interface ReaderContextType {
 const ReaderContext = createContext<ReaderContextType | null>(null);
 
 export const ReaderProvider = ({ children }: { children: ReactNode }) => {
+  const pathname = usePathname();
+  const isReaderRoute = Boolean(pathname && (pathname.startsWith('/reader') || pathname.startsWith('/read/')));
   // Theme & Appearance (Task 52 Typography & Reader Customization)
   const [theme, setTheme] = useState('dark');
   const [fontSize, setFontSize] = useState(18);
@@ -219,33 +223,28 @@ export const ReaderProvider = ({ children }: { children: ReactNode }) => {
   }, [theme, fontSize, fontFamily, lineHeight, margin]);
 
 
-  // Fetch remote bookmarks and progress on activeBookId change
+  // Fetch remote bookmarks and progress on activeBookId change (Reader pages only)
   useEffect(() => {
-    if (!activeBookId || activeBookId === 'con-duong-phia-truoc') return;
+    if (!isReaderRoute || !activeBookId || activeBookId === 'con-duong-phia-truoc') return;
 
     // 1. Fetch bookmarks
     const loadRemoteBookmarks = async () => {
       try {
         const token = typeof window !== 'undefined' ? tokenStorage.getAccessToken() : null;
         if (token) {
-          const res = await fetch(`/api/reader/bookmarks/${activeBookId}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (res.ok) {
-            const json = await res.json();
-            if (Array.isArray(json.data)) {
-              const remoteBms: Bookmark[] = json.data.map((b: any) => ({
-                id: b.id,
-                bookId: activeBookId,
-                page: b.pageNumber,
-                note: b.note || `Dấu trang tại Trang ${b.pageNumber}`,
-                timestamp: b.createdAt || new Date().toISOString()
-              }));
-              setBookmarks(prev => {
-                const others = prev.filter(b => b.bookId !== activeBookId);
-                return [...others, ...remoteBms];
-              });
-            }
+          const res = await readerApi.getBookmarks(activeBookId);
+          if (res.success && Array.isArray(res.data)) {
+            const remoteBms: Bookmark[] = res.data.map((b: any) => ({
+              id: b.id,
+              bookId: activeBookId,
+              page: b.pageNumber,
+              note: b.note || `Dấu trang tại Trang ${b.pageNumber}`,
+              timestamp: b.createdAt || new Date().toISOString()
+            }));
+            setBookmarks(prev => {
+              const others = prev.filter(b => b.bookId !== activeBookId);
+              return [...others, ...remoteBms];
+            });
           }
         }
       } catch (e) {
@@ -254,7 +253,7 @@ export const ReaderProvider = ({ children }: { children: ReactNode }) => {
     };
 
     loadRemoteBookmarks();
-  }, [activeBookId]);
+  }, [activeBookId, isReaderRoute]);
 
   // Sync highlights
   useEffect(() => {
@@ -274,9 +273,9 @@ export const ReaderProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [bookmarks]);
 
-  // Auto-save page progress for active book (Debounced)
+  // Auto-save page progress for active book (Debounced, Reader pages only)
   useEffect(() => {
-    if (!activeBookId || activeBookId === 'con-duong-phia-truoc' || currentPage < 1) return;
+    if (!isReaderRoute || !activeBookId || activeBookId === 'con-duong-phia-truoc' || currentPage < 1) return;
     setIsSavedProgress(false);
 
     try {
@@ -297,17 +296,11 @@ export const ReaderProvider = ({ children }: { children: ReactNode }) => {
         const token = typeof window !== 'undefined' ? tokenStorage.getAccessToken() : null;
         if (token) {
           const pct = totalPages > 0 ? Math.min(100, Math.round((currentPage / totalPages) * 100)) : 0;
-          await fetch('/api/reader/progress', {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              bookId: activeBookId,
-              currentPage,
-              percentage: pct
-            })
+          await readerApi.saveProgress({
+            bookId: activeBookId,
+            currentPage,
+            percentage: pct,
+            totalPages
           });
         }
         setIsSavedProgress(true);
@@ -317,7 +310,7 @@ export const ReaderProvider = ({ children }: { children: ReactNode }) => {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [activeBookId, currentPage, totalPages]);
+  }, [activeBookId, currentPage, totalPages, isReaderRoute]);
 
   // Add stroke highlight
   const addHighlightStroke = useCallback((bookId: string, pageNum: number, stroke: any) => {
@@ -371,10 +364,7 @@ export const ReaderProvider = ({ children }: { children: ReactNode }) => {
         const updated = prev.filter(b => !(b.bookId === bookId && b.page === pageNum));
         const token = typeof window !== 'undefined' ? tokenStorage.getAccessToken() : null;
         if (token && !existing.id.startsWith('bm_')) {
-          fetch(`/api/reader/bookmarks/${existing.id}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${token}` }
-          }).catch(() => {});
+          readerApi.deleteBookmark(existing.id).catch(() => {});
         }
         return updated;
       } else {
@@ -390,23 +380,15 @@ export const ReaderProvider = ({ children }: { children: ReactNode }) => {
 
         const token = typeof window !== 'undefined' ? tokenStorage.getAccessToken() : null;
         if (token) {
-          fetch('/api/reader/bookmarks', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              bookId,
-              pageNumber: pageNum,
-              note: newBm.note
-            })
+          readerApi.addBookmark({
+            bookId,
+            pageNumber: pageNum,
+            note: newBm.note
           })
-            .then(res => res.json())
-            .then(json => {
-              if (json.data?.id) {
+            .then((res: any) => {
+              if (res.data?.id) {
                 setBookmarks(current =>
-                  current.map(b => (b.id === tempId ? { ...b, id: json.data.id } : b))
+                  current.map(b => (b.id === tempId ? { ...b, id: res.data.id } : b))
                 );
               }
             })

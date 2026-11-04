@@ -81,7 +81,6 @@ export const aiAudioService = {
     try {
       const res = await apiClient<AiAudioPlan[]>('/ai-audio/plans', {
         method: 'GET',
-        skipAuth: true,
       });
       if (res.success && res.data) {
         cachedPlans = res.data;

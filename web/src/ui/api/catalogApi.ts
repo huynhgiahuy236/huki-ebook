@@ -247,6 +247,13 @@ export const catalogApi = {
     });
   },
 
+  /** Suspend/reject a book (platform administrator only - BUG-03-012) */
+  async suspendBook(id: string): Promise<ApiResponse<BookData>> {
+    return apiClient<BookData>(`/books/${id}/suspend`, {
+      method: 'POST',
+    });
+  },
+
   async uploadBookFile(id: string, file: File): Promise<ApiResponse<DigitalDetails>> {
     const body = new FormData();
     body.append('file', file);

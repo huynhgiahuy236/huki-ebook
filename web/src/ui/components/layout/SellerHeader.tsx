@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
@@ -30,21 +30,43 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
     setIsMuted(soundEffects.getIsMuted());
   }, []);
 
-  const fetchUnreadCount = useCallback(async () => {
+  // BUG-02-001: Rate limit & Exponential Backoff protection against HTTP 429
+  const isFetchingRef = useRef(false);
+  const lastFetchTimeRef = useRef(0);
+
+  const fetchUnreadCount = useCallback(async (force = false) => {
     if (!storeId) return;
+    const now = Date.now();
+    if (!force && now - lastFetchTimeRef.current < 15000) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    if (isFetchingRef.current) return;
+
+    isFetchingRef.current = true;
+    lastFetchTimeRef.current = now;
     try {
       const res = await chatService.listConversations(storeId);
       if (res.success && Array.isArray(res.data)) {
         const total = res.data.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
         setUnreadChatCount(total);
       }
-    } catch {
-      // ignore
+    } catch (err: any) {
+      if (err?.statusCode === 429 || err?.status === 429) {
+        lastFetchTimeRef.current = Date.now() + 45000;
+      }
+    } finally {
+      isFetchingRef.current = false;
     }
   }, [storeId]);
 
   useEffect(() => {
-    fetchUnreadCount();
+    fetchUnreadCount(true);
+    // Periodic gentle refresh every 45s only when tab is active
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchUnreadCount();
+      }
+    }, 45000);
+    return () => clearInterval(timer);
   }, [fetchUnreadCount]);
 
   useChatSocket({

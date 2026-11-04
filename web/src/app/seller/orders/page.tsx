@@ -123,7 +123,7 @@ function SellerOrdersContent() {
   const [orders, setOrders] = useState<SellerOrder[]>([]);
   const [businessName, setBusinessName] = useState('');
   const [loading, setLoading] = useState(true);
-  const tabFromUrl = searchParams.get('tab') || 'ALL';
+  const tabFromUrl = searchParams.get('status') || searchParams.get('tab') || 'ALL';
   const [activeTab, setActiveTab] = useState(tabFromUrl);
   const [searchQuery, setSearchQuery] = useState('');
   const [formatFilter, setFormatFilter] = useState('ALL');
@@ -151,7 +151,7 @@ function SellerOrdersContent() {
     });
   };
   useEffect(() => {
-    const currentParam = searchParams.get('tab') || 'ALL';
+    const currentParam = searchParams.get('status') || searchParams.get('tab') || 'ALL';
     if (currentParam !== activeTab) {
       setActiveTab(currentParam);
     }
@@ -189,11 +189,16 @@ function SellerOrdersContent() {
 
   const handleTabChange = (newTab: string) => {
     setActiveTab(newTab);
+    const params = new URLSearchParams(searchParams.toString());
     if (newTab === 'ALL') {
-      router.push('/seller/orders');
+      params.delete('tab');
+      params.delete('status');
     } else {
-      router.push(`/seller/orders?tab=${newTab}`);
+      params.set('status', newTab);
+      params.set('tab', newTab);
     }
+    const queryStr = params.toString();
+    router.push(`/seller/orders${queryStr ? `?${queryStr}` : ''}`, { scroll: false });
   };
 
   const businessId = user?.business?.id || activeBusinessId || undefined;

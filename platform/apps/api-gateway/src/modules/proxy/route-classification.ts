@@ -37,7 +37,11 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
     normPath === '/seller/feature-flags' ||
     normPath.startsWith('/seller/feature-flags') ||
     normPath === '/seller-features' ||
-    normPath.startsWith('/seller-features')
+    normPath.startsWith('/seller-features') ||
+    normPath === '/seller/penalties' ||
+    normPath.startsWith('/seller/penalties') ||
+    normPath === '/seller-penalties' ||
+    normPath.startsWith('/seller-penalties')
   ) {
     if (upperMethod === 'GET') {
       return 'PUBLIC';
@@ -129,6 +133,8 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
       normPath.startsWith('/publishers') ||
       normPath.startsWith('/banners') ||
       normPath === '/vouchers' ||
+      normPath === '/ai-audio/plans' ||
+      normPath.startsWith('/ai-audio/plans') ||
       normPath.startsWith('/reviews') ||
       /^\/stores\/[^/]+\/reviews/.test(normPath) ||
       /^\/books\/[^/]+\/reviews/.test(normPath) ||

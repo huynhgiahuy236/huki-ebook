@@ -692,7 +692,7 @@ export default function SellerAffiliatePage() {
   ], [topPage]);
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200 min-w-0 max-w-full overflow-hidden">
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-emerald-950/10 pb-6">
         <div>
@@ -756,7 +756,7 @@ export default function SellerAffiliatePage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200">
+      <div className="flex border-b border-slate-200 overflow-x-auto no-scrollbar w-full max-w-full">
         <button
           onClick={() => setActiveTab('DASHBOARD')}
           className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all ${

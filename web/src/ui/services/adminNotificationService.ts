@@ -166,15 +166,19 @@ class AdminNotificationService {
 
       this.syncFromServer();
       window.addEventListener('focus', () => this.syncFromServer());
-      setInterval(() => this.syncFromServer(), 3000);
+      setInterval(() => this.syncFromServer(), 15000);
     }
   }
 
   public async syncFromServer(): Promise<AdminBroadcastNotification[]> {
     if (typeof window === 'undefined' || this.isSyncing) return this.getStored();
+    if (typeof document !== 'undefined' && document.hidden) return this.getStored();
     this.isSyncing = true;
     try {
-      const res = await fetch('/api/admin/broadcast-notifications', { cache: 'no-store' });
+      const token = tokenStorage.getAccessToken() || '';
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch('/api/admin/broadcast-notifications', { headers, cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
@@ -500,9 +504,13 @@ class AdminNotificationService {
     this.save(updated);
 
     if (typeof window !== 'undefined') {
+      const token = tokenStorage.getAccessToken() || '';
       fetch('/api/admin/broadcast-notifications', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(newNotif),
       }).catch(() => {});
 

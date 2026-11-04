@@ -580,8 +580,7 @@ export default function SellerBusinessProfilePage() {
 
       {/* 2. Top Summary Hero Card */}
       <div className="bg-white dark:bg-[#1a1622] rounded-3xl border border-theme-border p-6 sm:p-8 shadow-xs relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-theme-primary/5 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
-
+        
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
           <div className="flex items-start gap-5">
             <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border flex items-center justify-center shrink-0 shadow-inner ${

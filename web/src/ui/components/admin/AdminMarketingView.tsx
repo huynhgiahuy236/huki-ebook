@@ -179,6 +179,26 @@ export function AdminMarketingView() {
     }
   }, [banners]);
 
+  // BUG-03-015: Đồng bộ dữ liệu Banner thật từ promotion-service backend
+  useEffect(() => {
+    bannerApi.getBanners().then((res) => {
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        const backendBanners: MarketingBanner[] = res.data.map((b, idx) => ({
+          id: b.id,
+          title: b.title,
+          subtitle: '',
+          badge: 'NỔI BẬT',
+          link: b.link || '/books',
+          bgImage: b.image || '/banners/hero-library.jpg',
+          status: b.isActive ? 'active' : 'hidden',
+          clicks: b.clicks || 0,
+          order: b.position || idx + 1,
+        }));
+        setBanners(backendBanners);
+      }
+    }).catch(() => {});
+  }, []);
+
   // Lắng nghe sự kiện click banner realtime từ trang chủ & các cửa sổ khác
   useEffect(() => {
     const handleBannerClicked = (event: any) => {
@@ -292,6 +312,10 @@ export function AdminMarketingView() {
 
   // Ẩn / Hiện Banner
   const handleToggleBanner = (id: string) => {
+    const target = banners.find((b) => b.id === id);
+    if (target) {
+      bannerApi.updateBanner(id, { isActive: target.status !== "active" }).catch(() => {});
+    }
     setBanners((prev) =>
       prev.map((b) => (b.id === id ? { ...b, status: b.status === "active" ? "hidden" : "active" } : b)),
     );
@@ -308,6 +332,12 @@ export function AdminMarketingView() {
 
     if (editingBannerId) {
       // CẬP NHẬT BANNER HIỆN TẠI
+      bannerApi.updateBanner(editingBannerId, {
+        title: bannerForm.title.trim(),
+        image: bannerForm.bgImage.trim() || "/banners/hero-library.jpg",
+        link: bannerForm.link.trim(),
+        position: Number(bannerForm.order),
+      }).catch(() => {});
       setBanners((prev) =>
         prev.map((b) =>
           b.id === editingBannerId
@@ -340,6 +370,18 @@ export function AdminMarketingView() {
         order: Number(bannerForm.order) || banners.length + 1,
       };
 
+      bannerApi.createBanner({
+        title: newBanner.title,
+        image: newBanner.bgImage,
+        link: newBanner.link,
+        position: newBanner.order,
+        scope: 'HOMEPAGE',
+      }).then((res) => {
+        if (res.success && res.data?.id) {
+          setBanners(curr => curr.map(b => b.id === newBanner.id ? { ...b, id: res.data!.id } : b));
+        }
+      }).catch(() => {});
+
       setBanners([newBanner, ...banners]);
       setIsAddFormOpen(false);
       showToast?.(" Đã xuất bản banner mới lên trang chủ thành công!", "success");
@@ -349,6 +391,7 @@ export function AdminMarketingView() {
   // Xóa banner
   const handleDeleteBanner = (id: string) => {
     if (!window.confirm("Bạn có chắc chắn muốn xóa vĩnh viễn banner này?")) return;
+    bannerApi.deleteBanner(id).catch(() => {});
     setBanners(banners.filter((b) => b.id !== id));
     if (editingBannerId === id) {
       setIsAddFormOpen(false);

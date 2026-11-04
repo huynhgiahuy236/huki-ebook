@@ -1057,7 +1057,7 @@ export function SellerVouchersView() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 self-start sm:self-auto">
+        <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto w-full sm:w-auto">
           {/* Active Quota Indicator */}
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs shadow-2xs">
             <span className="material-symbols-outlined text-[16px] text-emerald-600">verified</span>

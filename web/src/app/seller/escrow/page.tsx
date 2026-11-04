@@ -737,34 +737,44 @@ export default function SellerEscrowPage() {
         itemName="món ký quỹ"
       />
 
-      {/* 4. MAIN ESCROW DATA TABLE CHUẨN HÓA GROUPED DATA TABLE */}
-      <GroupedDataTable<SellerEscrowItem>
-        columns={escrowColumns}
-        data={paginatedItems}
-        keyField="id"
-        loading={isLoading}
-        selectable={true}
-        selectedRowKeys={selectedIds}
-        onSelectionChange={(keys) => setSelectedIds(keys as string[])}
-        expandable={true}
-        expandedRowRender={renderExpandedEscrowDetail}
-        emptyTitle="Không tìm thấy món hàng ký quỹ nào"
-        emptyMessage={
-          searchQuery
-            ? `Không tìm thấy kết quả khớp với từ khóa "${searchQuery}"`
-            : 'Hiện chưa có món hàng nào trong danh mục ký quỹ này.'
-        }
-        emptyIcon="hourglass_bottom"
-        pagination={{
-          currentPage,
-          totalPages,
-          totalItems: filteredItems.length,
-          pageSize: 10,
-          onPageChange: setCurrentPage,
-          itemLabel: 'món hàng ký quỹ',
-        }}
-        className="w-full"
-      />
+      {/* 4. MAIN ESCROW DATA TABLE CHUẨN HÓA GROUPED DATA TABLE (BUG-02-014) */}
+      <div className="w-full relative">
+        <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5 lg:hidden px-1">
+          <span className="flex items-center gap-1 text-[11px] font-medium text-slate-600 dark:text-slate-400">
+            <span className="material-symbols-outlined text-[14px] text-emerald-600">swipe</span>
+            Cuộn sang ngang để xem đầy đủ cột Số dư ký quỹ và Trạng thái mở khóa
+          </span>
+          <span className="text-[11px] text-slate-400 font-mono">Cuộn ngang &rarr;</span>
+        </div>
+        <GroupedDataTable<SellerEscrowItem>
+          columns={escrowColumns}
+          data={paginatedItems}
+          keyField="id"
+          loading={isLoading}
+          selectable={true}
+          selectedRowKeys={selectedIds}
+          onSelectionChange={(keys) => setSelectedIds(keys as string[])}
+          expandable={true}
+          expandedRowRender={renderExpandedEscrowDetail}
+          emptyTitle="Không tìm thấy món hàng ký quỹ nào"
+          emptyMessage={
+            searchQuery
+              ? `Không tìm thấy kết quả khớp với từ khóa "${searchQuery}"`
+              : 'Hiện chưa có món hàng nào trong danh mục ký quỹ này.'
+          }
+          emptyIcon="hourglass_bottom"
+          pagination={{
+            currentPage,
+            totalPages,
+            totalItems: filteredItems.length,
+            pageSize: 10,
+            onPageChange: setCurrentPage,
+            itemLabel: 'món hàng ký quỹ',
+          }}
+          className="w-full scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700"
+          tableClassName="min-w-[840px]"
+        />
+      </div>
 
       {/* 6. ESCROW ITEM DETAIL MODAL */}
       {selectedItem && (

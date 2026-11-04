@@ -265,8 +265,11 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     }
 
     // Route /stores/:id/reviews → community
-    // Route /admin/finance/* or /admin/drm/* or /admin/affiliates/* → commerce
+    // Route /admin/* routing (BUG-03-014)
     if (firstSegment === 'admin') {
+      if (path.includes('/admin/broadcast-notifications')) {
+        return 'business';
+      }
       if (
         path.includes('/admin/finance') ||
         path.includes('/admin/drm') ||
@@ -283,10 +286,6 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     }
 
     // Route /seller/vouchers/* or /seller/discounts/* → promotion
-    // Route /admin/broadcast-notifications → business
-    if (firstSegment === 'admin' && path.includes('/admin/broadcast-notifications')) {
-      return 'business';
-    }
 
     // Route /seller/feature-flags or /seller/features → business
     if (firstSegment === 'seller' && (path.includes('/seller/feature-flags') || path.includes('/seller/features'))) {

@@ -31,7 +31,7 @@ import { BusinessRolesGuard } from '../../common/business-roles.guard';
 @ApiTags('Seller - Book Discounts')
 @ApiBearerAuth()
 @UseGuards(BusinessRolesGuard)
-@Controller('seller/discounts')
+@Controller(['seller/discounts', 'discounts/seller'])
 export class SellerDiscountsController {
   constructor(private readonly discounts: DiscountsService) {}
 

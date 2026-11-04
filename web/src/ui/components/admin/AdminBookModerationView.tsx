@@ -145,23 +145,31 @@ export function AdminBookModerationView() {
     setInspectingBook(null);
   };
 
-  const handleReject = (bookId: any, reason: any) => {
+  const handleReject = async (bookId: any, reason: any) => {
     const finalReason = typeof reason === 'string' ? reason.trim() : customReason.trim();
     if (!finalReason) {
       setCustomReasonError('Vui lòng chọn hoặc nhập lý do từ chối phát hành ấn phẩm.');
       return;
     }
-    setQueueItems(prev => prev.map(item => {
-      if (item.id === bookId) {
-        return { ...item, status: 'rejected', statusLabel: 'Từ chối phát hành', rejectReason: finalReason };
-      }
-      return item;
-    }));
-    showToast?.(`Đã từ chối phát hành tựa sách: ${finalReason}`, 'warning');
-    setRejectReasonModal(null);
-    setCustomReason('');
-    setCustomReasonError('');
-    setInspectingBook(null);
+    setActionLoadingId(bookId);
+    try {
+      await catalogApi.suspendBook(bookId);
+      setQueueItems(prev => prev.map(item => {
+        if (item.id === bookId) {
+          return { ...item, status: 'rejected', statusLabel: 'Từ chối phát hành', rejectReason: finalReason };
+        }
+        return item;
+      }));
+      showToast?.(`Đã từ chối phát hành tựa sách: ${finalReason}`, 'warning');
+    } catch (e: any) {
+      showToast?.(e?.message || 'Có lỗi khi đình chỉ phát hành ấn phẩm', 'error');
+    } finally {
+      setActionLoadingId(null);
+      setRejectReasonModal(null);
+      setCustomReason('');
+      setCustomReasonError('');
+      setInspectingBook(null);
+    }
   };
 
   const filteredItems = queueItems.filter(item => {
@@ -215,14 +223,17 @@ export function AdminBookModerationView() {
     setBulkLoading(true);
     try {
       if (actionValue === 'APPROVE_BOOKS') {
+        await Promise.allSettled(selectedItemIds.map(id => catalogApi.publishBook(id)));
         setQueueItems(prev => prev.map(item => selectedItemIds.includes(item.id) ? { ...item, status: 'approved', statusLabel: 'Đã phê duyệt' } : item));
         showToast?.(`Đã phê duyệt thành công ${selectedItemIds.length} tựa sách lên kệ!`, 'success');
         setSelectedItemIds([]);
       } else if (actionValue === 'NEED_UPDATE') {
+        await Promise.allSettled(selectedItemIds.map(id => catalogApi.hideBook(id)));
         setQueueItems(prev => prev.map(item => selectedItemIds.includes(item.id) ? { ...item, status: 'need_update', statusLabel: 'Cần bổ sung' } : item));
         showToast?.(`Đã yêu cầu bổ sung giấy phép cho ${selectedItemIds.length} tựa sách.`, 'info');
         setSelectedItemIds([]);
       } else if (actionValue === 'REJECT_BOOKS') {
+        await Promise.allSettled(selectedItemIds.map(id => catalogApi.suspendBook(id)));
         setQueueItems(prev => prev.map(item => selectedItemIds.includes(item.id) ? { ...item, status: 'rejected', statusLabel: 'Đã từ chối' } : item));
         showToast?.(`Đã từ chối ${selectedItemIds.length} tựa sách.`, 'warning');
         setSelectedItemIds([]);

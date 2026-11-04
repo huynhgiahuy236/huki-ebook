@@ -152,7 +152,12 @@ export class BooksService {
       throwBadRequest(ErrorCode.VALIDATION_ERROR);
     }
 
-    const where: any = { status: BookStatus.PUBLISHED };
+    const where: any = {};
+    if (query.status && query.status !== 'ALL') {
+      where.status = query.status;
+    } else if (!query.status) {
+      where.status = BookStatus.PUBLISHED;
+    }
 
     if (query.business || query.store) where.storeId = query.business || query.store;
     if (query.format) where.format = query.format;
@@ -292,6 +297,7 @@ export class BooksService {
       });
     }
 
+    if (query.status && query.status !== 'ALL') conditions.push({ status: query.status });
     if (query.format) conditions.push({ format: query.format });
     if (query.category) conditions.push({ categoryId: query.category });
     if (query.search) {

@@ -122,17 +122,50 @@ export class StoreService {
   }
 
   async getStoresByBusiness(businessId: string, userId: string) {
-    // Check if user is member of business
-    await this.checkStorePermission(businessId, userId, [
+    let targetBusinessId = businessId;
+
+    // BUG-02-015: If businessId is not provided, resolve automatically for the user
+    if (!targetBusinessId && userId) {
+      const member = await this.prisma.member.findFirst({
+        where: { userId, status: 'ACTIVE' },
+        select: { businessId: true },
+      });
+      if (member) {
+        targetBusinessId = member.businessId;
+      } else {
+        const ownedBiz = await this.prisma.business.findFirst({
+          where: { ownerId: userId, deletedAt: null },
+          select: { id: true },
+        });
+        if (ownedBiz) {
+          targetBusinessId = ownedBiz.id;
+        }
+      }
+    }
+
+    if (!targetBusinessId) {
+      return [];
+    }
+
+    const hasPermission = await this.checkStorePermission(targetBusinessId, userId, [
       'OWNER',
       'MANAGER',
       'ORDER_STAFF',
       'CONTENT_STAFF',
     ]);
 
+    if (!hasPermission) {
+      const isOwner = await this.prisma.business.findFirst({
+        where: { id: targetBusinessId, ownerId: userId, deletedAt: null },
+      });
+      if (!isOwner) {
+        return [];
+      }
+    }
+
     return this.prisma.store.findMany({
       where: {
-        businessId,
+        businessId: targetBusinessId,
         deletedAt: null,
       },
       orderBy: { createdAt: 'desc' },
@@ -263,6 +296,9 @@ export class StoreService {
     userId: string,
     allowedRoles: string[],
   ): Promise<boolean> {
+    if (!businessId || !userId) {
+      return false;
+    }
     const member = await this.prisma.member.findUnique({
       where: {
         businessId_userId: {

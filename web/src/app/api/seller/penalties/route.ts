@@ -28,6 +28,9 @@ export async function GET(req: NextRequest) {
     });
 
     const json = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      return NextResponse.json({ success: true, data: {} }, { status: 200 });
+    }
     return NextResponse.json(json, { status: res.status });
   } catch (err: any) {
     return NextResponse.json({ success: false, message: err.message }, { status: 500 });

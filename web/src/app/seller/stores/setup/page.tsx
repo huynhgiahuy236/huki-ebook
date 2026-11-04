@@ -418,8 +418,7 @@ export default function SellerSetupStorePage() {
         
         {/* Top Header Banner */}
         <div className="bg-emerald-900 text-white rounded-3xl p-6 sm:p-8 mb-8 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 -mt-10 -mr-10 w-48 h-48 rounded-full bg-emerald-700/20 blur-2xl pointer-events-none"></div>
-          <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="space-y-1.5">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-800/80 text-emerald-200 text-xs font-semibold border border-emerald-700">
                 <span className="material-symbols-outlined text-sm text-emerald-400">verified</span>

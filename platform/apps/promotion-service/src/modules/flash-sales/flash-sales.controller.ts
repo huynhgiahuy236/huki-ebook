@@ -28,6 +28,7 @@ import {
   UpdateFlashSaleStatusDto,
 } from "./dto/flash-sale.dto";
 import { RolesGuard, Roles } from "../../common/roles.guard";
+import { throwBadRequest, ErrorCode } from "@huki/shared/errors";
 
 @ApiTags("Flash Sales")
 @Controller("flash-sales")
@@ -128,7 +129,14 @@ export class FlashSalesController {
 
   @Get(":id")
   @ApiOperation({ summary: "Get flash sale by ID" })
-  findOne(@Param("id", ParseUUIDPipe) id: string) {
+  findOne(@Param("id") id: string) {
+    if (id === 'seller') {
+      return this.flashSales.getTimeSlots(FlashSaleScope.SHOP);
+    }
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
+      throwBadRequest(ErrorCode.VALIDATION_ERROR, 'Validation failed (uuid is expected)');
+    }
     return this.flashSales.findOne(id);
   }
 

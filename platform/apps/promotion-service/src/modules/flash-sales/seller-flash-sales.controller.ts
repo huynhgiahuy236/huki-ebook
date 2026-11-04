@@ -39,8 +39,14 @@ import { CurrentBusiness } from "../../common/current-business.decorator";
 @ApiTags("Seller - Flash Sales")
 @ApiBearerAuth()
 @UseGuards(BusinessRolesGuard)
-@Controller("flash-sales/seller")
+@Controller(["flash-sales/seller", "seller/flash-sales"])
 export class SellerFlashSalesController {
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Get seller flash sales summary" })
+  getSellerSummary() {
+    return this.flashSales.getTimeSlots(FlashSaleScope.SHOP);
+  }
   constructor(private readonly flashSales: FlashSalesService) {}
 
   @Get("slots")

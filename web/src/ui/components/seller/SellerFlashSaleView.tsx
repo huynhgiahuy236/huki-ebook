@@ -1185,9 +1185,9 @@ export function SellerFlashSaleView() {
   }, [groupedSessions, currentPage, pageSize]);
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200 font-sans pb-16">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200 font-sans pb-16 min-w-0 max-w-full overflow-hidden">
       {/* 1. Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-emerald-500/10 p-6 rounded-3xl border border-amber-500/20 shadow-xs">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-emerald-500/10 p-4 sm:p-6 rounded-3xl border border-amber-500/20 shadow-xs w-full min-w-0 max-w-full">
         <div className="flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20">
             <span className="material-symbols-outlined text-2xl animate-pulse">bolt</span>
@@ -1205,8 +1205,8 @@ export function SellerFlashSaleView() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:items-end gap-2 shrink-0">
-          <div className="flex items-center gap-2 flex-wrap sm:justify-end">
+        <div className="flex flex-col lg:items-end gap-2 shrink-0 max-w-full">
+          <div className="flex items-center gap-2 flex-wrap sm:justify-start lg:justify-end max-w-full">
             {/* Shop Health & Sao Quả Tạ Badge */}
             <button
               type="button"
