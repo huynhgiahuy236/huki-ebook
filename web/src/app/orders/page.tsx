@@ -619,7 +619,7 @@ export default function OrdersPage() {
                         className="bg-white rounded-xl border border-gray-200/90 shadow-2xs hover:border-gray-300 transition-all overflow-hidden"
                       >
                         {/* ================= 1. CARD TOP BAR: SHOP NAME + CHAT + STATUS ================= */}
-                        <div className="px-4 py-2.5 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between gap-3 text-xs">
+                        <div className="px-4 py-2.5 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between gap-3 text-xs flex-wrap min-w-0">
                           {/* Left: Shop Branding & Quick Actions */}
                           <div className="flex items-center gap-2 flex-wrap min-w-0">
                             <input
@@ -682,7 +682,7 @@ export default function OrdersPage() {
                         {/* ================= 2. CARD BODY: PRODUCT ITEMS ================= */}
                         <div className="divide-y divide-gray-100">
                           {allItems.map((item: any, idx: number) => {
-                            const coverSrc = item.bookCoverUrl || item.coverUrl || item.cover || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=150&q=80';
+                            const coverSrc = item.bookCoverUrl || item.coverUrl || item.cover || '/images/book-placeholder.png';
                             const title = item.bookTitle || item.title || 'Tựa Sách HUKI';
                             const formatLabel = item.format === 'DIGITAL' || item.format === 'EBOOK' ? 'Sách Điện Tử (Ebook DRM)' : 'Sách In Bìa Cứng';
                             const itemPrice = Number(item.price || item.unitPrice || 0);
@@ -747,7 +747,7 @@ export default function OrdersPage() {
                           </div>
 
                           {/* Right: Grand Total & Action Buttons */}
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 shrink-0">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 w-full sm:w-auto min-w-0">
                             <div className="flex items-center gap-1.5 sm:justify-end">
                               <span className="text-xs text-gray-600 font-medium">
                                 Thành tiền ({totalItemsCount} món):

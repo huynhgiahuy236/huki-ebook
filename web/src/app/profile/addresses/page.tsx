@@ -258,7 +258,7 @@ export default function UserAddressesPage() {
 
   return (
     <AccountLayout>
-      <div className="p-6 sm:p-8 space-y-6">
+      <div className="p-3.5 sm:p-8 space-y-6 w-full max-w-full min-w-0 overflow-hidden">
         {/* Header Bar */}
         <div className="border-b border-gray-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -271,14 +271,14 @@ export default function UserAddressesPage() {
           </div>
 
           {/* 2-Tab Navigation Switcher */}
-          <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-xl border border-gray-200 shrink-0">
+          <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-xl border border-gray-200 w-full sm:w-auto overflow-x-auto min-w-0">
             <button
               type="button"
               onClick={() => {
                 setActiveTab('list');
                 setEditingAddressId(null);
               }}
-              className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              className={`px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer flex-1 sm:flex-initial shrink-0 ${
                 activeTab === 'list'
                   ? 'bg-[var(--theme-primary,#003B2B)] text-white shadow-sm'
                   : 'text-[var(--theme-text-muted,#49454f)] hover:text-[var(--theme-text,#1c1b1f)] hover:bg-black/5 dark:hover:bg-white/5'
@@ -300,7 +300,7 @@ export default function UserAddressesPage() {
             <button
               type="button"
               onClick={switchToNewForm}
-              className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              className={`px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer flex-1 sm:flex-initial shrink-0 ${
                 activeTab === 'form'
                   ? 'bg-[var(--theme-primary,#003B2B)] text-white shadow-sm'
                   : 'text-[var(--theme-text-muted,#49454f)] hover:text-[var(--theme-text,#1c1b1f)] hover:bg-black/5 dark:hover:bg-white/5'
@@ -558,7 +558,7 @@ export default function UserAddressesPage() {
                   <span>Đặt làm địa chỉ giao sách mặc định</span>
                 </label>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5 sm:gap-3 w-full sm:w-auto justify-end">
                   {addresses.length > 0 && (
                     <button
                       type="button"

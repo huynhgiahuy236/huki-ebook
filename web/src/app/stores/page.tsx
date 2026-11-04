@@ -356,7 +356,7 @@ function StoresContent() {
   };
 
   return (
-    <main className="min-h-screen bg-surface-container-lowest pb-16">
+    <main className="min-h-screen bg-surface-container-lowest pb-16 w-full max-w-full min-w-0 overflow-x-clip">
       {/* HERO BANNER */}
       <section className="relative bg-gradient-to-r from-primary to-primary-container text-white py-12 px-4 sm:px-6 lg:px-8 overflow-hidden shadow-sm">
         {/* BUG-014: Removed overflow blur-3xl decorative orbs */}
@@ -401,7 +401,7 @@ function StoresContent() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
         <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
           {/* Main Segment Tabs */}
-          <div className="flex items-center gap-2 border-b md:border-b-0 border-outline-variant/30 pb-3 md:pb-0 overflow-x-auto">
+          <div className="flex items-center gap-2 border-b md:border-b-0 border-outline-variant/30 pb-3 md:pb-0 overflow-x-auto w-full max-w-full min-w-0">
             <button
               onClick={() => handleTabChange('publishers')}
               className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${activeTab === 'publishers'
@@ -434,7 +434,7 @@ function StoresContent() {
           </div>
 
           {/* Search bar */}
-          <form onSubmit={handleSearch} className="flex items-center gap-2 min-w-[260px] sm:min-w-[320px]">
+          <form onSubmit={handleSearch} className="flex items-center gap-2 w-full md:w-auto min-w-0 flex-1 md:flex-initial">
             <div className="relative flex-1">
               <input
                 type="text"
@@ -526,7 +526,7 @@ function StoresContent() {
                   </button>
                 </div>
 
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs w-full max-w-full min-w-0">
                   {['all', 'Kinh tế', 'Văn học', 'Thiếu nhi', 'Tâm hồn', 'Phật pháp'].map((cat) => (
                     <button
                       key={cat}

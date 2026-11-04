@@ -45,7 +45,7 @@ export const DEFAULT_MAINTENANCE_CONFIG: SystemMaintenanceConfig = {
   supportEmail: 'hotro@huki.vn',
   masterBypassKey: 'HUKI_MASTER_ADMIN_2026',
   whitelistIps: ['127.0.0.1', '::1'],
-  updatedAt: new Date().toISOString(),
+  updatedAt: '2026-01-01T00:00:00.000Z',
   updatedBy: 'Hệ Thống HuKi',
 };
 

@@ -1044,7 +1044,7 @@ export function SellerVouchersView() {
   };
 
     return (
-    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200 font-sans">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200 font-sans min-w-0 max-w-full overflow-hidden">
       {/* 1. Header & Quick Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
         <div>
@@ -1138,7 +1138,7 @@ export function SellerVouchersView() {
                 </span>
                 <span className="text-[11px] text-slate-500">Bấm 1 click để tự động điền form</span>
               </div>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scrollbar-thin">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scrollbar-thin w-full max-w-full min-w-0">
                 {SELLER_PRESETS.map((p) => {
                   const isSelected = selectedPresetId === p.id;
                   return (

@@ -2607,8 +2607,8 @@ export function SellerFlashSaleView() {
                   </div>
                 </div>
 
-                {/* Session Table Container - 5 Gold Columns Chuẩn Hóa Không Cuộn Ngang */}
-                <div className="w-full overflow-hidden rounded-xl border border-gray-200">
+                {/* Session Table Container - 5 Gold Columns Chuẩn Hóa Có Cuộn Ngang */}
+                <div className="w-full max-w-full overflow-x-auto min-w-0 rounded-xl border border-gray-200">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="bg-gray-50/95 text-gray-600 uppercase text-[10px] font-bold tracking-wider border-b border-gray-200">
                       <tr>
@@ -3347,7 +3347,7 @@ export function SellerFlashSaleView() {
                   </div>
 
                   {/* Tier Matrix Table */}
-                  <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-2xs">
+                  <div className="border border-gray-200 rounded-2xl overflow-x-auto min-w-0 shadow-2xs">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-gray-50 text-gray-600 uppercase text-[10px] font-bold tracking-wider border-b border-gray-200">
                         <tr>

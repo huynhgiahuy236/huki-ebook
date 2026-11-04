@@ -671,9 +671,9 @@ export function SellerReviewsView() {
       </div>
 
       {/* 2. Overview Statistics Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+      <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Card 1: Tổng đánh giá */}
-        <div className="bg-white p-4.5 sm:p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
+        <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between min-w-0">
           <div>
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
               Tổng Đánh Giá
@@ -683,13 +683,13 @@ export function SellerReviewsView() {
             </div>
             <span className="text-[11px] text-slate-500 font-medium">Đã xác thực POL-13</span>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 text-[#00875A] flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-emerald-50 text-[#00875A] flex items-center justify-center shrink-0">
             <span className="material-symbols-outlined text-2xl">verified_user</span>
           </div>
         </div>
 
         {/* Card 2: Điểm trung bình */}
-        <div className="bg-white p-4.5 sm:p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
+        <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between min-w-0">
           <div>
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
               Điểm Trung Bình
@@ -716,7 +716,7 @@ export function SellerReviewsView() {
               ))}
             </div>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
             <span className="material-symbols-outlined text-2xl">hotel_class</span>
           </div>
         </div>

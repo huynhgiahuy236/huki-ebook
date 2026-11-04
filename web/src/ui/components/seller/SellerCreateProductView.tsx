@@ -1028,7 +1028,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
   }
 
   return (
-    <div className="w-full bg-background text-on-surface font-body-md text-body-md antialiased min-h-screen pt-4 pb-0 flex flex-col justify-between">
+    <div className="w-full max-w-full min-w-0 overflow-x-hidden bg-background text-on-surface font-body-md text-body-md antialiased min-h-screen pt-4 pb-0 flex flex-col justify-between">
       <main className="w-full max-w-[1600px] mx-auto px-3 sm:px-5 lg:px-6 space-y-4 flex-1 pb-8 min-w-0 max-w-full overflow-hidden">
 
         {/* Top Header & Breadcrumbs */}
@@ -2539,7 +2539,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
       </main>
 
       {/* Sticky Bottom Action Bar */}
-      <footer className="sticky bottom-0 z-30 bg-surface-container-lowest/95 backdrop-blur-md border-t border-theme-border py-2.5 sm:py-3 px-3 sm:px-6 lg:px-8 flex items-center justify-between shadow-lg gap-2">
+      <footer className="sticky bottom-0 z-30 bg-surface-container-lowest/95 backdrop-blur-md border-t border-theme-border py-2.5 sm:py-3 px-3 sm:px-6 lg:px-8 flex items-center justify-between shadow-lg gap-2 w-full max-w-full min-w-0 overflow-hidden">
         <div className="hidden md:flex items-center gap-2 text-xs text-on-surface-variant font-medium shrink-0">
           <span className="material-symbols-outlined text-primary text-base">cloud_done</span>
           <span>Dữ liệu lưu trực tiếp vào CSDL Sàn HUKI</span>
@@ -2562,7 +2562,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
             type="button"
             disabled={isSubmitting}
             onClick={() => handleSubmit(false)}
-            className="px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl bg-primary hover:opacity-90 text-white font-title-md text-xs font-bold tracking-wide transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer disabled:opacity-60 whitespace-nowrap shrink-0"
+            className="px-2.5 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-primary hover:opacity-90 text-white font-title-md text-xs font-bold tracking-wide transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer disabled:opacity-60 whitespace-nowrap shrink-0"
           >
             {isSubmitting ? (
               <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>

@@ -24,7 +24,7 @@ export default function BookPreviewPage() {
     author: 'James Clear',
     translator: 'Alpha Books Dịch',
     publisher: 'NXB Thế Giới & Alpha Books',
-    cover: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600',
+    cover: '/images/book-placeholder.png',
     ebookPrice: 79000,
     physicalPrice: 159000,
     hybridPrice: 199000,
@@ -150,7 +150,7 @@ export default function BookPreviewPage() {
       </header>
 
       {/* Main Reading Container */}
-      <div className="flex-1 max-w-3xl w-full mx-auto px-6 sm:px-12 py-10 lg:py-16">
+      <div className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-12 py-8 lg:py-16 min-w-0 max-w-full overflow-hidden">
         
         {/* Book Cover Header in Sample */}
         <div className="text-center mb-12 pb-8 border-b border-current/15">
@@ -201,7 +201,7 @@ export default function BookPreviewPage() {
 
         {/* Locked Overlay CTA at End of Sample */}
         <div
-          className="mt-14 p-8 rounded-3xl text-white shadow-2xl border border-white/10 text-center relative overflow-hidden"
+          className="mt-14 p-4 sm:p-8 rounded-3xl text-white shadow-2xl border border-white/10 text-center relative overflow-hidden"
           style={{ background: 'linear-gradient(to bottom right, var(--theme-hero-from, #003B2B), var(--theme-hero-to, #001A12))' }}
         >
           <div className="w-14 h-14 rounded-full bg-white/20 text-white flex items-center justify-center mx-auto mb-3 ring-8 ring-white/10">
@@ -226,7 +226,7 @@ export default function BookPreviewPage() {
 
             <button
               onClick={handleBuyHybrid}
-              className="w-full sm:w-auto bg-[#006953] text-white px-6 py-3 rounded-2xl font-bold text-xs sm:text-sm hover:bg-[#004d38] transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto bg-[#006953] text-white px-4 sm:px-6 py-3 rounded-2xl font-bold text-xs sm:text-sm hover:bg-[#004d38] transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer break-words"
             >
               <span className="material-symbols-outlined text-base">auto_stories</span>
               <span>Combo Hybrid: Sách In + Ebook (199.000đ)</span>

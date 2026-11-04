@@ -333,11 +333,11 @@ export default function AdminMaintenanceView() {
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-200 text-amber-900 border border-amber-300">
                   ĐANG HẸN GIỜ TỰ ĐỘNG
                 </span>
-                <span className="text-xs text-slate-500 font-medium">
+                <span className="text-xs text-slate-500 font-medium" suppressHydrationWarning>
                   Kích hoạt lúc: {mounted && config.scheduledStartTime ? new Date(config.scheduledStartTime).toLocaleString('vi-VN') : '--:--'}
                 </span>
               </div>
-              <h3 className="text-base font-bold text-slate-900">
+              <h3 className="text-base font-bold text-slate-900" suppressHydrationWarning>
                 Sàn sẽ tự động tắt sau: {Math.floor(remainingScheduleSec / 3600)} giờ {Math.floor((remainingScheduleSec % 3600) / 60)} phút {remainingScheduleSec % 60} giây
               </h3>
               <p className="text-xs text-slate-600 mt-0.5">
@@ -573,7 +573,7 @@ export default function AdminMaintenanceView() {
                 <span className="material-symbols-outlined text-slate-700">tune</span>
                 <span>Cấu Hình Thông Số & Cổng Thoát Hiểm</span>
               </h3>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-[11px] text-slate-400" suppressHydrationWarning>
                 Lần cập nhật cuối: {mounted && config.updatedAt ? new Date(config.updatedAt).toLocaleTimeString('vi-VN') : '--:--'} ({config.updatedBy})
               </span>
             </div>
