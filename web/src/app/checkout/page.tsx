@@ -1105,7 +1105,7 @@ export default function CheckoutPage() {
 
         const previewPayload: any = {
           addressId: validAddressId,
-          shippingAddress: !validAddressId && effectiveHasPhysical ? shippingAddressPayload : undefined,
+          shippingAddress: effectiveHasPhysical ? shippingAddressPayload : undefined,
           note: finalNote,
           platformVoucherCode: appliedPlatformVoucher?.code,
           storeVoucherCodes:

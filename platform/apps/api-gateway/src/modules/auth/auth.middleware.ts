@@ -21,20 +21,32 @@ export interface AuthenticatedRequest extends Request {
 @Injectable()
 export class AuthMiddleware implements NestMiddleware {
   async use(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    let token: string | undefined;
     const authHeader = req.headers.authorization;
 
-    if (!authHeader) {
-      req.user = undefined;
-      return next();
+    if (authHeader) {
+      const [type, t] = authHeader.split(' ');
+      if (type !== 'Bearer' || !t) {
+        req.authError = {
+          code: 'AUTH_TOKEN_INVALID',
+          message: 'Invalid Authorization header format. Expected Bearer <token>',
+        };
+        req.user = undefined;
+        return next();
+      }
+      token = t;
+    } else if ((req as any).cookies) {
+      token = (req as any).cookies['huki_access_token'] || (req as any).cookies['token'] || (req as any).cookies['accessToken'];
     }
 
-    const [type, token] = authHeader.split(' ');
+    if (!token && req.headers.cookie) {
+      const match = req.headers.cookie.match(/(?:^|;\s*)(?:huki_access_token|token|accessToken)=([^;]+)/);
+      if (match) {
+        token = decodeURIComponent(match[1]);
+      }
+    }
 
-    if (type !== 'Bearer' || !token) {
-      req.authError = {
-        code: 'AUTH_TOKEN_INVALID',
-        message: 'Invalid Authorization header format. Expected Bearer <token>',
-      };
+    if (!token) {
       req.user = undefined;
       return next();
     }

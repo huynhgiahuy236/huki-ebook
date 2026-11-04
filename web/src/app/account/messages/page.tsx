@@ -211,13 +211,7 @@ function MessengerContent() {
             if (shopSlug && (cNameSlug.includes(shopSlug) || shopSlug.includes(cNameSlug))) return true;
             if (nameSlug && (cNameSlug.includes(nameSlug) || nameSlug.includes(cNameSlug))) return true;
 
-            const keywords = [shopSlug, nameSlug].filter(Boolean);
-            for (const kw of keywords) {
-              const core = kw.replace(/^(nxb|nhaxuatban|store|shop)/, '');
-              if (core && core.length >= 3 && (cNameSlug.includes(core) || cStoreSlug.includes(core))) {
-                return true;
-              }
-            }
+            // Strict channel matching only - prevent hijacking to "Độc Giả HUKI"
             return false;
           });
 

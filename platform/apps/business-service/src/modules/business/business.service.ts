@@ -489,9 +489,22 @@ export class BusinessService {
 
   // ==================== FOLLOW / UNFOLLOW ====================
   async followBusiness(userId: string, businessId: string) {
-    const business = await this.prisma.business.findUnique({
-      where: { id: businessId },
+    let targetBizId = businessId;
+    let business = await this.prisma.business.findUnique({
+      where: { id: targetBizId },
     });
+    if (!business) {
+      // Check if businessId is actually a storeId
+      const store = await this.prisma.store.findUnique({
+        where: { id: businessId },
+      });
+      if (store?.businessId) {
+        targetBizId = store.businessId;
+        business = await this.prisma.business.findUnique({
+          where: { id: targetBizId },
+        });
+      }
+    }
     if (!business) {
       throwNotFound(ErrorCode.BUSINESS_NOT_FOUND, 'Không tìm thấy nhà xuất bản/doanh nghiệp');
     }
@@ -499,35 +512,47 @@ export class BusinessService {
     const follower = await (this.prisma as any).businessFollower.upsert({
       where: {
         businessId_userId: {
-          businessId,
+          businessId: targetBizId,
           userId,
         },
       },
       create: {
-        businessId,
+        businessId: targetBizId,
         userId,
       },
       update: {},
     });
 
     const totalFollowers = await (this.prisma as any).businessFollower.count({
-      where: { businessId },
+      where: { businessId: targetBizId },
     });
 
     return {
       followed: true,
-      businessId,
+      businessId: targetBizId,
       totalFollowers,
       follower,
     };
   }
 
   async unfollowBusiness(userId: string, businessId: string) {
+    let targetBizId = businessId;
+    let business = await this.prisma.business.findUnique({
+      where: { id: targetBizId },
+    });
+    if (!business) {
+      const store = await this.prisma.store.findUnique({
+        where: { id: businessId },
+      });
+      if (store?.businessId) {
+        targetBizId = store.businessId;
+      }
+    }
     try {
       await (this.prisma as any).businessFollower.delete({
         where: {
           businessId_userId: {
-            businessId,
+            businessId: targetBizId,
             userId,
           },
         },
@@ -537,12 +562,12 @@ export class BusinessService {
     }
 
     const totalFollowers = await (this.prisma as any).businessFollower.count({
-      where: { businessId },
+      where: { businessId: targetBizId },
     });
 
     return {
       followed: false,
-      businessId,
+      businessId: targetBizId,
       totalFollowers,
     };
   }
@@ -552,7 +577,18 @@ export class BusinessService {
       where: { userId },
       select: { businessId: true },
     });
-    return records.map((r: { businessId: string }) => r.businessId);
+    const businessIds = records.map((r: { businessId: string }) => r.businessId);
+    if (businessIds.length === 0) return [];
+    const stores = await this.prisma.store.findMany({
+      where: { businessId: { in: businessIds }, deletedAt: null },
+      select: { id: true, slug: true },
+    });
+    const allIds = new Set<string>(businessIds);
+    stores.forEach((s) => {
+      if (s.id) allIds.add(s.id);
+      if (s.slug) allIds.add(s.slug);
+    });
+    return Array.from(allIds);
   }
 
   async getMyFollowedBusinesses(userId: string) {
