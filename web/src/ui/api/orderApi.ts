@@ -781,6 +781,23 @@ export const orderApi = {
   getShipperRemittances: async (): Promise<ApiResponse<any[]>> => {
     return apiClient<any[]>('/orders/shipper/remittances', { method: 'GET' });
   },
+
+  /**
+   * Lấy thông tin hồ sơ bưu tá hiện tại
+   */
+  getDeliveryStaffProfile: async (): Promise<ApiResponse<any>> => {
+    return apiClient<any>('/delivery-staff/me', { method: 'GET' });
+  },
+
+  /**
+   * Cập nhật trạng thái trực ca Online/Offline của bưu tá
+   */
+  updateDeliveryStaffStatus: async (status: 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE'): Promise<ApiResponse<any>> => {
+    return apiClient<any>('/delivery-staff/me/status', {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  },
 };
 
 export interface ReturnRequestData {

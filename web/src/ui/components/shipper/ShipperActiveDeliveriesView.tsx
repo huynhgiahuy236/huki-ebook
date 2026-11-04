@@ -41,6 +41,43 @@ export default function ShipperActiveDeliveriesView() {
   const [selectedOrderToFail, setSelectedOrderToFail] = useState<string | null>(null);
   const [failReason, setFailReason] = useState('Khách không nghe máy (đã gọi 3 lần)');
 
+  // Modal chụp ảnh bằng chứng giao hàng (POD - BUG-04-003)
+  const [podModalOrder, setPodModalOrder] = useState<ShipperOrder | null>(null);
+  const [podImagePreview, setPodImagePreview] = useState<string | null>(null);
+  const [podReceiverNote, setPodReceiverNote] = useState<string>('Khách đã nhận sách và kiểm tra nguyên vẹn');
+  const [podSubmitting, setPodSubmitting] = useState(false);
+
+  const handleOpenPod = (order: ShipperOrder) => {
+    setPodModalOrder(order);
+    setPodImagePreview(null);
+    setPodReceiverNote('Khách đã nhận sách và kiểm tra nguyên vẹn');
+  };
+
+  const handlePodFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPodImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleConfirmPodDelivery = async () => {
+    if (!podModalOrder) return;
+    if (!podImagePreview) {
+      alert('Vui lòng chụp hoặc tải ảnh bằng chứng giao hàng (POD) trước khi hoàn tất!');
+      return;
+    }
+    setPodSubmitting(true);
+    try {
+      await completeDelivery(podModalOrder.id, `POD_VERIFIED: ${podReceiverNote}`);
+      setPodModalOrder(null);
+    } finally {
+      setPodSubmitting(false);
+    }
+  };
+
   // Modal phát thông báo nhanh
   const [dispatchModal, setDispatchModal] = useState<{
     open: boolean;
@@ -267,7 +304,7 @@ export default function ShipperActiveDeliveriesView() {
       width: '23%',
       render: (_, row) => {
         if (row.isGroupHeader) return null;
-        const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.shopAddress)}`;
+        const mapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(row.shopAddress)}`;
         return (
           <div className="text-xs py-0.5">
             <div className="flex items-center justify-between gap-1">
@@ -278,14 +315,27 @@ export default function ShipperActiveDeliveriesView() {
                 <a href={`tel:${row.shopPhone}`} className="text-[#00875A] hover:underline" title="Gọi Shop">
                   <span className="material-symbols-outlined text-[13px] align-middle">call</span>
                 </a>
-                <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-slate-700" title="Chỉ đường">
-                  <span className="material-symbols-outlined text-[13px] align-middle">navigation</span>
+                <a
+                  href={mapUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-emerald-50 hover:bg-[#00875A] text-[#00875A] hover:text-white transition-colors text-[10px] font-bold"
+                  title="Mở chỉ đường Google Maps tới Shop"
+                >
+                  <span className="material-symbols-outlined text-[12px] align-middle">directions</span>
+                  <span className="hidden sm:inline">Chỉ đường</span>
                 </a>
               </div>
             </div>
-            <div className="text-slate-500 text-[10.5px] break-words line-clamp-1 leading-tight mt-0.5" title={row.shopAddress}>
+            <a
+              href={mapUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-slate-500 hover:text-[#00875A] hover:underline text-[10.5px] break-words line-clamp-1 leading-tight mt-0.5 block"
+              title={`Bấm để mở Google Maps chỉ đường: ${row.shopAddress}`}
+            >
               {row.shopAddress}
-            </div>
+            </a>
           </div>
         );
       },
@@ -297,7 +347,7 @@ export default function ShipperActiveDeliveriesView() {
       render: (_, row) => {
         if (row.isGroupHeader) return null;
         const fullAddr = `${row.deliveryAddress}, ${row.deliveryWard || ''}, ${row.deliveryDistrict || ''}, ${row.deliveryProvince || ''}`;
-        const customerMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr)}`;
+        const customerMapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(fullAddr)}`;
         return (
           <div className="text-xs py-0.5">
             <div className="flex items-center justify-between gap-1">
@@ -308,14 +358,27 @@ export default function ShipperActiveDeliveriesView() {
                 <a href={`tel:${row.customerPhone}`} className="text-[#00875A] hover:underline" title="Gọi Khách">
                   <span className="material-symbols-outlined text-[13px] align-middle">call</span>
                 </a>
-                <a href={customerMapUrl} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-slate-700" title="Chỉ đường">
-                  <span className="material-symbols-outlined text-[13px] align-middle">navigation</span>
+                <a
+                  href={customerMapUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-emerald-50 hover:bg-[#00875A] text-[#00875A] hover:text-white transition-colors text-[10px] font-bold"
+                  title="Mở chỉ đường Google Maps tới Khách"
+                >
+                  <span className="material-symbols-outlined text-[12px] align-middle">directions</span>
+                  <span className="hidden sm:inline">Chỉ đường</span>
                 </a>
               </div>
             </div>
-            <div className="text-slate-500 text-[10.5px] break-words line-clamp-1 leading-tight mt-0.5" title={fullAddr}>
+            <a
+              href={customerMapUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-slate-500 hover:text-[#00875A] hover:underline text-[10.5px] break-words line-clamp-1 leading-tight mt-0.5 block"
+              title={`Bấm để mở Google Maps chỉ đường: ${fullAddr}`}
+            >
               {row.deliveryAddress}, {row.deliveryWard}
-            </div>
+            </a>
           </div>
         );
       },
@@ -344,9 +407,17 @@ export default function ShipperActiveDeliveriesView() {
             <div className="text-[#00875A] font-bold text-xs">
               +${row.shippingFee?.toLocaleString('vi-VN')}đ
             </div>
-            <div className={`text-[10.5px] font-medium ${isCod ? 'text-amber-700' : 'text-slate-400'}`}>
-              {isCod ? `COD: ${row.codAmount?.toLocaleString('vi-VN')}đ` : 'Đã TT Online'}
-            </div>
+            {isCod ? (
+              <div className="mt-0.5">
+                <span className="font-mono text-xs font-black text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-lg border border-rose-200 inline-block shadow-2xs">
+                  COD: ${row.codAmount?.toLocaleString('vi-VN')}đ
+                </span>
+              </div>
+            ) : (
+              <div className="text-[10.5px] font-medium text-slate-400 mt-0.5">
+                Đã TT Online
+              </div>
+            )}
           </div>
         );
       },
@@ -386,12 +457,12 @@ export default function ShipperActiveDeliveriesView() {
               <>
                 <button
                   type="button"
-                  onClick={() => completeDelivery(row.id)}
+                  onClick={() => handleOpenPod(row)}
                   className="px-2.5 py-1 rounded-lg bg-[#003B2B] hover:bg-emerald-900 text-white text-xs font-bold shadow-2xs transition-colors flex items-center gap-1 cursor-pointer"
-                  title="Giao thành công tận tay người nhận"
+                  title="Chụp ảnh POD và xác nhận giao thành công"
                 >
-                  <span className="material-symbols-outlined text-[13px]">task_alt</span>
-                  <span>Giao xong</span>
+                  <span className="material-symbols-outlined text-[13px]">photo_camera</span>
+                  <span>Giao xong (POD)</span>
                 </button>
                 <button
                   type="button"
@@ -633,8 +704,8 @@ export default function ShipperActiveDeliveriesView() {
           expandedRowRender={(row) => {
             if (row.isGroupHeader) return null;
             const fullAddr = `${row.deliveryAddress}, ${row.deliveryWard || ''}, ${row.deliveryDistrict || ''}, ${row.deliveryProvince || ''}`;
-            const customerMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr)}`;
-            const shopMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.shopAddress)}`;
+            const customerMapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(fullAddr)}`;
+            const shopMapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(row.shopAddress)}`;
             const isCod = row.paymentMethod === 'COD';
             const isPickingUp = row.status === 'PICKING_UP';
             const isInTransit = row.status === 'IN_TRANSIT';
@@ -735,9 +806,13 @@ export default function ShipperActiveDeliveriesView() {
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-slate-500">Tiền thu khách:</span>
-                          <strong className="text-amber-700 font-bold">
-                            {isCod ? `${row.codAmount?.toLocaleString('vi-VN')}đ` : '0đ'}
-                          </strong>
+                          {isCod ? (
+                            <span className="font-mono text-base sm:text-lg font-black text-rose-700 bg-rose-50 px-2.5 py-1 rounded-xl border border-rose-200 shadow-2xs">
+                              ${row.codAmount?.toLocaleString('vi-VN')}đ
+                            </span>
+                          ) : (
+                            <span className="text-emerald-700 font-bold">0đ (Đã TT Online)</span>
+                          )}
                         </div>
                         {isCod && (
                           <div className="flex items-center justify-between pt-1 border-t border-slate-100">
@@ -765,11 +840,11 @@ export default function ShipperActiveDeliveriesView() {
                         <>
                           <button
                             type="button"
-                            onClick={() => completeDelivery(row.id)}
+                            onClick={() => handleOpenPod(row)}
                             className="flex-1 py-2 bg-[#003B2B] hover:bg-emerald-950 text-white text-xs font-bold rounded-lg shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                           >
-                            <span className="material-symbols-outlined text-[15px]">task_alt</span>
-                            <span>Giao Hàng Thành Công</span>
+                            <span className="material-symbols-outlined text-[15px]">photo_camera</span>
+                            <span>Giao Hàng Thành Công (Chụp POD)</span>
                           </button>
                           <button
                             type="button"
@@ -886,6 +961,163 @@ export default function ShipperActiveDeliveriesView() {
           orderCode={dispatchModal.orderCode}
           orderId={dispatchModal.orderId}
         />
+      )}
+      {/* Modal Chụp Ảnh Xác Thực Giao Hàng (Proof of Delivery - POD - BUG-04-003) */}
+      {podModalOrder && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-neutral-800 space-y-4 animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5 text-[#003B2B]">
+                <span className="w-8 h-8 rounded-lg bg-emerald-100 text-[#003B2B] flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[20px]">photo_camera</span>
+                </span>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white leading-tight">
+                    Xác Thực Giao Hàng (POD)
+                  </h3>
+                  <span className="text-xs text-slate-500 font-mono">Đơn #{podModalOrder.code}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPodModalOrder(null)}
+                className="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            {/* Thông tin đơn và tiền COD cần thu */}
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-neutral-800 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Khách nhận:</span>
+                <strong className="text-slate-800">{podModalOrder.customerName} ({podModalOrder.customerPhone})</strong>
+              </div>
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-slate-500 shrink-0">Địa chỉ:</span>
+                <span className="text-slate-700 text-right">{podModalOrder.deliveryAddress}, {podModalOrder.deliveryWard}</span>
+              </div>
+              {podModalOrder.paymentMethod === 'COD' ? (
+                <div className="pt-2 border-t border-slate-200 dark:border-neutral-700 flex items-center justify-between">
+                  <span className="text-rose-700 font-bold uppercase text-[11px]">Tiền mặt COD phải thu:</span>
+                  <span className="font-mono text-xl font-black text-rose-700 bg-rose-50 px-3 py-1 rounded-xl border border-rose-200">
+                    {podModalOrder.codAmount.toLocaleString('vi-VN')}đ
+                  </span>
+                </div>
+              ) : (
+                <div className="pt-2 border-t border-slate-200 dark:border-neutral-700 flex items-center justify-between">
+                  <span className="text-emerald-700 font-bold text-[11px]">Thanh toán:</span>
+                  <span className="text-emerald-700 font-bold text-xs bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
+                    Đã thanh toán Online (Thu 0đ)
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Bước Chụp / Tải ảnh POD */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide">
+                1. Ảnh Chụp Bằng Chứng Giao Hàng <span className="text-rose-600">*</span>:
+              </label>
+              {podImagePreview ? (
+                <div className="relative rounded-xl overflow-hidden border-2 border-emerald-500 bg-black/5 aspect-video flex items-center justify-center">
+                  <img src={podImagePreview} alt="POD Preview" className="w-full h-full object-contain" />
+                  <button
+                    type="button"
+                    onClick={() => setPodImagePreview(null)}
+                    className="absolute top-2 right-2 px-2.5 py-1 bg-black/70 hover:bg-black text-white text-xs rounded-lg flex items-center gap-1 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">refresh</span>
+                    <span>Chụp lại</span>
+                  </button>
+                </div>
+              ) : (
+                <label className="border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/50 hover:bg-emerald-50 rounded-xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors text-center">
+                  <span className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[24px]">add_a_photo</span>
+                  </span>
+                  <span className="text-xs font-bold text-slate-800">
+                    Bấm để chụp ảnh hoặc tải ảnh kiện hàng trao tay
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    Hỗ trợ Camera trực tiếp từ điện thoại hoặc file PNG, JPG
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handlePodFileChange}
+                  />
+                </label>
+              )}
+            </div>
+
+            {/* Ghi chú nhận hàng */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide">
+                2. Ghi chú giao nhận:
+              </label>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {[
+                  'Khách ký nhận trực tiếp',
+                  'Người nhà nhận thay',
+                  'Để trước cửa theo yêu cầu',
+                  'Giao bảo vệ tòa nhà',
+                ].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setPodReceiverNote(preset)}
+                    className={`p-2 rounded-lg border text-left cursor-pointer transition-all ${
+                      podReceiverNote === preset
+                        ? 'bg-[#003B2B] text-white border-[#003B2B] font-bold'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                value={podReceiverNote}
+                onChange={(e) => setPodReceiverNote(e.target.value)}
+                placeholder="Nhập ghi chú chi tiết nếu có..."
+                className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:ring-1 focus:ring-[#003B2B]"
+              />
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setPodModalOrder(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={!podImagePreview || podSubmitting}
+                onClick={handleConfirmPodDelivery}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#003B2B] hover:bg-emerald-950 text-white shadow-md disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 transition-all"
+              >
+                {podSubmitting ? (
+                  <>
+                    <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Đang hoàn tất...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[16px]">verified</span>
+                    <span>Xác Nhận Đã Giao Thành Công</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

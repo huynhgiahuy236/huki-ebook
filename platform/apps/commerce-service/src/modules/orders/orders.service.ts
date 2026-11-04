@@ -3748,7 +3748,7 @@ export class OrdersService {
         shipperStatus = 'DELIVERED';
       } else if (so.status === SellerOrderStatus.CANCELLED) {
         shipperStatus = 'FAILED';
-      } else if (so.carrier && (so.status === SellerOrderStatus.CONFIRMED || so.status === SellerOrderStatus.PREPARING)) {
+      } else if ((so.deliveryStaffId || so.carrier === 'HUKI_EXPRESS') && (so.status === SellerOrderStatus.CONFIRMED || so.status === SellerOrderStatus.PREPARING)) {
         // Đã có bưu tá nhận đơn -> Đang chuẩn bị đến lấy hàng
         shipperStatus = 'PICKING_UP';
       } else if (so.status === SellerOrderStatus.CONFIRMED || so.status === SellerOrderStatus.PREPARING) {
@@ -3789,6 +3789,9 @@ export class OrdersService {
         distanceKm: 3.2,
         status: shipperStatus,
         sellerOrderStatus: so.status,
+        deliveryStaffId: so.deliveryStaffId,
+        carrier: so.carrier,
+        trackingCode: so.trackingCode,
         createdAt: so.createdAt.toISOString(),
         shippedAt: so.shippedAt?.toISOString(),
         completedAt: so.completedAt?.toISOString(),
@@ -3880,8 +3883,14 @@ export class OrdersService {
     if (!sellerOrder) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
 
     const actorId = actor?.sub || 'shipper-hung';
+
+    // Atomic Concurrency check: If already claimed by another driver
+    if (sellerOrder.deliveryStaffId && sellerOrder.deliveryStaffId !== actorId) {
+      throwConflict(ErrorCode.ORDER_ALREADY_CANCELLED, 'Đơn hàng này đã được một bưu tá khác tiếp nhận!');
+    }
+
     const carrier = 'HUKI_EXPRESS';
-    const trackingCode = `HUKI-EXP-${randomBytes(4).toString('hex').toUpperCase()}`;
+    const trackingCode = sellerOrder.trackingCode || `HUKI-EXP-${randomBytes(4).toString('hex').toUpperCase()}`;
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const up = await tx.sellerOrder.update({
@@ -3889,6 +3898,20 @@ export class OrdersService {
         data: {
           carrier,
           trackingCode,
+          deliveryStaffId: actorId,
+        },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: sellerOrder.orderId,
+          sellerOrderId: sellerOrder.id,
+          fromStatus: sellerOrder.status,
+          toStatus: sellerOrder.status,
+          title: 'Bưu tá tiếp nhận đơn hàng',
+          actorType: 'DELIVERY_STAFF',
+          actorId: actorId,
+          description: `Bưu tá ${actorId} đã tiếp nhận đơn vận chuyển`,
         },
       });
 

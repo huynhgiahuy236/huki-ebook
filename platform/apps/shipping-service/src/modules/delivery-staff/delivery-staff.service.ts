@@ -92,6 +92,51 @@ export class DeliveryStaffService {
       return updated;
     });
   }
+  async findByUserId(userId: string) {
+    return this.prisma.deliveryStaff.findUnique({ where: { userId } });
+  }
+
+  async getOrCreateStaffProfile(actor: { sub: string; email?: string; role: string }) {
+    let staff = await this.prisma.deliveryStaff.findUnique({ where: { userId: actor.sub } });
+    if (!staff) {
+      const emailPrefix = actor.email ? actor.email.split('@')[0] : 'shipper';
+      const formattedName = emailPrefix
+        .split(/[._-]/)
+        .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+        .join(' ');
+      staff = await this.prisma.deliveryStaff.create({
+        data: {
+          userId: actor.sub,
+          name: formattedName || 'Bưu tá HuKi Express',
+          phone: '0988 776 655',
+          email: actor.email || 'shipper@huki.vn',
+          status: StaffStatus.ACTIVE,
+          currentArea: 'Đồng Tháp (TP. Cao Lãnh & TP. Sa Đéc)',
+        },
+      });
+    }
+    return staff;
+  }
+
+  async updateStatusByUserId(userId: string, status: StaffStatus) {
+    const staff = await this.prisma.deliveryStaff.findUnique({ where: { userId } });
+    if (!staff) {
+      throw new NotFoundException('Delivery staff profile not found');
+    }
+    return this.prisma.deliveryStaff.update({
+      where: { userId },
+      data: { status },
+    });
+  }
+
+  async listForStaff(userId: string) {
+    const staff = await this.prisma.deliveryStaff.findUnique({
+      where: { userId },
+      include: { _count: { select: { shipments: true } } },
+    });
+    return staff ? [staff] : [];
+  }
+
   private async requireStaff(id: string) {
     const staff = await this.prisma.deliveryStaff.findUnique({ where: { id } });
     if (!staff) throw new NotFoundException('Delivery staff not found');

@@ -177,7 +177,7 @@ export default function ShipperReturnsView() {
       width: '24%',
       render: (_, row) => {
         const fullAddr = `${row.deliveryAddress}, ${row.deliveryWard || ''}, ${row.deliveryDistrict || ''}, ${row.deliveryProvince || ''}`;
-        const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr)}`;
+        const mapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(fullAddr)}`;
 
         return (
           <div className="text-xs space-y-1 py-1">
@@ -214,7 +214,7 @@ export default function ShipperReturnsView() {
       title: 'Điểm Trả Sách (Kho Shop)',
       width: '24%',
       render: (_, row) => {
-        const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.shopAddress)}`;
+        const mapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(row.shopAddress)}`;
 
         return (
           <div className="text-xs space-y-1 py-1">
@@ -452,8 +452,8 @@ export default function ShipperReturnsView() {
           expandedRowRender={(row) => {
             const isStep1 = row.status === 'PICKING_UP';
             const fullAddr = `${row.deliveryAddress}, ${row.deliveryWard || ''}, ${row.deliveryDistrict || ''}, ${row.deliveryProvince || ''}`;
-            const customerMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr)}`;
-            const shopMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.shopAddress)}`;
+            const customerMapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(fullAddr)}`;
+            const shopMapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(row.shopAddress)}`;
 
             return (
               <div className="p-4 bg-slate-50 dark:bg-neutral-800/40 rounded-xl space-y-4 text-xs">

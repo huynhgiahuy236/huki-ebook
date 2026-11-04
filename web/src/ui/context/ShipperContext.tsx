@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useToast } from './ToastContext';
+import { useAuth } from './AuthContext';
 import { orderApi } from '@/ui/api/orderApi';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
@@ -46,6 +47,9 @@ export interface ShipperOrder {
   paymentMethod: 'COD' | 'ONLINE_PAYMENT';
   distanceKm: number;
   status: 'AVAILABLE' | 'PICKING_UP' | 'IN_TRANSIT' | 'DELIVERED' | 'FAILED';
+  deliveryStaffId?: string;
+  carrier?: string;
+  trackingCode?: string;
   sellerOrderStatus?: string;
   isCodRemitted?: boolean;
   orderId?: string;
@@ -99,11 +103,11 @@ export interface ShipperContextType {
 
 const INITIAL_PROFILE: ShipperProfile = {
   id: 'SHIPPER-8899',
-  name: 'Nguyễn Văn Hưng',
+  name: 'Bưu tá HuKi Express',
   phone: '0988 776 655',
-  email: 'shipper.hung@huki.vn',
-  avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-  vehicleType: 'Xe máy Honda Wave Alpha 110cc',
+  email: 'shipper.express@huki.vn',
+  avatar: '',
+  vehicleType: 'Xe máy Honda Wave RSX 110cc',
   licensePlate: '66-F1 987.65',
   rating: 5.0,
   totalDelivered: 0,
@@ -137,18 +141,38 @@ const saveManualTransaction = (tx: WalletTransaction) => {
   }
 };
 
-const claimedOrderIdsInMemory = new Set<string>();
+const CLAIMED_STORAGE_KEY = 'huki_shipper_claimed_orders';
 
-const getStoredClaimedIds = (): string[] => {
-  return Array.from(claimedOrderIdsInMemory);
+const getStoredClaimedIds = (): Set<string> => {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem(CLAIMED_STORAGE_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
 };
 
 const saveClaimedId = (id: string) => {
-  claimedOrderIdsInMemory.add(id);
+  if (typeof window === 'undefined') return;
+  try {
+    const set = getStoredClaimedIds();
+    set.add(id);
+    localStorage.setItem(CLAIMED_STORAGE_KEY, JSON.stringify(Array.from(set)));
+  } catch (err) {
+    console.warn('Failed to save claimed order ID:', err);
+  }
 };
 
 const removeClaimedId = (id: string) => {
-  claimedOrderIdsInMemory.delete(id);
+  if (typeof window === 'undefined') return;
+  try {
+    const set = getStoredClaimedIds();
+    set.delete(id);
+    localStorage.setItem(CLAIMED_STORAGE_KEY, JSON.stringify(Array.from(set)));
+  } catch (err) {
+    console.warn('Failed to remove claimed order ID:', err);
+  }
 };
 
 function playShipperChime() {
@@ -189,9 +213,93 @@ function playShipperChime() {
 
 export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { showToast } = useToast();
+  const { user } = useAuth();
 
-  const [isOnline, setIsOnline] = useState<boolean>(true);
-  const [profile, setProfile] = useState<ShipperProfile>(INITIAL_PROFILE);
+  const [isOnline, setIsOnlineState] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      const stored = localStorage.getItem('huki_shipper_is_online');
+      return stored !== null ? stored === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const setIsOnline = useCallback(async (val: boolean) => {
+    setIsOnlineState(val);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('huki_shipper_is_online', String(val));
+      } catch {}
+    }
+    try {
+      await orderApi.updateDeliveryStaffStatus(val ? 'ACTIVE' : 'INACTIVE');
+    } catch (err) {
+      console.warn('Could not sync delivery staff duty status to backend:', err);
+    }
+    showToast(
+      {
+        title: val ? 'Đã bật ca trực (Online)' : 'Đã tạm nghỉ ca (Offline)',
+        message: val
+          ? 'Hệ thống bắt đầu điều phối các đơn sách mới trong khu vực cho bạn.'
+          : 'Hệ thống đã tạm dừng điều phối đơn mới. Bạn có thể nghỉ ngơi.',
+      },
+      val ? 'success' : 'info'
+    );
+  }, [showToast]);
+
+  const [profile, setProfile] = useState<ShipperProfile>(() => {
+    return {
+      ...INITIAL_PROFILE,
+      name: user?.name || INITIAL_PROFILE.name,
+      email: user?.email || INITIAL_PROFILE.email,
+      phone: user?.phone || INITIAL_PROFILE.phone,
+      id: user?.id || INITIAL_PROFILE.id,
+    };
+  });
+
+  // Sync profile from backend /delivery-staff/me
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchStaffProfile() {
+      try {
+        const res = await orderApi.getDeliveryStaffProfile();
+        if (res.success && res.data && isMounted) {
+          const d = res.data;
+          setProfile((prev) => ({
+            ...prev,
+            id: d.id || prev.id,
+            name: d.name || user?.name || prev.name,
+            phone: d.phone || user?.phone || prev.phone,
+            email: d.email || user?.email || prev.email,
+            activeZone: d.currentArea || prev.activeZone,
+          }));
+        } else if (user && isMounted) {
+          setProfile((prev) => ({
+            ...prev,
+            id: user.id || prev.id,
+            name: user.name || prev.name,
+            email: user.email || prev.email,
+            phone: user.phone || prev.phone,
+          }));
+        }
+      } catch {
+        if (user && isMounted) {
+          setProfile((prev) => ({
+            ...prev,
+            id: user.id || prev.id,
+            name: user.name || prev.name,
+            email: user.email || prev.email,
+            phone: user.phone || prev.phone,
+          }));
+        }
+      }
+    }
+    fetchStaffProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
   const [availableOrders, setAvailableOrders] = useState<ShipperOrder[]>([]);
   const [activeDeliveries, setActiveDeliveries] = useState<ShipperOrder[]>([]);
   const [historyOrders, setHistoryOrders] = useState<ShipperOrder[]>([]);
@@ -255,6 +363,9 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
             paymentStatus: o.paymentStatus,
             distanceKm: o.distanceKm || 3.2,
             status: o.status || 'AVAILABLE',
+            deliveryStaffId: o.deliveryStaffId,
+            carrier: o.carrier,
+            trackingCode: o.trackingCode,
             createdAt: o.createdAt || new Date().toISOString(),
             shippedAt: o.shippedAt,
             completedAt: o.completedAt,
@@ -287,9 +398,19 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
             return;
           }
 
+          const storedClaimedSet = getStoredClaimedIds();
+          const myId = profile.id;
+          const myAuthId = user?.id;
+
+          const isAssignedToMe = (o.deliveryStaffId && (o.deliveryStaffId === myId || (myAuthId && o.deliveryStaffId === myAuthId))) || storedClaimedSet.has(item.id);
+          const isAssignedToOther = o.deliveryStaffId && (o.deliveryStaffId !== myId && (!myAuthId || o.deliveryStaffId !== myAuthId));
+
+          // Nếu đơn đã được bưu tá khác tiếp nhận, bưu tá này không thấy trên sàn
+          if (isAssignedToOther) return;
+
           const isConfirmedBySeller = o.sellerOrderStatus === 'CONFIRMED' || o.sellerOrderStatus === 'PREPARING';
           const isPendingSeller = o.sellerOrderStatus === 'PENDING_CONFIRMATION' || o.sellerOrderStatus === 'PENDING_PAYMENT' || o.sellerOrderStatus === 'DRAFT';
-          const isClaimedByMe = claimedOrderIdsInMemory.has(item.id) || o.status === 'PICKING_UP' || (o.carrier === 'HUKI_EXPRESS' && isConfirmedBySeller);
+          const isClaimedByMe = isAssignedToMe || o.status === 'PICKING_UP' || (o.carrier === 'HUKI_EXPRESS' && isConfirmedBySeller);
 
           if (o.status === 'DELIVERED' || o.sellerOrderStatus === 'DELIVERED' || o.sellerOrderStatus === 'COMPLETED' || o.status === 'FAILED' || o.sellerOrderStatus === 'CANCELLED') {
             const isDelivered = o.sellerOrderStatus !== 'CANCELLED' && o.status !== 'FAILED';

@@ -284,10 +284,16 @@ export default function ShipperWalletView() {
             </div>
 
             <div>
-              <span className="text-xs text-gray-500 block">Tiền mặt COD tạm giữ cần nộp (đã trừ cước):</span>
-              <strong className={`text-3xl font-black block tracking-tight mt-0.5 ${wallet.codDebt > 0 ? 'text-amber-700' : 'text-gray-800'}`}>
-                {wallet.codDebt.toLocaleString('vi-VN')}đ
-              </strong>
+              <span className="text-xs text-gray-500 block mb-1">Tiền mặt COD tạm giữ cần nộp (đã trừ cước):</span>
+              {wallet.codDebt > 0 ? (
+                <div className="inline-block font-mono text-2xl sm:text-3xl font-black text-rose-700 bg-rose-50 px-3.5 py-1.5 rounded-xl border border-rose-200 shadow-2xs">
+                  {wallet.codDebt.toLocaleString('vi-VN')}đ
+                </div>
+              ) : (
+                <strong className="text-3xl font-black text-slate-800 block tracking-tight">
+                  0đ
+                </strong>
+              )}
             </div>
 
             <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/80 text-[11px] text-amber-950 space-y-1">

@@ -230,7 +230,7 @@ export default function ShipperAvailableOrdersView() {
       width: '23%',
       render: (_, row) => {
         if (row.isGroupHeader) return null;
-        const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.shopAddress)}`;
+        const mapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(row.shopAddress)}`;
         return (
           <div className="text-xs py-0.5">
             <div className="flex items-center justify-between gap-1">
@@ -241,14 +241,27 @@ export default function ShipperAvailableOrdersView() {
                 <a href={`tel:${row.shopPhone}`} className="text-[#00875A] hover:underline" title="Gọi Shop">
                   <span className="material-symbols-outlined text-[13px] align-middle">call</span>
                 </a>
-                <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-slate-700" title="Chỉ đường">
-                  <span className="material-symbols-outlined text-[13px] align-middle">navigation</span>
+                <a
+                  href={mapUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-emerald-50 hover:bg-[#00875A] text-[#00875A] hover:text-white transition-colors text-[10px] font-bold"
+                  title="Mở chỉ đường Google Maps tới Shop"
+                >
+                  <span className="material-symbols-outlined text-[12px] align-middle">directions</span>
+                  <span className="hidden sm:inline">Chỉ đường</span>
                 </a>
               </div>
             </div>
-            <div className="text-slate-500 text-[10.5px] break-words line-clamp-1 leading-tight mt-0.5" title={row.shopAddress}>
+            <a
+              href={mapUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-slate-500 hover:text-[#00875A] hover:underline text-[10.5px] break-words line-clamp-1 leading-tight mt-0.5 block"
+              title={`Bấm để mở Google Maps chỉ đường: ${row.shopAddress}`}
+            >
               {row.shopAddress}
-            </div>
+            </a>
           </div>
         );
       },
@@ -260,7 +273,7 @@ export default function ShipperAvailableOrdersView() {
       render: (_, row) => {
         if (row.isGroupHeader) return null;
         const fullAddr = `${row.deliveryAddress}, ${row.deliveryWard || ''}, ${row.deliveryDistrict || ''}, ${row.deliveryProvince || ''}`;
-        const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr)}`;
+        const mapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(fullAddr)}`;
         return (
           <div className="text-xs py-0.5">
             <div className="flex items-center justify-between gap-1">
@@ -271,14 +284,27 @@ export default function ShipperAvailableOrdersView() {
                 <a href={`tel:${row.customerPhone}`} className="text-[#00875A] hover:underline" title="Gọi Khách">
                   <span className="material-symbols-outlined text-[13px] align-middle">call</span>
                 </a>
-                <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-slate-700" title="Chỉ đường">
-                  <span className="material-symbols-outlined text-[13px] align-middle">navigation</span>
+                <a
+                  href={mapUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-emerald-50 hover:bg-[#00875A] text-[#00875A] hover:text-white transition-colors text-[10px] font-bold"
+                  title="Mở chỉ đường Google Maps tới Khách"
+                >
+                  <span className="material-symbols-outlined text-[12px] align-middle">directions</span>
+                  <span className="hidden sm:inline">Chỉ đường</span>
                 </a>
               </div>
             </div>
-            <div className="text-slate-500 text-[10.5px] break-words line-clamp-1 leading-tight mt-0.5" title={fullAddr}>
+            <a
+              href={mapUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-slate-500 hover:text-[#00875A] hover:underline text-[10.5px] break-words line-clamp-1 leading-tight mt-0.5 block"
+              title={`Bấm để mở Google Maps chỉ đường: ${fullAddr}`}
+            >
               {row.deliveryAddress}, {row.deliveryWard}
-            </div>
+            </a>
           </div>
         );
       },
@@ -307,9 +333,17 @@ export default function ShipperAvailableOrdersView() {
             <div className="text-[#00875A] font-bold text-xs">
               +${row.shippingFee?.toLocaleString('vi-VN')}đ
             </div>
-            <div className={`text-[10.5px] font-medium ${isCod ? 'text-amber-700' : 'text-slate-400'}`}>
-              {isCod ? `COD: ${row.codAmount?.toLocaleString('vi-VN')}đ` : '0đ COD'}
-            </div>
+            {isCod ? (
+              <div className="mt-0.5">
+                <span className="font-mono text-xs font-black text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-lg border border-rose-200 inline-block shadow-2xs">
+                  COD: ${row.codAmount?.toLocaleString('vi-VN')}đ
+                </span>
+              </div>
+            ) : (
+              <div className="text-[10.5px] font-medium text-slate-400 mt-0.5">
+                0đ COD
+              </div>
+            )}
           </div>
         );
       },
@@ -534,8 +568,8 @@ export default function ShipperAvailableOrdersView() {
           expandedRowRender={(row) => {
             if (row.isGroupHeader) return null;
             const fullAddr = `${row.deliveryAddress}, ${row.deliveryWard || ''}, ${row.deliveryDistrict || ''}, ${row.deliveryProvince || ''}`;
-            const customerMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr)}`;
-            const shopMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.shopAddress)}`;
+            const customerMapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(fullAddr)}`;
+            const shopMapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(row.shopAddress)}`;
             const isCod = row.paymentMethod === 'COD';
 
             return (
@@ -634,9 +668,13 @@ export default function ShipperAvailableOrdersView() {
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-slate-500">Tiền thu khách:</span>
-                          <strong className="text-amber-700 font-bold">
-                            {isCod ? `${row.codAmount?.toLocaleString('vi-VN')}đ` : '0đ'}
-                          </strong>
+                          {isCod ? (
+                            <span className="font-mono text-base sm:text-lg font-black text-rose-700 bg-rose-50 px-2.5 py-1 rounded-xl border border-rose-200 shadow-2xs">
+                              ${row.codAmount?.toLocaleString('vi-VN')}đ
+                            </span>
+                          ) : (
+                            <span className="text-emerald-700 font-bold">0đ (Đã TT Online)</span>
+                          )}
                         </div>
                         {isCod && (
                           <div className="flex items-center justify-between pt-1 border-t border-slate-100">

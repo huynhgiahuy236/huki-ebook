@@ -214,7 +214,8 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
             {/* Mobile Menu Toggle */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 border border-[#E2E8F0] cursor-pointer active:scale-95"
+              className="lg:hidden w-12 h-12 min-w-[48px] min-h-[48px] flex items-center justify-center rounded-xl text-gray-700 hover:bg-gray-100 border border-[#E2E8F0] cursor-pointer active:scale-95"
+              aria-label="Mở menu bưu tá"
             >
               <span className="material-symbols-outlined text-[20px] text-[#003B2B]">menu</span>
             </button>
@@ -297,13 +298,13 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
                 {profile.name}
               </span>
               <span className="text-[9px] text-emerald-700 font-semibold leading-tight">
-                ★ {profile.rating} • {profile.licensePlate}
+                <span className="material-symbols-outlined text-[12px] text-amber-500 fill-current inline-block align-middle mr-0.5">star</span>{profile.rating} • {profile.licensePlate}
               </span>
             </div>
 
             <button
               onClick={handleLogout}
-              className="p-1 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+              className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
               title="Đăng xuất"
               aria-label="Đăng xuất"
             >
@@ -404,8 +405,15 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
             ))}
           </div>
 
-          {/* Bottom Sidebar Action: Reset Demo */}
-          <div className="p-2 border-t border-[#00281D] bg-[#00281D]/50">
+          {/* Bottom Sidebar Footer (BUG-04-006: Clean version tag) */}
+          <div className="p-2 border-t border-[#00281D] bg-[#00281D]/50 text-center">
+            {!isSidebarCollapsed ? (
+              <span className="text-[10px] text-white/40 font-mono tracking-wider">HUKI LOGISTICS v2.4</span>
+            ) : (
+              <span className="material-symbols-outlined text-[14px] text-white/30">local_shipping</span>
+            )}
+          </div>
+          <div className="hidden">
             {!isSidebarCollapsed ? (
               <button
                 type="button"
@@ -436,9 +444,12 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
 
         {/* MOBILE DRAWER SIDEBAR FOR SHIPPER */}
         {isMobileMenuOpen && (
-          <div className="fixed inset-0 z-50 lg:hidden flex">
+          <div className="fixed inset-0 z-50 lg:hidden">
             <div
-              className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
+              className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity cursor-pointer"
+              role="button"
+              tabIndex={0}
+              aria-label="Đóng menu bưu tá"
               onClick={() => setIsMobileMenuOpen(false)}
             />
             <div className="relative w-[300px] sm:w-[320px] max-w-[88vw] bg-[#003B2B] text-white h-full flex flex-col shadow-2xl z-10">
@@ -533,13 +544,16 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold text-white truncate">{profile.name}</p>
-                    <p className="text-[10px] text-emerald-300 truncate">★ {profile.rating} • {profile.licensePlate}</p>
+                    <p className="text-[10px] text-emerald-300 truncate flex items-center">
+                      <span className="material-symbols-outlined text-[12px] text-amber-400 fill-current inline-block mr-0.5">star</span>
+                      <span>{profile.rating} • {profile.licensePlate}</span>
+                    </p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="p-1.5 rounded-lg text-white/70 hover:text-rose-400 hover:bg-white/10"
+                  className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-white/80 hover:text-rose-400 hover:bg-white/10 cursor-pointer"
                   title="Đăng xuất"
                 >
                   <span className="material-symbols-outlined text-[18px]">logout</span>

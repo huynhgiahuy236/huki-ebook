@@ -356,6 +356,7 @@ model SellerOrder {
   status           SellerOrderStatus @default(PENDING_PAYMENT)
   carrier          String?
   trackingCode     String?           @map("tracking_code")
+  deliveryStaffId  String?           @map("delivery_staff_id")
   confirmedAt      DateTime?         @map("confirmed_at")
   shippedAt        DateTime?         @map("shipped_at")
   completedAt      DateTime?         @map("completed_at")

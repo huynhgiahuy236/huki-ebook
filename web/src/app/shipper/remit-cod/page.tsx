@@ -1,8 +1,5 @@
-"use client";
-
-import React from 'react';
-import ShipperRemitCodView from '@/ui/components/shipper/ShipperRemitCodView';
+import { redirect } from 'next/navigation';
 
 export default function ShipperRemitCodPage() {
-  return <ShipperRemitCodView />;
+  redirect('/shipper/wallet/remit');
 }
