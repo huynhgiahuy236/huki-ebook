@@ -52,7 +52,7 @@ jobs:
     name: Deploy UAT Stack on VPS
     needs: build-and-push
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Pull and Restart on VPS
@@ -63,7 +63,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           password: ${{ secrets.VPS_PASSWORD }}
           script_stop: true
-          command_timeout: 10m
+          command_timeout: 25m
           script: |
             set -e
             echo "=== [1/5] Pulling latest code on develop branch ==="
@@ -83,7 +83,8 @@ jobs:
 
             echo "=== [3/5] Pulling latest pre-built images from Docker Hub ==="
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin || true
-            docker compose -f docker-compose.uat.yml pull
+            docker pull "${{ secrets.DOCKERHUB_USERNAME }}/huki-platform:uat"
+            docker pull "${{ secrets.DOCKERHUB_USERNAME }}/huki-web:uat"
 
             echo "=== [4/5] Starting UAT services ==="
             docker compose -f docker-compose.uat.yml up -d --remove-orphans
