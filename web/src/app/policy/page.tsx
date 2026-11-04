@@ -31,6 +31,10 @@ export default function PolicyHubPage() {
             <span className="material-symbols-outlined text-base">verified_user</span>
             <span>Bộ Quy Chuẩn Hoạt Động &amp; Pháp Lý HuKi</span>
           </div>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/20 text-emerald-200 text-xs sm:text-sm font-semibold backdrop-blur-sm border border-emerald-500/30">
+            <span className="material-symbols-outlined text-base">school</span>
+            <span>Website thiết kế cho mục đích học tập không có mục đích thương mại</span>
+          </div>
           <h1 className="font-serif text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white leading-[1.15]">
             Minh Bạch • An Toàn • Bảo Vệ Tác Quyền
           </h1>

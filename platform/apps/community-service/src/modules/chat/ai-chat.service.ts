@@ -389,15 +389,7 @@ QUY TẮC BẮT BUỘC KHI GỢI Ý SÁCH:
         .slice(0, 4);
 
       if (bestsellers.length > 0) {
-        reply =
-          "🔥 **Top những tựa sách bán chạy nhất tại HUKI hiện nay nè bạn:**\n\n" +
-          bestsellers
-            .map(
-              (b, idx) =>
-                `${idx + 1}. 📖 **[${b.title}](/book/${b.id})**\n   • Tác giả: ${b.author}\n   • Giá: ${b.price.toLocaleString("vi-VN")}đ • *Đã bán: ${b.soldCount} lượt*\n   • ${b.description.slice(0, 110)}...`
-            )
-            .join("\n\n") +
-          "\n\n👉 Bạn bấm trực tiếp vào tên sách bên trên hoặc thẻ sách bên dưới để xem chi tiết và đặt sách nhé! 🦊✨";
+        reply = "🔥 Dạ Bé Cáo gửi bạn những tựa sách bán chạy và được yêu thích nhất tại HUKI hiện nay nè! 🦊✨";
 
         suggestedBooks = bestsellers.map((b) => ({
           id: b.id,
@@ -419,15 +411,7 @@ QUY TẮC BẮT BUỘC KHI GỢI Ý SÁCH:
     const matched = this.searchRelevantBooks(query, allBooks).slice(0, 4);
 
     if (matched.length > 0) {
-      reply =
-        `📚 **Dạ Bé Cáo đã tìm thấy các tựa sách cực kỳ phù hợp trên kệ HUKI cho bạn nè:**\n\n` +
-        matched
-          .map(
-            (b, idx) =>
-              `${idx + 1}. 📖 **[${b.title}](/book/${b.id})**\n   • Tác giả: ${b.author} | Thể loại: ${b.category}\n   • Giá ưu đãi: ${b.price.toLocaleString("vi-VN")}đ (${b.format})\n   • *${b.description ? b.description.slice(0, 120) + "..." : "Sách chính hãng phân phối tại HUKI"}*`
-          )
-          .join("\n\n") +
-        "\n\n✨ Toàn bộ đều là sách thật có bản quyền. Bạn bấm trực tiếp vào tên cuốn sách là mở trang đọc thử và xem chi tiết liền nha! 🦊";
+      reply = `📚 Dạ Bé Cáo gợi ý một số cuốn sách phù hợp với câu hỏi của bạn nè: 🦊✨`;
 
       suggestedBooks = matched.map((b) => ({
         id: b.id,
@@ -473,15 +457,9 @@ QUY TẮC BẮT BUỘC KHI GỢI Ý SÁCH:
     }
 
     // 6. Mặc định gợi ý một vài cuốn sách hay từ kho
-    const defaultSuggestions = allBooks.slice(0, 3);
-    reply =
-      "Dạ Bé Cáo lắng nghe bạn nè! 🦊 Bạn có thể chia sẻ thêm về tác giả hoặc chủ đề sách bạn muốn tìm không?\n\n" +
-      "Hoặc bạn có thể tham khảo một số tựa sách nổi bật này nhé:\n" +
-      defaultSuggestions
-        .map((b) => `• 📖 **[${b.title}](/book/${b.id})** - ${b.author} (${b.price.toLocaleString("vi-VN")}đ)`)
-        .join("\n") +
-      "\n\nBấm vào tên sách để xem chi tiết ngay nha bạn! 📚✨";
+    reply = "Dạ Bé Cáo là trợ lý thủ thư của sàn sách HuKi nên chỉ có thể hỗ trợ các thông tin về sách, đơn hàng và tính năng đọc ebook thôi ạ! Nếu bạn cần tìm kiếm sách gì thì cứ nhắn cho mình nhé 📚🦊✨";
 
+    const defaultSuggestions = allBooks.slice(0, 3);
     suggestedBooks = defaultSuggestions.map((b) => ({
       id: b.id,
       title: b.title,

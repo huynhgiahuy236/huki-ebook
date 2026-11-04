@@ -149,7 +149,7 @@ services:
       DATABASE_NAME: huki_identity
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_identity?schema=public
       FRONTEND_URL: ${FRONTEND_URL:-https://hukiebook.duckdns.org}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-133752145943-qlneica38ablgn1js0hg1an8d9gmsi47.apps.googleusercontent.com}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-https://hukiebook.duckdns.org/api/v1/auth/google/callback}
       JWT_SECRET: ${JWT_SECRET:-change-this-in-production-min-32-chars-key}

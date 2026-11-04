@@ -78,7 +78,7 @@ services:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_identity?schema=public
       IDENTITY_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_identity?schema=public
       FRONTEND_URL: ${FRONTEND_URL:-https://huki-uat.duckdns.org}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-133752145943-qlneica38ablgn1js0hg1an8d9gmsi47.apps.googleusercontent.com}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-https://huki-uat.duckdns.org/api/v1/auth/google/callback}
       GMAIL_USER: ${GMAIL_USER}
@@ -295,7 +295,7 @@ services:
       NEXT_PUBLIC_GATEWAY_URL: https://huki-uat.duckdns.org
       NEXT_PUBLIC_API_BASE_URL: /api/v1
       NEXT_PUBLIC_SITE_URL: https://huki-uat.duckdns.org
-      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-133752145943-qlneica38ablgn1js0hg1an8d9gmsi47.apps.googleusercontent.com}
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
     ports:
       - "127.0.0.1:3110:3100"
     healthcheck:

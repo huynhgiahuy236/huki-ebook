@@ -405,7 +405,7 @@ export default function FloatingAIChatbox() {
                                   {book.price.toLocaleString('vi-VN')}đ
                                 </span>
                                 <span className="text-[9.5px] text-emerald-800 bg-emerald-100/80 group-hover:bg-[#003B2B] group-hover:text-white px-2 py-0.5 rounded-full font-bold transition-all flex items-center gap-0.5">
-                                  <span>Xem sách</span>
+                                  <span>Xem ngay</span>
                                   <span className="material-symbols-outlined text-[10px]">arrow_forward</span>
                                 </span>
                               </div>

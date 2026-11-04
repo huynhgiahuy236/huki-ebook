@@ -82,7 +82,12 @@ export default function StoreFooter() {
 
         {/* Bottom Bar */}
         <div className="pt-5 flex flex-col sm:flex-row items-center justify-between text-[11px] text-[var(--theme-header-top-accent,#94f5d6)]/70 gap-2">
-          <p>© 2026 HUKI EBOOK. Bản quyền thuộc về Công ty TNHH Sách Điện Tử Huki.</p>
+          <div className="flex flex-col gap-0.5">
+            <p>© 2026 HUKI EBOOK. Bản quyền thuộc về Công ty TNHH Sách Điện Tử Huki.</p>
+            <p className="text-xs font-bold text-[var(--theme-header-top-accent,#94f5d6)]">
+              Website thiết kế cho mục đích học tập không có mục đích thương mại
+            </p>
+          </div>
           <div className="flex flex-wrap items-center gap-3">
             <Link href="/policy" className="hover:underline text-white">Chính Sách Sàn</Link>
             <span>•</span>

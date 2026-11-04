@@ -356,7 +356,7 @@ export default function StoreHeader({
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 bg-[var(--theme-surface,#ffffff)] border-b border-[var(--theme-border,#e8e5df)] shadow-2xs shrink-0 transition-colors duration-200 max-w-full overflow-x-clip">
+    <header className="sticky top-0 z-40 bg-[var(--theme-surface,#ffffff)] border-b border-[var(--theme-border,#e8e5df)] shadow-2xs shrink-0 transition-colors duration-200 max-w-full">
       {/* Top Utility Bar (h-[28px]) - Ẩn trên mobile để chống vỡ/tràn 2 dòng */}
       <div className="hidden lg:flex h-[28px] bg-[var(--theme-header-top,#003b2b)] text-[var(--theme-header-top-text,#ffffff)] text-[10.5px] px-4 lg:px-6 items-center justify-between font-medium shrink-0 whitespace-nowrap transition-colors duration-200">
         <div className="flex items-center gap-3">
@@ -420,7 +420,7 @@ export default function StoreHeader({
       </div>
 
       {/* Main Header Bar (h-[50px] sm:h-[52px]) */}
-      <div className="h-[50px] sm:h-[52px] w-full max-w-full overflow-hidden flex items-center justify-between px-2 sm:px-4 md:px-6 shrink-0">
+      <div className="h-[50px] sm:h-[52px] w-full max-w-full relative flex items-center justify-between px-2 sm:px-4 md:px-6 shrink-0">
         {/* Left: Sidebar Toggle & Brand Typography */}
         <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Hamburger / Sidebar Toggle */}

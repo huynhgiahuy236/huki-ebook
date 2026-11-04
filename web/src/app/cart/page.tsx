@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/ui/context/CartContext';
@@ -15,10 +15,6 @@ import { tokenStorage } from '@/ui/api/tokenStorage';
  * Uses backend pricing, vouchers, and cart context
  */
 
-const MOCK_AVAILABLE_VOUCHERS = [
-  { code: 'HUKI30', name: 'Mã Giảm 30K HUKI', discount: 30000, minSpend: 300000, desc: 'Giảm 30.000đ cho đơn từ 300.000đ', badge: 'Phổ biến' },
-  { code: 'FREESHIP', name: 'Miễn Phí Vận Chuyển', discount: 25000, minSpend: 200000, desc: 'Giảm 25.000đ phí giao hàng sách giấy', badge: 'Freeship' },
-];
 
 export default function CartPage() {
   const router = useRouter();
@@ -73,7 +69,7 @@ export default function CartPage() {
         }
       } catch (err) {
         console.warn('Failed to load vouchers:', err);
-        setAvailableVouchers(MOCK_AVAILABLE_VOUCHERS);
+        setAvailableVouchers([]);
       } finally {
         setLoadingVouchers(false);
       }
@@ -88,6 +84,21 @@ export default function CartPage() {
     }
     return acc;
   }, 0);
+  const originalSubtotal = checkedItems.reduce((acc: number, item: any) => {
+    const orig = (item.originalPrice && item.originalPrice > item.price) ? item.originalPrice : item.price;
+    return acc + orig * item.quantity;
+  }, 0);
+  const voucherDiscount = useMemo(() => {
+    if (!selectedVoucher) return 0;
+    if (selectedVoucher.minSpend && checkedSubtotal < selectedVoucher.minSpend) return 0;
+    if (selectedVoucher.type === "PERCENTAGE") {
+      const calculated = Math.round((checkedSubtotal * (selectedVoucher.discount || 0)) / 100);
+      if (selectedVoucher.maxDiscount && calculated > selectedVoucher.maxDiscount) return selectedVoucher.maxDiscount;
+      return calculated;
+    }
+    return Math.min(selectedVoucher.discount || 0, checkedSubtotal);
+  }, [selectedVoucher, checkedSubtotal]);
+  const finalTotal = Math.max(0, checkedSubtotal - voucherDiscount);
 
   const handleMoveToCart = (item: any) => {
     setSavedItems((prev) => prev.filter((i) => i.id !== item.id));
@@ -163,6 +174,11 @@ export default function CartPage() {
 
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('huki_direct_checkout_item');
+      if (selectedVoucher?.code) {
+        sessionStorage.setItem('huki_cart_selected_voucher', JSON.stringify(selectedVoucher));
+      } else {
+        sessionStorage.removeItem('huki_cart_selected_voucher');
+      }
     }
 
     // Guest: redirect to login first, then back to checkout
@@ -445,8 +461,8 @@ export default function CartPage() {
                 {/* Summary */}
                 <div className="space-y-2 text-xs text-[var(--theme-text-muted,#49454f)] border-t border-[var(--theme-border,#e8e5df)] pt-3">
                   <div className="flex items-center justify-between">
-                    <span>Tạm tính ({checkedItemsCount} ấn phẩm):</span>
-                    <span className="font-bold text-[var(--theme-text,#1c1b1f)]">{checkedSubtotal.toLocaleString('vi-VN')}đ</span>
+                    <span>Tổng tiền niêm yết ({checkedItemsCount} ấn phẩm):</span>
+                    <span className="font-bold text-[var(--theme-text,#1c1b1f)]">{originalSubtotal.toLocaleString('vi-VN')}đ</span>
                   </div>
                   {productDiscount > 0 && (
                     <div className="flex items-center justify-between text-red-600 font-semibold">
@@ -454,17 +470,20 @@ export default function CartPage() {
                       <span>-{productDiscount.toLocaleString('vi-VN')}đ</span>
                     </div>
                   )}
-                  <div className="flex items-start justify-between text-[10.5px] italic pt-0.5 border-t border-dashed border-[var(--theme-border,#e8e5df)] mt-1.5">
-                    <span>{selectedVoucher ? `Mã ${selectedVoucher.code} áp dụng khi thanh toán` : 'Shop Voucher & HUKI Voucher áp dụng tại Checkout'}</span>
-                  </div>
+                  {voucherDiscount > 0 && (
+                    <div className="flex items-center justify-between text-emerald-600 font-semibold">
+                      <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[13px]">confirmation_number</span>Voucher ({selectedVoucher.code}):</span>
+                      <span>-{voucherDiscount.toLocaleString('vi-VN')}đ</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="border-t border-[var(--theme-border,#e8e5df)] pt-3 space-y-0.5">
                   <div className="flex items-baseline justify-between">
                     <span className="font-bold text-xs sm:text-sm text-[var(--theme-text,#1c1b1f)]">Tạm tính:</span>
-                    <span className="font-black text-lg text-[var(--theme-primary,#003B2B)]">{checkedSubtotal.toLocaleString('vi-VN')}đ</span>
+                    <span className="font-black text-lg text-[var(--theme-primary,#003B2B)]">{finalTotal.toLocaleString('vi-VN')}đ</span>
                   </div>
-                  <span className="text-[10px] text-[var(--theme-text-muted,#49454f)] block text-right">Voucher & phí ship được tính tại Checkout</span>
+                  <span className="text-[10px] text-[var(--theme-text-muted,#49454f)] block text-right">{selectedVoucher ? `Đã áp dụng mã ${selectedVoucher.code}` : 'Shop Voucher & HUKI Voucher áp dụng thêm tại Checkout'}</span>
                 </div>
 
                 <button onClick={handleCheckout} disabled={checkedItemsCount === 0} className={`w-full h-10 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer ${checkedItemsCount === 0 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-[#003B2B] hover:bg-[#00271e] text-white'}`}>

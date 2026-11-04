@@ -22,7 +22,7 @@ export default function RegisterPage() {
     phone: '',
     password: '',
     confirmPassword: '',
-    agreeTerms: true,
+    agreeTerms: false,
   });
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});

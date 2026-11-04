@@ -123,22 +123,31 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: web
+        timeout-minutes: 8
         run: npm ci --legacy-peer-deps
 
-      - name: Run frontend lint and TypeScript typecheck
+      - name: Run frontend TypeScript typecheck
         working-directory: web
+        timeout-minutes: 8
+        run: npm run typecheck
+
+      - name: Run frontend lint
+        working-directory: web
+        timeout-minutes: 8
         env:
           NODE_OPTIONS: "--max-old-space-size=6144"
-        run: npm run check
+        run: npm run lint
 
       - name: Run frontend unit & component tests
         working-directory: web
+        timeout-minutes: 8
         env:
           NODE_OPTIONS: "--max-old-space-size=6144"
         run: npm test
 
       - name: Run production Next.js build
         working-directory: web
+        timeout-minutes: 8
         env:
           NEXT_TELEMETRY_DISABLED: 1
           NODE_ENV: production

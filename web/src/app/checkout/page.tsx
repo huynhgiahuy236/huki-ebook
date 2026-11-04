@@ -274,6 +274,18 @@ export default function CheckoutPage() {
             shipping: shippingFreeship,
             stores: storeMap,
           });
+
+          // Auto-apply voucher passed from Cart page
+          try {
+            const cartVoucherStr = sessionStorage.getItem('huki_cart_selected_voucher');
+            if (cartVoucherStr) {
+              const cartVoucher = JSON.parse(cartVoucherStr);
+              if (cartVoucher?.code) {
+                const found = platformDiscount.find((v: any) => v.code === cartVoucher.code) || cartVoucher;
+                handleApplyPlatformVoucher(found);
+              }
+            }
+          } catch {}
         }
       } catch (err) {
         console.warn("Failed to load wallet vouchers:", err);

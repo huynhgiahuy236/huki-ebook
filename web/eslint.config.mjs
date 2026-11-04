@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
       "**/next-env.d.ts",
       "**/scripts/**",
       "**/public/**",
+      "**/.eslintcache",
+      "**/coverage/**",
     ],
   },
   ...nextVitals,

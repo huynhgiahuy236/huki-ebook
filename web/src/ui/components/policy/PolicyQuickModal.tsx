@@ -47,6 +47,14 @@ export const PolicyQuickModal: React.FC<PolicyQuickModalProps> = ({ isOpen, onCl
           </button>
         </div>
 
+        {/* Policy Educational Disclaimer */}
+        <div className="px-6 py-2.5 bg-emerald-50/80 dark:bg-emerald-950/40 border-b border-emerald-100 dark:border-emerald-900/30 flex items-center gap-2">
+          <span className="material-symbols-outlined text-base text-[#003B2B] dark:text-emerald-400">school</span>
+          <p className="text-xs sm:text-sm font-semibold text-[#003B2B] dark:text-emerald-300 tracking-wide">
+            Website thiết kế cho mục đích học tập không có mục đích thương mại
+          </p>
+        </div>
+
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 text-stone-700 dark:text-stone-300 text-sm leading-relaxed">
           {/* Summary Box */}

@@ -262,6 +262,10 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
       setIsConnected(false);
     });
 
+    socket.on('connect_error', () => {
+      setIsConnected(false);
+    });
+
     socket.on('notification', (newNoti: RealtimeNotification) => {
       // Filter by recipientType if specified
       if (recipientType) {

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useToast } from './ToastContext';
 import { useAuth } from './AuthContext';
-import { cartApi } from '../api/cartApi';
+import { cartApi, type CartItemFormat } from '../api/cartApi';
 import { booksData } from '../data/mockData';
 
 export interface CartItem {
@@ -263,11 +263,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (guestItems.length > 0) {
             // Prepare payload for merge
+            const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
             const payloadItems = guestItems
-              .filter((item) => item.bookId || item.id)
+              .filter((item) => {
+                const idCand = item.bookId || item.id;
+                return typeof idCand === 'string' && UUID_REGEX.test(idCand);
+              })
               .map((item) => ({
                 bookId: item.bookId || item.id,
-                format: item.apiFormat || (item.type === 'ebook' || item.format?.toLowerCase().includes('ebook') ? 'DIGITAL' : 'PHYSICAL'),
+                format: (((item.apiFormat || item.format || (item.type === 'ebook' ? 'DIGITAL' : 'PHYSICAL')).toString().toUpperCase().includes('EBOOK') || (item.apiFormat || item.format || '').toString().toUpperCase() === 'DIGITAL') ? 'DIGITAL' : 'PHYSICAL') as CartItemFormat,
                 quantity: item.quantity || 1,
               }));
 
@@ -294,7 +298,17 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   'success'
                 );
                 return;
+              } else {
+                try {
+                  window.localStorage.removeItem(STORAGE_KEY_GUEST);
+                  window.localStorage.removeItem(STORAGE_KEY_LEGACY);
+                } catch {}
               }
+            } else {
+              try {
+                window.localStorage.removeItem(STORAGE_KEY_GUEST);
+                window.localStorage.removeItem(STORAGE_KEY_LEGACY);
+              } catch {}
             }
           }
 

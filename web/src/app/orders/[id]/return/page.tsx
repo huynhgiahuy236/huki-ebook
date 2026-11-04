@@ -27,7 +27,7 @@ export default function OrderReturnPage() {
     { id: 1, name: 'anh_gay_sach_rach_1.jpg', size: '2.4 MB' },
     { id: 2, name: 'video_unbox_kiem_tra.mp4', size: '14.8 MB' }
   ]);
-  const [agreeReturnPolicy, setAgreeReturnPolicy] = useState(true);
+  const [agreeReturnPolicy, setAgreeReturnPolicy] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const toggleItem = (itemId: string) => {

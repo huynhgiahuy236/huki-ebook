@@ -47,6 +47,7 @@ export const POLICIES_DATA: Record<string, PolicyDocument> = {
         title: '1. Định Danh & Phạm Vi Điều Chỉnh',
         content: [
           'Hệ sinh thái TMĐT HuKi Ebook (thuộc Công ty TNHH Sách Điện Tử HuKi) là sàn giao dịch thương mại điện tử kết hợp đọc sách số bản quyền hàng đầu Việt Nam.',
+          'Website thiết kế cho mục đích học tập không có mục đích thương mại.',
           'Bằng việc đăng ký tài khoản, đăng tải ấn phẩm hoặc thực hiện đặt hàng trên HuKi, bạn đồng ý chịu sự ràng buộc bởi bản Điều khoản Dịch vụ này cùng các quy chế hoạt động liên quan.',
         ],
         callout: {

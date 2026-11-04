@@ -69,6 +69,14 @@ export default async function PolicyDetailPage({ params }: PageProps) {
             </div>
           </div>
 
+          {/* Educational Disclaimer */}
+          <div className="flex items-center gap-2.5 py-2.5 px-4 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 text-[#003B2B] dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+            <span className="material-symbols-outlined text-lg text-[#003B2B] dark:text-emerald-400">school</span>
+            <span className="text-xs sm:text-sm font-semibold tracking-wide">
+              Website thiết kế cho mục đích học tập không có mục đích thương mại
+            </span>
+          </div>
+
           {/* Quick Summary Box */}
           <div className="p-5 sm:p-6 rounded-2xl bg-stone-50/90 dark:bg-stone-800/50 border-l-4 border-emerald-700 space-y-2 shadow-2xs">
             <div className="flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-400">
