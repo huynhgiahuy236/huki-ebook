@@ -12,6 +12,7 @@ import { EmailService } from '@huki/shared';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes, randomUUID } from 'crypto';
 import { BookActor } from '../../common/book-auth.guard';
+import { getSellerScope } from '../../common/seller-scope.util';
 import {
   ChangePinDto,
   PinVerificationResultDto,
@@ -48,10 +49,31 @@ export class WalletSecurityService {
   /**
    * Helper: Validate tenant isolation / store actor access
    */
-  private validateActorStoreAccess(storeId: string, actor: BookActor): void {
+  private async validateActorStoreAccess(storeId: string, actor: BookActor): Promise<void> {
     const isPlatformAdmin = actor.role === 'ADMIN' || actor.role === 'PLATFORM_ADMIN';
+    if (isPlatformAdmin) return;
+
+    const allowedRoles = ['STORE_OWNER', 'BUSINESS', 'SELLER', 'BUSINESS_OWNER', 'BUSINESS_STAFF'];
+    if (!allowedRoles.includes(actor.role)) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN_STORE_ACCESS',
+        message: 'Chỉ chủ gian hàng hoặc quản trị viên mới có quyền truy cập thông tin bảo mật của gian hàng này.',
+      });
+    }
+
     const actorStoreId = (actor as any).storeId;
-    if (!isPlatformAdmin && actorStoreId && actorStoreId !== storeId) {
+    if (actorStoreId && actorStoreId === storeId) {
+      return;
+    }
+    if (actorStoreId && actorStoreId !== storeId) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN_STORE_ACCESS',
+        message: 'Bạn không có quyền truy cập thông tin bảo mật của gian hàng này.',
+      });
+    }
+
+    const scope = await getSellerScope(actor);
+    if (!scope.storeIds.includes(storeId)) {
       throw new ForbiddenException({
         code: 'FORBIDDEN_STORE_ACCESS',
         message: 'Bạn không có quyền truy cập thông tin bảo mật của gian hàng này.',
@@ -149,7 +171,7 @@ export class WalletSecurityService {
    * 1. Get Wallet Security Status
    */
   async getSecurityStatus(storeId: string, actor: BookActor): Promise<WalletSecurityStatusDto> {
-    this.validateActorStoreAccess(storeId, actor);
+    await this.validateActorStoreAccess(storeId, actor);
     const { security } = await this.getOrCreateWalletSecurity(storeId);
 
     const now = new Date();
@@ -186,7 +208,7 @@ export class WalletSecurityService {
     actor: BookActor,
     meta?: AuditMetadata,
   ): Promise<{ message: string; hasPin: boolean }> {
-    this.validateActorStoreAccess(dto.storeId, actor);
+    await this.validateActorStoreAccess(dto.storeId, actor);
 
     if (!/^\d{6}$/.test(dto.pin)) {
       throw new BadRequestException('Mã PIN phải bao gồm chính xác 6 chữ số numeric.');
@@ -235,7 +257,7 @@ export class WalletSecurityService {
     actor: BookActor,
     meta?: AuditMetadata,
   ): Promise<PinVerificationResultDto> {
-    this.validateActorStoreAccess(dto.storeId, actor);
+    await this.validateActorStoreAccess(dto.storeId, actor);
 
     if (!/^\d{6}$/.test(dto.pin)) {
       throw new BadRequestException('Mã PIN phải bao gồm chính xác 6 chữ số numeric.');
@@ -358,7 +380,7 @@ export class WalletSecurityService {
     actor: BookActor,
     meta?: AuditMetadata,
   ): Promise<{ message: string }> {
-    this.validateActorStoreAccess(dto.storeId, actor);
+    await this.validateActorStoreAccess(dto.storeId, actor);
 
     if (!/^\d{6}$/.test(dto.newPin) || !/^\d{6}$/.test(dto.currentPin)) {
       throw new BadRequestException('Mã PIN phải bao gồm chính xác 6 chữ số numeric.');
@@ -444,7 +466,7 @@ export class WalletSecurityService {
     actor: BookActor,
     meta?: AuditMetadata,
   ): Promise<TwoFactorChallengeResultDto> {
-    this.validateActorStoreAccess(dto.storeId, actor);
+    await this.validateActorStoreAccess(dto.storeId, actor);
     const { wallet } = await this.getOrCreateWalletSecurity(dto.storeId);
 
     // Enforce and Atomically Consume PIN Step-1 Proof
@@ -529,7 +551,7 @@ export class WalletSecurityService {
     actor: BookActor,
     meta?: AuditMetadata,
   ): Promise<TwoFactorVerifyResultDto> {
-    this.validateActorStoreAccess(dto.storeId, actor);
+    await this.validateActorStoreAccess(dto.storeId, actor);
     const { wallet } = await this.getOrCreateWalletSecurity(dto.storeId);
 
     const challengeKey = `finance:2fa:challenge:${dto.challengeId}`;
@@ -668,7 +690,7 @@ export class WalletSecurityService {
     withdrawnAmount: number;
     message: string;
   }> {
-    this.validateActorStoreAccess(storeId, actor);
+    await this.validateActorStoreAccess(storeId, actor);
 
     if (!/^\d{6}$/.test(pin)) {
       throw new BadRequestException('Mã PIN phải bao gồm chính xác 6 chữ số numeric.');

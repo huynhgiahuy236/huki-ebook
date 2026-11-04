@@ -69,6 +69,28 @@ export class ServiceProxyMiddleware implements NestMiddleware {
   private readonly maxRetries: number;
   private readonly retryDelayMs: number;
 
+  private readonly authAttempts = new Map<string, number[]>();
+
+  private getClientIp(req: Request): string {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) {
+      return Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0].trim();
+    }
+    return req.socket?.remoteAddress || req.ip || 'unknown';
+  }
+
+  private isRateLimited(ip: string, limit: number, windowMs: number): boolean {
+    const now = Date.now();
+    const timestamps = (this.authAttempts.get(ip) || []).filter((t) => now - t < windowMs);
+    if (timestamps.length >= limit) {
+      this.authAttempts.set(ip, timestamps);
+      return true;
+    }
+    timestamps.push(now);
+    this.authAttempts.set(ip, timestamps);
+    return false;
+  }
+
   constructor(private readonly config: ConfigService) {
     this.timeoutMs = this.positiveNumber('PROXY_TIMEOUT_MS', 30_000);
     this.maxRetries = this.nonNegativeInteger('PROXY_MAX_RETRIES', 1);
@@ -80,6 +102,22 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     // originalUrl retains the client path, including the global /api/v1 prefix.
     const service = this.resolveService(req.originalUrl);
     if (!service) return next();
+
+    // Rate Limiting on Authentication Endpoints (BUG-MOD07-04)
+    if (req.method === 'POST' && req.originalUrl.includes('/auth/login')) {
+      const clientIp = this.getClientIp(req);
+      if (this.isRateLimited(clientIp, 5, 60_000)) {
+        res.setHeader('Retry-After', '60');
+        return res.status(429).json({
+          status: 'error',
+          statusCode: 429,
+          code: 'RATE_LIMIT_EXCEEDED',
+          message: 'Bạn đã thử đăng nhập quá nhiều lần. Vui lòng thử lại sau 60 giây.',
+          timestamp: new Date().toISOString(),
+          path: req.originalUrl,
+        });
+      }
+    }
 
     // 1. Route tier classification & authorization enforcement
     const tier = classifyRoute(req.method, req.originalUrl);
@@ -325,6 +363,14 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     delete forwarded.host;
     delete forwarded['content-length'];
     delete forwarded.connection;
+
+    // Forward accurate client IP for downstream throttlers (BUG-MOD07-04)
+    if (req) {
+      const clientIp = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip;
+      if (clientIp) {
+        forwarded['x-forwarded-for'] = Array.isArray(clientIp) ? clientIp.join(', ') : String(clientIp);
+      }
+    }
 
     // 1. Strip all incoming identity headers from untrusted client
     for (const key of Object.keys(forwarded)) {

@@ -3745,6 +3745,9 @@ export class OrdersService {
    * SHIPPER REAL-DB APIS
    */
   async shipperListOrders(actor?: BookActor) {
+    if (!actor || !['DELIVERY_STAFF', 'SHIPPER', 'PLATFORM_ADMIN', 'ADMIN'].includes(actor.role)) {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Chỉ nhân viên giao hàng hoặc admin mới có quyền xem đơn hàng bưu tá.');
+    }
     const sellerOrders = await this.prisma.sellerOrder.findMany({
       where: {
         requiresShipping: true,
@@ -4169,6 +4172,9 @@ export class OrdersService {
   }
 
   async shipperRemitCod(actor?: BookActor, dto?: { amount: number; method?: string; txCode?: string; orderIds?: string[] }) {
+    if (!actor || !['DELIVERY_STAFF', 'SHIPPER', 'PLATFORM_ADMIN', 'ADMIN'].includes(actor.role)) {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Chỉ nhân viên giao hàng hoặc admin mới có quyền nộp tiền COD.');
+    }
     const amount = Number(dto?.amount) || 0;
     if (amount <= 0) return { success: false, message: 'Số tiền không hợp lệ' };
 

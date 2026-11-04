@@ -86,16 +86,22 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
     return 'PUBLIC';
   }
 
-  // 4. ADMIN Routes: Dedicated admin prefixes & endpoints
+  // 4. ADMIN Routes: Dedicated admin prefixes & endpoints (BUG-MOD07-01, BUG-MOD07-08)
   if (
     normPath === '/admin' ||
     normPath.startsWith('/admin/') ||
+    normPath.includes('/admin/') ||
+    normPath.endsWith('/admin') ||
     normPath === '/moderation' ||
     normPath.startsWith('/moderation/') ||
     normPath.startsWith('/businesses/admin') ||
     normPath.startsWith('/stores/admin') ||
     normPath.startsWith('/users/admin') ||
-    normPath.startsWith('/ledger/admin')
+    normPath.startsWith('/ledger/admin') ||
+    normPath.startsWith('/wallet/admin') ||
+    normPath.startsWith('/payout/admin') ||
+    normPath.startsWith('/sanctions') ||
+    ((normPath.startsWith('/system/maintenance') || normPath.startsWith('/system-maintenance')) && upperMethod !== 'GET')
   ) {
     return 'ADMIN';
   }

@@ -1,3 +1,4 @@
+import { Throttle } from '@nestjs/throttler';
 /**
  * HUKI EBOOK - Auth Controller
  *
@@ -48,6 +49,7 @@ import {
 export class AuthController {
   constructor(private authService: AuthService) {}
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -121,6 +123,7 @@ export class AuthController {
     return match ? decodeURIComponent(match[1]) : undefined;
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

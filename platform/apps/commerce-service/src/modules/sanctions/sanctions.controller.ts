@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { AuthenticatedGuard, BookActor } from '../../common/book-auth.guard';
+import { AuthenticatedGuard, BookActor, PlatformAdminGuard } from '../../common/book-auth.guard';
 import { CurrentBookActor } from '../../common/current-book-actor.decorator';
 import { SanctionsService } from './sanctions.service';
 import { AppealsService } from './appeals.service';
@@ -33,6 +33,7 @@ export class SanctionsController {
   ) {}
 
   @Post()
+  @UseGuards(PlatformAdminGuard)
   @ApiOperation({ summary: 'Admin issues a sanction to a store' })
   @ApiResponse({ status: 201, description: 'Sanction created successfully.' })
   @ApiResponse({ status: 409, description: 'Active sanction already exists for this store.' })
@@ -50,6 +51,7 @@ export class SanctionsController {
   }
 
   @Get('appeals')
+  @UseGuards(PlatformAdminGuard)
   @ApiOperation({ summary: 'Admin gets paginated list of appeals (queue)' })
   @ApiResponse({ status: 200, description: 'Paginated appeal records.' })
   async getAppeals(
@@ -88,6 +90,7 @@ export class SanctionsController {
   }
 
   @Post(':id/lift')
+  @UseGuards(PlatformAdminGuard)
   @ApiOperation({ summary: 'Admin manually lifts an active sanction' })
   @ApiResponse({ status: 200, description: 'Sanction lifted successfully.' })
   async liftSanction(
@@ -139,6 +142,7 @@ export class SanctionsController {
   }
 
   @Post('appeals/:appealId/review')
+  @UseGuards(PlatformAdminGuard)
   @ApiOperation({ summary: 'Admin reviews an appeal (APPROVED or REJECTED)' })
   @ApiResponse({ status: 200, description: 'Appeal reviewed successfully.' })
   async reviewAppeal(

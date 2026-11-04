@@ -9,12 +9,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { BookActor, OptionalBookAuthGuard } from '../../common/book-auth.guard';
+import { BookActor, ShipperGuard } from '../../common/book-auth.guard';
 import { CurrentBookActor } from '../../common/current-book-actor.decorator';
 import { OrdersService } from './orders.service';
 
 @ApiTags('Shipper orders')
-@UseGuards(OptionalBookAuthGuard)
+@UseGuards(ShipperGuard)
 @Controller('orders/shipper')
 export class ShipperOrdersController {
   constructor(private readonly orders: OrdersService) {}

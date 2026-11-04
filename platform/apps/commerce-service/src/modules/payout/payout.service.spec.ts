@@ -633,6 +633,17 @@ describe('PayoutService (Task 76 - Payout Request Processing & Admin Approval)',
       ).rejects.toThrow(ForbiddenException);
     });
 
+    it('19b. prevents buyer/unauthorized actor without store association from accessing payout history (BUG-MOD07-07 IDOR fix)', async () => {
+      const mockBuyerActor: BookActor = {
+        sub: 'user-buyer-1',
+        role: 'USER',
+      } as any;
+
+      await expect(
+        service.getStorePayoutRequests('store-1', {}, mockBuyerActor),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
     it('20. allows platform admin to view global payout requests queue', async () => {
       await service.createPayoutRequest(
         { storeId: 'store-1', amount: '100000', financeAuthToken: 'tok1', idempotencyKey: 'H2' },

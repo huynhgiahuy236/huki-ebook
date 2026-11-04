@@ -5,6 +5,8 @@ import {
   AuthenticatedGuard,
   BookWriteGuard,
   OptionalBookAuthGuard,
+  ShipperGuard,
+  PlatformAdminGuard,
 } from './book-auth.guard';
 import { CatalogAdminGuard } from './catalog-admin.guard';
 
@@ -29,12 +31,16 @@ import { CatalogAdminGuard } from './catalog-admin.guard';
     BookWriteGuard,
     OptionalBookAuthGuard,
     CatalogAdminGuard,
+    ShipperGuard,
+    PlatformAdminGuard,
   ],
   exports: [
     AuthenticatedGuard,
     BookWriteGuard,
     OptionalBookAuthGuard,
     CatalogAdminGuard,
+    ShipperGuard,
+    PlatformAdminGuard,
     JwtModule,
   ],
 })

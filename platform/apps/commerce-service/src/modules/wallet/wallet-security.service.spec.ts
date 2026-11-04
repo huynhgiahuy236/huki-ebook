@@ -663,6 +663,21 @@ describe('WalletSecurityService (Task 75 Withdrawal PIN & 2FA Security)', () => 
       ).rejects.toThrow(ForbiddenException);
     });
 
+    it('21b. rejects regular user/buyer without store association from accessing security status (BUG-MOD07-06 IDOR fix)', async () => {
+      const mockBuyerActor: BookActor = {
+        sub: 'user-buyer-1',
+        role: 'USER',
+      } as any;
+
+      await expect(
+        service.getSecurityStatus('store-1', mockBuyerActor),
+      ).rejects.toThrow(ForbiddenException);
+
+      await expect(
+        service.verifyPin({ storeId: 'store-1', pin: '123456' }, mockBuyerActor),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
     it('22. admin can inspect security status across stores but cannot read plaintext PIN or hash', async () => {
       const hashedPin = await bcrypt.hash('123456', 12);
       prisma.walletSecurity.findUnique.mockResolvedValue({

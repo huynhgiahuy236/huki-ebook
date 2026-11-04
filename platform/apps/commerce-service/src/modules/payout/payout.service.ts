@@ -20,6 +20,7 @@ import {
   PayoutRequestStatus,
 } from '../../../prisma/generated/client';
 import { BookActor } from '../../common/book-auth.guard';
+import { getSellerScope } from '../../common/seller-scope.util';
 import { Security2FAPurpose } from '../wallet/dto/wallet-security.dto';
 import {
   BankSnapshotView,
@@ -53,10 +54,31 @@ export class PayoutService {
   /**
    * Validate store access permissions (Store Owner or Platform Admin)
    */
-  private validateActorStoreAccess(storeId: string, actor: BookActor): void {
+  private async validateActorStoreAccess(storeId: string, actor: BookActor): Promise<void> {
     const isPlatformAdmin = actor.role === 'ADMIN' || actor.role === 'PLATFORM_ADMIN';
+    if (isPlatformAdmin) return;
+
+    const allowedRoles = ['STORE_OWNER', 'BUSINESS', 'SELLER', 'BUSINESS_OWNER', 'BUSINESS_STAFF'];
+    if (!allowedRoles.includes(actor.role)) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN_STORE_ACCESS',
+        message: 'Chỉ chủ gian hàng hoặc quản trị viên mới có quyền truy cập thông tin tài chính của gian hàng này.',
+      });
+    }
+
     const actorStoreId = (actor as any).storeId;
-    if (!isPlatformAdmin && actorStoreId && actorStoreId !== storeId) {
+    if (actorStoreId && actorStoreId === storeId) {
+      return;
+    }
+    if (actorStoreId && actorStoreId !== storeId) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN_STORE_ACCESS',
+        message: 'Bạn không có quyền truy cập thông tin tài chính của gian hàng này.',
+      });
+    }
+
+    const scope = await getSellerScope(actor);
+    if (!scope.storeIds.includes(storeId)) {
       throw new ForbiddenException({
         code: 'FORBIDDEN_STORE_ACCESS',
         message: 'Bạn không có quyền truy cập thông tin tài chính của gian hàng này.',
@@ -161,7 +183,7 @@ export class PayoutService {
     actor: BookActor,
   ): Promise<PayoutRequestView> {
     // Step 1: Authenticate actor & verify store authorization
-    this.validateActorStoreAccess(dto.storeId, actor);
+    await this.validateActorStoreAccess(dto.storeId, actor);
 
     // Step 1b: Verify store is not restricted by sanction
     if (this.sanctionsService) {
@@ -521,7 +543,7 @@ export class PayoutService {
     query: PayoutQueryDto,
     actor: BookActor,
   ): Promise<{ items: PayoutRequestView[]; total: number; page: number; limit: number }> {
-    this.validateActorStoreAccess(storeId, actor);
+    await this.validateActorStoreAccess(storeId, actor);
 
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));

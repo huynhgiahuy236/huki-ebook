@@ -54,6 +54,10 @@ describe('route-classification', () => {
       expect(classifyRoute('GET', '/api/v1/businesses/admin/all')).toBe('ADMIN');
       expect(classifyRoute('GET', '/api/v1/stores/admin/all')).toBe('ADMIN');
       expect(classifyRoute('GET', '/api/v1/users/admin/list')).toBe('ADMIN');
+      expect(classifyRoute('POST', '/api/v1/system/maintenance')).toBe('ADMIN');
+      expect(classifyRoute('GET', '/api/v1/wallet/admin/transactions')).toBe('ADMIN');
+      expect(classifyRoute('POST', '/api/v1/payout/admin/process')).toBe('ADMIN');
+      expect(classifyRoute('POST', '/api/v1/sanctions')).toBe('ADMIN');
     });
 
     it('classifies seller endpoints as SELLER', () => {

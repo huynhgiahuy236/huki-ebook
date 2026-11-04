@@ -94,3 +94,44 @@ export class OptionalBookAuthGuard implements CanActivate {
     return true;
   }
 }
+
+@Injectable()
+export class ShipperGuard implements CanActivate {
+  constructor(private readonly jwtService: JwtService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const actor = await authenticate(
+      context.switchToHttp().getRequest<BookRequest>(),
+      this.jwtService,
+      false,
+    );
+    const allowed = ['DELIVERY_STAFF', 'SHIPPER', 'PLATFORM_ADMIN', 'ADMIN'];
+    if (!actor || !allowed.includes(actor.role)) {
+      throwForbidden(
+        ErrorCode.AUTHZ_ROLE_INSUFFICIENT,
+        'Chỉ nhân viên giao hàng (Shipper) hoặc quản trị viên mới có quyền truy cập.',
+      );
+    }
+    return true;
+  }
+}
+
+@Injectable()
+export class PlatformAdminGuard implements CanActivate {
+  constructor(private readonly jwtService: JwtService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const actor = await authenticate(
+      context.switchToHttp().getRequest<BookRequest>(),
+      this.jwtService,
+      false,
+    );
+    if (!actor || !['PLATFORM_ADMIN', 'ADMIN'].includes(actor.role)) {
+      throwForbidden(
+        ErrorCode.AUTHZ_ROLE_INSUFFICIENT,
+        'Only platform administrators can perform this action.',
+      );
+    }
+    return true;
+  }
+}
