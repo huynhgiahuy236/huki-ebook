@@ -1,4 +1,5 @@
-import { ConflictException, ForbiddenException, Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, Optional, UnprocessableEntityException } from '@nestjs/common';
+import { NotificationService, NotificationType } from '../notifications/notification.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BookActor } from '../../common/book-auth.guard';
@@ -12,10 +13,13 @@ export interface PublishValidationError {
 
 @Injectable()
 export class BookPublishingService {
+  private readonly logger = new Logger(BookPublishingService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly booksService: BooksService,
     private readonly eventEmitter: EventEmitter2,
+    @Optional() private readonly notificationService?: NotificationService,
   ) {}
 
   async publish(bookId: string, actor: BookActor) {
@@ -88,14 +92,40 @@ export class BookPublishingService {
     });
   }
 
-  async suspend(bookId: string, actor: BookActor) {
+  async suspend(bookId: string, actor: BookActor, reason?: string) {
     if (actor.role !== 'PLATFORM_ADMIN') {
       throw new ForbiddenException('Only platform administrators can suspend books');
     }
-    return this.prisma.book.update({
+    const book = await this.prisma.book.findUnique({ where: { id: bookId } });
+    if (!book) throw new NotFoundException(`Không tìm thấy ấn phẩm với id ${bookId}`);
+
+    const updated = await this.prisma.book.update({
       where: { id: bookId },
       data: { status: BookStatus.SUSPENDED },
     });
+
+    if (this.notificationService && book.ownerUserId) {
+      try {
+        await this.notificationService.create({
+          userId: book.ownerUserId,
+          type: NotificationType.SYSTEM,
+          title: `[Kiểm duyệt sách] Ấn phẩm "${book.title}" bị từ chối / đình chỉ phát hành`,
+          message: reason
+            ? `Ấn phẩm "${book.title}" đã bị từ chối phát hành bởi Ban Quản Trị sàn HuKi. Lý do: ${reason}`
+            : `Ấn phẩm "${book.title}" đã bị đình chỉ phát hành bởi Ban Quản Trị sàn HuKi. Vui lòng kiểm tra lại giấy phép hoặc liên hệ hỗ trợ.`,
+          data: {
+            bookId: book.id,
+            bookTitle: book.title,
+            reason: reason || null,
+            action: 'BOOK_SUSPENDED',
+          },
+        });
+      } catch (err: any) {
+        this.logger.warn(`Failed to dispatch notification to seller ${book.ownerUserId}: ${err.message}`);
+      }
+    }
+
+    return updated;
   }
 
   validateForPublish(book: any): PublishValidationError[] {

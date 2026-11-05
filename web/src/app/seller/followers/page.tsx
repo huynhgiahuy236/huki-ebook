@@ -409,9 +409,9 @@ function SellerFollowersContent() {
                             <span>Tặng Voucher</span>
                           </Link>
                           <Link
-                            href={`/seller/chat?recipientId=${follower.userId}&recipientName=${encodeURIComponent(follower.fullName)}`}
+                            href={`/seller/chat?recipientId=${item.userId || item.id}&recipientName=${encodeURIComponent(fullName)}`}
                             className="px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-semibold text-xs flex items-center gap-1 transition-colors shadow-2xs"
-                            title={`Nhắn tin trực tiếp với ${follower.fullName}`}
+                            title={`Nhắn tin trực tiếp với ${fullName}`}
                           >
                             <span className="material-symbols-outlined text-sm">chat</span>
                             <span>Nhắn tin</span>

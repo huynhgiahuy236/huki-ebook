@@ -19,8 +19,10 @@ import { ForensicTrackingController } from './forensic-tracking.controller';
 import { ForensicTrackingService } from './forensic-tracking.service';
 import { DrmVaultController } from './drm-vault.controller';
 import { DrmVaultService } from './drm-vault.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
+  imports: [NotificationsModule],
   controllers: [
     BooksController,
     PhysicalBooksController,

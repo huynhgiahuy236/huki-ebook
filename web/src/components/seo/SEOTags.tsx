@@ -186,10 +186,10 @@ export function StoreSchema(store: {
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'Store',
-    '@id': `${SITE_URL}/stores/${store.slug}`,
+    '@id': `${SITE_URL}/shop/${store.slug}`,
     name: store.name,
     description: store.description?.slice(0, 160) || store.name,
-    url: `${SITE_URL}/stores/${store.slug}`,
+    url: `${SITE_URL}/shop/${store.slug}`,
     image: store.banner || store.logo,
     ...(store.rating && {
       aggregateRating: {

@@ -595,7 +595,12 @@ export class AuthService {
       throwUnauthorized(ErrorCode.AUTH_TOKEN_EXPIRED);
     }
 
-    if (token.expiresAt < new Date() || token.session?.revokedAt) {
+    if (
+      token.expiresAt < new Date() ||
+      token.session?.revokedAt ||
+      token.session?.user?.status === 'BLOCKED' ||
+      token.session?.user?.status === 'DELETED'
+    ) {
       throwUnauthorized(ErrorCode.AUTH_TOKEN_EXPIRED);
     }
     const refreshToken = randomUUID();

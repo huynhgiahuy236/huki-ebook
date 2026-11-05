@@ -511,7 +511,7 @@ export function AdminReportsView() {
               </div>
               {error.includes('hết hạn') || error.includes('đăng nhập') ? (
                 <Link
-                  href="/login?redirect=/admin/reports"
+                  href="/auth/login?redirect=/admin/reports"
                   className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-xs transition-colors flex items-center gap-1.5"
                 >
                   <span className="material-symbols-outlined text-[16px]">login</span>

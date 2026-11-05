@@ -134,15 +134,23 @@ export function AdminBookModerationView() {
     }
   };
 
-  const handleRequestEdit = (bookId: any) => {
-    setQueueItems(prev => prev.map(item => {
-      if (item.id === bookId) {
-        return { ...item, status: 'need_update', statusLabel: 'Cần bổ sung thông tin' };
-      }
-      return item;
-    }));
-    showToast?.('Đã gửi thông báo yêu cầu NXB chỉnh sửa giấy phép!', 'info');
-    setInspectingBook(null);
+  const handleRequestEdit = async (bookId: any) => {
+    setActionLoadingId(bookId);
+    try {
+      await catalogApi.suspendBook(bookId, 'Yêu cầu NXB kiểm tra và cập nhật lại hồ sơ giấy phép xuất bản');
+      setQueueItems(prev => prev.map(item => {
+        if (item.id === bookId) {
+          return { ...item, status: 'need_update', statusLabel: 'Cần bổ sung thông tin' };
+        }
+        return item;
+      }));
+      showToast?.('Đã gửi thông báo yêu cầu NXB chỉnh sửa giấy phép!', 'info');
+    } catch (e: any) {
+      showToast?.(e?.message || 'Có lỗi khi yêu cầu chỉnh sửa', 'error');
+    } finally {
+      setActionLoadingId(null);
+      setInspectingBook(null);
+    }
   };
 
   const handleReject = async (bookId: any, reason: any) => {
@@ -153,7 +161,7 @@ export function AdminBookModerationView() {
     }
     setActionLoadingId(bookId);
     try {
-      await catalogApi.suspendBook(bookId);
+      await catalogApi.suspendBook(bookId, finalReason);
       setQueueItems(prev => prev.map(item => {
         if (item.id === bookId) {
           return { ...item, status: 'rejected', statusLabel: 'Từ chối phát hành', rejectReason: finalReason };

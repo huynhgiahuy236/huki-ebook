@@ -486,7 +486,7 @@ export function AdminPublishersView() {
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
-          <Link href="/admin/leads"
+          <Link href="/admin/publisher-leads"
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-900 font-semibold text-xs transition-colors shadow-2xs"
           >
             <span className="material-symbols-outlined text-[16px] text-amber-700">how_to_reg</span>

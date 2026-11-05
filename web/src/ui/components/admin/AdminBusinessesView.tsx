@@ -635,7 +635,7 @@ export function AdminBusinessesView() {
                   </span>
                   {storeSlug && (
                     <a
-                      href={`/stores/${storeSlug}`}
+                      href={`/shop/${storeSlug}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-[10px] font-mono text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-900 px-1.5 py-0.2 rounded border border-indigo-200/60 shrink-0 inline-flex items-center gap-0.5 transition-colors"
@@ -2048,7 +2048,7 @@ export function AdminBusinessesView() {
 
         <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
           <Link
-            href="/admin/business-update-requests"
+            href="/admin/business-requests"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-theme-primary/10 text-theme-primary hover:bg-theme-primary hover:text-white border border-theme-primary/30 text-xs font-bold transition-all shadow-2xs cursor-pointer"
           >
             <span className="material-symbols-outlined text-[16px]">edit_note</span>

@@ -307,6 +307,17 @@ export class UserService {
       data: updateData,
     });
 
+    if (updateData.status === UserStatus.BLOCKED) {
+      await this.prisma.authSession.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }).catch(() => {});
+      await this.prisma.refreshToken.updateMany({
+        where: { session: { userId: id }, revokedAt: null },
+        data: { revokedAt: new Date(), revokedReason: 'admin_account_blocked' },
+      }).catch(() => {});
+    }
+
     const diff = AuditDiffHelper.computeDiff(user, updated);
     await this.auditService.log({
       actorId: 'ADMIN',
@@ -339,6 +350,17 @@ export class UserService {
       where: { id },
       data: { status: nextStatus },
     });
+
+    if (nextStatus === UserStatus.BLOCKED) {
+      await this.prisma.authSession.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }).catch(() => {});
+      await this.prisma.refreshToken.updateMany({
+        where: { session: { userId: id }, revokedAt: null },
+        data: { revokedAt: new Date(), revokedReason: 'admin_account_blocked' },
+      }).catch(() => {});
+    }
 
     const diff = AuditDiffHelper.computeDiff(user, updated);
     await this.auditService.log({

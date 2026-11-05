@@ -2753,31 +2753,9 @@ export class OrdersService {
       logDesc = `Đã kết thúc thời hạn ký quỹ. Doanh thu ròng 95% của món "${item.bookTitle}" đã được chuyển vào ví người bán.`;
     }
 
-    await this.prisma.orderStatusHistory.create({
-      data: {
-        orderId: item.sellerOrder.orderId,
-        sellerOrderId: item.sellerOrder.id,
-        fromStatus: 'ESCROW_STATUS_CHANGE',
-        toStatus: historyStatus,
-        title: logTitle,
-        description: logDesc,
-        actorType: 'ADMIN',
-        actorId: actor.sub,
-        metadata: {
-          orderItemId,
-          bookId: item.bookId,
-          bookTitle: item.bookTitle,
-          subtotal: subtotalNum,
-          targetStatus: dto.status,
-          updatedBy: actor.email,
-          buyerBankAccount: buyerBank,
-          reverseTrackingCode: retTracking,
-          refundAmount: dto.status === 'REFUNDED' ? subtotalNum : undefined,
-        },
-      },
-    });
-
-    // When Platform Admin clicks "Bàn giao" (RELEASED): automatically credit 95% net revenue into seller wallet
+    let sellerNet = 0;
+    let storeId = '';
+    let ownerUserId = '';
     if (dto.status === 'RELEASED') {
       const orderVouchers = await this.voucherClient.getUsagesByOrderIds([item.sellerOrder.orderId]);
       const storeVoucherUsages = orderVouchers.filter((v: any) => v.voucher?.scope === 'STORE');
@@ -2796,61 +2774,93 @@ export class OrdersService {
       const subtotal = Number(item.subtotal);
       const effectiveSubtotal = Math.max(0, subtotal - storeVoucherDiscount);
       const platformFee = Math.round(effectiveSubtotal * 0.05);
-      const sellerNet = effectiveSubtotal - platformFee;
-      const storeId = item.sellerOrder.storeId;
-      const ownerUserId = item.sellerOrder.ownerUserId;
-
-      const wallet = await this.prisma.wallet.upsert({
-        where: { storeId },
-        create: {
-          storeId,
-          ownerUserId,
-          availableBalance: sellerNet,
-          pendingBalance: 0,
-          frozenBalance: 0,
-          currency: 'VND',
-        },
-        update: {
-          availableBalance: { increment: sellerNet },
-        },
-      });
-
-      const availableAfter = Number(wallet.availableBalance);
-      const availableBefore = availableAfter - sellerNet;
-
-      await this.prisma.walletTransaction.create({
-        data: {
-          walletId: wallet.id,
-          type: 'CREDIT_AVAILABLE',
-          amount: sellerNet,
-          availableBefore,
-          availableAfter,
-          pendingBefore: Number(wallet.pendingBalance),
-          pendingAfter: Number(wallet.pendingBalance),
-          frozenBefore: Number(wallet.frozenBalance),
-          frozenAfter: Number(wallet.frozenBalance),
-          description: `Sàn bàn giao tiền bán ${item.bookTitle} - Đơn hàng #${item.sellerOrder.order.code} (+${sellerNet.toLocaleString('vi-VN')} ₫)`,
-          referenceType: 'ORDER_ESCROW_RELEASE',
-          referenceId: item.id,
-        },
-      });
+      sellerNet = effectiveSubtotal - platformFee;
+      storeId = item.sellerOrder.storeId;
+      ownerUserId = item.sellerOrder.ownerUserId;
     }
 
-    // When Platform Admin clicks "Hoàn trả" (REFUNDED): mark associated return request as REFUNDED
-    if (dto.status === 'REFUNDED') {
-      await this.prisma.returnRequest.updateMany({
-        where: {
-          OR: [
-            { orderItemId: item.id },
-            { orderId: item.sellerOrder.orderId, bookId: item.bookId },
-          ],
-        },
+    // Atomic transaction: guarantees all-or-nothing rollback if seller wallet or status fails (AD-009)
+    await this.prisma.$transaction(async (tx) => {
+      await tx.orderStatusHistory.create({
         data: {
-          status: ReturnRequestStatus.REFUNDED,
-          replacementStatus: 'REFUNDED',
+          orderId: item.sellerOrder.orderId,
+          sellerOrderId: item.sellerOrder.id,
+          fromStatus: 'ESCROW_STATUS_CHANGE',
+          toStatus: historyStatus,
+          title: logTitle,
+          description: logDesc,
+          actorType: 'ADMIN',
+          actorId: actor.sub,
+          metadata: {
+            orderItemId,
+            bookId: item.bookId,
+            bookTitle: item.bookTitle,
+            subtotal: subtotalNum,
+            targetStatus: dto.status,
+            updatedBy: actor.email,
+            buyerBankAccount: buyerBank,
+            reverseTrackingCode: retTracking,
+            refundAmount: dto.status === 'REFUNDED' ? subtotalNum : undefined,
+          },
         },
       });
 
+      // When Platform Admin clicks "Bàn giao" (RELEASED): automatically credit 95% net revenue into seller wallet
+      if (dto.status === 'RELEASED') {
+        const wallet = await tx.wallet.upsert({
+          where: { storeId },
+          create: {
+            storeId,
+            ownerUserId,
+            availableBalance: sellerNet,
+            pendingBalance: 0,
+            frozenBalance: 0,
+            currency: 'VND',
+          },
+          update: {
+            availableBalance: { increment: sellerNet },
+          },
+        });
+
+        const availableAfter = Number(wallet.availableBalance);
+        const availableBefore = availableAfter - sellerNet;
+
+        await tx.walletTransaction.create({
+          data: {
+            walletId: wallet.id,
+            type: 'CREDIT_AVAILABLE',
+            amount: sellerNet,
+            availableBefore,
+            availableAfter,
+            pendingBefore: Number(wallet.pendingBalance),
+            pendingAfter: Number(wallet.pendingBalance),
+            frozenBefore: Number(wallet.frozenBalance),
+            frozenAfter: Number(wallet.frozenBalance),
+            description: `Sàn bàn giao tiền bán ${item.bookTitle} - Đơn hàng #${item.sellerOrder.order.code} (+${sellerNet.toLocaleString('vi-VN')} ₫)`,
+            referenceType: 'ORDER_ESCROW_RELEASE',
+            referenceId: item.id,
+          },
+        });
+      }
+
+      // When Platform Admin clicks "Hoàn trả" (REFUNDED): mark associated return request as REFUNDED
+      if (dto.status === 'REFUNDED') {
+        await tx.returnRequest.updateMany({
+          where: {
+            OR: [
+              { orderItemId: item.id },
+              { orderId: item.sellerOrder.orderId, bookId: item.bookId },
+            ],
+          },
+          data: {
+            status: ReturnRequestStatus.REFUNDED,
+            replacementStatus: 'REFUNDED',
+          },
+        });
+      }
+    });
+
+    if (dto.status === 'REFUNDED') {
       // Reverse / cancel affiliate commissions on item refund (BUG-MOD05-16)
       if (this.affiliateLifecycle) {
         try {
