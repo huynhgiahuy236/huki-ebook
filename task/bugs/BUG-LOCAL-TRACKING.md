@@ -19,7 +19,7 @@
 
 | STT | Mã Lỗi | Mô Tả Tóm Tắt | Phạm Vi / Phân Hệ | Mức Độ | Trạng Thái Phân Tích | Trạng Thái Xử Lý & Commit |
 | :---: | :---: | :--- | :--- | :---: | :---: | :---: |
-| 1 | **BUG-LOC-001** | Voucher dải banner trang chủ load lại bị mất trạng thái "Đã lưu"; Chưa đồng bộ ví `user_saved_vouchers` | `web/src/app/page.tsx` + `promotion-service` | Major | ✅ Đã bóc tách gốc rễ & Giải pháp | ⏳ Chờ lệnh duyệt code |
+| 1 | **BUG-LOC-001** | Voucher dải banner trang chủ load lại bị mất trạng thái "Đã lưu"; Chưa đồng bộ ví `user_saved_vouchers` | `web/src/app/page.tsx` + `promotion-service` | Major | ✅ Đã bóc tách gốc rễ & Giải pháp | ✅ **ĐÃ XỬ LÝ & VERIFIED** (Đã đồng bộ ví & API thật) |
 | 2 | **BUG-LOC-002** | Rà soát & Thẩm định Bộ lọc `/books` (`@Max(1000)`) và 7 Kịch bản Edge Cases Thanh toán | `commerce-service` + `promotion-service` + `web` | Blocker | ✅ Đã kiểm tra thực tế trong code & Thẩm định đạt chuẩn | ℹ️ Đã có sẵn trong code (Commit `f4ff6a3`, `cd3789d`) |
 | 3 | **BUG-LOC-003** | Lỗi hiển thị 2 thông báo (duplicate toasts) cùng lúc khi thanh toán thành công | `web/src/app/checkout/payment/[orderId]/page.tsx` | Minor | ✅ Đã bóc tách gốc rễ & Giải pháp | ⏳ Chờ lệnh duyệt code |
 | 4 | **BUG-LOC-004** | Thiết kế lại UI Toast thông báo: Xóa bỏ hiệu ứng mờ ảo đục, nâng cấp chuẩn Top-tier (Sonner/Radix sắc nét) | `web/src/ui/components/common/Toast.tsx` | UX/UI | ✅ Đã xây dựng phương án thiết kế | ⏳ Chờ lệnh duyệt code |

@@ -127,11 +127,9 @@ export default function HomePage() {
       })
       .catch(() => {});
 
-    // Fetch Real Vouchers
-    (() => {
+    // Fetch Real Vouchers & User Wallet Vouchers
     const hasToken = typeof window !== "undefined" && Boolean(tokenStorage.getAccessToken());
-    return hasToken ? voucherApi.getAvailableVouchers() : voucherApi.getPlatformVouchers();
-  })()
+    (hasToken ? voucherApi.getAvailableVouchers() : voucherApi.getPlatformVouchers())
       .then((res) => {
         if (res.success && Array.isArray(res.data) && res.data.length > 0) {
           setRealVouchers(res.data);
@@ -144,6 +142,17 @@ export default function HomePage() {
         }
       })
       .catch(() => {});
+
+    if (hasToken) {
+      voucherApi.getWalletVouchers().then((wRes) => {
+        if (wRes.success && wRes.data) {
+          const platformCodes = (wRes.data.platform?.all || []).map((x: any) => x.code);
+          const storeCodes = (wRes.data.stores || []).flatMap((st: any) => (st.vouchers || []).map((x: any) => x.code));
+          const allSaved = Array.from(new Set([...platformCodes, ...storeCodes]));
+          setSavedVouchers(allSaved);
+        }
+      }).catch(() => {});
+    }
   }, []);
 
   // Fetch Real Flash Sale
@@ -399,7 +408,9 @@ export default function HomePage() {
       }
 
       return {
+        id: v.id,
         code: v.code,
+        targetAudience: v.targetAudience,
         badge,
         title: v.name || `Voucher ${v.code}`,
         condition,
@@ -787,10 +798,34 @@ export default function HomePage() {
   }, [isAuthorHovered, maxAuthorIndex, authorsList.length, itemsPerPage]);
 
   // Interactivity Handlers
-  const handleSaveVoucher = (code: string) => {
-    if (savedVouchers.includes(code)) return;
-    setSavedVouchers((prev) => [...prev, code]);
-    showToast(`Đã lưu voucher ${code} vào ví thành công!`, "success");
+  const [savingVoucherCode, setSavingVoucherCode] = useState<string | null>(null);
+
+  const handleSaveVoucher = async (v: { id?: string; code: string; targetAudience?: string }) => {
+    if (savedVouchers.includes(v.code) || savingVoucherCode === v.code) return;
+    const hasToken = typeof window !== "undefined" && Boolean(tokenStorage.getAccessToken());
+    if (!hasToken) {
+      showToast({ title: "Thông báo", message: "Vui lòng đăng nhập để lưu voucher vào ví!" }, "warning");
+      return;
+    }
+    if (!v.id) {
+      showToast({ title: "Lỗi", message: "Không tìm thấy mã định danh của voucher." }, "error");
+      return;
+    }
+
+    setSavingVoucherCode(v.code);
+    try {
+      const res = await voucherApi.saveVoucher(v.id);
+      if (res.success) {
+        setSavedVouchers((prev) => [...prev, v.code]);
+        showToast({ title: "Thành công!", message: `Đã lưu voucher ${v.code} vào ví của bạn` }, "success");
+      } else {
+        showToast({ title: "Lỗi", message: (res as any)?.message || "Không thể lưu mã vào ví." }, "error");
+      }
+    } catch (err: any) {
+      showToast({ title: "Lỗi", message: err?.message || "Không thể lưu voucher vào ví." }, "error");
+    } finally {
+      setSavingVoucherCode(null);
+    }
   };
 
   const handleToggleShopFollow = (shopName: string) => {
@@ -1113,14 +1148,17 @@ export default function HomePage() {
                     </div>
 
                     <button
-                      onClick={() => handleSaveVoucher(v.code)}
+                      onClick={() => handleSaveVoucher(v)}
+                      disabled={isSaved || savingVoucherCode === v.code}
                       className={`px-2.5 py-1 rounded text-[10px] font-bold shrink-0 transition-colors cursor-pointer ${
                         isSaved
                           ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                          : savingVoucherCode === v.code
+                          ? "bg-emerald-700 text-white opacity-80 cursor-wait"
                           : "bg-[#003b2b] text-white hover:bg-[#00241a]"
                       }`}
                     >
-                      {isSaved ? "Đã lưu" : "Lưu mã"}
+                      {isSaved ? "Đã lưu" : savingVoucherCode === v.code ? "Đang lưu..." : "Lưu mã"}
                     </button>
                   </div>
                 );
