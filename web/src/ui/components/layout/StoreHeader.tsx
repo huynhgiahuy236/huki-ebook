@@ -53,13 +53,18 @@ export default function StoreHeader({
     hasRole('admin')
   );
 
-  const isSeller = !isAdmin && Boolean(
-    user?.role === 'BUSINESS' ||
-    user?.hasApprovedBusiness ||
-    user?.business ||
-    (Array.isArray(user?.memberships) && user.memberships.length > 0)
+  const isSeller = Boolean(
+    isLoggedIn &&
+    !isAdmin && (
+      user?.role === 'BUSINESS' ||
+      user?.hasApprovedBusiness ||
+      user?.business ||
+      (Array.isArray(user?.memberships) && user.memberships.length > 0)
+    )
   );
-  const chatUrl = isSeller ? '/seller/chat' : '/account/messages';
+  const chatUrl = isLoggedIn
+    ? (isSeller ? '/seller/chat' : '/account/messages')
+    : '/auth/login?redirect=/account/messages';
 
   const [isSetupCompleted, setIsSetupCompleted] = useState(false);
   useEffect(() => {
@@ -664,6 +669,7 @@ export default function StoreHeader({
           {/* Cart Icon */}
           <Link
             href="/cart"
+            prefetch={false}
             className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] flex items-center justify-center text-[var(--theme-text,#17201f)] hover:text-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all relative shrink-0"
             title="Giỏ hàng HUKI"
           >
@@ -684,6 +690,7 @@ export default function StoreHeader({
           {isLoggedIn && (
             <Link
               href={chatUrl}
+              prefetch={false}
               target="_blank"
               rel="noopener noreferrer"
               className="relative flex items-center justify-center sm:gap-1.5 w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg sm:rounded-full border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] bg-white dark:bg-zinc-900 text-[var(--theme-text,#17201f)] hover:text-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all cursor-pointer shadow-2xs group shrink-0"
@@ -809,6 +816,7 @@ export default function StoreHeader({
 
                     <Link
                       href={chatUrl}
+                      prefetch={false}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={() => setShowUserMenu(false)}

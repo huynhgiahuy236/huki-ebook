@@ -1,0 +1,128 @@
+[
+  {
+    "file": "web/src/app/account/affiliate/marketplace/page.tsx",
+    "line": 470,
+    "type": "BUTTON_NO_ACTION",
+    "text": "= totalPages}\r\n                onClick={() => setP",
+    "attrs": "type=\"button\"\r\n                disabled={page"
+  },
+  {
+    "file": "web/src/app/books/page.tsx",
+    "line": 737,
+    "type": "BUTTON_NO_ACTION",
+    "text": "= totalPages}\r\n                  onClick={() => ha",
+    "attrs": "type=\"button\"\r\n                  disabled={validCurrentPage"
+  },
+  {
+    "file": "web/src/app/books/page.tsx",
+    "line": 851,
+    "type": "BUTTON_NO_ACTION",
+    "text": "= totalPages}\r\n                      onClick={() =",
+    "attrs": "type=\"button\"\r\n                      disabled={validCurrentPage"
+  },
+  {
+    "file": "web/src/app/flash-sale/page.tsx",
+    "line": 792,
+    "type": "BUTTON_NO_ACTION",
+    "text": "Hết Suất Ưu Đãi",
+    "attrs": "disabled\r\n                              className=\"w-full py-2.5 rounded-xl bg-s"
+  },
+  {
+    "file": "web/src/app/flash-sale/page.tsx",
+    "line": 850,
+    "type": "BUTTON_NO_ACTION",
+    "text": "Khung Giờ Đã Kết Thúc",
+    "attrs": "disabled\r\n                              className=\"w-full py-2.5 rounded-xl bg-s"
+  },
+  {
+    "file": "web/src/app/order-success/page.tsx",
+    "line": 726,
+    "type": "BUTTON_NO_ACTION",
+    "text": "share\r\n              Đăng Lên Bảng Tin Huki",
+    "attrs": "className=\"h-10 px-5 rounded-lg bg-primary hover:bg-[#922313] text-on-primary fo"
+  },
+  {
+    "file": "web/src/app/orders/[id]/page.tsx",
+    "line": 964,
+    "type": "BUTTON_NO_ACTION",
+    "text": "assignment_turned_in\r\n                            ",
+    "attrs": "type=\"button\"\r\n                                            disabled\r\n           "
+  },
+  {
+    "file": "web/src/app/orders/[id]/page.tsx",
+    "line": 974,
+    "type": "BUTTON_NO_ACTION",
+    "text": "assignment_return\r\n                               ",
+    "attrs": "type=\"button\"\r\n                                            disabled\r\n           "
+  },
+  {
+    "file": "web/src/app/orders/[id]/page.tsx",
+    "line": 1161,
+    "type": "BUTTON_NO_ACTION",
+    "text": "assignment_turned_in\r\n                            ",
+    "attrs": "type=\"button\"\r\n                                            disabled\r\n           "
+  },
+  {
+    "file": "web/src/app/orders/[id]/page.tsx",
+    "line": 1171,
+    "type": "BUTTON_NO_ACTION",
+    "text": "assignment_return\r\n                               ",
+    "attrs": "type=\"button\"\r\n                                            disabled\r\n           "
+  },
+  {
+    "file": "web/src/app/orders/[id]/review/page.tsx",
+    "line": 368,
+    "type": "BUTTON_NO_ACTION",
+    "text": "setHoverRating(star)}\r\n                        onM",
+    "attrs": "key={star}\r\n                        type=\"button\"\r\n                        onMou"
+  },
+  {
+    "file": "web/src/app/seller/followers/page.tsx",
+    "line": 411,
+    "type": "BUTTON_NO_ACTION",
+    "text": "chat\r\n                            Nhắn tin\r\n      ",
+    "attrs": "type=\"button\"\r\n                            disabled\r\n                           "
+  },
+  {
+    "file": "web/src/app/seller/inventory/page.tsx",
+    "line": 1230,
+    "type": "BUTTON_NO_ACTION",
+    "text": "= logTotalPages}\r\n                    onClick={() ",
+    "attrs": "disabled={logPage"
+  },
+  {
+    "file": "web/src/app/seller/returns/page.tsx",
+    "line": 436,
+    "type": "BUTTON_NO_ACTION",
+    "text": "arrow_forward\r\n                  Mở Trang Xử Lý Yê",
+    "attrs": "type=\"button\"\r\n                  className=\"w-full py-2 px-3 bg-[#00875A] hover:"
+  },
+  {
+    "file": "web/src/app/shop/[id]/page.tsx",
+    "line": 1299,
+    "type": "BUTTON_NO_ACTION",
+    "text": "= totalPages}\n                  onClick={() => han",
+    "attrs": "type=\"button\"\n                  disabled={validCurrentPage"
+  },
+  {
+    "file": "web/src/app/shop/[id]/page.tsx",
+    "line": 1382,
+    "type": "BUTTON_NO_ACTION",
+    "text": "= totalPages}\n                    onClick={() => h",
+    "attrs": "type=\"button\"\n                    disabled={validCurrentPage"
+  },
+  {
+    "file": "web/src/app/stores/page.tsx",
+    "line": 821,
+    "type": "BUTTON_NO_ACTION",
+    "text": "= totalPages}\r\n                        onClick={()",
+    "attrs": "type=\"button\"\r\n                        disabled={validPage"
+  },
+  {
+    "file": "web/src/app/stores/page.tsx",
+    "line": 1048,
+    "type": "BUTTON_NO_ACTION",
+    "text": "= totalPages}\r\n                        onClick={()",
+    "attrs": "type=\"button\"\r\n                        disabled={validPage"
+  }
+]

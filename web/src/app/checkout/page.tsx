@@ -77,13 +77,15 @@ export default function CheckoutPage() {
   const [directItem, setDirectItem] = useState<any>(null);
 
   // GUEST GUARD: Redirect to login if not authenticated, then redirect back to checkout
+  const hasRedirectedRef = React.useRef(false);
   useEffect(() => {
     // Wait for auth to finish loading
     if (authLoading === undefined || authLoading === true) return;
 
-    if (!isLoggedIn) {
-      // Save current URL to return after login
+    if (!isLoggedIn && !hasRedirectedRef.current) {
+      hasRedirectedRef.current = true;
       const currentPath = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/checkout';
+      if (currentPath.startsWith('/auth/login')) return;
       sessionStorage.setItem('huki_login_redirect', currentPath);
       router.replace('/auth/login?redirect=' + encodeURIComponent(currentPath));
     }

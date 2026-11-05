@@ -391,7 +391,7 @@ export default function PdfCanvasViewer({
               <span className="material-symbols-outlined text-[16px]">auto_stories</span>Về Tủ Sách
             </Link>
             <Link
-              href="/store"
+              href="/books"
               className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-xl transition-colors flex items-center gap-1.5"
             >
               <span className="material-symbols-outlined text-[16px]">storefront</span>Cửa Hàng Sách

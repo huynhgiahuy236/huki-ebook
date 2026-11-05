@@ -418,7 +418,7 @@ export default function HomePage() {
         const book = realBooks.find((entry) => entry.id === item.bookId);
         const resolvedTitle = book?.title || item.bookTitle || "Tác phẩm Flash Sale";
         const rawAuthor = book?.author?.name || (typeof item.author === 'string' ? item.author : (item.author as any)?.name);
-        const resolvedAuthor = rawAuthor && rawAuthor !== 'Tác giả HUKI' ? rawAuthor : "Tác giả";
+        const resolvedAuthor = rawAuthor || "Nhiều tác giả";
         const resolvedPublisher = book?.publisher?.name || "Nhà xuất bản";
         const resolvedCover = book?.coverUrl || item.coverUrl || "/banners/hero-library.jpg";
         return {
@@ -463,7 +463,7 @@ export default function HomePage() {
           businessId: b.businessId,
           book: b,
           title: b.title,
-          author: b.author?.name || "Tác giả HUKI",
+          author: b.author?.name || (typeof b.author === 'string' ? b.author : ((b as any).authorName || 'Nhiều tác giả')),
           publisher: b.publisher?.name || "Gian hàng HUKI",
           cover: b.coverUrl || "/banners/hero-library.jpg",
           price: p,
@@ -522,7 +522,7 @@ export default function HomePage() {
         businessId: b.businessId,
         book: b,
         title: b.title,
-        author: b.author?.name || "Tác giả HUKI",
+        author: b.author?.name || (typeof b.author === 'string' ? b.author : ((b as any).authorName || 'Nhiều tác giả')),
         publisher: b.publisher?.name || "Gian hàng HUKI",
         cover: b.coverUrl || "/banners/hero-library.jpg",
         price: salePrice,
@@ -762,7 +762,7 @@ export default function HomePage() {
         id: a.id,
         name: cleanName,
         slug: a.slug,
-        books: count > 0 ? `${count} đầu sách` : 'Tác giả HUKI',
+        books: count > 0 ? `${count} đầu sách` : 'Tác giả nổi bật',
         count,
         avatar:
           a.avatar ||
