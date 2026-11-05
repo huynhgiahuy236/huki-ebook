@@ -65,6 +65,27 @@ export class CreateBookDto {
   @Min(0)
   price?: number;
 
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  pricePaper?: number;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  priceEbook?: number;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  priceCombo?: number;
+
   @IsOptional()
   @IsUUID()
   categoryId?: string;
@@ -99,21 +120,4 @@ export class CreateBookDto {
   @Type(() => Boolean)
   enableAffiliate?: boolean;
 
-  @ApiPropertyOptional({ description: 'Paperback price for hybrid products' })
-  @IsOptional()
-  @Type(() => Number)
-  @Min(0)
-  pricePaper?: number;
-
-  @ApiPropertyOptional({ description: 'Ebook price for hybrid products' })
-  @IsOptional()
-  @Type(() => Number)
-  @Min(0)
-  priceEbook?: number;
-
-  @ApiPropertyOptional({ description: 'Combo price for hybrid products' })
-  @IsOptional()
-  @Type(() => Number)
-  @Min(0)
-  priceCombo?: number;
-}
+  }

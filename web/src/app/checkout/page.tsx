@@ -1105,7 +1105,7 @@ export default function CheckoutPage() {
 
         const previewPayload: any = {
           addressId: validAddressId,
-          shippingAddress: !validAddressId && effectiveHasPhysical ? shippingAddressPayload : undefined,
+          shippingAddress: effectiveHasPhysical ? shippingAddressPayload : undefined,
           note: finalNote,
           platformVoucherCode: appliedPlatformVoucher?.code,
           storeVoucherCodes:
@@ -1114,20 +1114,20 @@ export default function CheckoutPage() {
         };
 
         if (isDirectMode && directItem) {
-          const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(directItem.bookId || directItem.id);
-          if (!isUUID) {
+          const targetBookId = directItem.bookId || directItem.id;
+          if (!targetBookId) {
             setIsSubmitting(false);
             showToast(
               {
-                title: "Ấn phẩm thử nghiệm",
-                message: "Cuốn sách này là dữ liệu mẫu demo, vui lòng chọn các tác phẩm chính thức từ Trang chủ để hoàn tất đặt hàng.",
+                title: "Lỗi đặt hàng",
+                message: "Không tìm thấy thông tin tác phẩm hợp lệ. Vui lòng thử lại.",
               },
               "warning"
             );
             return;
           }
           previewPayload.directItem = {
-            bookId: directItem.bookId || directItem.id,
+            bookId: targetBookId,
             format:
               directItem.format === "DIGITAL" || directItem.type === "ebook"
                 ? "DIGITAL"
@@ -1137,7 +1137,7 @@ export default function CheckoutPage() {
         } else {
           previewPayload.cartItemIds = checkedItems
             .map((it: any) => it.id)
-            .filter((id: any) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+            .filter((id: any) => typeof id === 'string' && id.trim().length > 0);
         }
 
         const previewRes = await checkoutApi.previewCheckout(previewPayload);

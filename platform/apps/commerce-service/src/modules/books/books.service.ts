@@ -1,3 +1,55 @@
+export const TITLE_TO_AUTHOR_MAPPINGS = [
+  { match: 'Đọc Vị Bất Kỳ Ai', author: 'David J. Lieberman', slug: 'david-j-lieberman', bio: 'Tiến sĩ tâm lý học, chuyên gia hàng đầu về hành vi con người.' },
+  { match: 'Kotler Bàn Về Tiếp Thị', author: 'Philip Kotler', slug: 'philip-kotler', bio: 'Cha đẻ của tiếp thị hiện đại, giáo sư danh dự tại Đại học Northwestern.' },
+  { match: 'Facebook Marketing', author: 'MediaZ', slug: 'mediaz', bio: 'Đơn vị tiên phong trong lĩnh vực tiếp thị số và truyền thông tại Việt Nam.' },
+  { match: 'Tội Ác Và Trừng Phạt', author: 'Fyodor Dostoevsky', slug: 'fyodor-dostoevsky', bio: 'Đại văn hào người Nga, một trong những cây bút vĩ đại nhất nền văn học thế giới.' },
+  { match: 'Đánh Cắp Ý Tưởng', author: 'Austin Kleon', slug: 'austin-kleon', bio: 'Nhà văn kiêm họa sĩ nổi tiếng tại New York Times.' },
+  { match: 'Hẹn Bạn Trên Đỉnh Thành Công', author: 'Zig Ziglar', slug: 'zig-ziglar', bio: 'Diễn giả truyền cảm hứng và bậc thầy bán hàng hàng đầu thế giới.' },
+  { match: 'Vị Giám Đốc Một Phút', author: 'Ken Blanchard & Spencer Johnson', slug: 'ken-blanchard-spencer-johnson', bio: 'Chuyên gia quản trị nhân sự và tâm lý học hành vi.' },
+  { match: 'Tử Huyệt Cảm Xúc', author: 'Roy Garn', slug: 'roy-garn', bio: 'Chuyên gia giao tiếp và nhà nghiên cứu tâm lý học ứng dụng.' },
+  { match: 'Chiếc Lexus Và Cây Ô Liu', author: 'Thomas L. Friedman', slug: 'thomas-l-friedman', bio: 'Nhà báo từng 3 lần đoạt giải Pulitzer, tác giả Thế Giới Phẳng.' },
+  { match: 'Đừng Bao Giờ Đi Ăn Một Mình', author: 'Keith Ferrazzi', slug: 'keith-ferrazzi', bio: 'Doanh nhân và tác giả sách bán chạy nhất về nghệ thuật kết nối quan hệ.' },
+  { match: 'Tư Duy Đột Phá', author: 'Hibino Shozo', slug: 'hibino-shozo', bio: 'Giáo sư chuyên ngành thiết kế hệ thống và tư duy sáng tạo.' },
+  { match: 'Đọc Vị Khách Hàng', author: 'Michael Aguilar', slug: 'michael-aguilar', bio: 'Bậc thầy về kỹ thuật thương lượng và thuyết phục khách hàng.' },
+  { match: 'Ngày Xưa Có Một Con Bò', author: 'Camilo Cruz', slug: 'camilo-cruz', bio: 'Tiến sĩ tâm lý, diễn giả quốc tế về phát triển bản thân.' },
+  { match: 'Nghệ Thuật Bán Hàng Bậc Cao', author: 'Zig Ziglar', slug: 'zig-ziglar-sales', bio: 'Diễn giả truyền cảm hứng và bậc thầy bán hàng hàng đầu thế giới.' },
+  { match: 'Chiến Thắng Con Quỷ Trong Bạn', author: 'Napoleon Hill', slug: 'napoleon-hill', bio: 'Tác giả sách tư duy thành công kinh điển hàng đầu thế giới.' },
+  { match: 'Cha Giàu Cha Nghèo', author: 'Robert Kiyosaki', slug: 'robert-kiyosaki', bio: 'Doanh nhân, nhà đầu tư và tác giả bộ sách Dạy Con Làm Giàu.' },
+  { match: 'Tuổi Trẻ Đáng Giá Bao Nhiêu', author: 'Rosie Nguyễn', slug: 'rosie-nguyen', bio: 'Tác giả, giảng viên yoga và người truyền cảm hứng cho giới trẻ Việt Nam.' },
+  { match: 'Dám Chấp Nhận', author: 'Bill Newman', slug: 'bill-newman', bio: 'Diễn giả động lực học nổi tiếng người Úc.' },
+  { match: 'Dám Nghĩ Lớn', author: 'David J. Schwartz', slug: 'david-j-schwartz', bio: 'Giáo sư tại Đại học Bang Georgia, chuyên gia phát triển động lực.' },
+  { match: 'Nghĩ Lớn Để Thành Công', author: 'Donald J. Trump & Bill Zanker', slug: 'donald-trump-bill-zanker', bio: 'Doanh nhân tỷ phú và nhà sáng lập chuỗi học viện kỹ năng.' },
+  { match: 'Ai Lấy Miếng Pho Mát Của Tôi', author: 'Spencer Johnson', slug: 'spencer-johnson', bio: 'Tiến sĩ y khoa và chuyên gia tâm lý học hành vi nổi tiếng.' },
+  { match: 'Bí Quyết Gầy Dựng Cơ Nghiệp Bạc Tỷ', author: 'Adam Khoo', slug: 'adam-khoo', bio: 'Doanh nhân triệu phú, diễn giả hàng đầu châu Á.' },
+  { match: 'Nghĩ Giàu & Làm Giàu', author: 'Napoleon Hill', slug: 'napoleon-hill-think', bio: 'Tác giả sách tư duy thành công kinh điển hàng đầu thế giới.' },
+  { match: 'Làm Chủ Tư Duy Thay Đổi Vận Mệnh', author: 'Adam Khoo', slug: 'adam-khoo-mind', bio: 'Doanh nhân triệu phú, diễn giả hàng đầu châu Á.' },
+  { match: 'Trên Đường Băng', author: 'Tony Buổi Sáng', slug: 'tony-buoi-sang', bio: 'Tác giả ẩn danh với những bài viết truyền lửa cho thanh niên Việt.' },
+  { match: 'Tôi Tài Giỏi, Bạn Cũng Thế!', author: 'Adam Khoo', slug: 'adam-khoo-success', bio: 'Doanh nhân triệu phú, diễn giả hàng đầu châu Á.' },
+  { match: 'Từ Tốt Đến Vĩ Đại', author: 'Jim Collins', slug: 'jim-collins', bio: 'Chuyên gia nghiên cứu quản trị kinh doanh tại Stanford.' },
+  { match: '12 Tuyệt Kỹ Bán Hàng', author: 'Brian Tracy', slug: 'brian-tracy', bio: 'Diễn giả và chuyên gia đào tạo kỹ năng lãnh đạo, bán hàng hàng đầu.' },
+  { match: 'Con Đường Phía Trước', author: 'Bill Gates', slug: 'bill-gates', bio: 'Nhà đồng sáng lập tập đoàn Microsoft và nhà hoạt động từ thiện.' },
+  { match: '1001 Cách Giữ Chân Khách Hàng', author: 'Michael LeBoeuf', slug: 'michael-leboeuf', bio: 'Tiến sĩ quản trị kinh doanh, cựu giáo sư tại Đại học New Orleans.' },
+  { match: '101 Ý Tưởng Quảng Cáo Khôn Ngoan', author: 'Luc Dupont', slug: 'luc-dupont', bio: 'Giáo sư truyền thông tại Đại học Ottawa, Canada.' },
+  { match: '7 Thói Quen Để Thành Đạt', author: 'Stephen R. Covey', slug: 'stephen-r-covey', bio: 'Chuyên gia quản trị, tác giả The 7 Habits of Highly Effective People.' },
+  { match: 'Hoàng Tử Bé', author: 'Antoine de Saint-Exupéry', slug: 'antoine-de-saint-exupery', bio: 'Nhà văn và phi công trứ danh người Pháp.' },
+  { match: 'Tư Duy Nhanh Và Chậm', author: 'Daniel Kahneman', slug: 'daniel-kahneman', bio: 'Nhà tâm lý học đoạt giải Nobel Kinh tế năm 2002.' },
+  { match: 'Tỷ Phú Bán Giày', author: 'Tony Hsieh', slug: 'tony-hsieh', bio: 'Cố CEO Zappos, huyền thoại dịch vụ khách hàng và văn hóa doanh nghiệp.' },
+  { match: 'Thế Giới Phẳng', author: 'Thomas L. Friedman', slug: 'thomas-l-friedman-flat', bio: 'Nhà báo từng 3 lần đoạt giải Pulitzer.' },
+  { match: 'Đắc Nhân Tâm', author: 'Dale Carnegie', slug: 'dale-carnegie', bio: 'Bậc thầy giao tiếp và tác giả cuốn sách đắc nhân tâm mọi thời đại.' },
+  { match: 'Cây Cam Ngọt Của Tôi', author: 'José Mauro de Vasconcelos', slug: 'jose-mauro-de-vasconcelos', bio: 'Nhà văn nổi tiếng người Brazil.' },
+  { match: 'Hành Trình Về Phương Đông', author: 'Nguyên Phong', slug: 'nguyen-phong', bio: 'Bút danh của Giáo sư John Vu (Vũ Văn Du).' },
+  { match: 'Tam Ly Hoc Thanh Cong', author: 'Carol S. Dweck', slug: 'carol-s-dweck', bio: 'Giáo sư tâm lý học tại Đại học Stanford.' },
+];
+
+export const STORE_TO_PUB_MAP: Record<string, string> = {
+  'store-002-nhanam-books': 'p0000003-0000-4000-8000-000000000003',
+  '3094e54e-2549-42cc-92fb-14a8f8589277': 'p0000001-0000-4000-8000-000000000001',
+  'd2caa7b1-1b82-49b9-be65-1fc6be42e472': 'p0000002-0000-4000-8000-000000000002',
+  '914a406f-9ae5-49a5-a895-7c60b2114d7c': '0df2754d-576f-4e83-811d-fd4d4ed25eba',
+  '51c48059-37be-46a2-b4a6-04a8365f8cbd': '6d9c682e-3107-4d87-9c35-a697c56a6c81',
+  '20eb20a3-1058-4e2e-a043-a208fe6f84ba': 'p0000001-0000-4000-8000-000000000001',
+};
+
 import * as fs from 'fs';
 import * as path from 'path';
 import { Inject, Injectable, OnModuleInit, Optional, HttpStatus } from '@nestjs/common';
@@ -76,8 +128,68 @@ export class BooksService implements OnModuleInit {
   async onModuleInit() {
     try {
       await this.syncRealPdfKeys();
+      await this.syncRealAuthorsAndPublishers();
     } catch (err: any) {
-      console.warn('[BooksService] Tự động đồng bộ khóa PDF khởi động:', err?.message || err);
+      console.warn('[BooksService] Tự động đồng bộ metadata khởi động:', err?.message || err);
+    }
+  }
+
+
+  async syncRealAuthorsAndPublishers() {
+    try {
+      const nullBooks = await this.prisma.book.findMany({
+        where: {
+          OR: [
+            { authorId: null },
+            { publisherId: null },
+          ],
+        },
+        select: { id: true, title: true, slug: true, storeId: true, authorId: true, publisherId: true },
+      });
+      if (!nullBooks || nullBooks.length === 0) return;
+
+      for (const b of nullBooks) {
+        if (!b.authorId) {
+          const match = TITLE_TO_AUTHOR_MAPPINGS.find(m => b.title?.includes(m.match) || b.slug?.includes(m.match));
+          if (match) {
+            let author = await this.prisma.author.findFirst({
+              where: {
+                OR: [
+                  { name: { equals: match.author, mode: 'insensitive' } },
+                  { slug: match.slug },
+                ],
+              },
+            });
+            if (!author) {
+              const norm = match.author.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+              author = await this.prisma.author.create({
+                data: {
+                  name: match.author,
+                  normalizedName: norm,
+                  slug: match.slug,
+                  bio: match.bio,
+                },
+              }).catch(() => null);
+            }
+            if (author) {
+              await this.prisma.book.update({
+                where: { id: b.id },
+                data: { authorId: author.id },
+              }).catch(() => null);
+            }
+          }
+        }
+
+        if (!b.publisherId) {
+          const pubId = STORE_TO_PUB_MAP[b.storeId] || 'p0000001-0000-4000-8000-000000000001';
+          await this.prisma.book.update({
+            where: { id: b.id },
+            data: { publisherId: pubId },
+          }).catch(() => null);
+        }
+      }
+    } catch (err: any) {
+      console.warn('[BooksService] syncRealAuthorsAndPublishers error:', err?.message || err);
     }
   }
 
@@ -255,25 +367,42 @@ export class BooksService implements OnModuleInit {
       where.status = BookStatus.PUBLISHED;
     }
 
+    const andConditions: any[] = [];
     if (query.business || query.store) {
       const bizVal = String(query.business || query.store || '').trim();
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(bizVal);
+      const storeOrConditions: any[] = [];
       if (isUuid) {
-        where.OR = [
+        storeOrConditions.push(
           { storeId: bizVal },
           { ownerUserId: bizVal },
           { publisherId: bizVal },
-        ];
+        );
+        if (bizVal === '1079fc76-a467-48a9-8034-b072aaa5afea') {
+          storeOrConditions.push({ storeId: '3094e54e-2549-42cc-92fb-14a8f8589277' });
+        } else if (bizVal === 'dede6cd4-454d-4e66-b0cd-ef18337fd25b') {
+          storeOrConditions.push({ storeId: '51c48059-37be-46a2-b4a6-04a8365f8cbd' });
+        } else if (bizVal === '2fe4493b-08a0-45a3-86cc-093e43ce119e') {
+          storeOrConditions.push({ storeId: 'store-002-nhanam-books' }, { storeId: '840daf2f-0f39-4a11-8bf3-f0cd2f64d9f1' });
+        }
       } else {
         const normSlug = bizVal.toLowerCase().replace(/-(official|store|shop)$/, '');
-        where.OR = [
+        storeOrConditions.push(
           { storeId: bizVal },
           { publisher: { is: { slug: bizVal } } },
           { publisher: { is: { slug: normSlug } } },
           { publisher: { is: { name: { contains: normSlug.replace(/-/g, ' '), mode: 'insensitive' } } } },
           { publisher: { is: { normalizedName: { contains: normSlug.replace(/-/g, ' '), mode: 'insensitive' } } } },
-        ];
+        );
+        if (normSlug === 'alpha-books') {
+          storeOrConditions.push({ storeId: '51c48059-37be-46a2-b4a6-04a8365f8cbd' });
+        } else if (normSlug.includes('huki') || normSlug.includes('tri-tue-viet')) {
+          storeOrConditions.push({ storeId: '3094e54e-2549-42cc-92fb-14a8f8589277' });
+        } else if (normSlug.includes('nha-nam')) {
+          storeOrConditions.push({ storeId: 'store-002-nhanam-books' }, { storeId: '840daf2f-0f39-4a11-8bf3-f0cd2f64d9f1' });
+        }
       }
+      andConditions.push({ OR: storeOrConditions });
     }
     if (query.format) where.format = query.format;
     const catVal = query.categoryId || query.category;
@@ -290,18 +419,23 @@ export class BooksService implements OnModuleInit {
     if (query.search) {
       const rawSearch = query.search.trim();
       const search = normalizeCatalogText(query.search);
-      where.OR = [
-        { title: { contains: rawSearch, mode: 'insensitive' } },
-        { title: { contains: search, mode: 'insensitive' } },
-        { normalizedTitle: { contains: search, mode: 'insensitive' } },
-        { isbn: { contains: rawSearch, mode: 'insensitive' } },
-        { author: { is: { name: { contains: rawSearch, mode: 'insensitive' } } } },
-        { author: { is: { normalizedName: { contains: search, mode: 'insensitive' } } } },
-        { publisher: { is: { name: { contains: rawSearch, mode: 'insensitive' } } } },
-        { publisher: { is: { normalizedName: { contains: search, mode: 'insensitive' } } } },
-        { category: { is: { name: { contains: rawSearch, mode: 'insensitive' } } } },
-        { category: { is: { normalizedName: { contains: search, mode: 'insensitive' } } } },
-      ];
+      andConditions.push({
+        OR: [
+          { title: { contains: rawSearch, mode: 'insensitive' } },
+          { title: { contains: search, mode: 'insensitive' } },
+          { normalizedTitle: { contains: search, mode: 'insensitive' } },
+          { isbn: { contains: rawSearch, mode: 'insensitive' } },
+          { author: { is: { name: { contains: rawSearch, mode: 'insensitive' } } } },
+          { author: { is: { normalizedName: { contains: search, mode: 'insensitive' } } } },
+          { publisher: { is: { name: { contains: rawSearch, mode: 'insensitive' } } } },
+          { publisher: { is: { normalizedName: { contains: search, mode: 'insensitive' } } } },
+          { category: { is: { name: { contains: rawSearch, mode: 'insensitive' } } } },
+          { category: { is: { normalizedName: { contains: search, mode: 'insensitive' } } } },
+        ],
+      });
+    }
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     const orderBy: any = {};
@@ -397,6 +531,13 @@ export class BooksService implements OnModuleInit {
       if (query.business || query.store) {
         const target = (query.business || query.store) as string;
         orConditions.push({ storeId: target });
+        if (target === '1079fc76-a467-48a9-8034-b072aaa5afea') {
+          orConditions.push({ storeId: '3094e54e-2549-42cc-92fb-14a8f8589277' });
+        } else if (target === 'dede6cd4-454d-4e66-b0cd-ef18337fd25b') {
+          orConditions.push({ storeId: '51c48059-37be-46a2-b4a6-04a8365f8cbd' });
+        } else if (target === '2fe4493b-08a0-45a3-86cc-093e43ce119e') {
+          orConditions.push({ storeId: 'store-002-nhanam-books' }, { storeId: '840daf2f-0f39-4a11-8bf3-f0cd2f64d9f1' });
+        }
       }
 
       if (orConditions.length === 0) {
@@ -805,18 +946,32 @@ export class BooksService implements OnModuleInit {
 
   async streamPdf(idOrSlug: string, req: any, res: any) {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idOrSlug);
-    const book = await this.prisma.book.findFirst({
+    let book: any = await this.prisma.book.findFirst({
       where: isUuid ? { id: idOrSlug } : { slug: idOrSlug },
       include: { digitalDetails: true },
     });
 
     if (!book) {
-      res.status(HttpStatus.NOT_FOUND).json({
-        statusCode: HttpStatus.NOT_FOUND,
-        code: 'BOOK_NOT_FOUND',
-        message: 'Không tìm thấy tác phẩm trong hệ thống',
+      const cleanSlug = idOrSlug.toLowerCase().replace(/-(official|store|shop)$/, '');
+      book = await this.prisma.book.findFirst({
+        where: {
+          OR: [
+            { slug: { startsWith: cleanSlug } },
+            { slug: { contains: cleanSlug } },
+            { normalizedTitle: { contains: cleanSlug.replace(/-/g, ' ') } },
+          ],
+        },
+        include: { digitalDetails: true },
       });
-      return;
+    }
+
+    if (!book) {
+      book = {
+        id: idOrSlug,
+        slug: idOrSlug,
+        title: 'Bản Đọc Thử Ebook HUKI',
+        digitalDetails: { pdfKey: 'ebooks/default-ebook.pdf' },
+      } as any;
     }
 
     let pdfKey = book.digitalDetails?.pdfKey;
@@ -845,14 +1000,24 @@ export class BooksService implements OnModuleInit {
     }
 
     const serveLocalFallback = () => {
+      // Strictly look up pdfKey or clean localized PDF; never serve Bill Gates PDF for unrelated books
+      const isBillGatesBook = (book.slug && book.slug.includes('con-duong-phia-truoc')) || (book.title && book.title.includes('Con Đường Phía Trước'));
+      const relativeKey = pdfKey.replace(/^ebooks[\/\\]/, '');
       const candidates = [
-        path.resolve(process.cwd(), 'apps/commerce-service/assets/default-ebook.pdf'),
-        path.resolve(__dirname, '../../assets/default-ebook.pdf'),
-        path.resolve(__dirname, '../../../../assets/default-ebook.pdf'),
-        path.resolve(process.cwd(), '../web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
-        path.resolve(process.cwd(), 'web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
-        path.resolve(__dirname, '../../../../../../web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
+        path.resolve(process.cwd(), 'platform/apps/commerce-service/assets', pdfKey),
+        path.resolve(process.cwd(), 'platform/apps/commerce-service/assets', relativeKey),
+        path.resolve(process.cwd(), 'apps/commerce-service/assets', pdfKey),
+        path.resolve(process.cwd(), 'apps/commerce-service/assets', relativeKey),
+        path.resolve(process.cwd(), '../web/public/ebooks', relativeKey),
+        path.resolve(process.cwd(), 'web/public/ebooks', relativeKey),
+        path.resolve(__dirname, '../../assets', relativeKey),
       ];
+      if (isBillGatesBook) {
+        candidates.push(
+          path.resolve(process.cwd(), '../web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
+          path.resolve(process.cwd(), 'web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
+        );
+      }
       let fallbackPath: string | null = null;
       for (const c of candidates) {
         if (fs.existsSync(c)) {

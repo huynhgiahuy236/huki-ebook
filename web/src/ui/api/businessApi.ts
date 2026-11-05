@@ -149,7 +149,14 @@ export const businessApi = {
     if (params?.limit) query.set('limit', String(params.limit));
 
     const url = `/businesses/admin/all${query.toString() ? `?${query.toString()}` : ''}`;
-    return apiClient<BusinessData[]>(url, { method: 'GET' });
+    const res = await apiClient<any>(url, { method: 'GET' });
+    if (res.success && res.data) {
+      if (Array.isArray(res.data)) return res;
+      if (Array.isArray(res.data.data)) {
+        return { ...res, data: res.data.data, meta: res.data.pagination || res.meta };
+      }
+    }
+    return res;
   },
 
   async getPublicBusinesses(params?: { search?: string; page?: number; limit?: number }): Promise<ApiResponse<BusinessData[]>> {
@@ -158,10 +165,17 @@ export const businessApi = {
     if (params?.page) query.set('page', String(params.page));
     if (params?.limit) query.set('limit', String(params.limit));
     const suffix = query.toString();
-    return apiClient<BusinessData[]>(`/businesses${suffix ? `?${suffix}` : ''}`, {
+    const res = await apiClient<any>(`/businesses${suffix ? `?${suffix}` : ''}`, {
       method: 'GET',
       skipAuth: true,
     });
+    if (res.success && res.data) {
+      if (Array.isArray(res.data)) return res;
+      if (Array.isArray(res.data.data)) {
+        return { ...res, data: res.data.data, meta: res.data.pagination || res.meta };
+      }
+    }
+    return res;
   },
 
   async getBusinessById(id: string): Promise<ApiResponse<BusinessData>> {
@@ -287,7 +301,14 @@ export const businessApi = {
     if (params?.limit) query.set('limit', String(params.limit));
 
     const url = `/stores/admin/all${query.toString() ? `?${query.toString()}` : ''}`;
-    return apiClient<StoreData[]>(url, { method: 'GET' });
+    const res = await apiClient<any>(url, { method: 'GET' });
+    if (res.success && res.data) {
+      if (Array.isArray(res.data)) return res;
+      if (Array.isArray(res.data.data)) {
+        return { ...res, data: res.data.data, meta: res.data.pagination || res.meta };
+      }
+    }
+    return res;
   },
 
   async getPublicStores(params?: { search?: string; page?: number; limit?: number }): Promise<ApiResponse<StoreData[]>> {
@@ -296,7 +317,14 @@ export const businessApi = {
     if (params?.page) query.set('page', String(params.page));
     if (params?.limit) query.set('limit', String(params.limit));
     const url = `/stores${query.toString() ? `?${query.toString()}` : ''}`;
-    return apiClient<StoreData[]>(url, { method: 'GET', skipAuth: true });
+    const res = await apiClient<any>(url, { method: 'GET', skipAuth: true });
+    if (res.success && res.data) {
+      if (Array.isArray(res.data)) return res;
+      if (Array.isArray(res.data.data)) {
+        return { ...res, data: res.data.data, meta: res.data.pagination || res.meta };
+      }
+    }
+    return res;
   },
 
   /**

@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useReader } from '@/ui/context/ReaderContext';
-import { booksData } from '@/ui/data/mockData';
 import { catalogApi, type BookData } from '@/ui/api/catalogApi';
 import { adminDrmApi } from '@/ui/api/adminDrmApi';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
@@ -38,10 +37,9 @@ function ReaderContent() {
   const [accessMessage, setAccessMessage] = useState<string>('');
   const [drmFingerprint, setDrmFingerprint] = useState<string>('');
 
-  // Sách mock fallback nếu không tìm thấy sách thật trong DB
   const fallbackMockBook = useMemo(() => {
-    return booksData.find(b => b.id === targetBookId) || booksData[0];
-  }, [targetBookId]);
+    return { title: 'Tác phẩm', author: 'Tác giả', pages: 100 };
+  }, []);
 
   // 1. Tải thông tin sách thật từ CSDL Commerce Service
   useEffect(() => {

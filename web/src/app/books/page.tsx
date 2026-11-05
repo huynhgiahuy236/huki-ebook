@@ -21,6 +21,8 @@ export interface CatalogBookItem {
   category: string;
   format: string;
   formatType: 'ebook' | 'physical' | 'hybrid';
+  hasEbook?: boolean;
+  hasPaper?: boolean;
   price: number;
   originalPrice?: number;
   discount?: string;
@@ -60,7 +62,7 @@ function CatalogPageContent() {
 
   useEffect(() => {
     let isMounted = true;
-    catalogApi.getPublicBooks({ limit: 100 })
+    catalogApi.getPublicBooks({ limit: 1000 })
       .then((res) => {
         if (isMounted) {
           if (res.success && Array.isArray(res.data) && res.data.length > 0) {
@@ -178,6 +180,8 @@ function CatalogPageContent() {
         author: authorName,
         publisher: publisherName,
         category: catSlug,
+        hasEbook: hasEb,
+        hasPaper: hasPa,
         format: fmt,
         formatType: fmtType,
         price: priceVal,
@@ -204,9 +208,9 @@ function CatalogPageContent() {
         if (book.category !== normalizedSelected) return false;
       }
       // Format filter
-      if (selectedFormat === 'ebook' && book.formatType !== 'ebook') return false;
-      if (selectedFormat === 'physical' && book.formatType !== 'physical') return false;
-      if (selectedFormat === 'hybrid' && book.formatType !== 'hybrid') return false;
+      if (selectedFormat === 'ebook' && !book.hasEbook) return false;
+      if (selectedFormat === 'physical' && !book.hasPaper) return false;
+      if (selectedFormat === 'hybrid' && (!book.hasEbook || !book.hasPaper)) return false;
       
       // Publisher filter (supports both accented name and hyphenated slug e.g. "nha-nam")
       if (selectedPublisher !== 'all') {
@@ -282,9 +286,9 @@ function CatalogPageContent() {
     return {
       formats: {
         all: allBooks.length,
-        ebook: allBooks.filter((b) => b.formatType === 'ebook').length,
-        physical: allBooks.filter((b) => b.formatType === 'physical').length,
-        hybrid: allBooks.filter((b) => b.formatType === 'hybrid').length,
+        ebook: allBooks.filter((b) => b.hasEbook).length,
+        physical: allBooks.filter((b) => b.hasPaper).length,
+        hybrid: allBooks.filter((b) => b.hasEbook && b.hasPaper).length,
       },
       categories: {
         all: allBooks.length,
@@ -366,7 +370,7 @@ function CatalogPageContent() {
               <span className="text-xs font-medium text-white/90">HUKI EBOOK &amp; SÁCH GIẤY</span>
             </div>
             <h2 className="text-base sm:text-lg font-black tracking-tight mt-0.5 drop-shadow-xs">
-              ĐẠI TIỆC TRI THỨC - ĐỒNG GIÁ TỪ 9.000Đ &amp; VOUCHER BẢN QUYỀN GIẢM 50%
+              KHÁM PHÁ KHO SÁCH BẢN QUYỀN - ĐỌC VÀ TRẢI NGHIỆM KHÔNG GIỚI HẠN
             </h2>
           </div>
         </div>

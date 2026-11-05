@@ -1,4 +1,4 @@
-import { Client } from 'pg';
+import { Pool } from 'pg';
 import { BookActor } from './book-auth.guard';
 
 export interface SellerScope {
@@ -6,6 +6,26 @@ export interface SellerScope {
   businessIds: string[];
   storeIds: string[];
   ownerUserIds: string[];
+}
+
+let poolInstance: Pool | null = null;
+function getBusinessPool(): Pool {
+  if (!poolInstance) {
+    const bizDbUrl =
+      process.env.BUSINESS_DATABASE_URL ||
+      process.env.DATABASE_URL?.replace(/\/[^\/]+$/, '/huki_business') ||
+      'postgresql://postgres:postgres123@localhost:5432/huki_business';
+    poolInstance = new Pool({
+      connectionString: bizDbUrl,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
+    });
+    poolInstance.on('error', (err) => {
+      console.error('Unexpected error on idle business pg pool client', err);
+    });
+  }
+  return poolInstance;
 }
 
 export async function getSellerScope(actor?: BookActor): Promise<SellerScope> {
@@ -26,15 +46,8 @@ export async function getSellerScope(actor?: BookActor): Promise<SellerScope> {
   };
 
   try {
-    const bizDbUrl =
-      process.env.BUSINESS_DATABASE_URL ||
-      process.env.DATABASE_URL?.replace(/\/[^\/]+$/, '/huki_business') ||
-      'postgresql://postgres:postgres123@localhost:5432/huki_business';
-
-    const pgClient = new Client({ connectionString: bizDbUrl });
-    await pgClient.connect();
-
-    const res = await pgClient.query(
+    const pool = getBusinessPool();
+    const res = await pool.query(
       `SELECT b.id AS business_id, b.owner_id, s.id AS store_id
        FROM businesses b
        LEFT JOIN stores s ON s.business_id = b.id AND s.deleted_at IS NULL
@@ -47,8 +60,6 @@ export async function getSellerScope(actor?: BookActor): Promise<SellerScope> {
        )`,
       [actor.sub],
     );
-
-    await pgClient.end();
 
     const businessIds = new Set<string>();
     const storeIds = new Set<string>();
@@ -82,17 +93,10 @@ export async function getSellerScope(actor?: BookActor): Promise<SellerScope> {
 export async function resolveStoreAndBusinessIds(targetId: string, actor?: BookActor): Promise<string[]> {
   const ids = new Set<string>([targetId]);
   try {
-    const bizDbUrl =
-      process.env.BUSINESS_DATABASE_URL ||
-      process.env.DATABASE_URL?.replace(/\/[^\/]+$/, '/huki_business') ||
-      'postgresql://postgres:postgres123@localhost:5432/huki_business';
-
-    const pgClient = new Client({ connectionString: bizDbUrl });
-    await pgClient.connect();
-
+    const pool = getBusinessPool();
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
     if (isUuid) {
-      const res = await pgClient.query(
+      const res = await pool.query(
         `SELECT b.id AS business_id, s.id AS store_id
          FROM businesses b
          LEFT JOIN stores s ON s.business_id = b.id AND s.deleted_at IS NULL
@@ -110,11 +114,8 @@ export async function resolveStoreAndBusinessIds(targetId: string, actor?: BookA
       actorScope.storeIds?.forEach((id) => ids.add(id));
       actorScope.businessIds?.forEach((id) => ids.add(id));
     }
-
-    await pgClient.end();
   } catch (err) {
     console.error('resolveStoreAndBusinessIds error:', err);
   }
   return Array.from(ids);
 }
-

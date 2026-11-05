@@ -6,7 +6,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { useCart } from '@/ui/context/CartContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { useAuth } from '@/ui/context/AuthContext';
-import { booksData } from '@/ui/data/mockData';
 import { catalogApi } from '@/ui/api/catalogApi';
 import { businessApi } from '@/ui/api/businessApi';
 import { flashSaleApi } from '@/ui/api/flashSaleApi';
@@ -168,6 +167,7 @@ export default function BookDetailPage() {
   const [isUnfollowing, setIsUnfollowing] = useState(false);
   const followDropdownRef = useRef<HTMLDivElement>(null);
   const [realBook, setRealBook] = useState<any>(null);
+  const [isLoadingBook, setIsLoadingBook] = useState(true);
   const [storeInfo, setStoreInfo] = useState<any>(null);
   const [flashSaleInfo, setFlashSaleInfo] = useState<any>(null);
   const [bookDiscount, setBookDiscount] = useState<BookDiscount | null>(null);
@@ -214,6 +214,7 @@ export default function BookDetailPage() {
 
   useEffect(() => {
     if (!id) return;
+    setIsLoadingBook(true);
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     const fetchPromise = isUuid ? catalogApi.getBookById(id) : catalogApi.getBookBySlug(id);
     fetchPromise
@@ -225,7 +226,6 @@ export default function BookDetailPage() {
           else if (bookData.format === 'DIGITAL') setSelectedFormat('ebook');
           else if (bookData.format === 'BOTH') setSelectedFormat('hybrid');
 
-          // Ghi nhận tương tác xem sách chi tiết cho cá nhân hóa
           try {
             personalizationService.recordBookInteraction(
               bookData.id,
@@ -234,31 +234,39 @@ export default function BookDetailPage() {
               bookData.author?.name || bookData.authorName
             );
           } catch { }
+          setIsLoadingBook(false);
+        } else {
+          tryFallback();
         }
       })
       .catch(() => {
-        const fallback = isUuid ? catalogApi.getBookBySlug(id) : catalogApi.getBookById(id);
-        fallback
-          .then((res) => {
-            const bookData = (res?.data as any)?.data || res?.data;
-            if (bookData && (bookData.id || bookData.title)) {
-              setRealBook(bookData);
-              if (bookData.format === 'PHYSICAL') setSelectedFormat('physical');
-              else if (bookData.format === 'DIGITAL') setSelectedFormat('ebook');
-              else if (bookData.format === 'BOTH') setSelectedFormat('hybrid');
-
-              try {
-                personalizationService.recordBookInteraction(
-                  bookData.id,
-                  bookData.category?.id || bookData.categoryId,
-                  bookData.category?.name || bookData.categoryName,
-                  bookData.author?.name || bookData.authorName
-                );
-              } catch { }
-            }
-          })
-          .catch((err) => console.warn('Could not fetch book detail:', err));
+        tryFallback();
       });
+
+    function tryFallback() {
+      const fallback = isUuid ? catalogApi.getBookBySlug(id) : catalogApi.getBookById(id);
+      fallback
+        .then((res) => {
+          const bookData = (res?.data as any)?.data || res?.data;
+          if (bookData && (bookData.id || bookData.title)) {
+            setRealBook(bookData);
+            if (bookData.format === 'PHYSICAL') setSelectedFormat('physical');
+            else if (bookData.format === 'DIGITAL') setSelectedFormat('ebook');
+            else if (bookData.format === 'BOTH') setSelectedFormat('hybrid');
+
+            try {
+              personalizationService.recordBookInteraction(
+                bookData.id,
+                bookData.category?.id || bookData.categoryId,
+                bookData.category?.name || bookData.categoryName,
+                bookData.author?.name || bookData.authorName
+              );
+            } catch { }
+          }
+        })
+        .catch((err) => console.warn('Could not fetch book detail:', err))
+        .finally(() => setIsLoadingBook(false));
+    }
   }, [id]);
 
   useEffect(() => {
@@ -657,17 +665,31 @@ export default function BookDetailPage() {
         isReal: true,
       };
     }
-    const found = booksData.find((b: any) => b.id === id);
-    const baseBook = (found || booksData[0]) as any;
     return {
-      ...baseBook,
-      author: typeof baseBook.author === 'object' ? baseBook.author?.name : baseBook.author || 'Tác giả HUKI',
-      publisher: typeof baseBook.publisher === 'object' ? baseBook.publisher?.name : baseBook.publisher || 'Gian Hàng HUKI',
-      stock: baseBook?.stock ?? 0,
+      id: id || '',
+      slug: id || '',
+      title: 'Tác phẩm đang cập nhật',
+      author: 'Đang cập nhật',
+      publisher: 'Đang cập nhật',
+      category: 'Đang cập nhật',
+      isbn: '',
+      cover: '/banners/hero-library.jpg',
+      coverImage: '/banners/hero-library.jpg',
+      description: 'Tác phẩm đang được cập nhật thông tin.',
+      price: 0,
+      priceEbook: 0,
+      pricePaper: 0,
+      priceCombo: 0,
+      originalPrice: 0,
+      rating: 5.0,
+      reviewCount: 0,
+      readCount: 0,
+      stock: 0,
       reserved: 0,
-      available: baseBook?.stock ?? 0,
-      isBestseller: Boolean(baseBook?.isBestseller),
-      toc: baseBook?.toc,
+      available: 0,
+      format: 'PHYSICAL',
+      isBestseller: false,
+      isReal: false,
     };
   }, [id, realBook, storeInfo]);
 
@@ -991,6 +1013,27 @@ export default function BookDetailPage() {
 
     router.push('/checkout?direct=1');
   };
+
+  if (isLoadingBook) {
+    return (
+      <div className="w-full min-h-screen bg-[#f8f6f1] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#006953]" />
+      </div>
+    );
+  }
+
+  if (!realBook || !book.isReal) {
+    return (
+      <div className="w-full bg-[#f8f6f1] text-[#17201f] min-h-[70vh] flex flex-col items-center justify-center p-6 text-center font-sans">
+        <span className="material-symbols-outlined text-6xl text-[#006953]/50 mb-3">menu_book</span>
+        <h1 className="text-2xl font-bold font-editorial mb-2">Không tìm thấy tác phẩm</h1>
+        <p className="text-sm text-gray-600 max-w-md mb-6">Tác phẩm bạn đang tìm kiếm không tồn tại, đã ngừng kinh doanh hoặc đường dẫn không chính xác.</p>
+        <Link href="/books" className="px-5 py-2.5 rounded-full bg-[#006953] hover:bg-[#00523c] text-white font-bold text-sm shadow-sm transition-all flex items-center gap-2">
+          <span className="material-symbols-outlined text-base">arrow_back</span>Quay lại Tủ Sách
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full bg-[#f8f6f1] text-[#17201f] min-h-screen font-sans pb-16">

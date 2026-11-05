@@ -200,8 +200,11 @@ function StoresContent() {
     setLoading(true);
     try {
       const res = await businessApi.getPublicBusinesses({ limit: 50 });
-      if (res && res.success && Array.isArray(res.data)) {
-        setRealBusinesses(res.data);
+      const rawList = Array.isArray(res?.data)
+        ? res.data
+        : (Array.isArray((res?.data as any)?.data) ? (res.data as any).data : []);
+      if (rawList.length > 0) {
+        setRealBusinesses(rawList);
       }
     } catch {
       // Fallback

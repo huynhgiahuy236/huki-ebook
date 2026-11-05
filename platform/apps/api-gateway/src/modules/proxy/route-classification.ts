@@ -158,17 +158,20 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
       return 'PUBLIC';
     }
 
-    // Public businesses & stores storefront endpoints (excluding private seller/admin/my endpoints)
+    // Public businesses & stores storefront endpoints (GET only; POST/PATCH/DELETE require auth)
     if (
+      method === 'GET' &&
       (normPath === '/businesses' || normPath.startsWith('/businesses/')) &&
       !normPath.startsWith('/businesses/admin') &&
       !normPath.startsWith('/businesses/my') &&
-      !normPath.startsWith('/businesses/following')
+      !normPath.startsWith('/businesses/following') &&
+      !normPath.includes('/follow')
     ) {
       return 'PUBLIC';
     }
 
     if (
+      method === 'GET' &&
       (normPath === '/stores' || normPath.startsWith('/stores/')) &&
       !normPath.startsWith('/stores/admin') &&
       !normPath.startsWith('/stores/my')
