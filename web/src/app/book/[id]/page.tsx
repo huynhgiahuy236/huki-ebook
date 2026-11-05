@@ -1051,11 +1051,11 @@ export default function BookDetailPage() {
 
       <section className="max-w-[1240px] mx-auto px-3.5 sm:px-6 pt-2 pb-6">
         <div className="grid grid-cols-12 gap-4 lg:gap-5 items-stretch">
-          {/* 1. Left Column: Book Cover & Preview Actions */}
+          {/* 1. Left Column: Book Cover & Official DRM Trust Badges */}
           <div className="col-span-12 lg:col-span-3.5 xl:col-span-3 flex flex-col">
             <div className="w-full h-full bg-white rounded-2xl p-4.5 sm:p-5 border border-[#e8e5df] shadow-xs flex flex-col justify-between items-center group">
-              <div className="w-full flex flex-col items-center">
-                <div className="relative w-[180px] sm:w-[200px] aspect-[2/3] rounded-lg overflow-hidden shadow-md transition-transform duration-300 group-hover:scale-[1.02]">
+              <div className="w-full flex-1 flex flex-col items-center justify-center py-2">
+                <div className="relative w-[200px] sm:w-[220px] aspect-[1/1.45] rounded-xl overflow-hidden shadow-md border border-slate-100 transition-transform duration-300 group-hover:scale-[1.02]">
                   <img
                     src={book.cover}
                     alt={book.title}
@@ -1097,18 +1097,25 @@ export default function BookDetailPage() {
                 </div>
               </div>
 
-              <div className="w-full space-y-2 mt-3.5">
-                {selectedFormat !== 'physical' && realBook?.format !== 'PHYSICAL' ? (
-                  <Link href={`/library/${book.id}`} className="w-full h-9 rounded-lg bg-[#006953] hover:bg-[#00523c] text-white font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5">
-                    <span className="material-symbols-outlined text-[16px]">chrome_reader_mode</span>Đọc Thử Bản Trực Tuyến
-                  </Link>
-                ) : (
-                  <div className="w-full h-9 rounded-lg bg-emerald-50/80 border border-emerald-200/60 text-[#006953] font-semibold text-xs flex items-center justify-center gap-1.5">
-                    <span className="material-symbols-outlined text-[16px]">menu_book</span>Ấn bản sách giấy vật lý
+              {/* Official Platform Security & DRM Guarantee Badges */}
+              <div className="w-full space-y-2 mt-3 pt-3 border-t border-slate-100">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50/70 border border-emerald-200/60 text-[#006953]">
+                  <span className="material-symbols-outlined text-[18px] shrink-0 text-[#00875A]">verified_user</span>
+                  <div className="text-left min-w-0">
+                    <p className="text-[11px] font-bold text-slate-800 leading-tight">Bản Quyền Chính Hãng 100%</p>
+                    <p className="text-[10px] text-slate-500 leading-tight">Phát hành số HUKI DRM & NXB</p>
                   </div>
-                )}
-                <div className="flex items-center justify-center gap-1 text-[10.5px] text-[#006953] font-medium bg-[#006953]/10 py-1.5 px-2 rounded-lg text-center">
-                  <span className="material-symbols-outlined text-[13px]">verified_user</span>Bản quyền chính thức • HUKI DRM
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5 text-center text-[10px] text-slate-600">
+                  <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center gap-1">
+                    <span className="material-symbols-outlined text-[13px] text-emerald-600">devices</span>
+                    <span>5 thiết bị đọc</span>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center gap-1">
+                    <span className="material-symbols-outlined text-[13px] text-emerald-600">sync</span>
+                    <span>Đồng bộ mây</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1158,12 +1165,11 @@ export default function BookDetailPage() {
                   <span className="text-gray-600 text-[11.5px]">Đã bán <strong className="text-[#17201f]">{(realBook?.soldCount || (realBook as any)?.sales || realBook?.readCount || 0).toLocaleString('vi-VN')}</strong> bản</span>
                 </div>
 
-                {/* 4 Specs Mini Grid */}
-                <div className="grid grid-cols-4 gap-2 text-center">
+                {/* 3 Specs Mini Grid */}
+                <div className="grid grid-cols-3 gap-2.5 text-center">
                   <div className="bg-[#f8f6f1]/80 p-2 rounded-lg border border-[#e8e5df]/70"><span className="block text-gray-400 text-[9.5px]">Số trang</span><strong className="text-xs text-[#17201f]">{book.pages ? `${book.pages} tr.` : (realBook?.physicalDetails?.pages || (realBook as any)?.pages ? `${realBook?.physicalDetails?.pages || (realBook as any)?.pages} tr.` : 'Chuẩn DRM')}</strong></div>
                   <div className="bg-[#f8f6f1]/80 p-2 rounded-lg border border-[#e8e5df]/70"><span className="block text-gray-400 text-[9.5px]">Ngôn ngữ</span><strong className="text-xs text-[#17201f]">{(realBook as any)?.language || (realBook as any)?.language_code || 'Tiếng Việt'}</strong></div>
                   <div className="bg-[#f8f6f1]/80 p-2 rounded-lg border border-[#e8e5df]/70"><span className="block text-gray-400 text-[9.5px]">Định dạng</span><strong className="text-xs text-[#006953]">{realBook?.format === 'DIGITAL' ? 'Ebook DRM' : realBook?.format === 'PHYSICAL' ? 'Bìa mềm' : 'Sách in & DRM'}</strong></div>
-                  <div className="bg-[#f8f6f1]/80 p-2 rounded-lg border border-[#e8e5df]/70"><span className="block text-gray-400 text-[9.5px]">Đọc thử</span><strong className="text-xs text-[#17201f]">Miễn phí</strong></div>
                 </div>
 
                 {/* Short Description */}
@@ -1379,7 +1385,6 @@ export default function BookDetailPage() {
         <div className="bg-white rounded-2xl border border-[#e8e5df] shadow-sm overflow-hidden mb-6">
           <div className="flex items-center border-b border-gray-200 px-4 sm:px-6 gap-6 sm:gap-8 overflow-x-auto text-xs sm:text-sm font-semibold">
             <button onClick={() => setActiveTab('intro')} className={`py-4 border-b-2 flex items-center gap-1.5 whitespace-nowrap transition-colors cursor-pointer ${activeTab === 'intro' ? 'border-[#006953] text-[#006953] font-bold' : 'border-transparent text-gray-500 hover:text-gray-900'}`}><span className="material-symbols-outlined text-base">menu_book</span>Giới Thiệu</button>
-            <button onClick={() => setActiveTab('preview')} className={`py-4 border-b-2 flex items-center gap-1.5 whitespace-nowrap transition-colors cursor-pointer ${activeTab === 'preview' ? 'border-[#006953] text-[#006953] font-bold' : 'border-transparent text-gray-500 hover:text-gray-900'}`}><span className="material-symbols-outlined text-base">chrome_reader_mode</span>Đọc Thử Mẫu</button>
             <button onClick={() => setActiveTab('reviews')} className={`py-4 border-b-2 flex items-center gap-1.5 whitespace-nowrap transition-colors cursor-pointer ${activeTab === 'reviews' ? 'border-[#006953] text-[#006953] font-bold' : 'border-transparent text-gray-500 hover:text-gray-900'}`}><span className="material-symbols-outlined text-base">star</span>Đánh Giá ({((reviewSummary?.totalReviews ?? reviewsList.length) || 0).toLocaleString('vi-VN')})</button>
           </div>
 
@@ -1574,19 +1579,6 @@ export default function BookDetailPage() {
                   </div>
                 </div>
               </div>
-            </div>
-          )}
-
-          {activeTab === 'preview' && (
-            <div className="p-6 sm:p-8 flex flex-col items-center text-center space-y-4">
-              <div className="w-14 h-14 rounded-full bg-[#006953]/10 text-[#006953] flex items-center justify-center"><span className="material-symbols-outlined text-3xl">auto_stories</span></div>
-              <div className="max-w-md">
-                <h3 className="font-bold text-base text-gray-900 mb-1">Trải nghiệm đọc thử trực tuyến</h3>
-                <p className="text-xs text-gray-600">Mở trình đọc sách toàn màn hình với đầy đủ công cụ ghi chú, bút dạ quang highlight và chế độ đọc ban đêm.</p>
-              </div>
-              <Link href={`/library/${book.id}`} className="px-6 py-3 rounded-xl bg-[#006953] hover:bg-[#00523c] text-white font-bold text-sm shadow-sm transition-all inline-flex items-center gap-2">
-                <span className="material-symbols-outlined text-lg">chrome_reader_mode</span>Mở Trình Đọc PDF / Ebook
-              </Link>
             </div>
           )}
 

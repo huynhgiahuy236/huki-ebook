@@ -41,7 +41,7 @@ export default function SpecialCollectionSection() {
               href="/books?format=ebook"
               className="px-5 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-[13px] font-semibold border border-white/30 transition-all backdrop-blur-sm"
             >
-              Đọc thử Ebook miễn phí
+              Khám phá Tủ Sách Ebook
             </Link>
           </div>
         </div>

@@ -31,7 +31,7 @@ export default function HeroSection() {
       title: 'Khám phá kho tri thức\nbất tận',
       description: 'Hơn 50.000 đầu sách tuyển chọn từ các NXB uy tín. Giao nhanh 2H nội thành.',
       primaryBtn: { text: 'Khám phá ngay', href: '/books' },
-      secondaryBtn: { text: 'Đọc thử Ebook', href: '/books?format=ebook' },
+      secondaryBtn: { text: 'Khám phá Ebook', href: '/books?format=ebook' },
       overlay: 'linear-gradient(to right, rgba(0, 42, 32, 0.94) 0%, rgba(0, 42, 32, 0.82) 48%, rgba(0, 42, 32, 0.2) 100%)',
     },
   ];
