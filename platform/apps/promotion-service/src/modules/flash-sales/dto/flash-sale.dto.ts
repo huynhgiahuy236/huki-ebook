@@ -104,7 +104,7 @@ export class CreateFlashSaleItemDto {
   flashSaleId: string;
 
   @ApiProperty({ description: "Book ID" })
-  @IsUUID()
+  @IsString()
   bookId: string;
 
   @ApiProperty({ example: 250000, description: "Original price" })
@@ -176,7 +176,7 @@ export class ValidateQuotaDto {
   userId: string;
 
   @ApiProperty({ description: "Book ID" })
-  @IsUUID()
+  @IsString()
   bookId: string;
 
   @ApiPropertyOptional({ description: "Flash Sale ID" })
@@ -197,7 +197,7 @@ export class ReserveFlashSaleDto {
   userId: string;
 
   @ApiProperty({ description: "Book ID" })
-  @IsUUID()
+  @IsString()
   bookId: string;
 
   @ApiPropertyOptional({ description: "Flash Sale ID" })
@@ -230,7 +230,7 @@ export class ReleaseFlashSaleOrderDto {
     type: [String],
   })
   @IsArray()
-  @IsUUID("4", { each: true })
+  @IsString({ each: true })
   @IsOptional()
   bookIds?: string[];
 }
@@ -247,7 +247,7 @@ export class SellerRegisterFlashSaleItemDto {
   flashSaleId: string;
 
   @ApiProperty({ description: "Book ID thuộc quyền sở hữu của gian hàng" })
-  @IsUUID()
+  @IsString()
   bookId: string;
 
   @ApiProperty({ example: 149000, description: "Giá khuyến mãi Flash Sale (phải nhỏ hơn giá niêm yết hiện tại)" })
