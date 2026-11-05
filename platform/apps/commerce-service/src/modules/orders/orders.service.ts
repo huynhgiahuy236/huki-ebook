@@ -352,6 +352,15 @@ export class OrdersService {
         },
       });
 
+      // RF-004: Thu hồi quyền truy cập DRM Ebook nếu đơn hàng bị hủy
+      await tx.bookAccess.updateMany({
+        where: { orderId: id },
+        data: {
+          status: 'REVOKED',
+          updatedAt: now,
+        },
+      });
+
       await tx.orderStatusHistory.create({
         data: {
           orderId: o.id,
@@ -2858,6 +2867,20 @@ export class OrdersService {
             replacementStatus: 'REFUNDED',
           },
         });
+
+        // RF-004: Thu hồi quyền truy cập DRM Ebook khi món hàng bị hoàn trả
+        if (item.bookId && item.sellerOrder?.order?.userId) {
+          await tx.bookAccess.updateMany({
+            where: {
+              userId: item.sellerOrder.order.userId,
+              bookId: item.bookId,
+            },
+            data: {
+              status: 'REVOKED',
+              updatedAt: new Date(),
+            },
+          });
+        }
       }
     });
 
@@ -3474,6 +3497,26 @@ export class OrdersService {
 
     // If buyer wins: mark escrow refunded and record history
     if (dto.ruling === 'BUYER_WINS') {
+      try {
+        const parentOrder = await this.prisma.order.findUnique({
+          where: { id: req.orderId },
+          select: { userId: true },
+        });
+        if (parentOrder?.userId && req.bookId) {
+          await this.prisma.bookAccess.updateMany({
+            where: {
+              userId: parentOrder.userId,
+              bookId: req.bookId,
+            },
+            data: {
+              status: 'REVOKED',
+              updatedAt: new Date(),
+            },
+          });
+        }
+      } catch (err) {
+        console.warn('Could not revoke book access on buyer dispute win:', err);
+      }
       try {
         await this.prisma.orderStatusHistory.create({
           data: {

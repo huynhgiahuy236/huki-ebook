@@ -12,6 +12,7 @@ import {
 type ServiceName = 'identity' | 'business' | 'commerce' | 'shipping' | 'community' | 'promotion' | 'analytics';
 
 const ROUTES: Record<string, ServiceName> = {
+  'socket.io': 'community',
   auth: 'identity',
   users: 'identity',
   sessions: 'identity',
@@ -287,6 +288,11 @@ export class ServiceProxyMiddleware implements NestMiddleware {
   }
 
   private resolveService(path: string): ServiceName | undefined {
+    // Route /socket.io/* → community
+    if (path.startsWith('/socket.io')) {
+      return 'community';
+    }
+
     // Match first segment
     const match = path.match(/^\/(?:api\/v1\/)?([^/?]+)/);
     if (!match) return undefined;

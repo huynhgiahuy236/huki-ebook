@@ -261,6 +261,11 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
 
     socket.on('connect', () => {
       setIsConnected(true);
+      // RF-002: Auto-sync inbox & unread badge on connect/reconnect to prevent offline drops
+      fetchUnreadCount();
+      if (autoFetch) {
+        fetchNotifications(1, false, isReadFilter);
+      }
     });
 
     socket.on('disconnect', () => {
@@ -270,6 +275,20 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
     socket.on('connect_error', () => {
       setIsConnected(false);
     });
+
+    const handleFocusOrOnline = () => {
+      if (document.visibilityState === 'visible' || (typeof navigator !== 'undefined' && navigator.onLine)) {
+        fetchUnreadCount();
+        if (autoFetch) {
+          fetchNotifications(1, false, isReadFilter);
+        }
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', handleFocusOrOnline);
+      document.addEventListener('visibilitychange', handleFocusOrOnline);
+    }
 
     socket.on('notification', (newNoti: RealtimeNotification) => {
       // Filter by recipientType if specified
@@ -326,6 +345,10 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
     });
 
     return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', handleFocusOrOnline);
+        document.removeEventListener('visibilitychange', handleFocusOrOnline);
+      }
       socket.disconnect();
       socketRef.current = null;
     };
