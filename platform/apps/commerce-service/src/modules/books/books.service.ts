@@ -41,14 +41,6 @@ export const TITLE_TO_AUTHOR_MAPPINGS = [
   { match: 'Tam Ly Hoc Thanh Cong', author: 'Carol S. Dweck', slug: 'carol-s-dweck', bio: 'Giáo sư tâm lý học tại Đại học Stanford.' },
 ];
 
-export const STORE_TO_PUB_MAP: Record<string, string> = {
-  'store-002-nhanam-books': 'p0000003-0000-4000-8000-000000000003',
-  '3094e54e-2549-42cc-92fb-14a8f8589277': 'p0000001-0000-4000-8000-000000000001',
-  'd2caa7b1-1b82-49b9-be65-1fc6be42e472': 'p0000002-0000-4000-8000-000000000002',
-  '914a406f-9ae5-49a5-a895-7c60b2114d7c': '0df2754d-576f-4e83-811d-fd4d4ed25eba',
-  '51c48059-37be-46a2-b4a6-04a8365f8cbd': '6d9c682e-3107-4d87-9c35-a697c56a6c81',
-  '20eb20a3-1058-4e2e-a043-a208fe6f84ba': 'p0000001-0000-4000-8000-000000000001',
-};
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -181,11 +173,25 @@ export class BooksService implements OnModuleInit {
         }
 
         if (!b.publisherId) {
-          const pubId = STORE_TO_PUB_MAP[b.storeId] || 'p0000001-0000-4000-8000-000000000001';
-          await this.prisma.book.update({
-            where: { id: b.id },
-            data: { publisherId: pubId },
-          }).catch(() => null);
+          let publisher = await this.prisma.publisher.findFirst({
+            where: {
+              OR: [
+                { slug: 'nha-nam-books' },
+                { name: { contains: 'Nhã Nam', mode: 'insensitive' } },
+                { slug: 'first-news-tri-viet' },
+                { name: { contains: 'First News', mode: 'insensitive' } },
+              ],
+            },
+          });
+          if (!publisher) {
+            publisher = await this.prisma.publisher.findFirst();
+          }
+          if (publisher) {
+            await this.prisma.book.update({
+              where: { id: b.id },
+              data: { publisherId: publisher.id },
+            }).catch(() => null);
+          }
         }
       }
     } catch (err: any) {
