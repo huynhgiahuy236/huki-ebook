@@ -129,7 +129,13 @@ export class AiChatService {
 
       if (res.ok) {
         const json = await res.json();
-        const rawBooks = Array.isArray(json.data) ? json.data : [];
+        const rawBooks = Array.isArray(json.data)
+          ? json.data
+          : Array.isArray(json.data?.items)
+          ? json.data.items
+          : Array.isArray(json.items)
+          ? json.items
+          : [];
         if (rawBooks.length > 0) {
           const catalogItems: BookCatalogItem[] = rawBooks.map((b: any) => ({
             id: b.id,

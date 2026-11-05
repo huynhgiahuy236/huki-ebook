@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useToast } from '@/ui/context/ToastContext';
 import { useAuth } from '@/ui/context/AuthContext';
 import UserAvatar from '@/ui/components/common/UserAvatar';
+import ChatBookPickerModal from '@/ui/components/chat/ChatBookPickerModal';
 import { chatService, type ChatConversation, type ChatMessage, type ChatAttachment } from '@/ui/services/chatService';
 import { chatQuickReplyService, type QuickReply } from '@/ui/services/chatQuickReplyService';
 import { voucherApi, type Voucher } from '@/ui/api/voucherApi';
@@ -126,6 +127,7 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
 
   // Voucher picker modal states
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
+  const [isBookPickerModalOpen, setIsBookPickerModalOpen] = useState(false);
   const [shopVouchers, setShopVouchers] = useState<Voucher[]>([]);
   const [isLoadingVouchers, setIsLoadingVouchers] = useState(false);
   const [selectedVoucherId, setSelectedVoucherId] = useState<string>('');
@@ -615,6 +617,81 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
     } catch (err) {
       console.error('Lỗi xóa phím tắt:', err);
       showToast?.('Không thể xóa phím tắt.', 'error');
+    }
+  };
+
+  // CA-005: Send selected book into chat
+  const handleSendBook = async (book: {
+    id: string;
+    title: string;
+    price: number;
+    coverUrl: string;
+    slug?: string;
+    author?: string;
+    format?: string;
+  }) => {
+    if (!currentCustomer) return;
+
+    const now = new Date();
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    const tempId = `temp-book-${Date.now()}`;
+    const content = `Dạ shop xin gửi bạn thông tin cuốn sách "${book.title}" ạ!`;
+
+    const bookMsg: SellerChatMessage = {
+      id: tempId,
+      sender: 'seller',
+      text: content,
+      time: timeStr,
+      status: 'sent',
+      type: 'text',
+      attachments: book.coverUrl ? [{ type: 'IMAGE', url: book.coverUrl, name: book.title }] : undefined,
+    };
+
+    setMessagesByCustomer((prev) => ({
+      ...prev,
+      [currentCustomer.id]: [...(prev[currentCustomer.id] || []), bookMsg],
+    }));
+
+    setIsBookPickerModalOpen(false);
+
+    try {
+      const metadata = {
+        bookId: book.id,
+        title: book.title,
+        price: book.price,
+        coverUrl: book.coverUrl,
+        slug: book.slug,
+        author: book.author,
+        format: book.format,
+      };
+
+      const replyStoreId = currentCustomer?.storeId || primaryStoreId || storeId;
+      if (isConnected) {
+        await sendSocketMessage(currentCustomer.id, content, {
+          storeId: replyStoreId,
+          messageType: 'BOOK',
+          metadata,
+        });
+      } else {
+        await chatService.sendMessage(currentCustomer.id, {
+          content,
+          storeId: replyStoreId,
+          messageType: 'BOOK',
+          metadata,
+        });
+      }
+
+      setCustomers((prev) =>
+        prev.map((c) =>
+          c.id === currentCustomer.id
+            ? { ...c, lastMsg: `[Sách] ${book.title}`, lastTime: timeStr, unread: 0 }
+            : c
+        )
+      );
+
+      playMessageSentSound();
+    } catch (err) {
+      console.error('Lỗi khi gửi sách qua chat:', err);
     }
   };
 
@@ -1485,6 +1562,16 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                     <span className="material-symbols-outlined text-xl">add_photo_alternate</span>
                   </button>
 
+                  {/* Button: Đính kèm sách của shop (CA-005) */}
+                  <button
+                    type="button"
+                    onClick={() => setIsBookPickerModalOpen(true)}
+                    className="w-9 h-9 rounded-xl text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Đính kèm sách tư vấn cho khách (CA-005)"
+                  >
+                    <span className="material-symbols-outlined text-xl">menu_book</span>
+                  </button>
+
                   {/* Button: Tặng voucher shop */}
                   <button
                     type="button"
@@ -2159,6 +2246,14 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
           </div>
         </div>
       )}
+
+      {/* CA-005: Modal Chọn Sách Tư Vấn Với Phân Trang & Tìm Kiếm */}
+      <ChatBookPickerModal
+        isOpen={isBookPickerModalOpen}
+        onClose={() => setIsBookPickerModalOpen(false)}
+        storeId={currentCustomer?.storeId || primaryStoreId || storeId}
+        onSelectBook={handleSendBook}
+      />
 
     </div>
   );

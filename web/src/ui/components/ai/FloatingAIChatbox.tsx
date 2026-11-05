@@ -95,6 +95,15 @@ export default function FloatingAIChatbox() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const handleAbort = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsLoading(false);
+  };
 
   // Khởi tạo và khôi phục lịch sử chat với cơ chế Smart Session Inactivity Timeout (30 phút)
   useEffect(() => {
@@ -224,6 +233,12 @@ export default function FloatingAIChatbox() {
       personalizationService.recordSearch(text);
     } catch {}
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 15000); // CA-002: 15s timeout to avoid freezing UI
+
     try {
       const historyPayload = messages
         .filter((m) => m.id !== 'welcome' && m.id !== 'welcome-reset')
@@ -246,6 +261,7 @@ export default function FloatingAIChatbox() {
           currentPage: pathname || undefined,
         }),
         skipAuth: true,
+        signal: controller.signal,
       });
 
       const replyText =
@@ -280,18 +296,23 @@ export default function FloatingAIChatbox() {
           handleAddToCartItem(bookToAdd);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Lỗi khi gọi API AI Chat backend:', err);
+      const isAbort = err?.name === 'AbortError' || controller.signal.aborted;
       setMessages((prev) => [
         ...prev,
         {
           id: `assistant-err-${Date.now()}`,
           role: 'assistant',
-          content: 'Xin lỗi bạn nhé, hệ thống đang bận một chút. Bạn vui lòng thử lại sau giây lát nha!',
+          content: isAbort
+            ? 'Bé Cáo đang bị quá tải suy nghĩ một chút, bạn bấm thử lại nhé! 🦊'
+            : 'Xin lỗi bạn nhé, hệ thống đang bận một chút. Bạn vui lòng thử lại sau giây lát nha!',
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
     } finally {
+      clearTimeout(timeoutId);
+      abortControllerRef.current = null;
       setIsLoading(false);
     }
   };
@@ -634,14 +655,25 @@ export default function FloatingAIChatbox() {
                 className="flex-1 bg-transparent border-none outline-none text-xs text-slate-800 placeholder-slate-400"
               />
 
-              <button
-                type="submit"
-                disabled={!inputMessage.trim() || isLoading}
-                className="w-7 h-7 rounded-full bg-[#003B2B] disabled:opacity-40 text-white flex items-center justify-center shrink-0 hover:bg-[#00281d] transition-all cursor-pointer active:scale-95"
-                title="Gửi tin nhắn"
-              >
-                <span className="material-symbols-outlined text-sm">send</span>
-              </button>
+              {isLoading ? (
+                <button
+                  type="button"
+                  onClick={handleAbort}
+                  className="w-7 h-7 rounded-full bg-rose-600 text-white flex items-center justify-center shrink-0 hover:bg-rose-700 transition-all cursor-pointer active:scale-95 shadow-xs"
+                  title="Dừng phản hồi"
+                >
+                  <span className="material-symbols-outlined text-sm">stop</span>
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={!inputMessage.trim() || isLoading}
+                  className="w-7 h-7 rounded-full bg-[#003B2B] disabled:opacity-40 text-white flex items-center justify-center shrink-0 hover:bg-[#00281d] transition-all cursor-pointer active:scale-95"
+                  title="Gửi tin nhắn"
+                >
+                  <span className="material-symbols-outlined text-sm">send</span>
+                </button>
+              )}
             </form>
 
             <div className="mt-1 text-center">

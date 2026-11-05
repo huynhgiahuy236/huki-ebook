@@ -94,6 +94,12 @@ function OrderSuccessContent() {
   const hasPhysical = physicalItems.length > 0 || allItems.length === 0;
   const hasDigital = digitalItems.length > 0;
 
+  const firstItem = allItems[0];
+  const shareBookTitle = firstItem?.title || firstItem?.bookTitle || "";
+  const shareBookId = firstItem?.bookId || firstItem?.id || "";
+  const shareBookCover = firstItem?.coverUrl || firstItem?.coverImage || "";
+  const communityShareHref = `/community?action=share_order&orderCode=${encodeURIComponent(orderCode || '')}&bookTitle=${encodeURIComponent(shareBookTitle)}&bookId=${encodeURIComponent(shareBookId)}&cover=${encodeURIComponent(shareBookCover)}`;
+
   // Shipping address parsing
   const addrObj = order?.shippingAddress;
   const recipientName =
@@ -723,7 +729,7 @@ function OrderSuccessContent() {
                 <span className="font-body-sm text-on-surface-variant">Lan tỏa cảm hứng đọc sách cùng bạn bè trên Mạng xã hội HUKI</span>
               </div>
             </div>
-            <Link href="/community" className="h-10 px-5 rounded-lg bg-primary hover:bg-[#922313] text-on-primary font-title-md text-body-sm flex items-center gap-2 transition-colors shadow-sm">
+            <Link href={communityShareHref} className="h-10 px-5 rounded-lg bg-primary hover:bg-[#922313] text-on-primary font-title-md text-body-sm flex items-center gap-2 transition-colors shadow-sm">
               <span className="material-symbols-outlined text-[18px]" data-icon="share">share</span>
               Đăng Lên Bảng Tin Huki
             </Link>
