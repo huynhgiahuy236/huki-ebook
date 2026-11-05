@@ -683,7 +683,7 @@ export default function FlashSalePage() {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-3.5">
                 {platformDisplayItems.map((item) => {
                   const isSlotActive =
                     timeRemaining[currentPlatformSlot?.id || ""]?.mode === "active";
@@ -694,7 +694,7 @@ export default function FlashSalePage() {
                   return (
                     <div
                       key={item.id}
-                      className="group bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col justify-between"
+                      className="group bg-white rounded-xl border border-slate-200/90 overflow-hidden shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col justify-between"
                     >
                       {/* Top Image + Badges */}
                       <div className="relative aspect-[3/4] bg-slate-100 overflow-hidden">
@@ -705,75 +705,75 @@ export default function FlashSalePage() {
                         />
 
                         {/* Discount Badge */}
-                        <div className="absolute top-2.5 left-2.5 bg-rose-600 text-white font-black text-xs px-2 py-0.5 rounded-lg shadow-md flex items-center gap-0.5">
+                        <div className="absolute top-1.5 left-1.5 bg-rose-600 text-white font-black text-[10px] px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
                           <span>-{item.discountPercent}%</span>
                         </div>
 
                         {/* Quota Badge */}
-                        <div className="absolute top-2.5 right-2.5 bg-slate-900/80 backdrop-blur-sm text-yellow-300 font-bold text-[10px] px-2 py-0.5 rounded-md border border-yellow-300/30">
-                          Tối đa {item.maxPerUser || 1} cuốn
+                        <div className="absolute top-1.5 right-1.5 bg-slate-900/80 backdrop-blur-xs text-yellow-300 font-bold text-[9px] px-1.5 py-0.5 rounded border border-yellow-300/30">
+                          Tối đa {item.maxPerUser || 1}
                         </div>
 
                         {/* Sold Out Overlay */}
                         {isSoldOut && (
-                          <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-xs flex flex-col items-center justify-center text-white">
-                            <span className="material-symbols-outlined text-3xl text-red-400">
+                          <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-xs flex flex-col items-center justify-center text-white p-2 text-center">
+                            <span className="material-symbols-outlined text-2xl text-red-400">
                               sentiment_dissatisfied
                             </span>
-                            <span className="text-xs font-black uppercase tracking-wider mt-1">
-                              ĐÃ HẾT SUẤT SALE
+                            <span className="text-[10px] font-black uppercase tracking-wider mt-1">
+                              ĐÃ HẾT SUẤT
                             </span>
                           </div>
                         )}
                       </div>
 
                       {/* Info Section */}
-                      <div className="p-4 flex flex-col flex-1 justify-between gap-3">
+                      <div className="p-2.5 sm:p-3 flex flex-col flex-1 justify-between gap-2">
                         <div>
-                          <div className="text-[11px] text-slate-400 font-medium line-clamp-1">
+                          <div className="text-[10px] text-slate-400 font-medium line-clamp-1">
                             {item.author}
                           </div>
                           <Link
                             href={`/book/${item.slug}`}
-                            className="font-bold text-slate-800 text-sm line-clamp-2 hover:text-rose-600 transition-colors leading-snug mt-0.5"
+                            className="font-bold text-slate-800 text-xs sm:text-[12.5px] line-clamp-2 hover:text-rose-600 transition-colors leading-snug mt-0.5 min-h-[32px]"
                           >
                             {item.title}
                           </Link>
                         </div>
 
-                        <div className="space-y-2 pt-1 border-t border-slate-100">
+                        <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
                           {/* Price Row */}
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-lg font-black text-rose-600">
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-[13px] sm:text-[14px] font-black text-rose-600 font-mono">
                               {item.salePrice.toLocaleString("vi-VN")}₫
                             </span>
-                            <span className="text-xs text-slate-400 line-through">
+                            <span className="text-[10px] text-slate-400 line-through font-mono">
                               {item.originalPrice.toLocaleString("vi-VN")}₫
                             </span>
                           </div>
 
                           {/* Stock Progress Bar */}
                           <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[11px] font-bold">
-                              <span className="text-rose-600 flex items-center gap-0.5">
-                                <span className="material-symbols-outlined text-[13px]">
+                            <div className="flex items-center justify-between text-[10px] font-bold">
+                              <span className="text-rose-600 flex items-center gap-0.5 truncate">
+                                <span className="material-symbols-outlined text-[12px] shrink-0">
                                   local_fire_department
                                 </span>
-                                <span>
+                                <span className="truncate">
                                   {isSoldOut
-                                    ? "ĐÃ BÁN HẾT 100%"
+                                    ? "Hết 100%"
                                     : item.soldPercent >= 90
-                                      ? `Sắp hết hàng - Còn ${item.stock} cuốn`
+                                      ? `Còn ${item.stock} c.`
                                       : item.soldPercent >= 50
-                                        ? `Đang bán rất chạy (${item.soldPercent}%)`
-                                        : `Đã bán ${item.sold} cuốn`}
+                                        ? `Bán chạy ${item.soldPercent}%`
+                                        : `Đã bán ${item.sold}`}
                                 </span>
                               </span>
-                              <span className="text-slate-400 text-[10px]">
+                              <span className="text-slate-400 text-[9.5px] shrink-0">
                                 Còn {item.stock}
                               </span>
                             </div>
-                            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                               <div
                                 className={`h-full rounded-full transition-all duration-500 ${
                                   isSoldOut
@@ -791,35 +791,35 @@ export default function FlashSalePage() {
                           {isSoldOut ? (
                             <button
                               disabled
-                              className="w-full py-2.5 rounded-xl bg-slate-200 text-slate-400 font-bold text-xs cursor-not-allowed uppercase"
+                              className="w-full h-8 rounded-lg bg-slate-200 text-slate-400 font-bold text-[11px] cursor-not-allowed uppercase"
                             >
-                              Hết Suất Ưu Đãi
+                              Hết Suất
                             </button>
                           ) : isSlotActive ? (
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1">
                               <button
                                 type="button"
                                 onClick={(e) => handleBuyNow(item, e)}
-                                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white font-extrabold text-xs transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                                className="flex-1 h-8 rounded-lg bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white font-extrabold text-[11px] transition-all shadow-2xs hover:shadow-xs flex items-center justify-center gap-1 cursor-pointer uppercase tracking-wider active:scale-95"
                               >
-                                <span className="material-symbols-outlined text-sm">
+                                <span className="material-symbols-outlined text-[14px]">
                                   shopping_bag
                                 </span>
-                                <span>Mua Ngay</span>
+                                <span>Mua</span>
                               </button>
                               <button
                                 type="button"
                                 onClick={(e) => handleAddToCart(item, e)}
                                 title="Thêm vào giỏ hàng"
-                                className="p-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all flex items-center justify-center cursor-pointer shrink-0 shadow-2xs hover:scale-105 active:scale-95"
+                                className="w-8 h-8 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all flex items-center justify-center cursor-pointer shrink-0 shadow-2xs active:scale-95"
                               >
-                                <span className="material-symbols-outlined text-base">
+                                <span className="material-symbols-outlined text-[15px]">
                                   add_shopping_cart
                                 </span>
                               </button>
                             </div>
                           ) : isSlotUpcoming ? (
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1">
                               <button
                                 type="button"
                                 onClick={() =>
@@ -828,20 +828,20 @@ export default function FlashSalePage() {
                                     "info",
                                   )
                                 }
-                                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold text-xs transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                                className="flex-1 h-8 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold text-[10.5px] transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer uppercase tracking-wider"
                               >
-                                <span className="material-symbols-outlined text-sm">
+                                <span className="material-symbols-outlined text-[14px]">
                                   timer
                                 </span>
-                                <span>Sắp Mở Bán ({timeRemaining[currentPlatformSlot?.id || ""]?.m || "00"}:{timeRemaining[currentPlatformSlot?.id || ""]?.s || "00"})</span>
+                                <span>Chờ mở</span>
                               </button>
                               <button
                                 type="button"
                                 onClick={(e) => handleAddToCart(item, e)}
                                 title="Thêm vào giỏ hàng trước"
-                                className="p-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition-all flex items-center justify-center cursor-pointer shrink-0 shadow-2xs hover:scale-105 active:scale-95"
+                                className="w-8 h-8 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition-all flex items-center justify-center cursor-pointer shrink-0 shadow-2xs active:scale-95"
                               >
-                                <span className="material-symbols-outlined text-base">
+                                <span className="material-symbols-outlined text-[15px]">
                                   add_shopping_cart
                                 </span>
                               </button>
@@ -849,9 +849,9 @@ export default function FlashSalePage() {
                           ) : (
                             <button
                               disabled
-                              className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-400 font-bold text-xs cursor-not-allowed"
+                              className="w-full h-8 rounded-lg bg-slate-100 text-slate-400 font-bold text-[11px] cursor-not-allowed"
                             >
-                              Khung Giờ Đã Kết Thúc
+                              Đã Kết Thúc
                             </button>
                           )}
                         </div>
