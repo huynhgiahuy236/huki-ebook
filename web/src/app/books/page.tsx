@@ -62,20 +62,32 @@ function CatalogPageContent() {
 
   useEffect(() => {
     let isMounted = true;
-    catalogApi.getPublicBooks({ limit: 1000 })
-      .then((res) => {
-        if (isMounted) {
-          if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-            setRealBooks(res.data);
-            res.data.forEach((b) => reviewSummaryService.register(b.id));
-          }
-          setIsLoadingRealBooks(false);
+    async function loadBooks() {
+      try {
+        let res = await catalogApi.getPublicBooks({ limit: 1000 });
+        if (!res.success || !Array.isArray(res.data) || res.data.length === 0) {
+          res = await catalogApi.getPublicBooks({ limit: 100 });
         }
-      })
-      .catch((err) => {
+        if (isMounted && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setRealBooks(res.data);
+          res.data.forEach((b) => reviewSummaryService.register(b.id));
+        }
+      } catch (err) {
         console.warn('Could not fetch real books:', err);
+        try {
+          const fallbackRes = await catalogApi.getPublicBooks({ limit: 100 });
+          if (isMounted && fallbackRes.success && Array.isArray(fallbackRes.data)) {
+            setRealBooks(fallbackRes.data);
+            fallbackRes.data.forEach((b) => reviewSummaryService.register(b.id));
+          }
+        } catch {
+          // ignore
+        }
+      } finally {
         if (isMounted) setIsLoadingRealBooks(false);
-      });
+      }
+    }
+    loadBooks();
     return () => {
       isMounted = false;
     };
@@ -155,9 +167,14 @@ function CatalogPageContent() {
       let catSlug = 'selfhelp';
       if (rb.category) {
         const catStr = (typeof rb.category === 'object' ? rb.category?.slug || rb.category?.name : String(rb.category)).toLowerCase();
-        if (catStr.includes('kinh-te') || catStr.includes('business')) catSlug = 'business';
-        else if (catStr.includes('cong-nghe') || catStr.includes('tech')) catSlug = 'technology';
-        else if (catStr.includes('van-hoc') || catStr.includes('literature')) catSlug = 'literature';
+        if (catStr.includes('kinh-te') || catStr.includes('business') || catStr.includes('kinh-doanh')) catSlug = 'business';
+        else if (catStr.includes('cong-nghe') || catStr.includes('tech') || catStr.includes('khoa-hoc')) catSlug = 'technology';
+        else if (catStr.includes('van-hoc') || catStr.includes('literature') || catStr.includes('tieu-thuyet')) catSlug = 'literature';
+      } else {
+        const text = `${rb.title || ''} ${rb.description || ''}`.toLowerCase();
+        if (text.includes('kinh doanh') || text.includes('kinh tế') || text.includes('tài chính') || text.includes('đầu tư')) catSlug = 'business';
+        else if (text.includes('công nghệ') || text.includes('ai') || text.includes('lập trình') || text.includes('khoa học')) catSlug = 'technology';
+        else if (text.includes('tiểu thuyết') || text.includes('truyện') || text.includes('thơ') || text.includes('văn học')) catSlug = 'literature';
       }
       const authorName = rb.author?.name || (typeof rb.author === 'string' ? rb.author : null) || rawRb.authorName || 'Tác giả HUKI';
       const publisherName = rb.publisher?.name || (typeof rb.publisher === 'string' ? rb.publisher : null) || rawRb.publisherName || rawRb.shopName || 'HUKI Publisher';
