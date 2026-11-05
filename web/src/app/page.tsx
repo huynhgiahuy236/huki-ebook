@@ -416,16 +416,21 @@ export default function HomePage() {
     if (activeFlashSale?.items && activeFlashSale.items.length > 0) {
       return activeFlashSale.items.map((item: FlashSaleItem) => {
         const book = realBooks.find((entry) => entry.id === item.bookId);
+        const resolvedTitle = book?.title || item.bookTitle || "Tác phẩm Flash Sale";
+        const rawAuthor = book?.author?.name || (typeof item.author === 'string' ? item.author : (item.author as any)?.name);
+        const resolvedAuthor = rawAuthor && rawAuthor !== 'Tác giả HUKI' ? rawAuthor : "Tác giả";
+        const resolvedPublisher = book?.publisher?.name || "Nhà xuất bản";
+        const resolvedCover = book?.coverUrl || item.coverUrl || "/banners/hero-library.jpg";
         return {
           id: item.bookId,
           bookId: item.bookId,
-          storeId: book?.storeId || (book as any)?.store_id || book?.businessId,
-          businessId: book?.businessId || book?.storeId,
+          storeId: book?.storeId || (book as any)?.store_id || book?.businessId || item.storeId,
+          businessId: book?.businessId || book?.storeId || item.storeId,
           book: book,
-          title: book?.title || `Tác phẩm Flash Sale #${item.bookId.slice(0, 6)}`,
-          author: book?.author?.name || "Tác giả HUKI",
-          publisher: book?.publisher?.name || "Gian hàng HUKI",
-          cover: book?.coverUrl || "/banners/hero-library.jpg",
+          title: resolvedTitle,
+          author: resolvedAuthor,
+          publisher: resolvedPublisher,
+          cover: resolvedCover,
           price: item.salePrice,
           originalPrice: item.originalPrice,
           discount: `-${item.discountPercent}%`,
@@ -433,8 +438,8 @@ export default function HomePage() {
           rating: 5,
           sales: item.sold,
           soldText: item.isSoldOut ? "Đã bán hết 100%" : `Đã bán ${item.sold} cuốn`,
-          format: "Sách giấy",
-          formatType: "physical",
+          format: item.format === 'DIGITAL' ? "Sách số (Ebook)" : "Sách giấy",
+          formatType: item.format === 'DIGITAL' ? "ebook" : "physical",
         };
       });
     }

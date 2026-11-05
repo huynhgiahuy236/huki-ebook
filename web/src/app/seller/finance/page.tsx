@@ -59,9 +59,8 @@ function formatVietnamDateTime(dateStr?: string | null): string {
 export default function SellerFinancePage() {
   const { user, activeBusinessId, isLoading: isAuthLoading } = useAuth();
   const { showToast } = useToast();
-  const storeId = user?.business?.id || activeBusinessId || (user as any)?.storeId || null;
-
   const [businessDetail, setBusinessDetail] = useState<any>(null);
+  const storeId = businessDetail?.stores?.[0]?.id || (user?.business as any)?.stores?.[0]?.id || (user as any)?.storeId || user?.business?.id || activeBusinessId || null;
 
   const fetchBiz = useCallback(async () => {
     try {

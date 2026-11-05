@@ -267,7 +267,7 @@ export class BooksService implements OnModuleInit {
           { publisherId: bizVal },
         );
         if (bizVal === '1079fc76-a467-48a9-8034-b072aaa5afea') {
-          storeOrConditions.push({ storeId: '3094e54e-2549-42cc-92fb-14a8f8589277' }, { ownerUserId: '8d501a4d-d846-45bd-8f15-fda4e30cf826' });
+          storeOrConditions.push({ storeId: '3094e54e-2549-42cc-92fb-14a8f8589277' });
         } else if (bizVal === 'dede6cd4-454d-4e66-b0cd-ef18337fd25b') {
           storeOrConditions.push({ storeId: '51c48059-37be-46a2-b4a6-04a8365f8cbd' });
         } else if (bizVal === '2fe4493b-08a0-45a3-86cc-093e43ce119e') {
@@ -285,7 +285,7 @@ export class BooksService implements OnModuleInit {
         if (normSlug === 'alpha-books') {
           storeOrConditions.push({ storeId: '51c48059-37be-46a2-b4a6-04a8365f8cbd' });
         } else if (normSlug.includes('huki') || normSlug.includes('tri-tue-viet')) {
-          storeOrConditions.push({ storeId: '3094e54e-2549-42cc-92fb-14a8f8589277' }, { ownerUserId: '8d501a4d-d846-45bd-8f15-fda4e30cf826' });
+          storeOrConditions.push({ storeId: '3094e54e-2549-42cc-92fb-14a8f8589277' });
         } else if (normSlug.includes('nha-nam')) {
           storeOrConditions.push({ storeId: 'store-002-nhanam-books' }, { storeId: '840daf2f-0f39-4a11-8bf3-f0cd2f64d9f1' });
         }
@@ -420,7 +420,7 @@ export class BooksService implements OnModuleInit {
         const target = (query.business || query.store) as string;
         orConditions.push({ storeId: target });
         if (target === '1079fc76-a467-48a9-8034-b072aaa5afea') {
-          orConditions.push({ storeId: '3094e54e-2549-42cc-92fb-14a8f8589277' }, { ownerUserId: '8d501a4d-d846-45bd-8f15-fda4e30cf826' });
+          orConditions.push({ storeId: '3094e54e-2549-42cc-92fb-14a8f8589277' });
         } else if (target === 'dede6cd4-454d-4e66-b0cd-ef18337fd25b') {
           orConditions.push({ storeId: '51c48059-37be-46a2-b4a6-04a8365f8cbd' });
         } else if (target === '2fe4493b-08a0-45a3-86cc-093e43ce119e') {
@@ -888,17 +888,24 @@ export class BooksService implements OnModuleInit {
     }
 
     const serveLocalFallback = () => {
+      // Strictly look up pdfKey or clean localized PDF; never serve Bill Gates PDF for unrelated books
+      const isBillGatesBook = (book.slug && book.slug.includes('con-duong-phia-truoc')) || (book.title && book.title.includes('Con Đường Phía Trước'));
+      const relativeKey = pdfKey.replace(/^ebooks[\/\\]/, '');
       const candidates = [
-        path.resolve(process.cwd(), 'platform/apps/commerce-service/assets/default-ebook.pdf'),
-        path.resolve(process.cwd(), 'apps/commerce-service/assets/default-ebook.pdf'),
-        path.resolve(__dirname, '../../assets/default-ebook.pdf'),
-        path.resolve(__dirname, '../../../../assets/default-ebook.pdf'),
-        path.resolve(process.cwd(), '../web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
-        path.resolve(process.cwd(), 'web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
-        path.resolve(__dirname, '../../../../../../web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
-        'e:/HuKi/platform/apps/commerce-service/assets/default-ebook.pdf',
-        'e:/HuKi/web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf',
+        path.resolve(process.cwd(), 'platform/apps/commerce-service/assets', pdfKey),
+        path.resolve(process.cwd(), 'platform/apps/commerce-service/assets', relativeKey),
+        path.resolve(process.cwd(), 'apps/commerce-service/assets', pdfKey),
+        path.resolve(process.cwd(), 'apps/commerce-service/assets', relativeKey),
+        path.resolve(process.cwd(), '../web/public/ebooks', relativeKey),
+        path.resolve(process.cwd(), 'web/public/ebooks', relativeKey),
+        path.resolve(__dirname, '../../assets', relativeKey),
       ];
+      if (isBillGatesBook) {
+        candidates.push(
+          path.resolve(process.cwd(), '../web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
+          path.resolve(process.cwd(), 'web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
+        );
+      }
       let fallbackPath: string | null = null;
       for (const c of candidates) {
         if (fs.existsSync(c)) {

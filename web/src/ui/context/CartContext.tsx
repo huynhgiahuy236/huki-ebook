@@ -2,7 +2,6 @@ import React, { createContext, useContext, useEffect, useState, useMemo, useRef,
 import { useToast } from './ToastContext';
 import { useAuth } from './AuthContext';
 import { cartApi, type CartItemFormat } from '../api/cartApi';
-import { booksData } from '../data/mockData';
 
 export interface CartItem {
   id: string;
@@ -173,7 +172,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       originalPrice: Number(serverItem.originalPrice || existing?.originalPrice || serverItem.addedPrice || serverItem.unitPrice || 0),
       quantity: serverItem.quantity,
       checked: isAvailable ? (existing ? existing.checked : true) : false,
-      cover: serverItem.book?.coverUrl || existing?.cover || booksData[0]?.cover,
+      cover: serverItem.book?.coverUrl || existing?.cover || '/banners/hero-library.jpg',
       type: isPhysical ? 'physical' : 'ebook',
       isAvailable,
       status: serverItem.status || (isAvailable ? 'AVAILABLE' : 'OUT_OF_STOCK'),
@@ -433,7 +432,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           originalPrice: Number(itemOrBook.originalPrice || itemOrBook.price * 1.3),
           quantity: itemOrBook.quantity || 1,
           checked: true,
-          cover: itemOrBook.cover || itemOrBook.image || booksData[0]?.cover,
+          cover: itemOrBook.cover || itemOrBook.image || '/banners/hero-library.jpg',
           type: isPhysical ? 'physical' : 'ebook',
           isAvailable: true,
           status: 'AVAILABLE',
@@ -492,7 +491,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           originalPrice: Number(isEbook ? (book.originalPriceEbook || 119000) : (book.originalPricePaper || 169000)),
           quantity: 1,
           checked: true,
-          cover: book.cover || book.coverUrl || booksData[0]?.cover,
+          cover: book.cover || book.coverUrl || '/banners/hero-library.jpg',
           type: isEbook ? 'ebook' : 'physical',
           isAvailable: true,
           status: 'AVAILABLE',

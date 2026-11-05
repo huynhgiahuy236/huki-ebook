@@ -112,14 +112,18 @@ export class BooksController {
 
   @Get(':id')
   @UseGuards(OptionalBookAuthGuard)
-  @ApiOperation({ summary: 'Get a book by id' })
+  @ApiOperation({ summary: 'Get a book by id or slug' })
   async findOne(
     @Param('id') id: string,
     @CurrentBookActor() actor?: BookActor,
   ) {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
     if (isUuid) {
-      return { data: await this.booksService.findOne(id, actor) };
+      try {
+        return { data: await this.booksService.findOne(id, actor) };
+      } catch (err: any) {
+        if (err?.status !== 404 && err?.response?.statusCode !== 404) throw err;
+      }
     }
     return { data: await this.booksService.findBySlug(id, actor) };
   }

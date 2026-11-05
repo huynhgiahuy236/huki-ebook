@@ -74,22 +74,21 @@ export default function LibraryPage() {
       return;
     }
 
-    catalogApi
-      .getPublicBooks({ limit: 100 })
-      .then((res) => {
-        if (!res || !res.success || !res.data) return;
-        const allBooks = Array.isArray(res.data) ? res.data : (res.data as any).data || [];
+    Promise.all(missingIds.map((id) => catalogApi.getBookById(id).catch(() => null)))
+      .then((responses) => {
         const currentOwnedIds = new Set(books.map((b) => b.bookId || b.id));
-        const matched: UserLibraryBook[] = allBooks
-          .filter((b: BookData) => missingIds.includes(b.id) && !currentOwnedIds.has(b.id))
-          .map((b: BookData) => ({
+        const matched: UserLibraryBook[] = responses
+          .filter((res): res is { success: boolean; data: BookData } => Boolean(res && res.success && res.data))
+          .map((res) => res.data)
+          .filter((b) => !currentOwnedIds.has(b.id))
+          .map((b) => ({
             accessId: `wishlist-${b.id}`,
             bookId: b.id,
             id: b.id,
             title: b.title,
-            slug: b.slug,
-            author: typeof b.author === 'string' ? b.author : (b.author as any)?.name || 'Tác giả HUKI',
-            publisher: typeof b.publisher === 'string' ? b.publisher : (b.publisher as any)?.name || 'NXB HUKI',
+            slug: b.slug || '',
+            author: typeof b.author === 'string' ? b.author : (b.author as any)?.name || 'Tác giả',
+            publisher: typeof b.publisher === 'string' ? b.publisher : (b.publisher as any)?.name || 'Nhà xuất bản',
             category: typeof b.category === 'string' ? b.category : (b.category as any)?.name || 'Sách Số',
             categorySlug: (b.category as any)?.slug,
             coverUrl: b.coverUrl || (b as any).coverImage || (b as any).cover,
@@ -100,18 +99,6 @@ export default function LibraryPage() {
             status: 'WISHLIST',
           }));
         setExternalWishlistBooks(matched);
-
-        // Dọn dẹp ID rác không tồn tại trong DB để số lượng hiển thị trên badge luôn khớp 100% với danh sách thực tế
-        const validIds = [
-          ...books.filter((b) => wishlistIds.includes(b.bookId || b.id)).map((b) => b.bookId || b.id),
-          ...matched.map((m) => m.id),
-        ];
-        if (validIds.length > 0 && validIds.length !== wishlistIds.length) {
-          setWishlistIds(validIds);
-          try {
-            localStorage.setItem('huki_wishlist_ids', JSON.stringify(validIds));
-          } catch {}
-        }
       })
       .catch((err) => {
         console.warn('Lỗi lấy sách yêu thích từ catalog DB:', err);
