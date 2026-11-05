@@ -46,95 +46,6 @@ interface PublisherItem {
   isMock: boolean;
 }
 
-
-const DEFAULT_PARTNER_PUBLISHERS: PublisherItem[] = [
-  {
-    id: 'store-002-nhanam-books',
-    name: 'Nhã Nam Books',
-    slug: 'nha-nam-books',
-    category: 'Văn học & Nghệ thuật',
-    logo: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80',
-    banner: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1200&q=80',
-    rating: 4.9,
-    reviewsCount: '3.4k',
-    followersCount: '48.5k',
-    totalBooks: 45,
-    description: 'Nhà phát hành sách văn học, triết học và tinh hoa tri thức hàng đầu tại Việt Nam.',
-    address: '59 Đỗ Quang, Trung Hòa, Cầu Giấy, Hà Nội',
-    responseRate: '98%',
-    isVerified: true,
-    isMock: false,
-  },
-  {
-    id: 'store-001-alphabooks',
-    name: 'Alpha Books Official',
-    slug: 'alpha-books',
-    category: 'Kinh doanh & Quản trị',
-    logo: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=400&q=80',
-    banner: 'https://images.unsplash.com/photo-1507842229451-7f01be7a50d2?auto=format&fit=crop&w=1200&q=80',
-    rating: 4.8,
-    reviewsCount: '2.8k',
-    followersCount: '36.2k',
-    totalBooks: 60,
-    description: 'Đơn vị tiên phong xuất bản các dòng sách quản trị kinh doanh, phát triển bản thân hàng đầu.',
-    address: 'Tầng 3, Dream Center Home, 11A ngõ 282 Nguyễn Huy Tưởng, Thanh Xuân, Hà Nội',
-    responseRate: '99%',
-    isVerified: true,
-    isMock: false,
-  },
-  {
-    id: 'store-003-nxbtre',
-    name: 'NXB Trẻ',
-    slug: 'nxb-tre',
-    category: 'Tổng hợp & Thiếu nhi',
-    logo: 'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?auto=format&fit=crop&w=400&q=80',
-    banner: 'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=1200&q=80',
-    rating: 5.0,
-    reviewsCount: '5.1k',
-    followersCount: '65.0k',
-    totalBooks: 80,
-    description: 'Nuôi dưỡng tâm hồn và tri thức cho nhiều thế hệ độc giả Việt Nam.',
-    address: '161B Lý Chính Thắng, Phường Võ Thị Sáu, Quận 3, TP. Hồ Chí Minh',
-    responseRate: '99%',
-    isVerified: true,
-    isMock: false,
-  },
-  {
-    id: 'store-004-kimdong',
-    name: 'NXB Kim Đồng',
-    slug: 'nxb-kim-dong',
-    category: 'Thiếu nhi & Truyện tranh',
-    logo: 'https://images.unsplash.com/photo-1532012164546-f432f2e3edd8?auto=format&fit=crop&w=400&q=80',
-    banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
-    rating: 4.9,
-    reviewsCount: '4.7k',
-    followersCount: '52.3k',
-    totalBooks: 55,
-    description: 'Nhà xuất bản sách thiếu nhi và văn học tuổi trẻ lớn nhất Việt Nam.',
-    address: '55 Quang Trung, Nguyễn Du, Hai Bà Trưng, Hà Nội',
-    responseRate: '100%',
-    isVerified: true,
-    isMock: false,
-  },
-  {
-    id: 'store-005-firstnews',
-    name: 'First News - Trí Việt',
-    slug: 'first-news',
-    category: 'Kỹ năng & Hạt giống tâm hồn',
-    logo: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&w=400&q=80',
-    banner: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1200&q=80',
-    rating: 4.9,
-    reviewsCount: '6.2k',
-    followersCount: '80.1k',
-    totalBooks: 70,
-    description: 'Hơn 25 năm lan tỏa những giá trị sống nhân văn và bộ sách Hạt Giống Tâm Hồn nổi tiếng.',
-    address: '11H Nguyễn Thị Minh Khai, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
-    responseRate: '99%',
-    isVerified: true,
-    isMock: false,
-  },
-];
-
 function StoresContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -150,29 +61,67 @@ function StoresContent() {
   const [searchInput, setSearchInput] = useState(searchQuery);
   const [realBusinesses, setRealBusinesses] = useState<BusinessData[]>([]);
   const [realAuthors, setRealAuthors] = useState<AuthorItem[]>([]);
+  const [catalogBooks, setCatalogBooks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isLoadingAuthors, setIsLoadingAuthors] = useState(true);
 
-  const loadAuthors = useCallback(async () => {
+  // 1. Tải toàn bộ sách catalog để tính số lượng sách và tác phẩm thật 100%
+  const loadBooks = useCallback(async () => {
+    try {
+      const res = await catalogApi.getPublicBooks({ limit: 1000 });
+      if (res && res.success && res.data) {
+        const list = Array.isArray(res.data) ? res.data : (res.data as any).data || [];
+        setCatalogBooks(list);
+        return list;
+      }
+    } catch (err) {
+      console.warn('Failed to load catalog books for stores:', err);
+    }
+    return [];
+  }, []);
+
+  // 2. Tải tác giả thật từ database và liên kết số tác phẩm từ catalog sách
+  const loadAuthors = useCallback(async (currentBooks?: any[]) => {
     setIsLoadingAuthors(true);
     try {
-      const res = await catalogApi.getAuthors();
+      const [res, booksList] = await Promise.all([
+        catalogApi.getAuthors(),
+        currentBooks && currentBooks.length > 0 ? Promise.resolve(currentBooks) : catalogApi.getPublicBooks({ limit: 1000 }).then(r => (r && r.data ? (Array.isArray(r.data) ? r.data : (r.data as any).data || []) : [])),
+      ]);
+
       if (res && res.data && Array.isArray(res.data)) {
-        const mapped: AuthorItem[] = res.data.map((a: any, idx: number) => ({
-          id: a.id,
-          name: a.name,
-          title: a.bio ? 'Tác giả' : 'Tác giả HUKI',
-          avatar: a.avatar || '',
-          coverBg: idx % 3 === 0 ? 'from-emerald-600/20 to-teal-900/10' : idx % 3 === 1 ? 'from-amber-600/20 to-amber-900/10' : 'from-blue-600/20 to-blue-900/10',
-          followersCount: '1.2k',
-          worksCount: 1,
-          rating: 5.0,
-          category: 'Văn học & Tri thức',
-          description: a.bio || 'Tác giả tham gia xuất bản tác phẩm trên nền tảng HUKI.',
-          notableWorks: [],
-          isVerified: true,
-          isMock: false,
-        }));
+        const mapped: AuthorItem[] = res.data.map((a: any, idx: number) => {
+          const authorBooks = (booksList || []).filter((b: any) => {
+            const authorId = b.authorId || b.author_id;
+            const authorName = typeof b.author === 'string' ? b.author : b.author?.name;
+            return (
+              (authorId && authorId === a.id) ||
+              (authorName && a.name && authorName.toLowerCase().includes(a.name.toLowerCase()))
+            );
+          });
+
+          const worksCount = authorBooks.length;
+          const notableWorks = authorBooks.slice(0, 3).map((b: any) => b.title);
+          const avgRating = worksCount > 0
+            ? Number((authorBooks.reduce((sum: number, b: any) => sum + (Number(b.rating) || 5), 0) / worksCount).toFixed(1))
+            : 5.0;
+
+          return {
+            id: a.id,
+            name: a.name,
+            title: a.bio ? 'Tác giả' : 'Tác giả HUKI',
+            avatar: a.avatar || '',
+            coverBg: idx % 3 === 0 ? 'from-emerald-600/20 to-teal-900/10' : idx % 3 === 1 ? 'from-amber-600/20 to-amber-900/10' : 'from-blue-600/20 to-blue-900/10',
+            followersCount: worksCount > 0 ? `${worksCount} tác phẩm` : 'Tác giả',
+            worksCount: worksCount,
+            rating: avgRating,
+            category: 'Văn học & Tri thức',
+            description: a.bio || (worksCount > 0 ? `Đã xuất bản ${worksCount} tác phẩm trên nền tảng HUKI.` : 'Tác giả tham gia xuất bản tác phẩm trên nền tảng HUKI.'),
+            notableWorks: notableWorks,
+            isVerified: true,
+            isMock: false,
+          };
+        });
         setRealAuthors(mapped);
       }
     } catch (err) {
@@ -181,6 +130,7 @@ function StoresContent() {
       setIsLoadingAuthors(false);
     }
   }, []);
+
   const [followedIds, setFollowedIds] = useState<Record<string, boolean>>(() => {
     try {
       const raw = localStorage.getItem('huki_followed_stores');
@@ -195,11 +145,11 @@ function StoresContent() {
     setSearchInput(searchQuery);
   }, [searchQuery]);
 
-  // 1. Tải danh sách Doanh nghiệp/NXB thực tế từ backend
+  // 3. Tải danh sách Doanh nghiệp/NXB thực tế từ backend
   const loadBusinesses = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await businessApi.getPublicBusinesses({ limit: 50 });
+      const res = await businessApi.getPublicBusinesses({ limit: 100 });
       const rawList = Array.isArray(res?.data)
         ? res.data
         : (Array.isArray((res?.data as any)?.data) ? (res.data as any).data : []);
@@ -213,7 +163,7 @@ function StoresContent() {
     }
   }, []);
 
-  // 2. Tải danh sách ID đã theo dõi từ backend nếu đã đăng nhập
+  // 4. Tải danh sách ID đã theo dõi từ backend nếu đã đăng nhập
   const loadFollowed = useCallback(async () => {
     let localMap: Record<string, boolean> = {};
     try {
@@ -245,10 +195,12 @@ function StoresContent() {
   }, [isLoggedIn]);
 
   useEffect(() => {
+    loadBooks().then((books) => {
+      loadAuthors(books);
+    });
     loadBusinesses();
-    loadAuthors();
     loadFollowed();
-  }, [loadBusinesses, loadAuthors, loadFollowed]);
+  }, [loadBooks, loadAuthors, loadBusinesses, loadFollowed]);
 
   const updateQueryParams = useCallback((updater: (params: URLSearchParams) => void) => {
     const next = new URLSearchParams(searchParams.toString());
@@ -256,13 +208,21 @@ function StoresContent() {
     router.push(`/stores?${next.toString()}`);
   }, [router, searchParams]);
 
-  // Hợp nhất danh sách NXB từ Doanh nghiệp & Gian hàng thực tế (BUG-018)
+  // Hợp nhất danh sách NXB từ Doanh nghiệp & Gian hàng thực tế 100% từ Database
   const combinedAllPublishers = useMemo<PublisherItem[]>(() => {
     const combined: PublisherItem[] = [];
 
     realBusinesses.forEach(biz => {
       if (biz.stores && biz.stores.length > 0) {
         biz.stores.forEach(st => {
+          const storeBooks = catalogBooks.filter(b => {
+            const sId = b.storeId || (b as any).store_id;
+            const pId = b.publisherId || (b as any).publisher_id;
+            const bId = b.businessId || (b as any).business_id;
+            return sId === st.id || pId === st.id || bId === biz.id || sId === biz.id;
+          });
+          const totalBooks = storeBooks.length;
+
           combined.push({
             id: st.id,
             name: st.name,
@@ -272,8 +232,8 @@ function StoresContent() {
             banner: st.banner || 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=800&q=80',
             rating: 5.0,
             reviewsCount: 'Mới',
-            followersCount: '1.2k',
-            totalBooks: 12,
+            followersCount: followedIds[st.id] ? 'Đang theo dõi' : (totalBooks > 0 ? `${totalBooks} ấn phẩm` : 'Gian hàng'),
+            totalBooks: totalBooks,
             description: biz.description || 'Gian hàng chính hãng đã được xác thực giấy phép xuất bản bởi HUKI.',
             address: biz.address || 'Việt Nam',
             responseRate: '100%',
@@ -282,6 +242,14 @@ function StoresContent() {
           });
         });
       } else {
+        const storeBooks = catalogBooks.filter(b => {
+          const sId = b.storeId || (b as any).store_id;
+          const pId = b.publisherId || (b as any).publisher_id;
+          const bId = b.businessId || (b as any).business_id;
+          return sId === biz.id || pId === biz.id || bId === biz.id;
+        });
+        const totalBooks = storeBooks.length;
+
         combined.push({
           id: biz.id,
           name: biz.name,
@@ -291,8 +259,8 @@ function StoresContent() {
           banner: biz.banner || 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=800&q=80',
           rating: 5.0,
           reviewsCount: 'Mới',
-          followersCount: '1.2k',
-          totalBooks: 12,
+          followersCount: followedIds[biz.id] ? 'Đang theo dõi' : (totalBooks > 0 ? `${totalBooks} ấn phẩm` : 'Gian hàng'),
+          totalBooks: totalBooks,
           description: biz.description || 'Gian hàng chính hãng đã được xác thực giấy phép xuất bản bởi HUKI.',
           address: biz.address || 'Việt Nam',
           responseRate: '100%',
@@ -302,17 +270,8 @@ function StoresContent() {
       }
     });
 
-    // Merge partner publishers to ensure full ecosystem visibility on all environments
-    const existingSlugs = new Set(combined.map(p => p.slug.toLowerCase()));
-    const existingNames = new Set(combined.map(p => p.name.toLowerCase().trim()));
-    DEFAULT_PARTNER_PUBLISHERS.forEach(partner => {
-      if (!existingSlugs.has(partner.slug.toLowerCase()) && !existingNames.has(partner.name.toLowerCase().trim())) {
-        combined.push(partner);
-      }
-    });
-
     return combined;
-  }, [realBusinesses]);
+  }, [realBusinesses, catalogBooks, followedIds]);
 
   // Danh sách NXB sau khi lọc
   const publishersList = useMemo(() => {
