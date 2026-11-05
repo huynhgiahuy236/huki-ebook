@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import AccountLayout from '@/ui/components/layout/AccountLayout';
 import { useToast } from '@/ui/context/ToastContext';
-import { affiliateApi, type MyProfileResponse } from '@/lib/affiliate/affiliateApi';
+import { affiliateApi, getAffiliateSiteOrigin, type MyProfileResponse } from '@/lib/affiliate/affiliateApi';
 import { catalogApi, type BookData } from '@/ui/api/catalogApi';
 import AffiliateKycModal from '@/ui/components/affiliate/AffiliateKycModal';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
@@ -187,7 +187,7 @@ export default function AffiliateApplicationStatusPage() {
 
       if (res.success && res.data) {
         setCreatedLinkResult(res.data);
-        const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3100';
+        const origin = getAffiliateSiteOrigin();
         const fullShortUrl = `${origin}${res.data.shortUrl}`;
         handleCopy(fullShortUrl, `book_${book.id || book.bookId}`, `link tiếp thị cho sách "${book.title}"`);
         setQrModalData({
@@ -236,7 +236,7 @@ export default function AffiliateApplicationStatusPage() {
     }
   };
 
-  const originUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3100';
+  const originUrl = getAffiliateSiteOrigin();
 
   return (
     <AccountLayout>
@@ -301,7 +301,7 @@ export default function AffiliateApplicationStatusPage() {
             </div>
             <div className="pt-2 flex flex-col gap-2">
               <Link
-                href="/login"
+                href="/auth/login?redirect=/account/affiliate/application"
                 className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-colors shadow-xs"
               >
                 <span className="material-symbols-outlined text-[16px]">login</span>

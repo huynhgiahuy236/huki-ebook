@@ -145,11 +145,19 @@ export const checkoutApi = {
         .find((row) => row.startsWith('huki_aff_click='));
       if (match) {
         affToken = decodeURIComponent(match.substring('huki_aff_click='.length));
+      } else {
+        const codeMatch = document.cookie
+          .split(';')
+          .map((c) => c.trim())
+          .find((row) => row.startsWith('huki_aff_code='));
+        if (codeMatch) {
+          affToken = decodeURIComponent(codeMatch.substring('huki_aff_code='.length));
+        }
       }
     }
     if (!affToken && typeof localStorage !== 'undefined') {
       try {
-        affToken = localStorage.getItem('huki_aff_click') || undefined;
+        affToken = localStorage.getItem('huki_aff_click') || localStorage.getItem('huki_aff_code') || undefined;
       } catch (e) {
         // Ignore localStorage error
       }
