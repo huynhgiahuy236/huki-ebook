@@ -1306,10 +1306,17 @@ export default function CheckoutPage() {
           return;
         } else {
           setIsSubmitting(false);
+          const errorDetail =
+            Array.isArray(confirmRes.error?.details) && confirmRes.error.details.length > 0
+              ? confirmRes.error.details.map((d: any) => d.message || d).join(", ")
+              : typeof confirmRes.error?.details === "string"
+              ? confirmRes.error.details
+              : "";
           showToast(
             {
               title: "Đặt hàng không thành công",
               message:
+                errorDetail ||
                 confirmRes.error?.message ||
                 "Có lỗi khi xác nhận đơn hàng từ máy chủ.",
             },

@@ -100,7 +100,7 @@ export class CreateFlashSaleDto {
 
 export class CreateFlashSaleItemDto {
   @ApiProperty({ description: "Flash sale ID" })
-  @IsUUID()
+  @IsString()
   flashSaleId: string;
 
   @ApiProperty({ description: "Book ID" })
@@ -160,7 +160,7 @@ export class FlashSaleQueryDto {
 
 export class FlashSaleItemQueryDto {
   @ApiPropertyOptional({ description: "Flash sale ID" })
-  @IsUUID()
+  @IsString()
   @IsOptional()
   flashSaleId?: string;
 
@@ -180,7 +180,7 @@ export class ValidateQuotaDto {
   bookId: string;
 
   @ApiPropertyOptional({ description: "Flash Sale ID" })
-  @IsUUID()
+  @IsString()
   @IsOptional()
   flashSaleId?: string;
 
@@ -201,7 +201,7 @@ export class ReserveFlashSaleDto {
   bookId: string;
 
   @ApiPropertyOptional({ description: "Flash Sale ID" })
-  @IsUUID()
+  @IsString()
   @IsOptional()
   flashSaleId?: string;
 
@@ -213,7 +213,7 @@ export class ReserveFlashSaleDto {
   @ApiProperty({
     description: "Order ID used as an idempotent reservation key",
   })
-  @IsUUID()
+  @IsString()
   orderId: string;
 }
 
@@ -221,7 +221,7 @@ export class ReleaseFlashSaleOrderDto {
   @ApiProperty({
     description: "Order ID whose Flash Sale reservations must be released",
   })
-  @IsUUID()
+  @IsString()
   orderId: string;
 
   @ApiPropertyOptional({
@@ -243,7 +243,7 @@ export class UpdateFlashSaleStatusDto {
 
 export class SellerRegisterFlashSaleItemDto {
   @ApiProperty({ description: "Khung giờ Flash Sale ID" })
-  @IsUUID()
+  @IsString()
   flashSaleId: string;
 
   @ApiProperty({ description: "Book ID thuộc quyền sở hữu của gian hàng" })
@@ -287,7 +287,7 @@ export class SellerBatchItemDto {
 
 export class SellerBatchRegisterFlashSaleItemsDto {
   @ApiProperty({ description: "Khung giờ Flash Sale ID" })
-  @IsUUID()
+  @IsString()
   flashSaleId: string;
 
   @ApiProperty({ description: "Danh sách sản phẩm đăng ký", type: [SellerBatchItemDto] })
