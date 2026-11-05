@@ -25,17 +25,16 @@ function deleteCookie(name: string): void {
 export const tokenStorage = {
   getTokens(): AuthTokens | null {
     const accessToken = this.getAccessToken();
-    const refreshToken = this.getRefreshToken() || '';
-    return accessToken ? { accessToken, refreshToken } : null;
+    return accessToken ? { accessToken, refreshToken: '' } : null;
   },
 
   setTokens(tokens: AuthTokens): void {
     if (typeof window !== 'undefined' && window.localStorage) {
       if (tokens.accessToken) localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
-      if (tokens.refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
     }
     if (tokens.accessToken) setCookie(ACCESS_TOKEN_KEY, tokens.accessToken, 7);
-    if (tokens.refreshToken) setCookie(REFRESH_TOKEN_KEY, tokens.refreshToken, 7);
+    deleteCookie(REFRESH_TOKEN_KEY);
   },
 
   clearTokens(): void {
@@ -58,10 +57,6 @@ export const tokenStorage = {
   },
 
   getRefreshToken(): string | null {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const token = localStorage.getItem(REFRESH_TOKEN_KEY);
-      if (token) return token;
-    }
-    return getCookie(REFRESH_TOKEN_KEY) || getCookie('refreshToken');
+    return null;
   },
 };
