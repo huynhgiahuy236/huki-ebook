@@ -353,7 +353,7 @@ export class OrdersService {
       });
 
       // RF-004: Thu hồi quyền truy cập DRM Ebook nếu đơn hàng bị hủy
-      await tx.bookAccess.updateMany({
+      await tx.bookAccess?.updateMany({
         where: { orderId: id },
         data: {
           status: 'REVOKED',
@@ -2870,7 +2870,7 @@ export class OrdersService {
 
         // RF-004: Thu hồi quyền truy cập DRM Ebook khi món hàng bị hoàn trả
         if (item.bookId && item.sellerOrder?.order?.userId) {
-          await tx.bookAccess.updateMany({
+          await tx.bookAccess?.updateMany({
             where: {
               userId: item.sellerOrder.order.userId,
               bookId: item.bookId,
@@ -3503,7 +3503,7 @@ export class OrdersService {
           select: { userId: true },
         });
         if (parentOrder?.userId && req.bookId) {
-          await this.prisma.bookAccess.updateMany({
+          await this.prisma.bookAccess?.updateMany({
             where: {
               userId: parentOrder.userId,
               bookId: req.bookId,

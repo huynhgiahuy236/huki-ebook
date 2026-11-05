@@ -24,6 +24,7 @@ describe("OrdersService (Prisma)", () => {
       orderStatusHistory: { create: jest.fn(), findMany: jest.fn(), findFirst: jest.fn() },
       returnRequest: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), update: jest.fn().mockResolvedValue({}) },
       outboxEvent: { create: jest.fn() },
+      bookAccess: { updateMany: jest.fn().mockResolvedValue({ count: 0 }), findUnique: jest.fn() },
       $transaction: jest.fn().mockImplementation(async (cb: any) => {
         if (typeof cb === "function") {
           return cb(prisma);

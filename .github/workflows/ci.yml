@@ -94,9 +94,16 @@ jobs:
         working-directory: platform
         run: npm run build
 
+      - name: Ensure PostgreSQL databases exist
+        run: |
+          for db in huki_identity huki_business huki_commerce huki_shipping huki_promotion huki_analytics; do
+            PGPASSWORD=postgres123 psql -h localhost -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$db'" | grep -q 1 || PGPASSWORD=postgres123 psql -h localhost -U postgres -c "CREATE DATABASE $db;"
+          done
+
       - name: Run backend unit and contract tests
         working-directory: platform
         env:
+          NODE_OPTIONS: "--max-old-space-size=6144"
           JWT_SECRET: ci-test-super-secret-jwt-key-minimum-32-chars
           JWT_REFRESH_SECRET: ci-test-refresh-secret-jwt-key-minimum-32-chars
           INTERNAL_SERVICE_KEY: ci-internal-service-key-test
