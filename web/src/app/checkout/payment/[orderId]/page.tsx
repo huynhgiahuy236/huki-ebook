@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { orderApi, BuyerOrder } from '@/ui/api/orderApi';
@@ -144,7 +144,23 @@ export default function PayOSPaymentPage() {
     }
   };
 
-  // 3. Realtime listener & Auto-poll status
+  // 3. Navigation Guard & Single Toast Redirect
+  const isNavigatingRef = useRef(false);
+
+  const navigateToSuccess = useCallback(
+    (targetCode?: string, customToastMsg?: string) => {
+      if (isNavigatingRef.current) return;
+      isNavigatingRef.current = true;
+      const code = targetCode || order?.code || '';
+      showToast(customToastMsg || 'Thanh toán thành công! Đang chuyển hướng...', 'success');
+      setTimeout(() => {
+        window.location.href = `/order-success?orderId=${order?.id || orderId}&code=${encodeURIComponent(code)}&paymentMethod=ONLINE_PAYMENT`;
+      }, 350);
+    },
+    [order?.code, order?.id, orderId, showToast]
+  );
+
+  // 4. Realtime listener & Auto-poll status
   useEffect(() => {
     if (!orderId || !order) return;
 
@@ -154,8 +170,7 @@ export default function PayOSPaymentPage() {
         msg.type === 'ORDER_PAYMENT_SUCCEEDED' &&
         (msg.payload as any)?.orderId === orderId
       ) {
-        showToast('Thanh toán PayOS thành công! Đang chuyển hướng...', 'success');
-        window.location.href = `/order-success?orderId=${order?.id || orderId}&code=${encodeURIComponent(order?.code || '')}&paymentMethod=ONLINE_PAYMENT`;
+        navigateToSuccess((msg.payload as any)?.orderCode);
       }
     });
 
@@ -176,10 +191,7 @@ export default function PayOSPaymentPage() {
               sellerOrders: order?.sellerOrders,
             });
             broadcastInventoryStatus('COMMITTED');
-            showToast('Thanh toán thành công! Đang chuyển hướng...', 'success');
-            setTimeout(() => {
-              window.location.href = `/order-success?orderId=${order?.id || orderId}&code=${encodeURIComponent(order?.code || res.data?.orderCode || '')}&paymentMethod=ONLINE_PAYMENT`;
-            }, 350);
+            navigateToSuccess(order?.code || res.data?.orderCode);
           }
         }
       } catch {
@@ -191,9 +203,9 @@ export default function PayOSPaymentPage() {
       unsubscribe();
       clearInterval(pollInterval);
     };
-  }, [orderId, order, router, showToast]);
+  }, [orderId, order, navigateToSuccess]);
 
-  // 4. Copy to clipboard helper
+  // 5. Copy to clipboard helper
   const handleCopy = (text: string, fieldName: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(text);
@@ -203,7 +215,7 @@ export default function PayOSPaymentPage() {
     }
   };
 
-  // 5. Action 1: Simulate Payment Success (Fast flow & Escrow test)
+  // 6. Action 1: Simulate Payment Success (Fast flow & Escrow test)
   const handleSimulateSuccess = async () => {
     if (!orderId) return;
     setIsSimulating(true);
@@ -211,8 +223,6 @@ export default function PayOSPaymentPage() {
       const res = await paymentApi.simulateSuccess(orderId);
       if (res.success) {
         const targetCode = order?.code || (res.data as any)?.orderCode || '';
-        const targetUrl = `/order-success?orderId=${orderId}&code=${encodeURIComponent(targetCode)}&paymentMethod=ONLINE_PAYMENT`;
-
         realtimeSyncBus.publish('ORDER_PAYMENT_SUCCEEDED', {
           orderId,
           orderCode: targetCode,
@@ -220,12 +230,7 @@ export default function PayOSPaymentPage() {
           sellerOrders: order?.sellerOrders,
         });
         broadcastInventoryStatus('COMMITTED');
-        showToast('Xác nhận thanh toán thành công! Dòng tiền đã được ghi nhận.', 'success');
-        
-        // Guaranteed navigation after bus broadcast
-        setTimeout(() => {
-          window.location.href = targetUrl;
-        }, 350);
+        navigateToSuccess(targetCode, 'Xác nhận thanh toán thành công! Dòng tiền đã được ghi nhận.');
       } else {
         showToast(res.error?.message || 'Không thể mô phỏng thanh toán.', 'error');
         setIsSimulating(false);

@@ -18,9 +18,9 @@ interface ToastTheme {
 const THEMES: Record<string, ToastTheme> = {
   order: {
     icon: 'local_mall',
-    iconBg: 'bg-emerald-50 text-[#00875A]',
+    iconBg: 'bg-emerald-50 border-emerald-200 text-[#00875A]',
     iconColor: 'text-[#00875A]',
-    borderColor: 'border-emerald-200/90',
+    borderColor: 'border-emerald-200',
     badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     badgeText: 'text-emerald-700',
     badgeLabel: 'Đơn hàng mới',
@@ -28,9 +28,9 @@ const THEMES: Record<string, ToastTheme> = {
   },
   system: {
     icon: 'campaign',
-    iconBg: 'bg-indigo-50 text-indigo-600',
+    iconBg: 'bg-indigo-50 border-indigo-200 text-indigo-600',
     iconColor: 'text-indigo-600',
-    borderColor: 'border-indigo-200/90',
+    borderColor: 'border-indigo-200',
     badgeBg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
     badgeText: 'text-indigo-700',
     badgeLabel: 'Thông báo sàn',
@@ -38,9 +38,9 @@ const THEMES: Record<string, ToastTheme> = {
   },
   finance: {
     icon: 'account_balance_wallet',
-    iconBg: 'bg-amber-50 text-amber-600',
+    iconBg: 'bg-amber-50 border-amber-200 text-amber-600',
     iconColor: 'text-amber-600',
-    borderColor: 'border-amber-200/90',
+    borderColor: 'border-amber-200',
     badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
     badgeText: 'text-amber-700',
     badgeLabel: 'Tài chính',
@@ -48,9 +48,9 @@ const THEMES: Record<string, ToastTheme> = {
   },
   warning: {
     icon: 'warning',
-    iconBg: 'bg-amber-50 text-amber-600',
+    iconBg: 'bg-amber-50 border-amber-200 text-amber-600',
     iconColor: 'text-amber-600',
-    borderColor: 'border-amber-200/90',
+    borderColor: 'border-amber-200',
     badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
     badgeText: 'text-amber-700',
     badgeLabel: 'Cảnh báo',
@@ -58,9 +58,9 @@ const THEMES: Record<string, ToastTheme> = {
   },
   error: {
     icon: 'error',
-    iconBg: 'bg-rose-50 text-rose-600',
+    iconBg: 'bg-rose-50 border-rose-200 text-rose-600',
     iconColor: 'text-rose-600',
-    borderColor: 'border-rose-200/90',
+    borderColor: 'border-rose-200',
     badgeBg: 'bg-rose-50 text-rose-700 border-rose-200',
     badgeText: 'text-rose-700',
     badgeLabel: 'Lỗi',
@@ -68,9 +68,9 @@ const THEMES: Record<string, ToastTheme> = {
   },
   success: {
     icon: 'check_circle',
-    iconBg: 'bg-emerald-50 text-[#00875A]',
+    iconBg: 'bg-emerald-50 border-emerald-200 text-[#00875A]',
     iconColor: 'text-[#00875A]',
-    borderColor: 'border-emerald-200/90',
+    borderColor: 'border-emerald-200',
     badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     badgeText: 'text-emerald-700',
     badgeLabel: 'Thành công',
@@ -78,9 +78,9 @@ const THEMES: Record<string, ToastTheme> = {
   },
   info: {
     icon: 'info',
-    iconBg: 'bg-sky-50 text-sky-600',
+    iconBg: 'bg-sky-50 border-sky-200 text-sky-600',
     iconColor: 'text-sky-600',
-    borderColor: 'border-sky-200/90',
+    borderColor: 'border-sky-200',
     badgeBg: 'bg-sky-50 text-sky-700 border-sky-200',
     badgeText: 'text-sky-700',
     badgeLabel: 'Thông tin',
@@ -94,9 +94,7 @@ function ToastCard({ toast, onDismiss }: { toast: ToastMessageState; onDismiss: 
 
   return (
     <div
-      className={`relative w-full max-w-[360px] bg-white/98 backdrop-blur-xl border rounded-2xl shadow-xl shadow-slate-900/10 p-3.5 overflow-hidden transition-all duration-300 pointer-events-auto border-slate-200/90 hover:shadow-2xl ${
-        theme.borderColor
-      } ${
+      className={`relative w-full max-w-[380px] bg-white border border-slate-200 rounded-xl shadow-[0_10px_30px_-5px_rgba(0,0,0,0.12),0_2px_6px_-1px_rgba(0,0,0,0.06)] p-3.5 overflow-hidden transition-all duration-300 pointer-events-auto hover:shadow-[0_16px_36px_-6px_rgba(0,0,0,0.16)] ${
         toast.isExiting
           ? 'opacity-0 translate-x-8 scale-95'
           : 'animate-in fade-in-0 slide-in-from-right-6 duration-300'
@@ -104,9 +102,9 @@ function ToastCard({ toast, onDismiss }: { toast: ToastMessageState; onDismiss: 
       role="status"
     >
       <div className="flex items-start gap-3">
-        {/* Single Refined Icon Badge */}
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 shadow-2xs ${theme.iconBg}`}>
-          <span className="material-symbols-outlined text-[19px]">{theme.icon}</span>
+        {/* Crisp Solid Icon Badge */}
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 border ${theme.iconBg}`}>
+          <span className="material-symbols-outlined text-[18px]">{theme.icon}</span>
         </div>
 
         {/* Text Content */}
@@ -123,11 +121,11 @@ function ToastCard({ toast, onDismiss }: { toast: ToastMessageState; onDismiss: 
               className="w-5 h-5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer shrink-0 -mt-0.5 -mr-1"
               aria-label="Đóng thông báo"
             >
-              <span className="material-symbols-outlined text-[15px]">close</span>
+              <span className="material-symbols-outlined text-[16px]">close</span>
             </button>
           </div>
 
-          <p className="text-[12px] text-slate-600 leading-relaxed break-words line-clamp-3 mt-0.5">
+          <p className="text-[12px] text-slate-600 leading-relaxed break-words line-clamp-3 mt-0.5 font-normal">
             {toast.message}
           </p>
 
