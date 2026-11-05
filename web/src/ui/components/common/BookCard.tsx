@@ -458,14 +458,14 @@ export default function BookCard({
           className="group-hover:scale-105 transition-transform duration-300 w-full h-full object-cover"
         />
 
-        {/* Nút Yêu Thích (Wishlist Heart Button) */}
+        {/* Nút Yêu Thích (Wishlist Heart Button) - Di chuyển lên góc trên bên phải, không che bìa */}
         <button
           type="button"
           onClick={handleToggleWishlist}
-          className={`absolute bottom-2 right-2 z-20 w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-sm active:scale-90 backdrop-blur-md ${
+          className={`absolute top-1.5 right-1.5 z-20 w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-xs active:scale-90 ${
             isWishlisted
-              ? 'bg-rose-500 text-white shadow-rose-500/30 ring-2 ring-white/80'
-              : 'bg-white/90 hover:bg-white text-slate-500 hover:text-rose-500 hover:shadow-md'
+              ? 'bg-rose-500 text-white shadow-rose-500/30 ring-2 ring-white'
+              : 'bg-white/85 hover:bg-white text-slate-400 hover:text-rose-500 border border-slate-200/60'
           }`}
           title={isWishlisted ? 'Bỏ khỏi yêu thích' : 'Thêm vào yêu thích'}
         >
@@ -474,15 +474,13 @@ export default function BookCard({
           </span>
         </button>
 
-        {/* Discount Badge in Top-Right Corner (like Shopee) */}
-        {discountLabel && (
-          <div className="absolute top-0 right-0 z-10 bg-amber-400 text-rose-700 text-[10px] font-black px-1.5 py-0.5 rounded-bl shadow-2xs">
-            {discountLabel}
-          </div>
-        )}
-
-        {/* Genuine Format / Flash Sale Badges in Top-Left */}
+        {/* Genuine Format / Flash Sale / Discount Badges in Top-Left */}
         <div className="absolute top-1.5 left-1.5 z-10 flex flex-col gap-1 pointer-events-none">
+          {discountLabel && (
+            <span className="bg-amber-400 text-slate-900 text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded shadow-2xs">
+              {discountLabel}
+            </span>
+          )}
           {isFlashSale && (
             <span className="bg-rose-600 text-white text-[8.5px] font-bold px-1.5 py-0.5 rounded-sm shadow-2xs">
               Flash Sale
@@ -540,9 +538,9 @@ export default function BookCard({
             type="button"
             onClick={handleAddToCart}
             title="Thêm vào giỏ hàng"
-            className="w-7.5 h-7.5 sm:w-8 sm:h-8 rounded-full bg-emerald-50/90 hover:bg-[#00875A] text-[#00875A] hover:text-white border border-emerald-200/90 transition-all duration-200 flex items-center justify-center cursor-pointer shadow-2xs hover:shadow-xs active:scale-95 shrink-0"
+            className="w-8 h-8 rounded-lg bg-emerald-50 hover:bg-[#00875A] text-[#00875A] hover:text-white border border-emerald-200/90 hover:border-transparent transition-all duration-200 flex items-center justify-center cursor-pointer shadow-2xs hover:shadow-xs active:scale-95 shrink-0"
           >
-            <span className="material-symbols-outlined text-[16px] sm:text-[17px]">shopping_cart</span>
+            <span className="material-symbols-outlined text-[17px]">shopping_cart</span>
           </button>
         </div>
       </div>

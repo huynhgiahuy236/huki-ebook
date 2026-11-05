@@ -1083,7 +1083,7 @@ export default function UniversalNotificationBell({
             setIsDrawerOpen(true);
             refresh();
           }}
-          className="relative flex items-center justify-center w-9 h-9 rounded-xl border border-theme-border text-on-surface hover:text-[#003B2B] hover:bg-theme-secondary-subtle transition-all cursor-pointer shadow-2xs active:scale-95"
+          className="relative flex items-center justify-center w-9 h-9 sm:w-9.5 sm:h-9.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 hover:text-[#00875A] hover:border-[#00875A] hover:bg-emerald-50/50 transition-all cursor-pointer shadow-2xs active:scale-95"
           title="Thông báo & Lên đơn"
           aria-label="Thông báo"
         >

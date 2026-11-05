@@ -665,17 +665,17 @@ export default function StoreHeader({
         </div>
 
         {/* Right Action Icons & User Account */}
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          {/* Cart Icon */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Cart Icon - Standard 38x38 Form Factor */}
           <Link
             href="/cart"
             prefetch={false}
-            className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] flex items-center justify-center text-[var(--theme-text,#17201f)] hover:text-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all relative shrink-0"
+            className="w-9 h-9 sm:w-9.5 sm:h-9.5 rounded-xl border border-slate-200 dark:border-zinc-700 hover:border-[#00875A] bg-white dark:bg-zinc-900 flex items-center justify-center text-slate-700 dark:text-zinc-200 hover:text-[#00875A] hover:bg-emerald-50/50 transition-all relative shrink-0 shadow-2xs active:scale-95"
             title="Giỏ hàng HUKI"
           >
-            <span className="material-symbols-outlined text-[18px] sm:text-[20px]">shopping_cart</span>
+            <span className="material-symbols-outlined text-[19px] sm:text-[20px]">shopping_cart</span>
             {totalItemsCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 bg-[#003b2b] text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
+              <span className="absolute -top-1 -right-1 bg-[#00875A] text-white text-[9px] font-bold min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs ring-2 ring-white dark:ring-zinc-900 pointer-events-none">
                 {totalItemsCount > 99 ? '99+' : totalItemsCount}
               </span>
             )}
@@ -686,44 +686,41 @@ export default function StoreHeader({
             <UniversalNotificationBell variant="user" />
           )}
 
-          {/* Chat / Tin Nhắn - Opens in New Tab */}
+          {/* Chat / Tin Nhắn - Standard 38x38 Form Factor (Opens in New Tab) */}
           {isLoggedIn && (
             <Link
               href={chatUrl}
               prefetch={false}
               target="_blank"
               rel="noopener noreferrer"
-              className="relative flex items-center justify-center sm:gap-1.5 w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg sm:rounded-full border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] bg-white dark:bg-zinc-900 text-[var(--theme-text,#17201f)] hover:text-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all cursor-pointer shadow-2xs group shrink-0"
+              className="relative flex items-center justify-center w-9 h-9 sm:w-9.5 sm:h-9.5 rounded-xl border border-slate-200 dark:border-zinc-700 hover:border-[#00875A] bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 hover:text-[#00875A] hover:bg-emerald-50/50 transition-all cursor-pointer shadow-2xs group shrink-0 active:scale-95"
               title={isSeller ? "Hộp thư Chat Kênh Người Bán (Mở tab mới)" : "Tin nhắn của bạn (Mở tab mới)"}
               aria-label="Tin nhắn"
             >
-              <span className="material-symbols-outlined text-[18px] sm:text-[19px] text-[var(--theme-primary,#003b2b)]">
+              <span className="material-symbols-outlined text-[19px] sm:text-[20px]">
                 chat
               </span>
-              <span className="hidden sm:inline-block text-xs font-semibold whitespace-nowrap text-[var(--theme-text,#17201f)] group-hover:text-[var(--theme-primary,#003b2b)] transition-colors">
-                Tin nhắn
-              </span>
               {unreadChatCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-[#dc2626] text-white text-[9px] font-bold min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs">
+                <span className="absolute -top-1 -right-1 bg-rose-600 text-white text-[9px] font-bold min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs ring-2 ring-white dark:ring-zinc-900 pointer-events-none">
                   {unreadChatCount > 99 ? '99+' : unreadChatCount}
                 </span>
               )}
             </Link>
           )}
 
-          {/* User Account / Auth Buttons */}
+          {/* User Account / Auth Buttons - Standardized Profile Button */}
           {isLoggedIn ? (
             <div ref={userMenuRef} className="relative shrink-0">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center gap-1 sm:gap-2 p-1 sm:p-1.5 sm:pl-1.5 sm:pr-2.5 rounded-full border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all cursor-pointer shadow-2xs group shrink-0"
+                className="flex items-center gap-1.5 sm:gap-2 h-9 sm:h-9.5 p-1 sm:pl-1.5 sm:pr-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 hover:border-[#00875A] bg-white dark:bg-zinc-900 hover:bg-emerald-50/50 transition-all cursor-pointer shadow-2xs group shrink-0 active:scale-95"
                 title="Tài khoản cá nhân"
               >
                 <UserAvatar user={user} size="sm" />
-                <span className="hidden sm:inline-block text-xs font-bold text-[var(--theme-text,#17201f)] group-hover:text-[var(--theme-primary,#003b2b)] max-w-[100px] md:max-w-[130px] truncate transition-colors">
+                <span className="hidden sm:inline-block text-xs font-bold text-slate-800 dark:text-zinc-100 group-hover:text-[#00875A] max-w-[100px] md:max-w-[130px] truncate transition-colors">
                   {userDisplayName}
                 </span>
-                <span className="material-symbols-outlined text-sm sm:text-base text-[var(--theme-text-muted,#6b7280)] group-hover:text-[var(--theme-primary,#003b2b)] transition-colors hidden sm:inline-block">
+                <span className="material-symbols-outlined text-sm sm:text-base text-slate-400 group-hover:text-[#00875A] transition-colors hidden sm:inline-block">
                   arrow_drop_down
                 </span>
               </button>
