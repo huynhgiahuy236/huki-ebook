@@ -58,6 +58,16 @@ export default function HierarchicalSidebar({
     )
   );
 
+  const isShipper = Boolean(
+    isLoggedIn &&
+    !isAdmin && (
+      user?.role === 'SHIPPER' ||
+      user?.role === 'DELIVERY_STAFF' ||
+      hasRole('SHIPPER') ||
+      hasRole('DELIVERY_STAFF')
+    )
+  );
+
   const [isSetupCompleted, setIsSetupCompleted] = useState(false);
   useEffect(() => {
     if (typeof window !== 'undefined' && user?.business?.id) {
@@ -86,7 +96,7 @@ export default function HierarchicalSidebar({
     }
   }, [pathname]);
 
-  // Clean, focused, single-level Navigation Schema
+  // Clean, focused, segregated single-level Navigation Schema
   const allNavGroups: NavGroup[] = [
     {
       id: 'shopping',
@@ -150,8 +160,8 @@ export default function HierarchicalSidebar({
       items: [
         {
           id: 'messages',
-          title: isSeller ? 'Chat Kênh Bán' : 'Tin Nhắn & Chat',
-          to: isSeller ? '/seller/chat' : '/account/messages',
+          title: 'Tin Nhắn & Chat',
+          to: '/account/messages',
           icon: 'chat',
           targetBlank: true,
         },
@@ -199,6 +209,32 @@ export default function HierarchicalSidebar({
                 title: sellerTargetTitle,
                 to: sellerTargetUrl,
                 icon: !isSetupCompleted ? 'account_balance' : 'storefront',
+                badge: 'SELLER',
+                badgeColor: 'bg-emerald-500 text-white font-bold',
+              },
+              {
+                id: 'seller-chat',
+                title: 'Chat Kênh Bán',
+                to: '/seller/chat',
+                icon: 'forum',
+                targetBlank: true,
+              },
+            ],
+          },
+        ]
+      : isShipper
+      ? [
+          {
+            id: 'shipper',
+            title: 'GIAO HÀNG',
+            items: [
+              {
+                id: 'shipper-portal',
+                title: 'Cổng Bưu Tá HuKi',
+                to: '/shipper/deliveries',
+                icon: 'local_shipping',
+                badge: 'SHIPPER',
+                badgeColor: 'bg-blue-600 text-white font-bold',
               },
             ],
           },
@@ -213,6 +249,9 @@ export default function HierarchicalSidebar({
     }
     if (g.id === 'business') {
       return isLoggedIn && isSeller;
+    }
+    if (g.id === 'shipper') {
+      return isLoggedIn && isShipper;
     }
     return true;
   });
@@ -242,12 +281,12 @@ export default function HierarchicalSidebar({
           fixed bottom-0 left-0
           bg-[var(--theme-header-top,#003b2b)] border-r border-white/15
           flex flex-col text-white
-          transition-all duration-300 ease-in-out shadow-2xl
+          transition-[width,transform] duration-300 ease-in-out shadow-2xl
           ${
             isMobileOpen
               ? 'top-0 z-50 w-[270px] sm:w-[280px] translate-x-0'
               : '-translate-x-full lg:translate-x-0 lg:top-[78px] lg:z-30 ' +
-                (isCollapsed ? 'lg:w-[60px]' : 'lg:w-[220px]')
+                (isCollapsed ? 'lg:w-[68px]' : 'lg:w-[230px]')
           }
         `}
       >
@@ -275,12 +314,12 @@ export default function HierarchicalSidebar({
         )}
 
         {/* Scrollable Nav Area */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 space-y-3 select-none scrollbar-thin">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 space-y-3.5 select-none scrollbar-thin">
           {navGroups.map((group) => (
             <div key={group.id} className="space-y-1">
               {/* Group Header - Always show when not collapsed (including on mobile!) */}
               {!showCollapsed && (
-                <div className="px-2.5 py-0.5 text-[9.5px] font-extrabold text-white/50 uppercase tracking-wider">
+                <div className="px-2.5 py-1 text-[9.5px] font-extrabold text-white/50 uppercase tracking-wider animate-in fade-in-0 duration-200">
                   {group.title}
                 </div>
               )}
@@ -302,32 +341,32 @@ export default function HierarchicalSidebar({
                             target={item.targetBlank || item.id === 'web-reader' ? '_blank' : undefined}
                             rel={item.targetBlank || item.id === 'web-reader' ? 'noopener noreferrer' : undefined}
                             onClick={closeMobile}
-                            className={`flex items-center justify-center w-9 h-9 rounded-xl transition-colors duration-150 relative shrink-0 ${
+                            className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 relative shrink-0 active:scale-95 ${
                               isActive
                                 ? 'bg-white text-[var(--theme-primary,#003b2b)] shadow-sm font-bold border border-white/40'
                                 : 'text-white/80 hover:bg-white/15 hover:text-white border border-transparent'
                             }`}
                           >
-                            <span className="material-symbols-outlined text-[19px] shrink-0">{item.icon}</span>
+                            <span className="material-symbols-outlined text-[20px] shrink-0">{item.icon}</span>
                             {item.badge && (
-                              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-rose-400" />
+                              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-400 ring-2 ring-[var(--theme-header-top,#003b2b)]" />
                             )}
                           </Link>
 
                           {/* Floating Tooltip */}
-                          <div className="opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150 absolute left-full ml-2 px-2.5 py-1 bg-slate-900 text-white text-[11px] font-bold rounded-lg shadow-xl whitespace-nowrap z-50">
+                          <div className="opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150 absolute left-full ml-3 px-2.5 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-xl shadow-xl whitespace-nowrap z-50">
                             {item.title}
                           </div>
                         </div>
                       ) : (
-                        /* Expanded Clean Item View (Both on expanded desktop AND full mobile drawer!) */
+                        /* Expanded Clean Item View */
                         <Link
-                            href={item.to}
-                            prefetch={false}
+                          href={item.to}
+                          prefetch={false}
                           target={item.targetBlank || item.id === 'web-reader' ? '_blank' : undefined}
                           rel={item.targetBlank || item.id === 'web-reader' ? 'noopener noreferrer' : undefined}
                           onClick={closeMobile}
-                          className={`flex items-center justify-between gap-2 px-2.5 h-9 rounded-xl text-[12.5px] transition-colors duration-150 shrink-0 ${
+                          className={`flex items-center justify-between gap-2 px-3 h-10 rounded-xl text-[12.5px] transition-all duration-200 shrink-0 ${
                             isActive
                               ? 'bg-white text-[var(--theme-primary,#003b2b)] font-bold shadow-sm border border-white/40'
                               : 'text-white/85 font-medium hover:bg-white/15 hover:text-white border border-transparent'
@@ -336,7 +375,7 @@ export default function HierarchicalSidebar({
                         >
                           <div className="flex items-center gap-2.5 min-w-0 flex-1">
                             <span
-                              className={`material-symbols-outlined text-[18px] shrink-0 transition-colors ${
+                              className={`material-symbols-outlined text-[19px] shrink-0 transition-colors ${
                                 isActive
                                   ? 'text-[var(--theme-primary,#003b2b)] font-bold'
                                   : 'text-white/75 group-hover:text-white'
@@ -344,15 +383,13 @@ export default function HierarchicalSidebar({
                             >
                               {item.icon}
                             </span>
-                            <span className="truncate leading-none min-w-0">{item.title}</span>
+                            <span className="truncate leading-none min-w-0 animate-in fade-in-0 duration-200">{item.title}</span>
                           </div>
 
                           {item.badge && (
                             <span
                               className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold shrink-0 whitespace-nowrap leading-none ${
-                                isActive
-                                  ? 'bg-[#006953] text-white'
-                                  : 'bg-white/20 text-white'
+                                item.badgeColor || (isActive ? 'bg-[#006953] text-white' : 'bg-white/20 text-white')
                               }`}
                             >
                               {item.badge}
