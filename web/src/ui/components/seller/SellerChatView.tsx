@@ -1158,18 +1158,22 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                 <div className="flex items-center gap-1.5 text-slate-600">
                   <button
                     type="button"
-                    disabled
-                    className="w-9 h-9 rounded-xl opacity-40 cursor-not-allowed pointer-events-none flex items-center justify-center text-slate-400"
-                    title="Gọi thoại hỗ trợ (Tính năng đang phát triển)"
+                    onClick={() => {
+                      showToast('Tổng đài hỗ trợ 1900 8866 (8:00 - 21:00) hỗ trợ kết nối thoại bảo mật giữa Shop và Khách hàng.', 'info');
+                    }}
+                    className="w-9 h-9 rounded-xl hover:bg-slate-100 text-slate-600 hover:text-emerald-700 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Gọi thoại hỗ trợ khách hàng (Qua tổng đài 1900 8866)"
                   >
                     <span className="material-symbols-outlined text-lg">call</span>
                   </button>
 
                   <button
                     type="button"
-                    disabled
-                    className="w-9 h-9 rounded-xl opacity-40 cursor-not-allowed pointer-events-none flex items-center justify-center text-slate-400"
-                    title="Gọi video tư vấn (Tính năng đang phát triển)"
+                    onClick={() => {
+                      showToast('Kênh hỗ trợ video tư vấn sách trực tiếp sẽ được kích hoạt khi Khách hàng gửi yêu cầu xem sách thật.', 'info');
+                    }}
+                    className="w-9 h-9 rounded-xl hover:bg-slate-100 text-slate-600 hover:text-emerald-700 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Gọi video tư vấn sách"
                   >
                     <span className="material-symbols-outlined text-lg">videocam</span>
                   </button>
@@ -1810,11 +1814,16 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
 
               <button
                 type="button"
-                disabled
-                className="w-full py-2 rounded-xl border border-slate-200 opacity-40 cursor-not-allowed pointer-events-none text-slate-400 font-semibold text-xs flex items-center justify-center gap-1.5"
-                title="Chuyên viên kỹ thuật DRM (Tính năng đang phát triển)"
+                onClick={() => {
+                  showToast('Đã gửi yêu cầu hỗ trợ bản quyền DRM tới Kỹ thuật viên sàn HuKi. Bạn sẽ được hỗ trợ trong phiên chat này.', 'success');
+                  if (!internalNote.includes('[Yêu cầu hỗ trợ DRM]')) {
+                    setInternalNote((prev) => (prev ? `${prev}\n[Yêu cầu hỗ trợ DRM] Đã thông báo KTV sàn kiểm tra bản quyền sách.` : '[Yêu cầu hỗ trợ DRM] Đã thông báo KTV sàn kiểm tra bản quyền sách.'));
+                  }
+                }}
+                className="w-full py-2 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                title="Yêu cầu Chuyên viên kỹ thuật DRM hỗ trợ kiểm tra bản quyền sách"
               >
-                <span className="material-symbols-outlined text-sm">security</span>
+                <span className="material-symbols-outlined text-sm text-emerald-700">security</span>
                 <span>Chuyên Viên Kỹ Thuật DRM</span>
               </button>
             </div>

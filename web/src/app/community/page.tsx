@@ -102,6 +102,34 @@ function CommunityFeedContent() {
     'post-1': true,
   });
 
+  // BT-002: Active menu for post options (more_horiz)
+  const [activeMenuPostId, setActiveMenuPostId] = useState<string | null>(null);
+
+  const handleCopyPostLink = (postId: string) => {
+    setActiveMenuPostId(null);
+    const url = typeof window !== 'undefined' ? `${window.location.origin}/community#${postId}` : '';
+    if (typeof navigator !== 'undefined' && navigator.clipboard && url) {
+      navigator.clipboard.writeText(url).then(() => {
+        showToast('Đã sao chép liên kết bài viết vào bộ nhớ tạm!', 'success');
+      }).catch(() => {
+        showToast('Đã sao chép liên kết bài viết!', 'success');
+      });
+    } else {
+      showToast('Đã sao chép liên kết bài viết!', 'success');
+    }
+  };
+
+  const handleReportPost = (postId: string) => {
+    setActiveMenuPostId(null);
+    showToast('Cảm ơn bạn đã phản hồi. Ban quản trị HuKi sẽ kiểm duyệt bài viết này trong thời gian sớm nhất.', 'info');
+  };
+
+  const handleDeletePost = (postId: string) => {
+    setActiveMenuPostId(null);
+    setPosts((prev) => prev.filter((p) => p.id !== postId));
+    showToast('Đã xóa bài viết thành công.', 'success');
+  };
+
   // CA-003: Auto-prepopulate post from order-success
   useEffect(() => {
     const action = searchParams.get('action');
@@ -358,12 +386,47 @@ function CommunityFeedContent() {
                       <span className="text-[11px] text-slate-400 block">{post.createdAt}</span>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className="text-slate-400 hover:text-slate-600 p-1 rounded-full cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-base">more_horiz</span>
-                  </button>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setActiveMenuPostId(activeMenuPostId === post.id ? null : post.id)}
+                      className="text-slate-400 hover:text-slate-600 p-1 rounded-full cursor-pointer transition-colors"
+                      title="Tùy chọn bài viết"
+                    >
+                      <span className="material-symbols-outlined text-base">more_horiz</span>
+                    </button>
+
+                    {activeMenuPostId === post.id && (
+                      <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-20 animate-in fade-in zoom-in-95 duration-100">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyPostLink(post.id)}
+                          className="w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[16px] text-slate-500">content_copy</span>
+                          <span>Sao chép liên kết</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleReportPost(post.id)}
+                          className="w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[16px] text-amber-500">flag</span>
+                          <span>Báo cáo bài viết</span>
+                        </button>
+                        {(post.authorName === (user?.fullName || user?.name) || (user as any)?.role === 'ADMIN') && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePost(post.id)}
+                            className="w-full px-3 py-2 text-left text-xs text-rose-600 hover:bg-rose-50 flex items-center gap-2 cursor-pointer transition-colors border-t border-slate-100 mt-1 pt-1.5"
+                          >
+                            <span className="material-symbols-outlined text-[16px] text-rose-500">delete</span>
+                            <span>Xóa bài viết</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Content */}

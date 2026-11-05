@@ -2662,10 +2662,17 @@ export function SellerFlashSaleView() {
                                 }`}
                               >
                                 {/* 0. Expand Arrow */}
-                                <td className="py-3 px-2 text-center align-middle" onClick={(e) => { e.stopPropagation(); toggleExpandItem(item.id); }}>
+                                <td className="py-3 px-2 text-center align-middle">
                                   <button
                                     type="button"
-                                    className="w-5 h-5 rounded text-gray-400 hover:text-orange-600 flex items-center justify-center transition-transform"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleExpandItem(item.id);
+                                    }}
+                                    className="w-5 h-5 rounded text-gray-400 hover:text-orange-600 flex items-center justify-center transition-transform cursor-pointer"
+                                    title={isItemExpanded ? 'Thu gọn chi tiết' : 'Mở rộng chi tiết'}
+                                    aria-expanded={isItemExpanded}
+                                    aria-label="Mở rộng chi tiết sản phẩm"
                                   >
                                     <span className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${isItemExpanded ? 'rotate-90 text-orange-600' : ''}`}>
                                       chevron_right
