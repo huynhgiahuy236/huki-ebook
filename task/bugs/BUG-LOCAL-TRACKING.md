@@ -28,7 +28,7 @@
 | 7 | **BUG-LOC-007** | Sidebar Menu thu/phóng thiếu animation mượt mà, khoảng cách chật chội & Rà soát phân quyền RBAC phân hệ | `HierarchicalSidebar.tsx` | UX/UI + RBAC | ✅ Đã bóc tách gốc rễ & Giải pháp | ✅ **ĐÃ XỬ LÝ & VERIFIED** (Transition 300ms, 68px/230px, phân quyền riêng Buyer/Seller/Shipper/Admin) |
 | 8 | **BUG-LOC-008** | Card sản phẩm tại `/flash-sale` kích thước quá to, phá vỡ mật độ thị giác chuẩn TMĐT Store | `web/src/app/flash-sale/page.tsx` | UX/UI | ✅ Đã bóc tách gốc rễ & Giải pháp | ✅ **ĐÃ XỬ LÝ & VERIFIED** (Lưới 6 cột chuẩn Store, padding p-2.5/p-3, font size cân đối) |
 | 9 | **BUG-LOC-009** | Xóa bỏ 100% Mock Data tại `/stores` và `/stores?tab=authors`; Ràng buộc toàn bộ số liệu sách & follower từ DB | `web/src/app/stores/page.tsx` + API | Data Integrity | ✅ Đã bóc tách mảng mock & Giải pháp kết nối DB | ✅ **ĐÃ XỬ LÝ & VERIFIED** (Xóa DEFAULT_PARTNER_PUBLISHERS, liên kết 241 sách & 20 tác giả thật từ DB) |
-| 10 | **BUG-LOC-010** | Đơn hàng thuần Ebook DRM tại `/orders/[id]` bị hiển thị tiến trình bưu tá giao hàng, địa chỉ ship và hardcode COD | `web/src/app/orders/[id]/page.tsx` | Business Flow | ✅ Đã bóc tách 3 điểm lỗi & Giải pháp chuyên biệt Ebook | ⏳ Chờ lệnh duyệt code |
+| 10 | **BUG-LOC-010** | Đơn hàng thuần Ebook DRM tại `/orders/[id]` bị hiển thị tiến trình bưu tá giao hàng, địa chỉ ship và hardcode COD | `web/src/app/orders/[id]/page.tsx` | Business Flow | ✅ Đã bóc tách 3 điểm lỗi & Giải pháp chuyên biệt Ebook | ✅ **ĐÃ XỬ LÝ & VERIFIED** (Digital stepper 4 bước, thẻ DRM account, dynamic payment method) |
 
 ---
 
@@ -340,5 +340,14 @@ Vấn đề nằm tại mã nguồn `web/src/app/page.tsx`:
      * Nếu là `FREE` ➔ Hiển thị *"Miễn phí (Áp voucher 100%)"*.
      * Nếu là `COD` ➔ Hiển thị *"Thanh toán khi nhận hàng (COD)"*.
    - Tuyệt đối loại bỏ đoạn JSX hardcode COD tại dòng 1539.
+
+#### 3. Kết Quả Xác Minh (Verification via `scripts/test_bug_loc_010.js`)
+- Đã chạy kiểm thử thực tế trên đơn hàng Ebook `#ORD-MW3Q8EI8-9369335F`:
+  * `isPureDigitalOrder`: Nhận diện chuẩn xác 100% đơn không yêu cầu giao vận.
+  * Stepper Ebook: 4 bước hoàn chỉnh (Đặt hàng -> Thanh toán -> Cấp phép DRM -> Sẵn sàng đọc sách).
+  * Thẻ bên phải: Hiển thị Thẻ Bản quyền & Tủ sách cá nhân (kèm nút dẫn về `/library`).
+  * Thanh toán: Hiển thị VietQR PayOS Thành công, hoàn toàn loại bỏ chữ COD và nút quét QR COD giả định.
+- Mã nguồn TypeScript: `npm --prefix web run typecheck` đạt 0 lỗi.
+
 
 

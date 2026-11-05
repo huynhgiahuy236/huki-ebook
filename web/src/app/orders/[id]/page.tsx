@@ -475,6 +475,77 @@ export default function OrderDetailPage() {
     ? '25%'
     : '0%';
 
+  const hasPhysical = order.sellerOrders?.some((so: any) =>
+    so.requiresShipping === true ||
+    so.items?.some((item: any) =>
+      !item.format?.toUpperCase().includes('DIGITAL') &&
+      !item.format?.toLowerCase().includes('ebook') &&
+      item.type !== 'ebook'
+    )
+  );
+  const isPureDigitalOrder = !hasPhysical;
+
+  const isPaid =
+    order.paymentStatus === 'PAID' ||
+    order.paymentStatus === 'SUCCEEDED' ||
+    order.paymentStatus === 'COMPLETED' ||
+    order.status === 'COMPLETED' ||
+    order.status === 'PROCESSING' ||
+    (order.paymentMethod === 'ONLINE_PAYMENT' &&
+      order.status !== 'PENDING_PAYMENT' &&
+      order.status !== 'PENDING' &&
+      order.status !== 'CANCELLED');
+
+  const isPendingPayment =
+    (order.status === 'PENDING_PAYMENT' || order.paymentStatus === 'PENDING') && !isPaid;
+
+  const digitalSteps = [
+    {
+      id: 1,
+      title: 'Đặt Hàng Thành Công',
+      time: formattedDate,
+      status: 'completed',
+      icon: 'check',
+    },
+    {
+      id: 2,
+      title: 'Xác Nhận Thanh Toán',
+      time: isPaid
+        ? 'Đã thanh toán trực tuyến'
+        : isCancelled
+        ? 'Đã hủy đơn'
+        : 'Chờ thanh toán',
+      status: isPaid ? 'completed' : isPendingPayment ? 'current' : 'upcoming',
+      icon: 'verified',
+    },
+    {
+      id: 3,
+      title: 'Cấp Phép Bản Quyền DRM',
+      time: isDelivered || isPaid
+        ? 'Bảo hộ DRM kích hoạt'
+        : isCancelled
+        ? 'Không cấp phép'
+        : 'Chờ thanh toán',
+      status: isDelivered || isPaid ? 'completed' : 'upcoming',
+      icon: 'lock_person',
+    },
+    {
+      id: 4,
+      title: 'Sẵn Sàng Đọc Sách',
+      time: isDelivered || isPaid
+        ? 'Đã thêm vào Tủ Sách'
+        : 'Chờ hoàn tất',
+      status: isDelivered || isPaid ? 'completed' : 'upcoming',
+      icon: 'auto_stories',
+    },
+  ];
+
+  const digitalProgressLineWidth = (isDelivered || isPaid)
+    ? 'calc(100% - 4rem)'
+    : isPendingPayment
+    ? '33%'
+    : '0%';
+
   return (
     <div className="w-full min-h-screen flex flex-col font-sans text-on-surface bg-theme-bg py-6 md:py-8">
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8">
@@ -544,7 +615,13 @@ export default function OrderDetailPage() {
                   <span>
                     Phương thức:{' '}
                     <b className="text-on-surface">
-                      {order.paymentMethod === 'ONLINE_PAYMENT' ? 'Thanh toán trực tuyến PayOS (VietQR)' : 'Thanh toán khi nhận hàng (COD)'}
+                      {order.paymentMethod === 'ONLINE_PAYMENT' || order.paymentMethod === 'PAYOS'
+                        ? 'Thanh toán trực tuyến PayOS (VietQR)'
+                        : Number(order.grandTotal) === 0 || order.paymentMethod === 'FREE'
+                        ? 'Miễn phí (Voucher 100%)'
+                        : order.paymentMethod === 'WALLET'
+                        ? 'Ví điện tử HuKi'
+                        : 'Thanh toán khi nhận hàng (COD)'}
                     </b>
                   </span>
                 </span>
@@ -628,6 +705,74 @@ export default function OrderDetailPage() {
                 <p className="mt-0.5 text-red-600 dark:text-red-400">
                   Lý do: {order.cancelReason || 'Quá hạn thanh toán 2m hoặc người mua/bán đã yêu cầu hủy.'} {order.cancelReason?.includes('2 phút') ? '(Số lượng sách đã được tự động hoàn trả về kho)' : ''}
                 </p>
+              </div>
+            </div>
+          ) : isPureDigitalOrder ? (
+            <div className="mt-8">
+              <div className="flex items-center justify-between mb-8 pb-3 border-b border-theme-border">
+                <div className="flex items-center gap-2.5">
+                  <span className="material-symbols-outlined text-emerald-600 text-2xl">menu_book</span>
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold font-editorial text-on-surface">
+                      Tiến Trình Cấp Phép &amp; Kích Hoạt Ebook DRM
+                    </h2>
+                    <p className="text-[11px] text-on-surface-variant hidden sm:block">
+                      Sản phẩm số tự động kích hoạt vào Tủ Sách cá nhân ngay khi thanh toán thành công
+                    </p>
+                  </div>
+                </div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Bản quyền số tức thì 24/7
+                </span>
+              </div>
+
+              {/* Digital Stepper bar */}
+              <div className="relative flex flex-col md:flex-row items-center justify-between w-full gap-6 md:gap-0 px-2 sm:px-6">
+                <div className="hidden md:block absolute left-12 right-12 top-5 h-1 bg-theme-surface-subtle -z-0"></div>
+                <div
+                  className="hidden md:block absolute left-12 top-5 h-1 bg-emerald-600 -z-0 transition-all duration-700"
+                  style={{ width: digitalProgressLineWidth }}
+                ></div>
+
+                {digitalSteps.map((step) => {
+                  const isCompleted = step.status === 'completed';
+                  const isCurrent = step.status === 'current';
+                  return (
+                    <div
+                      key={step.id}
+                      className="relative z-10 flex flex-row md:flex-col items-center text-left md:text-center gap-3 md:gap-1.5 max-w-[170px] w-full md:w-auto"
+                    >
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-xs ring-4 ring-white dark:ring-slate-900 transition-all ${
+                          isCompleted
+                            ? 'bg-emerald-600 text-white'
+                            : isCurrent
+                            ? 'bg-amber-500 text-white ring-4 ring-amber-100 dark:ring-amber-900/40 animate-pulse'
+                            : 'bg-theme-surface-subtle text-on-surface-variant border border-theme-border'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">
+                          {isCompleted ? 'check' : step.icon}
+                        </span>
+                      </div>
+                      <div>
+                        <span
+                          className={`text-xs font-bold block ${
+                            isCurrent
+                              ? 'text-amber-600 dark:text-amber-400'
+                              : isCompleted
+                              ? 'text-on-surface'
+                              : 'text-on-surface-variant'
+                          }`}
+                        >
+                          {step.title}
+                        </span>
+                        <span className="text-[11px] text-on-surface-variant block">{step.time}</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : (
@@ -1432,39 +1577,91 @@ export default function OrderDetailPage() {
 
           {/* RIGHT COLUMN: RECIPIENT INFO & FINANCIAL SUMMARY */}
           <div className="lg:col-span-4 space-y-6">
-            {/* Shipping Address Card */}
-            <div className="bg-theme-surface rounded-3xl border border-theme-border p-6 shadow-xs">
-              <h4 className="font-editorial text-base font-bold text-on-surface mb-4 flex items-center gap-2">
-                <span className="material-symbols-outlined text-theme-primary">location_on</span>
-                <span>Địa Chỉ Nhận Hàng</span>
-              </h4>
+            {/* Shipping Address Card vs Digital DRM License Card */}
+            {isPureDigitalOrder ? (
+              <div className="bg-theme-surface rounded-3xl border border-theme-border p-6 shadow-xs">
+                <h4 className="font-editorial text-base font-bold text-on-surface mb-4 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-emerald-600">verified_user</span>
+                  <span>Thông Tin Bản Quyền &amp; Thiết Bị</span>
+                </h4>
 
-              <div className="space-y-2 text-xs">
-                <div className="font-bold text-sm text-on-surface">
-                  {order.shippingAddress?.recipientName || (user as any)?.fullName || 'Người nhận'}
-                </div>
-                <div className="text-on-surface-variant flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-sm">call</span>
-                  <span>{order.shippingAddress?.phone || '0988123456'}</span>
-                </div>
-                <div className="text-on-surface-variant leading-relaxed pt-1">
-                  {[
-                    order.shippingAddress?.addressLine1 || order.shippingAddress?.line1,
-                    order.shippingAddress?.ward,
-                    order.shippingAddress?.district,
-                    order.shippingAddress?.city || order.shippingAddress?.province,
-                  ]
-                    .filter(Boolean)
-                    .join(', ')}
-                </div>
-
-                {order.note && (
-                  <div className="mt-3 p-3 rounded-xl bg-theme-surface-subtle border border-theme-border text-[11px] text-on-surface-variant">
-                    <b className="text-on-surface">Ghi chú:</b> {order.note}
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <span className="text-on-surface-variant block text-[11px]">Tài khoản sở hữu bản quyền:</span>
+                    <div className="font-bold text-sm text-on-surface flex items-center gap-1.5 mt-0.5">
+                      <span className="material-symbols-outlined text-base text-emerald-600">account_circle</span>
+                      <span>{(user as any)?.fullName || order.shippingAddress?.recipientName || 'Độc giả HuKi'}</span>
+                    </div>
+                    <span className="text-[11px] text-on-surface-variant font-mono block mt-0.5">
+                      {(user as any)?.email || 'Tài khoản thành viên HuKi'}
+                    </span>
                   </div>
-                )}
+
+                  <div className="p-3 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800 text-[11px] space-y-1.5">
+                    <div className="flex items-center gap-1.5 font-bold text-emerald-800 dark:text-emerald-300">
+                      <span className="material-symbols-outlined text-sm">devices</span>
+                      <span>Phạm vi bản quyền số:</span>
+                    </div>
+                    <p className="text-emerald-700 dark:text-emerald-400 leading-relaxed text-[11.5px]">
+                      Bảo hộ mã hóa DRM độc quyền HuKi. Cho phép đọc trực tiếp trên Web Browser và ứng dụng di động (tối đa 5 thiết bị cá nhân).
+                    </p>
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-between text-[11.5px]">
+                    <span className="text-on-surface-variant">Trạng thái Tủ Sách:</span>
+                    <span className={`inline-flex items-center gap-1 font-bold ${isDelivered || isPaid ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600'}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${isDelivered || isPaid ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></span>
+                      <span>{isDelivered || isPaid ? 'Đã thêm vào Tủ Sách' : 'Đang xử lý cấp phép'}</span>
+                    </span>
+                  </div>
+
+                  {(isDelivered || isPaid) && (
+                    <Link
+                      href="/library"
+                      className="w-full mt-2 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs"
+                    >
+                      <span className="material-symbols-outlined text-sm">auto_stories</span>
+                      <span>Mở Tủ Sách Cá Nhân</span>
+                    </Link>
+                  )}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="bg-theme-surface rounded-3xl border border-theme-border p-6 shadow-xs">
+                <h4 className="font-editorial text-base font-bold text-on-surface mb-4 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-theme-primary">location_on</span>
+                  <span>Địa Chỉ Nhận Hàng</span>
+                </h4>
+
+                <div className="space-y-2 text-xs">
+                  <div className="font-bold text-sm text-on-surface">
+                    {order.shippingAddress?.recipientName || (user as any)?.fullName || 'Người nhận'}
+                  </div>
+                  {order.shippingAddress?.phone && (
+                    <div className="text-on-surface-variant flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-sm">call</span>
+                      <span>{order.shippingAddress.phone}</span>
+                    </div>
+                  )}
+                  <div className="text-on-surface-variant leading-relaxed pt-1">
+                    {[
+                      order.shippingAddress?.addressLine1 || order.shippingAddress?.line1,
+                      order.shippingAddress?.ward,
+                      order.shippingAddress?.district,
+                      order.shippingAddress?.city || order.shippingAddress?.province,
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}
+                  </div>
+
+                  {order.note && (
+                    <div className="mt-3 p-3 rounded-xl bg-theme-surface-subtle border border-theme-border text-[11px] text-on-surface-variant">
+                      <b className="text-on-surface">Ghi chú:</b> {order.note}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Financial Payment Summary Card */}
             <div className="bg-theme-surface rounded-3xl border border-theme-border p-6 shadow-xs">
@@ -1533,20 +1730,60 @@ export default function OrderDetailPage() {
                   </span>
                 </div>
 
-                <div className="mt-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-base shrink-0">payments</span>
-                    <span>Phương thức: <b>COD (Thanh toán khi nhận hàng)</b></span>
+                {/* Dynamic Payment Method Badge */}
+                {Number(order.grandTotal) === 0 || order.paymentMethod === 'FREE' ? (
+                  <div className="mt-4 p-3 rounded-xl bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 text-[11px] text-teal-800 dark:text-teal-300 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-base shrink-0 text-teal-600">redeem</span>
+                      <span>Phương thức: <b>Miễn phí (Voucher 100%)</b></span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-md bg-teal-600 text-white font-bold text-[10px]">
+                      0đ
+                    </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowCodQrModal(true)}
-                    className="px-2 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[10px] hover:bg-emerald-700 transition-all shrink-0 cursor-pointer shadow-xs inline-flex items-center gap-1"
-                  >
-                    <span className="material-symbols-outlined text-[12px]">qr_code_2</span>
-                    <span>Quét QR</span>
-                  </button>
-                </div>
+                ) : order.paymentMethod === 'ONLINE_PAYMENT' || order.paymentMethod === 'PAYOS' ? (
+                  <div className="mt-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-base shrink-0 text-emerald-600">
+                        {isPaid ? 'verified' : 'pending'}
+                      </span>
+                      <span>
+                        Phương thức: <b>VietQR PayOS {isPaid ? '(Đã thanh toán)' : '(Chờ thanh toán)'}</b>
+                      </span>
+                    </div>
+                    {isPaid ? (
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-bold text-[10px] shrink-0">
+                        Thành công
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/checkout/payment/${order.id}`)}
+                        className="px-2 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[10px] hover:bg-emerald-700 transition-all shrink-0 cursor-pointer shadow-xs inline-flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[12px]">qr_code_2</span>
+                        <span>Thanh toán ngay</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-300 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-base shrink-0 text-amber-600">local_atm</span>
+                      <span>Phương thức: <b>COD (Thanh toán khi nhận hàng)</b></span>
+                    </div>
+                    {!isPaid && !isCancelled && (
+                      <button
+                        type="button"
+                        onClick={() => setShowCodQrModal(true)}
+                        className="px-2 py-1 rounded-lg bg-amber-600 text-white font-bold text-[10px] hover:bg-amber-700 transition-all shrink-0 cursor-pointer shadow-xs inline-flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[12px]">qr_code_2</span>
+                        <span>Quét QR COD</span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
