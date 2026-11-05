@@ -92,6 +92,7 @@ jobs:
             echo "=== [5/5] Verifying UAT health routes ==="
             sleep 15
             curl --fail --retry 5 --retry-delay 5 http://127.0.0.1:3010/api/v1/health/live || echo "UAT API Gateway health check warning"
+            curl --fail --retry 5 --retry-delay 5 http://127.0.0.1:3010/api/v1/vouchers || echo "UAT Promotion Service health check warning"
 
             echo "=== Cleaning up dangling images ==="
             docker image prune -f

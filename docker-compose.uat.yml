@@ -55,6 +55,14 @@ services:
         condition: service_started
       commerce-service-uat:
         condition: service_started
+      shipping-service-uat:
+        condition: service_started
+      community-service-uat:
+        condition: service_started
+      promotion-service-uat:
+        condition: service_started
+      analytics-service-uat:
+        condition: service_started
     networks:
       - huki-network
 
@@ -269,7 +277,7 @@ services:
       dockerfile: Dockerfile
     container_name: huki-uat-promotion-service
     restart: unless-stopped
-    command: ["sh", "-c", "npx prisma migrate deploy --schema=apps/promotion-service/prisma/schema.prisma && node dist/out-tsc/promotion-service/apps/promotion-service/src/main.js"]
+    command: ["sh", "-c", "npx prisma migrate deploy --schema=apps/promotion-service/prisma/schema.prisma || true; exec node dist/out-tsc/promotion-service/apps/promotion-service/src/main.js"]
     environment:
       PORT: 3007
       PROMOTION_SERVICE_PORT: 3007
