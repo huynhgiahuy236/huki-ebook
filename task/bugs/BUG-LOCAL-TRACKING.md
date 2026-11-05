@@ -25,6 +25,10 @@
 | 4 | **BUG-LOC-004** | Thiết kế lại UI Toast thông báo: Xóa bỏ hiệu ứng mờ ảo đục, nâng cấp chuẩn Top-tier (Sonner/Radix sắc nét) | `web/src/ui/components/common/Toast.tsx` | UX/UI | ✅ Đã xây dựng phương án thiết kế | ⏳ Chờ lệnh duyệt code |
 | 5 | **BUG-LOC-005** | Tinh chỉnh Design System BookCard (Nút tim & Giỏ hàng) và Header Action Icons (Đồng bộ kiểu dáng) | `BookCard.tsx` + `StoreHeader.tsx` | UX/UI | ✅ Đã bóc tách điểm dị biệt & Giải pháp | ⏳ Chờ lệnh duyệt code |
 | 6 | **BUG-LOC-006** | Loại bỏ toàn bộ nút & tính năng "Đọc thử"; Tái cấu trúc layout 3 cột trang `/book/[id]` khử khoảng hở | `web/src/app/book/[id]/page.tsx` + toàn sàn | UX/UI + Scope | ✅ Đã quét toàn bộ & Thiết kế bố cục cân đối | ⏳ Chờ lệnh duyệt code |
+| 7 | **BUG-LOC-007** | Sidebar Menu thu/phóng thiếu animation mượt mà, khoảng cách chật chội & Rà soát phân quyền RBAC phân hệ | `HierarchicalSidebar.tsx` | UX/UI + RBAC | ✅ Đã bóc tách gốc rễ & Giải pháp | ⏳ Chờ lệnh duyệt code |
+| 8 | **BUG-LOC-008** | Card sản phẩm tại `/flash-sale` kích thước quá to, phá vỡ mật độ thị giác chuẩn TMĐT Store | `web/src/app/flash-sale/page.tsx` | UX/UI | ✅ Đã bóc tách gốc rễ & Giải pháp | ⏳ Chờ lệnh duyệt code |
+| 9 | **BUG-LOC-009** | Xóa bỏ 100% Mock Data tại `/stores` và `/stores?tab=authors`; Ràng buộc toàn bộ số liệu sách & follower từ DB | `web/src/app/stores/page.tsx` + API | Data Integrity | ✅ Đã bóc tách mảng mock & Giải pháp kết nối DB | ⏳ Chờ lệnh duyệt code |
+| 10 | **BUG-LOC-010** | Đơn hàng thuần Ebook DRM tại `/orders/[id]` bị hiển thị tiến trình bưu tá giao hàng, địa chỉ ship và hardcode COD | `web/src/app/orders/[id]/page.tsx` | Business Flow | ✅ Đã bóc tách 3 điểm lỗi & Giải pháp chuyên biệt Ebook | ⏳ Chờ lệnh duyệt code |
 
 ---
 
@@ -246,4 +250,95 @@ Vấn đề nằm tại mã nguồn `web/src/app/page.tsx`:
     - 🔒 *Đọc Bảo Mật Trên 5 Thiết Bị Cá Nhân*
     - 📦 *Đóng Gói Chống Sốc Tiêu Chuẩn NXB*
   - Nhờ đó, cả 3 cột đạt độ cao hài hòa, trọn vẹn, không còn bất kỳ khoảng trống vô lý nào.
+
+---
+
+### [BUG-LOC-007] Tinh Chỉnh Animation Menu Sidebar & Rà Soát Phân Quyền RBAC Phân Hệ
+
+#### 1. Hiện Tượng & Bóc Tách UI
+- **Mã nguồn:** [web/src/ui/components/layout/HierarchicalSidebar.tsx](file:///e:/HuKi/web/src/ui/components/layout/HierarchicalSidebar.tsx)
+- **Vấn đề chuyển động (Animation):**
+  - Khi bấm thu gọn/mở rộng thanh bên (`isCollapsed`), sidebar chuyển đổi kích thước giật cục (`w-[60px]` vs `w-[220px]`).
+  - Text nhãn mục menu bị bẻ dòng hoặc biến mất đột ngột không có độ trễ mượt mà (chưa có transition `opacity duration-200` và `overflow-hidden` đồng bộ).
+  - Khoảng cách padding (`p-1`, `space-y-0.5`) quá chật chội, thiếu khoảng thở thị giác so với layout cao cấp của `SellerSidebar.tsx`.
+- **Rà soát phân quyền (RBAC Segregation):**
+  - Hiện tại, nếu tài khoản Seller truy cập Storefront, mục Tin nhắn bị ép thành `Chat Kênh Bán` (`/seller/chat`). Trong khi đó, người mua hàng cần truy cập kênh chat khách hàng `/account/messages`.
+  - Nếu là tài khoản `SHIPPER`, sidebar hoàn toàn không có đường dẫn tới Cổng Vận Chuyển (`/shipper/deliveries`).
+  - Cần bảo đảm ranh giới tuyệt đối: Người dùng ở vai trò nào chỉ thấy các tính năng và điều hướng chuẩn của phân hệ đó, không xảy ra tình trạng "râu ông nọ cắm cằm bà kia".
+
+#### 2. Giải Pháp Chuẩn Hóa
+- **Học hỏi thiết kế và chuyển động từ `SellerSidebar.tsx`:**
+  - Áp dụng `transition-all duration-300 ease-in-out` cho khung sidebar, bọc text trong container `transition-opacity duration-200` để khi thu nhỏ icon căn chính xác giữa trục toạ độ (40x40px).
+  - Tăng khoảng cách nhóm (`space-y-1.5`, `px-3 py-2`) giúp thao tác click chuột thoải mái, không bị chạm nhầm.
+- **Chuẩn hóa phân quyền RBAC:**
+  - `Buyer`: Mua sắm, Tủ sách cá nhân, Khám phá sách, Đơn hàng, Tin nhắn khách.
+  - `Seller` (khi role là `BUSINESS` hoặc có `store`): Hiển thị khối điều hướng Kênh Người Bán rõ ràng.
+  - `Shipper` (khi role là `SHIPPER`): Hiển thị khối Cổng Giao Hàng Bưu Tá.
+  - `Admin` (khi role là `PLATFORM_ADMIN`): Hiển thị khối Quản Trị Sàn riêng biệt.
+
+---
+
+### [BUG-LOC-008] Thu Gọn Kích Thước Thẻ Sách Flash Sale Tại `/flash-sale` Đạt Mật Độ Thị Giác Chuẩn TMĐT
+
+#### 1. Hiện Tượng Thực Tế
+- **Mã nguồn:** [web/src/app/flash-sale/page.tsx](file:///e:/HuKi/web/src/app/flash-sale/page.tsx#L686-L760)
+- Thẻ sản phẩm Flash Sale đang dùng:
+  - Khung ảnh `aspect-[3/4]` khổ lớn, padding `p-4`, cỡ chữ tiêu đề và giá tiền quá khổ (`text-lg font-black`).
+  - Bố cục lưới `grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6` làm mỗi card chiếm diện tích khổng lồ trên màn hình, khiến độc giả phải cuộn chuột liên tục và mất tổng quan.
+
+#### 2. Giải Pháp Điều Chỉnh
+- Tham khảo kích thước thẻ chuẩn của Storefront và trang danh mục (`/books`, `/shop/[id]`):
+  - Chuyển lưới sang mật độ chuẩn TMĐT: `grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-3.5`.
+  - Thu nhỏ padding xuống `p-2.5 sm:p-3`, cỡ chữ tiêu đề `text-xs sm:text-[13px]`, giá tiền `text-sm sm:text-base font-black`.
+  - Tinh chỉnh thanh tiến độ số lượng bán (`h-2 rounded-full`) thanh thoát, sắc sảo.
+
+---
+
+### [BUG-LOC-009] Loại Bỏ 100% Mock Data Tại `/stores` & Ràng Buộc Dữ Liệu Thật Từ Database
+
+#### 1. Bóc Tách Dữ Liệu Bịa & Hardcode
+- **Mã nguồn:** [web/src/app/stores/page.tsx](file:///e:/HuKi/web/src/app/stores/page.tsx#L50-L136)
+- File đang hardcode:
+  1. Mảng `DEFAULT_PARTNER_PUBLISHERS` với ID giả (`store-002-nhanam-books`, `store-001-alphabooks`, `store-003-nxbtre`), số lượng sách giả (45, 60, 80 cuốn), follower giả (48.5k, 65k).
+  2. Khi đọc danh sách doanh nghiệp thật từ API `businessApi.getAllPublicBusinesses()`, code lại gán cứng `totalBooks: 12`, `followersCount: '1.2k'`, `rating: 5.0` (dòng 274-276).
+  3. Tại Tab Tác Giả (`stores?tab=authors`), hàm `loadAuthors` (dòng 167-169) gán cứng `followersCount: '1.2k'`, `worksCount: 1`, `rating: 5.0`.
+
+#### 2. Giải Pháp Chuẩn Hóa 100% Dữ Liệu Thật
+- Xóa bỏ triệt để mảng tĩnh `DEFAULT_PARTNER_PUBLISHERS`.
+- Kết nối dữ liệu thật:
+  - Gọi đồng thời `catalogApi.getPublicBooks({ limit: 1000 })` để tính toán chính xác số lượng sách thật của từng Store (`store.id`) và từng Tác giả (`author.id` / `author.name`).
+  - Đọc danh sách follow thật từ bảng theo dõi người dùng (`huki_followed_stores` và DB).
+  - Không còn bất kỳ con số hardcode nào (12 cuốn hay 1.2k follow); gian hàng có bao nhiêu sách thì hiển thị đúng bấy nhiêu.
+
+---
+
+### [BUG-LOC-010] Khắc Phục Lỗi Hiển Thị Đơn Hàng Thuần Ebook Tại `/orders/[id]`
+
+#### 1. Hiện Tượng & Điểm Sai Lệch Nghiệp Vụ
+- **Ảnh minh chứng:** `media_1793895214064_a0115518.jpg` (Đơn hàng Ebook `Clean Code - Mã Sạch Thực Chiến`, đơn thuần số DRM).
+- **3 điểm lỗi nghiêm trọng:**
+  1. **Hiển thị tiến trình bưu tá giao hàng vật lý:** Dòng 639-699 của [web/src/app/orders/[id]/page.tsx](file:///e:/HuKi/web/src/app/orders/[id]/page.tsx) luôn hiển thị: *"Đặt Hàng Thành Công -> Tiếp Nhận Đơn Hàng -> NXB Đang Chuẩn Bị (Đang đóng gói) -> Đang Vận Chuyển (Đang giao tận nơi) -> Giao Thành Công"*. Với Ebook, không có shipper hay đóng gói vật lý.
+  2. **Hiển thị Địa Chỉ Nhận Hàng:** Dòng 1436 luôn render card *"Địa Chỉ Nhận Hàng: Huỳnh Gia Huy, 0988123456, địa chỉ..."* dù đơn không có sách giấy.
+  3. **Hardcode phương thức COD tại dòng 1539:**
+     ```tsx
+     <span>Phương thức: <b>COD (Thanh toán khi nhận hàng)</b></span>
+     ```
+     Dù đơn hàng đã thanh toán trực tuyến qua VietQR PayOS, khối này vẫn gắn cứng chữ COD kèm nút Quét QR, gây mâu thuẫn với tiêu đề trang.
+
+#### 2. Giải Pháp Kiến Trúc Chuyên Biệt Cho Ebook
+1. **Tiến trình xử lý số (Digital Fulfillment Stepper):**
+   - Kiểm tra `isPureDigital = !order.requiresShipping || order.sellerOrders?.every(so => so.items?.every(it => it.format === 'DIGITAL'))`.
+   - Nếu là đơn thuần Ebook: Hiển thị Stepper số hóa chuyên nghiệp:
+     * *Đặt Hàng Thành Công* ➔ *Thanh Toán Xác Nhận* ➔ *Cấp Phép Bản Quyền DRM* ➔ *Sẵn Sàng Đọc (Hoàn Tất)*.
+   - Chỉ hiển thị thanh bưu tá giao hàng khi đơn có sách giấy vật lý (`hasPhysical`).
+2. **Loại bỏ thẻ Địa Chỉ Nhận Hàng khi thuần Ebook:**
+   - Thay thế card "Địa Chỉ Nhận Hàng" bằng **"Thông Tin Bản Quyền & Tài Khoản Nhận Ebook"**:
+     * Tên chủ tài khoản, Email nhận bản quyền số, Trạng thái: *Đã liên kết vào Tủ Sách cá nhân*.
+3. **Render động phương thức thanh toán:**
+   - Đọc trực tiếp từ `order.paymentMethod`:
+     * Nếu là `ONLINE_PAYMENT` / `PAYOS` ➔ Hiển thị *"Thanh toán trực tuyến VietQR (PayOS) - Đã thanh toán"*.
+     * Nếu là `FREE` ➔ Hiển thị *"Miễn phí (Áp voucher 100%)"*.
+     * Nếu là `COD` ➔ Hiển thị *"Thanh toán khi nhận hàng (COD)"*.
+   - Tuyệt đối loại bỏ đoạn JSX hardcode COD tại dòng 1539.
+
 
