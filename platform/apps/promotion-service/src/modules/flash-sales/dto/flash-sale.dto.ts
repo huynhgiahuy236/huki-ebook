@@ -100,11 +100,11 @@ export class CreateFlashSaleDto {
 
 export class CreateFlashSaleItemDto {
   @ApiProperty({ description: "Flash sale ID" })
-  @IsUUID()
+  @IsString()
   flashSaleId: string;
 
   @ApiProperty({ description: "Book ID" })
-  @IsUUID()
+  @IsString()
   bookId: string;
 
   @ApiProperty({ example: 250000, description: "Original price" })
@@ -160,7 +160,7 @@ export class FlashSaleQueryDto {
 
 export class FlashSaleItemQueryDto {
   @ApiPropertyOptional({ description: "Flash sale ID" })
-  @IsUUID()
+  @IsString()
   @IsOptional()
   flashSaleId?: string;
 
@@ -176,11 +176,11 @@ export class ValidateQuotaDto {
   userId: string;
 
   @ApiProperty({ description: "Book ID" })
-  @IsUUID()
+  @IsString()
   bookId: string;
 
   @ApiPropertyOptional({ description: "Flash Sale ID" })
-  @IsUUID()
+  @IsString()
   @IsOptional()
   flashSaleId?: string;
 
@@ -197,11 +197,11 @@ export class ReserveFlashSaleDto {
   userId: string;
 
   @ApiProperty({ description: "Book ID" })
-  @IsUUID()
+  @IsString()
   bookId: string;
 
   @ApiPropertyOptional({ description: "Flash Sale ID" })
-  @IsUUID()
+  @IsString()
   @IsOptional()
   flashSaleId?: string;
 
@@ -213,7 +213,7 @@ export class ReserveFlashSaleDto {
   @ApiProperty({
     description: "Order ID used as an idempotent reservation key",
   })
-  @IsUUID()
+  @IsString()
   orderId: string;
 }
 
@@ -221,7 +221,7 @@ export class ReleaseFlashSaleOrderDto {
   @ApiProperty({
     description: "Order ID whose Flash Sale reservations must be released",
   })
-  @IsUUID()
+  @IsString()
   orderId: string;
 
   @ApiPropertyOptional({
@@ -230,7 +230,7 @@ export class ReleaseFlashSaleOrderDto {
     type: [String],
   })
   @IsArray()
-  @IsUUID("4", { each: true })
+  @IsString({ each: true })
   @IsOptional()
   bookIds?: string[];
 }
@@ -243,11 +243,11 @@ export class UpdateFlashSaleStatusDto {
 
 export class SellerRegisterFlashSaleItemDto {
   @ApiProperty({ description: "Khung giờ Flash Sale ID" })
-  @IsUUID()
+  @IsString()
   flashSaleId: string;
 
   @ApiProperty({ description: "Book ID thuộc quyền sở hữu của gian hàng" })
-  @IsUUID()
+  @IsString()
   bookId: string;
 
   @ApiProperty({ example: 149000, description: "Giá khuyến mãi Flash Sale (phải nhỏ hơn giá niêm yết hiện tại)" })
@@ -287,7 +287,7 @@ export class SellerBatchItemDto {
 
 export class SellerBatchRegisterFlashSaleItemsDto {
   @ApiProperty({ description: "Khung giờ Flash Sale ID" })
-  @IsUUID()
+  @IsString()
   flashSaleId: string;
 
   @ApiProperty({ description: "Danh sách sản phẩm đăng ký", type: [SellerBatchItemDto] })

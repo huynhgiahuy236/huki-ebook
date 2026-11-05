@@ -36,12 +36,18 @@ function SellerRouteLayoutContent({ children }: { children: React.ReactNode }) {
 
     // 1. Nếu chưa đăng nhập: Ngoại trừ trang /seller giới thiệu, các trang khác cần đăng nhập
     if (!isLoggedIn) {
-      if (pathname !== '/seller') {
+      if (pathname !== '/seller' && !pathname.startsWith('/auth')) {
+        const loopGuard = typeof window !== 'undefined' ? sessionStorage.getItem('huki_seller_auth_guard') : null;
+        if (loopGuard && Date.now() - Number(loopGuard) < 2000) {
+          return;
+        }
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('huki_seller_auth_guard', String(Date.now()));
+        }
         router.replace(`/auth/login?redirect=${encodeURIComponent(pathname)}`);
       }
       return;
     }
-
     const bizStatus = user?.business?.status;
     const isApprovedSeller = user?.role === 'BUSINESS' || Boolean(user?.hasApprovedBusiness) || bizStatus === 'APPROVED';
 

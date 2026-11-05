@@ -1241,6 +1241,12 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                   {/* Numbered Step Circle */}
                   <button
                     type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      scrollToSection(step.id);
+                    }}
+                    title={`Chuyển đến Bước ${step.num}: ${step.title}`}
+                    aria-label={`Chuyển đến Bước ${step.num}: ${step.title}`}
                     className={`relative z-10 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer ${
                       step.hasError
                         ? 'bg-rose-500 text-white ring-4 ring-rose-200 shadow-rose-200 shadow-md animate-pulse'
@@ -2202,8 +2208,8 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                       05
                     </div>
                     <div>
-                      <h3 className="font-title-md text-sm font-bold text-on-surface">Tồn Kho & Kích Thước Đóng Gói</h3>
-                      <p className="text-[11px] text-on-surface-variant">Thông số để tính cước vận chuyển tự động.</p>
+                      <h3 className="font-title-md text-sm font-bold text-on-surface">Tồn Kho Sách In & Kích Thước Đóng Gói</h3>
+                      <p className="text-[11px] text-on-surface-variant">Thông số để quản lý kho sách in và tính cước vận chuyển. (Ấn phẩm số Ebook DRM phát hành không giới hạn số lượng).</p>
                     </div>
                   </div>
                 </div>
@@ -2211,7 +2217,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-on-surface mb-1">
-                      Số Lượng Tồn Kho <span className="text-rose-500">*</span>
+                      Số Lượng Tồn Kho (Sách in) <span className="text-rose-500">*</span>
                     </label>
                     <input 
                       type="number"

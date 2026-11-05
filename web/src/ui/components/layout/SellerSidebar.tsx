@@ -596,6 +596,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
                       <div className="flex items-center justify-center py-0.5">
                         <Link
                           href={item.to}
+                          prefetch={false}
                           target={item.targetBlank ? '_blank' : undefined}
                           rel={item.targetBlank ? 'noopener noreferrer' : undefined}
                           className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150 relative shrink-0 active:scale-95 ${
@@ -624,6 +625,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
                       /* Expanded View */
                       <Link
                         href={item.to}
+                        prefetch={false}
                         target={item.targetBlank ? '_blank' : undefined}
                         rel={item.targetBlank ? 'noopener noreferrer' : undefined}
                         onClick={isMobile ? onClose : undefined}

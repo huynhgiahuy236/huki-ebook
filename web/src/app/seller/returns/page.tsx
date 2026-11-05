@@ -432,14 +432,12 @@ export default function SellerReturnsPage() {
               </div>
             </div>
             <div className="pt-2">
-              <Link href={`/seller/returns/${item.id}`} className="w-full block">
-                <button
-                  type="button"
-                  className="w-full py-2 px-3 bg-[#00875A] hover:bg-[#00704A] text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                >
-                  <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
-                  <span>Mở Trang Xử Lý Yêu Cầu</span>
-                </button>
+              <Link
+                href={`/seller/returns/${item.id}`}
+                className="w-full py-2 px-3 bg-[#00875A] hover:bg-[#00704A] text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+                <span>Mở Trang Xử Lý Yêu Cầu</span>
               </Link>
             </div>
           </div>

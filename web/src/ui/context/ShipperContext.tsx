@@ -94,11 +94,13 @@ export interface ShipperContextType {
   refreshOrders: () => Promise<void>;
   acceptOrder: (orderId: string) => Promise<void> | void;
   confirmPickup: (orderId: string) => Promise<void> | void;
-  completeDelivery: (orderId: string, note?: string) => Promise<void> | void;
+  completeDelivery: (orderId: string, note?: string, podImageUrl?: string) => Promise<void> | void;
   failDelivery: (orderId: string, reason: string) => Promise<void> | void;
   remitCodDebt: (amount: number, method: string) => void;
   requestWithdrawal: (amount: number, bankInfo: { bank: string; account: string; name: string }) => void;
   resetDemoData: () => void;
+  offlineQueueCount: number;
+  syncOfflineDeliveries: () => Promise<number>;
 }
 
 const INITIAL_PROFILE: ShipperProfile = {
@@ -211,9 +213,91 @@ function playShipperChime() {
   }
 }
 
+const OFFLINE_POD_STORAGE_KEY = 'huki_offline_deliveries_queue';
+
+export interface OfflinePodRecord {
+  orderId: string;
+  note?: string;
+  podImageUrl?: string;
+  timestamp: number;
+}
+
+export const getOfflinePodQueue = (): OfflinePodRecord[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(OFFLINE_POD_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const saveOfflinePodQueue = (queue: OfflinePodRecord[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(OFFLINE_POD_STORAGE_KEY, JSON.stringify(queue));
+  } catch {}
+};
+
 export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { showToast } = useToast();
   const { user } = useAuth();
+
+  const [offlineQueueCount, setOfflineQueueCount] = useState<number>(() => {
+    return getOfflinePodQueue().length;
+  });
+
+  const syncOfflineDeliveries = useCallback(async (): Promise<number> => {
+    if (typeof window === 'undefined' || !navigator.onLine) return 0;
+    const queue = getOfflinePodQueue();
+    if (queue.length === 0) {
+      setOfflineQueueCount(0);
+      return 0;
+    }
+
+    const remaining: OfflinePodRecord[] = [];
+    let syncedCount = 0;
+    for (const item of queue) {
+      try {
+        await orderApi.shipperDeliver(item.orderId, {
+          note: item.note,
+          podImageUrl: item.podImageUrl,
+        });
+        syncedCount++;
+      } catch (err) {
+        console.warn('Failed to sync offline POD for ' + item.orderId + ':', err);
+        remaining.push(item);
+      }
+    }
+
+    saveOfflinePodQueue(remaining);
+    setOfflineQueueCount(remaining.length);
+
+    if (syncedCount > 0) {
+      showToast(
+        {
+          title: 'Đồng bộ ngoại tuyến thành công!',
+          message: 'Đã tự động gửi ' + String(syncedCount) + ' biên bản POD lên máy chủ sàn HuKi.',
+        },
+        'success'
+      );
+    }
+    return syncedCount;
+  }, [showToast]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onOnline = () => {
+      syncOfflineDeliveries();
+    };
+    window.addEventListener('online', onOnline);
+    if (navigator.onLine) {
+      syncOfflineDeliveries();
+    }
+    return () => {
+      window.removeEventListener('online', onOnline);
+    };
+  }, [syncOfflineDeliveries]);
 
   const [isOnline, setIsOnlineState] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
@@ -704,7 +788,7 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   // 3. Complete delivery & collect COD (calls DB PATCH deliver)
-  const completeDelivery = async (orderId: string, note?: string) => {
+  const completeDelivery = async (orderId: string, note?: string, podImageUrl?: string) => {
     const target = activeDeliveries.find((o) => o.id === orderId);
     if (!target) return;
 
@@ -762,13 +846,38 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
     }
 
-    setTransactions((prev) => [...newTxList, ...prev]);
+    setTransactions((prev) => {
+      const map = new Map<string, WalletTransaction>();
+      [...newTxList, ...prev].forEach((t) => {
+        if (!map.has(t.id)) map.set(t.id, t);
+      });
+      return Array.from(map.values());
+    });
 
     removeClaimedId(orderId);
-    try {
-      await orderApi.shipperDeliver(orderId, { note });
-    } catch (err) {
-      console.error('Error delivering order in DB:', err);
+    const isOffline = typeof window !== 'undefined' && !navigator.onLine;
+    if (isOffline) {
+      const q = getOfflinePodQueue().filter((x) => x.orderId !== orderId);
+      q.push({ orderId, note, podImageUrl, timestamp: Date.now() });
+      saveOfflinePodQueue(q);
+      setOfflineQueueCount(q.length);
+      showToast(
+        {
+          title: 'Đã lưu ngoại tuyến (Offline Mode)',
+          message: 'Thiết bị đang mất sóng. Biên bản giao hàng đơn ' + target.code + ' đã được lưu trên máy và sẽ tự động gửi khi có mạng.',
+        },
+        'info'
+      );
+    } else {
+      try {
+        await orderApi.shipperDeliver(orderId, { note, podImageUrl });
+      } catch (err) {
+        console.error('Error delivering order in DB, queuing offline:', err);
+        const q = getOfflinePodQueue().filter((x) => x.orderId !== orderId);
+        q.push({ orderId, note, podImageUrl, timestamp: Date.now() });
+        saveOfflinePodQueue(q);
+        setOfflineQueueCount(q.length);
+      }
     }
 
     if (isReturn) {
@@ -972,6 +1081,8 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
         remitCodDebt,
         requestWithdrawal,
         resetDemoData,
+        offlineQueueCount,
+        syncOfflineDeliveries,
       }}
     >
       {children}

@@ -30,6 +30,7 @@ import {
   throwConflict,
   throwNotFound,
   throwForbidden,
+  throwBadRequest,
 } from "@huki/shared/errors";
 import { ErrorCode } from "@huki/shared/errors";
 import { FlashSaleClientService } from "./flash-sale-client.service";
@@ -348,6 +349,15 @@ export class OrdersService {
           cancelReason: dto.reason,
           cancelledAt: now,
           paymentStatus: PaymentStatus.CANCELLED,
+        },
+      });
+
+      // RF-004: Thu hồi quyền truy cập DRM Ebook nếu đơn hàng bị hủy
+      await tx.bookAccess.updateMany({
+        where: { orderId: id },
+        data: {
+          status: 'REVOKED',
+          updatedAt: now,
         },
       });
 
@@ -2753,31 +2763,9 @@ export class OrdersService {
       logDesc = `Đã kết thúc thời hạn ký quỹ. Doanh thu ròng 95% của món "${item.bookTitle}" đã được chuyển vào ví người bán.`;
     }
 
-    await this.prisma.orderStatusHistory.create({
-      data: {
-        orderId: item.sellerOrder.orderId,
-        sellerOrderId: item.sellerOrder.id,
-        fromStatus: 'ESCROW_STATUS_CHANGE',
-        toStatus: historyStatus,
-        title: logTitle,
-        description: logDesc,
-        actorType: 'ADMIN',
-        actorId: actor.sub,
-        metadata: {
-          orderItemId,
-          bookId: item.bookId,
-          bookTitle: item.bookTitle,
-          subtotal: subtotalNum,
-          targetStatus: dto.status,
-          updatedBy: actor.email,
-          buyerBankAccount: buyerBank,
-          reverseTrackingCode: retTracking,
-          refundAmount: dto.status === 'REFUNDED' ? subtotalNum : undefined,
-        },
-      },
-    });
-
-    // When Platform Admin clicks "Bàn giao" (RELEASED): automatically credit 95% net revenue into seller wallet
+    let sellerNet = 0;
+    let storeId = '';
+    let ownerUserId = '';
     if (dto.status === 'RELEASED') {
       const orderVouchers = await this.voucherClient.getUsagesByOrderIds([item.sellerOrder.orderId]);
       const storeVoucherUsages = orderVouchers.filter((v: any) => v.voucher?.scope === 'STORE');
@@ -2796,61 +2784,107 @@ export class OrdersService {
       const subtotal = Number(item.subtotal);
       const effectiveSubtotal = Math.max(0, subtotal - storeVoucherDiscount);
       const platformFee = Math.round(effectiveSubtotal * 0.05);
-      const sellerNet = effectiveSubtotal - platformFee;
-      const storeId = item.sellerOrder.storeId;
-      const ownerUserId = item.sellerOrder.ownerUserId;
-
-      const wallet = await this.prisma.wallet.upsert({
-        where: { storeId },
-        create: {
-          storeId,
-          ownerUserId,
-          availableBalance: sellerNet,
-          pendingBalance: 0,
-          frozenBalance: 0,
-          currency: 'VND',
-        },
-        update: {
-          availableBalance: { increment: sellerNet },
-        },
-      });
-
-      const availableAfter = Number(wallet.availableBalance);
-      const availableBefore = availableAfter - sellerNet;
-
-      await this.prisma.walletTransaction.create({
-        data: {
-          walletId: wallet.id,
-          type: 'CREDIT_AVAILABLE',
-          amount: sellerNet,
-          availableBefore,
-          availableAfter,
-          pendingBefore: Number(wallet.pendingBalance),
-          pendingAfter: Number(wallet.pendingBalance),
-          frozenBefore: Number(wallet.frozenBalance),
-          frozenAfter: Number(wallet.frozenBalance),
-          description: `Sàn bàn giao tiền bán ${item.bookTitle} - Đơn hàng #${item.sellerOrder.order.code} (+${sellerNet.toLocaleString('vi-VN')} ₫)`,
-          referenceType: 'ORDER_ESCROW_RELEASE',
-          referenceId: item.id,
-        },
-      });
+      sellerNet = effectiveSubtotal - platformFee;
+      storeId = item.sellerOrder.storeId;
+      ownerUserId = item.sellerOrder.ownerUserId;
     }
 
-    // When Platform Admin clicks "Hoàn trả" (REFUNDED): mark associated return request as REFUNDED
-    if (dto.status === 'REFUNDED') {
-      await this.prisma.returnRequest.updateMany({
-        where: {
-          OR: [
-            { orderItemId: item.id },
-            { orderId: item.sellerOrder.orderId, bookId: item.bookId },
-          ],
-        },
+    // Atomic transaction: guarantees all-or-nothing rollback if seller wallet or status fails (AD-009)
+    await this.prisma.$transaction(async (tx) => {
+      await tx.orderStatusHistory.create({
         data: {
-          status: ReturnRequestStatus.REFUNDED,
-          replacementStatus: 'REFUNDED',
+          orderId: item.sellerOrder.orderId,
+          sellerOrderId: item.sellerOrder.id,
+          fromStatus: 'ESCROW_STATUS_CHANGE',
+          toStatus: historyStatus,
+          title: logTitle,
+          description: logDesc,
+          actorType: 'ADMIN',
+          actorId: actor.sub,
+          metadata: {
+            orderItemId,
+            bookId: item.bookId,
+            bookTitle: item.bookTitle,
+            subtotal: subtotalNum,
+            targetStatus: dto.status,
+            updatedBy: actor.email,
+            buyerBankAccount: buyerBank,
+            reverseTrackingCode: retTracking,
+            refundAmount: dto.status === 'REFUNDED' ? subtotalNum : undefined,
+          },
         },
       });
 
+      // When Platform Admin clicks "Bàn giao" (RELEASED): automatically credit 95% net revenue into seller wallet
+      if (dto.status === 'RELEASED') {
+        const wallet = await tx.wallet.upsert({
+          where: { storeId },
+          create: {
+            storeId,
+            ownerUserId,
+            availableBalance: sellerNet,
+            pendingBalance: 0,
+            frozenBalance: 0,
+            currency: 'VND',
+          },
+          update: {
+            availableBalance: { increment: sellerNet },
+          },
+        });
+
+        const availableAfter = Number(wallet.availableBalance);
+        const availableBefore = availableAfter - sellerNet;
+
+        await tx.walletTransaction.create({
+          data: {
+            walletId: wallet.id,
+            type: 'CREDIT_AVAILABLE',
+            amount: sellerNet,
+            availableBefore,
+            availableAfter,
+            pendingBefore: Number(wallet.pendingBalance),
+            pendingAfter: Number(wallet.pendingBalance),
+            frozenBefore: Number(wallet.frozenBalance),
+            frozenAfter: Number(wallet.frozenBalance),
+            description: `Sàn bàn giao tiền bán ${item.bookTitle} - Đơn hàng #${item.sellerOrder.order.code} (+${sellerNet.toLocaleString('vi-VN')} ₫)`,
+            referenceType: 'ORDER_ESCROW_RELEASE',
+            referenceId: item.id,
+          },
+        });
+      }
+
+      // When Platform Admin clicks "Hoàn trả" (REFUNDED): mark associated return request as REFUNDED
+      if (dto.status === 'REFUNDED') {
+        await tx.returnRequest.updateMany({
+          where: {
+            OR: [
+              { orderItemId: item.id },
+              { orderId: item.sellerOrder.orderId, bookId: item.bookId },
+            ],
+          },
+          data: {
+            status: ReturnRequestStatus.REFUNDED,
+            replacementStatus: 'REFUNDED',
+          },
+        });
+
+        // RF-004: Thu hồi quyền truy cập DRM Ebook khi món hàng bị hoàn trả
+        if (item.bookId && item.sellerOrder?.order?.userId) {
+          await tx.bookAccess.updateMany({
+            where: {
+              userId: item.sellerOrder.order.userId,
+              bookId: item.bookId,
+            },
+            data: {
+              status: 'REVOKED',
+              updatedAt: new Date(),
+            },
+          });
+        }
+      }
+    });
+
+    if (dto.status === 'REFUNDED') {
       // Reverse / cancel affiliate commissions on item refund (BUG-MOD05-16)
       if (this.affiliateLifecycle) {
         try {
@@ -3464,6 +3498,26 @@ export class OrdersService {
     // If buyer wins: mark escrow refunded and record history
     if (dto.ruling === 'BUYER_WINS') {
       try {
+        const parentOrder = await this.prisma.order.findUnique({
+          where: { id: req.orderId },
+          select: { userId: true },
+        });
+        if (parentOrder?.userId && req.bookId) {
+          await this.prisma.bookAccess.updateMany({
+            where: {
+              userId: parentOrder.userId,
+              bookId: req.bookId,
+            },
+            data: {
+              status: 'REVOKED',
+              updatedAt: new Date(),
+            },
+          });
+        }
+      } catch (err) {
+        console.warn('Could not revoke book access on buyer dispute win:', err);
+      }
+      try {
         await this.prisma.orderStatusHistory.create({
           data: {
             orderId: req.orderId,
@@ -3926,13 +3980,28 @@ export class OrdersService {
     const trackingCode = sellerOrder.trackingCode || `HUKI-EXP-${randomBytes(4).toString('hex').toUpperCase()}`;
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      const up = await tx.sellerOrder.update({
-        where: { id },
+      // SH-003: Optimistic concurrency lock when claiming order
+      const claimResult = await tx.sellerOrder.updateMany({
+        where: {
+          id,
+          OR: [
+            { deliveryStaffId: null },
+            { deliveryStaffId: actorId },
+          ],
+        },
         data: {
           carrier,
           trackingCode,
           deliveryStaffId: actorId,
         },
+      });
+
+      if (claimResult.count === 0) {
+        throwConflict(ErrorCode.ORDER_ALREADY_CANCELLED, 'Đơn hàng này đã được một bưu tá khác tiếp nhận!');
+      }
+
+      const up = await tx.sellerOrder.findUniqueOrThrow({
+        where: { id },
       });
 
       await tx.orderStatusHistory.create({
@@ -4015,12 +4084,20 @@ export class OrdersService {
     const carrier = dto?.carrier || 'GHTK';
     const trackingCode = dto?.trackingCode || `GHTK-${randomBytes(4).toString('hex').toUpperCase()}`;
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const itemIds = sellerOrder.items.map((item) => item.id);
-      await this.reservations.commit(tx as any, sellerOrder.orderId, itemIds);
+    // SH-003: Check if order already picked up or delivered by another driver
+    if (sellerOrder.status === SellerOrderStatus.SHIPPED || sellerOrder.status === SellerOrderStatus.DELIVERED) {
+      throwConflict(ErrorCode.ORDER_ALREADY_CANCELLED, 'Đơn hàng này đã được một tài xế khác tiếp nhận trước đó!');
+    }
 
-      const updated = await tx.sellerOrder.update({
-        where: { id },
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Optimistic concurrency lock: only update if still in eligible status (SH-003)
+      const count = await tx.sellerOrder.updateMany({
+        where: {
+          id,
+          status: {
+            in: [SellerOrderStatus.CONFIRMED, SellerOrderStatus.PREPARING],
+          },
+        },
         data: {
           carrier,
           trackingCode,
@@ -4029,13 +4106,24 @@ export class OrdersService {
         },
       });
 
+      if (count.count === 0) {
+        throwConflict(ErrorCode.ORDER_ALREADY_CANCELLED, 'Đơn hàng này đã được một tài xế khác tiếp nhận trước đó!');
+      }
+
+      const itemIds = sellerOrder.items.map((item) => item.id);
+      await this.reservations.commit(tx as any, sellerOrder.orderId, itemIds);
+
+      const updated = await tx.sellerOrder.findUniqueOrThrow({
+        where: { id },
+      });
+
       return updated;
     });
 
     return result;
   }
 
-  async shipperDeliverOrder(actor?: BookActor, id?: string, dto?: { note?: string }) {
+  async shipperDeliverOrder(actor?: BookActor, id?: string, dto?: { note?: string; podImageUrl?: string; evidenceImageUrl?: string }) {
     if (!id) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
 
     // 1. Check if id is a return request
@@ -4113,7 +4201,11 @@ export class OrdersService {
               : 'Đơn đã được giao thành công',
           actorType: 'SHIPPER',
           actorId: actor?.sub,
-          metadata: dto?.note ? { note: dto.note } : undefined,
+          metadata: {
+            note: dto?.note,
+            podImageUrl: dto?.podImageUrl || dto?.evidenceImageUrl,
+            verifiedAt: now.toISOString(),
+          },
         },
       });
 
@@ -4135,6 +4227,9 @@ export class OrdersService {
 
   async shipperFailOrder(actor?: BookActor, id?: string, dto?: { reason: string }) {
     if (!id) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
+    if (!dto?.reason?.trim()) {
+      throwBadRequest(ErrorCode.VALIDATION_REQUIRED, 'Bắt buộc phải chọn lý do giao hàng không thành công');
+    }
     const sellerOrder = await this.prisma.sellerOrder.findUnique({
       where: { id },
       include: { items: true, order: true },

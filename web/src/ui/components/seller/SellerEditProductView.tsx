@@ -667,6 +667,12 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
 
                   <button
                     type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      scrollToSection(step.id);
+                    }}
+                    title={`Chuyển đến Bước ${step.num}: ${step.title}`}
+                    aria-label={`Chuyển đến Bước ${step.num}: ${step.title}`}
                     className={`relative z-10 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer ${
                       step.hasError
                         ? 'bg-rose-500 text-white ring-4 ring-rose-200 shadow-rose-200 shadow-md animate-pulse'

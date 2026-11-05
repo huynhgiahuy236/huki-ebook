@@ -10,7 +10,8 @@ export default function ShipperRemitCodView() {
   const { profile, wallet, remitCodDebt } = useShipper();
 
   // Default amount is the total codDebt
-  const defaultAmount = wallet.codDebt;
+  // SH-002: Default amount is clamped to >= 0
+  const defaultAmount = Math.max(0, wallet.codDebt);
   const [amount, setAmount] = useState<number>(defaultAmount);
   const [customAmountStr, setCustomAmountStr] = useState<string>(defaultAmount.toString());
   const [isPaid, setIsPaid] = useState<boolean>(false);
@@ -20,10 +21,12 @@ export default function ShipperRemitCodView() {
   const [paidTime, setPaidTime] = useState<string>('');
 
   useEffect(() => {
-    if (wallet.codDebt >= 0 && !isPaid) {
-      setAmount(wallet.codDebt);
-      setCustomAmountStr(wallet.codDebt.toString());
+    const validDebt = Math.max(0, wallet.codDebt);
+    if (!isPaid) {
+      setAmount(validDebt);
+      setCustomAmountStr(validDebt.toString());
     }
+
   }, [wallet.codDebt, isPaid]);
 
   useEffect(() => {
@@ -43,9 +46,12 @@ export default function ShipperRemitCodView() {
   };
 
   // Real EMVCo VietQR image - scans accurately in 100% of VN banking apps (MB, VCB, Techcombank, MoMo, VNPay)
-  const qrUrl = `https://img.vietqr.io/image/${bankDetails.bankCode}-${bankDetails.accountNumber}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(
-    bankDetails.transferContent
-  )}&accountName=${encodeURIComponent(bankDetails.accountName)}`;
+  const safeAmount = Math.max(0, amount);
+  const qrUrl = safeAmount > 0
+    ? `https://img.vietqr.io/image/${bankDetails.bankCode}-${bankDetails.accountNumber}-compact2.png?amount=${safeAmount}&addInfo=${encodeURIComponent(
+        bankDetails.transferContent
+      )}&accountName=${encodeURIComponent(bankDetails.accountName)}`
+    : '';
 
   const handleCopy = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -295,8 +301,8 @@ export default function ShipperRemitCodView() {
               <button
                 type="button"
                 onClick={handleConfirmPaid}
-                disabled={isCheckingPayment}
-                className="w-full py-3 bg-[#00875A] hover:bg-[#003B2B] text-white text-sm font-black rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                disabled={isCheckingPayment || amount <= 0}
+                className="w-full py-3 bg-[#00875A] hover:bg-[#003B2B] text-white text-sm font-black rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isCheckingPayment ? (
                   <>

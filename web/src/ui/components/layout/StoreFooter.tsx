@@ -54,8 +54,8 @@ export default function StoreFooter() {
           <div className="space-y-3">
             <h4 className="font-bold text-xs text-[var(--theme-header-top-accent,#94f5d6)] uppercase tracking-wider">Kênh Người Bán &amp; NXB</h4>
             <ul className="space-y-2 text-white/80">
-              <li><Link href="/seller/dashboard" className="hover:text-white transition-colors">Bảng điều khiển Seller</Link></li>
-              <li><Link href="/seller/register" className="hover:text-white transition-colors">Đăng ký Mở Gian Hàng</Link></li>
+              <li><Link href="/seller/dashboard" prefetch={false} className="hover:text-white transition-colors">Bảng điều khiển Seller</Link></li>
+              <li><Link href="/seller/register" prefetch={false} className="hover:text-white transition-colors">Đăng ký Mở Gian Hàng</Link></li>
               <li><Link href="/policy/seller-rules" className="hover:text-white transition-colors">Quy chế Nhà bán hàng</Link></li>
               <li><Link href="/policy/payment-escrow" className="hover:text-white transition-colors">Thanh toán &amp; Rút tiền Escrow</Link></li>
               <li><Link href="/policy/disputes" className="hover:text-white transition-colors">Giải quyết Tranh chấp</Link></li>

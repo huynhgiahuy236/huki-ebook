@@ -486,7 +486,7 @@ export default function LibraryPage() {
                 {!user ? (
                   <>
                     <Link
-                      href="/login"
+                      href="/auth/login"
                       className="bg-[#00875A] hover:bg-[#00704A] text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md inline-flex items-center gap-2"
                     >
                       <span className="material-symbols-outlined text-base">login</span>

@@ -33,6 +33,74 @@ export default function ShipperReturnsView() {
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
   const [bulkLoading, setBulkLoading] = useState(false);
 
+
+
+  // SH-006: Modal OTP bàn giao sách hoàn về kho shop
+
+  const [handoverModalOrder, setHandoverModalOrder] = useState<ShipperOrder | null>(null);
+
+  const [shopOtp, setShopOtp] = useState('');
+
+  const [otpError, setOtpError] = useState('');
+
+  const [handoverSubmitting, setHandoverSubmitting] = useState(false);
+
+
+
+  const handleOpenHandoverModal = (order: ShipperOrder) => {
+
+    setHandoverModalOrder(order);
+
+    setShopOtp('');
+
+    setOtpError('');
+
+  };
+
+
+
+  const handleConfirmHandover = async () => {
+
+    if (!handoverModalOrder) return;
+
+    const cleanOtp = shopOtp.trim().toUpperCase();
+
+    if (!cleanOtp) {
+
+      setOtpError('Vui lòng yêu cầu Chủ Shop cung cấp mã OTP hoặc 4 số cuối mã đơn!');
+
+      return;
+
+    }
+
+    if (cleanOtp.length < 4) {
+
+      setOtpError('Mã OTP xác nhận phải có ít nhất 4 ký tự');
+
+      return;
+
+    }
+
+    setHandoverSubmitting(true);
+
+    try {
+
+      await completeDelivery(handoverModalOrder.id, `SHOP_OTP_VERIFIED: ${cleanOtp}`);
+
+      setHandoverModalOrder(null);
+
+    } catch (err: any) {
+
+      setOtpError(err?.message || 'Có lỗi khi xác nhận bàn giao kho');
+
+    } finally {
+
+      setHandoverSubmitting(false);
+
+    }
+
+  };
+
   // Quick Dispatch Notification Modal
   const [dispatchModal, setDispatchModal] = useState<{
     open: boolean;
@@ -287,9 +355,9 @@ export default function ShipperReturnsView() {
             ) : isStep2 ? (
               <button
                 type="button"
-                onClick={() => completeDelivery(row.id)}
+                onClick={() => handleOpenHandoverModal(row)}
                 className="px-2.5 py-1 rounded-lg bg-[#003B2B] hover:bg-emerald-950 text-white text-xs font-bold shadow-2xs transition-colors flex items-center gap-1 cursor-pointer"
-                title="Bàn giao xong kiện hàng về kho của Shop"
+                title="Bàn giao xong kiện hàng về kho của Shop (Cần mã OTP)"
               >
                 <span className="material-symbols-outlined text-[13px]">task_alt</span>
                 <span>Bàn giao kho</span>
@@ -573,11 +641,11 @@ export default function ShipperReturnsView() {
                       ) : (
                         <button
                           type="button"
-                          onClick={() => completeDelivery(row.id)}
+                          onClick={() => handleOpenHandoverModal(row)}
                           className="w-full py-2 bg-[#003B2B] hover:bg-emerald-950 text-white text-xs font-bold rounded-lg shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <span className="material-symbols-outlined text-[15px]">task_alt</span>
-                          <span>Đã Bàn Giao Về Kho Của Shop</span>
+                          <span>Đã Bàn Giao Về Kho Của Shop (Nhập OTP)</span>
                         </button>
                       )}
                     </div>
@@ -610,6 +678,101 @@ export default function ShipperReturnsView() {
         />
       </div>
 
+      {/* Modal Nhập Mã OTP Bàn Giao Hàng Hoàn Cho Shop (SH-006) */}
+      {handoverModalOrder && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                  <span className="material-symbols-outlined text-[20px]">pin</span>
+                </span>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Xác Nhận Bàn Giao Sách Hoàn</h3>
+                  <span className="text-[11px] text-slate-500 font-mono">Đơn #{handoverModalOrder.code}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHandoverModalOrder(null)}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Gian hàng nhận lại:</span>
+                <strong className="text-slate-800">{handoverModalOrder.shopName}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Sách hoàn trả:</span>
+                <span className="text-slate-700 font-medium truncate max-w-[200px]">{handoverModalOrder.items?.[0]?.title || 'Ấn phẩm sách hoàn'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Cước thu hồi được nhận:</span>
+                <strong className="text-[#00875A]">+{handoverModalOrder.shippingFee?.toLocaleString('vi-VN')} ₫</strong>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-700">
+                Nhập Mã OTP Xác Nhận Từ Chủ Shop (Bắt buộc)
+              </label>
+              <input
+                type="text"
+                value={shopOtp}
+                onChange={(e) => {
+                  setShopOtp(e.target.value);
+                  if (otpError) setOtpError('');
+                }}
+                maxLength={8}
+                placeholder={`Nhập 4-6 số (Gợi ý: ${(handoverModalOrder.code || '').slice(-4).toUpperCase()})`}
+                className="w-full text-center text-lg font-mono font-black tracking-widest p-2.5 rounded-xl border border-slate-300 focus:outline-hidden focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 uppercase"
+              />
+              {otpError && (
+                <p className="text-rose-600 text-xs font-semibold flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  <span>{otpError}</span>
+                </p>
+              )}
+              <p className="text-[11px] text-slate-400 leading-tight">
+                Vui lòng yêu cầu nhân viên kho / chủ shop cung cấp mã xác nhận giao nhận để hoàn tất thủ tục bàn giao sách hoàn và giải ngân cước vận chuyển.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setHandoverModalOrder(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={!shopOtp.trim() || handoverSubmitting}
+                onClick={handleConfirmHandover}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#003B2B] hover:bg-emerald-950 text-white shadow-md disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 transition-all"
+              >
+                {handoverSubmitting ? (
+                  <>
+                    <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Đang xác nhận...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[16px]">verified</span>
+                    <span>Xác Nhận Bàn Giao Kho</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quick Dispatch Modal */}
       {dispatchModal.open && (
         <QuickDispatchNotificationModal

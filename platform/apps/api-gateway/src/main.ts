@@ -1,4 +1,5 @@
 import * as path from 'path';
+import * as net from 'net';
 import * as dotenv from 'dotenv';
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
@@ -289,6 +290,33 @@ Most endpoints require JWT Bearer token authentication.
   });
 
   const port = process.env.API_GATEWAY_PORT || 3000;
+  const server = app.getHttpServer();
+
+  // RF-001: Bridge WebSocket upgrade requests to community-service socket gateway
+  server.on('upgrade', (req: any, socket: any, head: any) => {
+    if (req.url && req.url.startsWith('/socket.io')) {
+      const communityHost = process.env.COMMUNITY_SERVICE_HOST || 'localhost';
+      const communityPort = parseInt(process.env.COMMUNITY_SERVICE_PORT || '3005', 10);
+      const proxySocket = net.connect(communityPort, communityHost, () => {
+        proxySocket.write(
+          `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n` +
+          Object.entries(req.headers)
+            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+            .join('\r\n') +
+          '\r\n\r\n'
+        );
+        if (head && head.length > 0) proxySocket.write(head);
+        socket.pipe(proxySocket).pipe(socket);
+      });
+      proxySocket.on('error', () => {
+        socket.destroy();
+      });
+      socket.on('error', () => {
+        proxySocket.destroy();
+      });
+    }
+  });
+
   await app.listen(port);
 
   console.log('\n============================================');

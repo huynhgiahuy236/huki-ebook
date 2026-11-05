@@ -200,7 +200,7 @@ export default function FollowingPage() {
             Vui lòng đăng nhập tài khoản HUKI để quản lý và theo dõi các gian hàng bạn yêu thích.
           </p>
           <Link
-            href="/login"
+            href="/auth/login"
             className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#006953] hover:bg-[#00523c] text-white text-xs sm:text-sm font-bold transition-all shadow-sm"
           >
             <span className="material-symbols-outlined text-base">login</span>

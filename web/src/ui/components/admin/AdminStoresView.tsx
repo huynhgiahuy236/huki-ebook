@@ -661,7 +661,7 @@ export function AdminStoresView() {
                 </div>
                 {selectedStore.slug && (
                   <a
-                    href={`/stores/${selectedStore.slug}`}
+                    href={`/shop/${selectedStore.slug}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold transition-colors"

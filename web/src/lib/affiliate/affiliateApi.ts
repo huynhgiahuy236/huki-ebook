@@ -45,7 +45,34 @@ export interface AdminListApplicationsResponse {
   totalPages: number;
 }
 
+/**
+ * Resolves the public site origin for affiliate links across SSR, local dev, UAT, and production.
+ */
+export function getAffiliateSiteOrigin(): string {
+  if (typeof window !== 'undefined' && window.location.origin) {
+    if (window.location.origin.includes('localhost') && process.env.NEXT_PUBLIC_SITE_URL && !process.env.NEXT_PUBLIC_SITE_URL.includes('localhost')) {
+      return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, '');
+    }
+    return window.location.origin.replace(/\/+$/, '');
+  }
+  if (process.env.NEXT_PUBLIC_SITE_URL && !process.env.NEXT_PUBLIC_SITE_URL.includes('localhost')) {
+    return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, '');
+  }
+  return 'https://huki-uat.duckdns.org';
+}
+
+export function generateAffiliateUrl(shortCodeOrPath: string): string {
+  const origin = getAffiliateSiteOrigin();
+  const cleanPath = shortCodeOrPath.startsWith('/')
+    ? shortCodeOrPath
+    : `/r/${shortCodeOrPath}`;
+  return `${origin}${cleanPath}`;
+}
+
 export const affiliateApi = {
+  getOrigin: getAffiliateSiteOrigin,
+  generateUrl: generateAffiliateUrl,
+
   /**
    * Public: Get program info & rates
    */
@@ -966,6 +993,34 @@ export const affiliateApi = {
       body: JSON.stringify(data),
     });
   },
+
+  /**
+   * Authenticated CTV: Create payout request for available commission
+   */
+  async requestPayout(data: { amount: number; idempotencyKey?: string }): Promise<ApiResponse<any>> {
+    const key = data.idempotencyKey || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `payout-${Date.now()}`);
+    return apiClient('/affiliate/payouts', {
+      method: 'POST',
+      body: JSON.stringify({
+        amount: data.amount,
+        idempotencyKey: key,
+      }),
+    });
+  },
+
+  /**
+   * Authenticated CTV: Get my payout requests
+   */
+  async getMyPayouts(params?: { page?: number; limit?: number }): Promise<ApiResponse<any>> {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    const qs = query.toString();
+    return apiClient(`/affiliate/payouts${qs ? `?${qs}` : ''}`, {
+      method: 'GET',
+    });
+  },
+
 };
 
 

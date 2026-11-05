@@ -12,7 +12,10 @@ import { HealthController } from './health.controller';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env.local', '.env', '../../.env.local', '../../.env'],
+    }),
     PrismaModule,
     AuditModule,
     VouchersModule,

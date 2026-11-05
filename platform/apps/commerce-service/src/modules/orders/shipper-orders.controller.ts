@@ -55,7 +55,7 @@ export class ShipperOrdersController {
   deliver(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentBookActor() actor?: BookActor,
-    @Body() body?: { note?: string },
+    @Body() body?: { note?: string; podImageUrl?: string; evidenceImageUrl?: string },
   ) {
     return this.orders.shipperDeliverOrder(actor, id, body);
   }

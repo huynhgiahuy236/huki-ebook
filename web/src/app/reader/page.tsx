@@ -252,7 +252,7 @@ function ReaderContent() {
               Về Tủ Sách
             </Link>
             <Link
-              href="/store"
+              href="/books"
               className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-md"
             >
               <span className="material-symbols-outlined text-sm">shopping_bag</span>

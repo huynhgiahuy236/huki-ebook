@@ -516,9 +516,12 @@ export default function SellerInventoryPage() {
         const payload = (res.data as any)?.data || (res.data as any)?.items || res.data || [];
         const logList = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
         const meta = (res.data as any)?.meta || (res as any).meta || {};
+        const total = meta.total ?? (res.data as any)?.total ?? (res as any)?.total ?? logList.length;
+        const limit = meta.limit ?? 8;
+        const computedTotalPages = meta.totalPages || Math.ceil(total / limit) || 1;
         setLogs(Array.isArray(logList) ? logList : []);
         setLogPage(meta.page || pageNum);
-        setLogTotalPages(meta.totalPages || 1);
+        setLogTotalPages(computedTotalPages);
       }
     } catch (err) {
       console.error('Failed to load inventory logs', err);

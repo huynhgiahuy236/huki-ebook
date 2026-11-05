@@ -48,11 +48,14 @@ export default function HierarchicalSidebar({
     hasRole('admin')
   );
 
-  const isSeller = !isAdmin && Boolean(
-    user?.role === 'BUSINESS' ||
-    user?.hasApprovedBusiness ||
-    user?.business ||
-    (Array.isArray(user?.memberships) && user.memberships.length > 0)
+  const isSeller = Boolean(
+    isLoggedIn &&
+    !isAdmin && (
+      user?.role === 'BUSINESS' ||
+      user?.hasApprovedBusiness ||
+      user?.business ||
+      (Array.isArray(user?.memberships) && user.memberships.length > 0)
+    )
   );
 
   const [isSetupCompleted, setIsSetupCompleted] = useState(false);
@@ -295,6 +298,7 @@ export default function HierarchicalSidebar({
                         <div className="flex items-center justify-center py-0.5">
                           <Link
                             href={item.to}
+                            prefetch={false}
                             target={item.targetBlank || item.id === 'web-reader' ? '_blank' : undefined}
                             rel={item.targetBlank || item.id === 'web-reader' ? 'noopener noreferrer' : undefined}
                             onClick={closeMobile}
@@ -318,7 +322,8 @@ export default function HierarchicalSidebar({
                       ) : (
                         /* Expanded Clean Item View (Both on expanded desktop AND full mobile drawer!) */
                         <Link
-                          href={item.to}
+                            href={item.to}
+                            prefetch={false}
                           target={item.targetBlank || item.id === 'web-reader' ? '_blank' : undefined}
                           rel={item.targetBlank || item.id === 'web-reader' ? 'noopener noreferrer' : undefined}
                           onClick={closeMobile}

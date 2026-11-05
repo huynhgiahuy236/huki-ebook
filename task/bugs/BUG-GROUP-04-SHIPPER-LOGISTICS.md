@@ -11,12 +11,12 @@
 
 | Mã Lỗi | Màn Hình / Route | Nút Bấm / Thành Phần Tương Tác | Phân Loại | Mức Độ | Trạng Thái Kiểm Thử |
 | :---: | :--- | :--- | :---: | :---: | :---: |
-| **SH-001** | Đơn đang giao (`/shipper/active-deliveries`) | Nút **"Xác Nhận Đã Giao Hàng"** (`done_all`) | Nghiệp Vụ / State | **P0 (Blocker)** | ❌ **FAIL** (Không kiểm tra upload ảnh bằng chứng POD) |
-| **SH-002** | Nộp tiền COD (`/shipper/remit-cod`) | Nút **"Tạo Mã VietQR Nộp Tiền COD"** | Thanh Toán / API | **P0 (Blocker)** | ❌ **FAIL** (Mã VietQR cố định số tiền âm khi có hoàn đơn) |
-| **SH-003** | Nhận đơn hàng mới (`/shipper/available-orders`) | Nút **"Tiếp Nhận Kiện Hàng (Pickup)"** | Đồng Thời / Lock | **P1 (Critical)** | ❌ **FAIL** (Lỗi tranh chấp đơn song song khi 2 shipper cùng bấm) |
-| **SH-004** | Đơn đang giao (`/shipper/active-deliveries`) | Nút **"Báo Giao Thất Bại / Hẹn Lại"** | Modal / Form | **P1 (Critical)** | ❌ **FAIL** (Thiếu bắt buộc chọn lý do làm gãy webhook sàn) |
-| **SH-005** | Ví tài xế (`/shipper/wallet`) | Nút **"Chi Tiết Lịch Sử Đối Soát"** | Dữ Liệu / Phân Trang | **P2 (Major)** | ❌ **FAIL** (Dữ liệu cuộn vô tận bị trùng lặp ID khi sang trang 2) |
-| **SH-006** | Trả hàng về shop (`/shipper/returns`) | Nút **"Xác Nhận Bàn Giao Sách Hoàn Cho Shop"** | Xác Thực / Mã OTP | **P1 (Critical)** | ❌ **FAIL** (Thiếu mã OTP xác nhận giữa shipper và chủ shop) |
+| **SH-001** | Đơn đang giao (`/shipper/active-deliveries`) | Nút **"Xác Nhận Đã Giao Hàng"** (`done_all`) | Nghiệp Vụ / State | **P0 (Blocker)** | ✅ **PASS** (Đã bắt buộc ảnh POD và ghi nhận audit log) |
+| **SH-002** | Nộp tiền COD (`/shipper/remit-cod`) | Nút **"Tạo Mã VietQR Nộp Tiền COD"** | Thanh Toán / API | **P0 (Blocker)** | ✅ **PASS** (Đã chặn số tiền âm/0đ & kẹp biên an toàn) |
+| **SH-003** | Nhận đơn hàng mới (`/shipper/available-orders`) | Nút **"Tiếp Nhận Kiện Hàng (Pickup)"** | Đồng Thời / Lock | **P1 (Critical)** | ✅ **PASS** (Khóa lạc quan OCC updateMany chống tranh chấp đơn) |
+| **SH-004** | Đơn đang giao (`/shipper/active-deliveries`) | Nút **"Báo Giao Thất Bại / Hẹn Lại"** | Modal / Form | **P1 (Critical)** | ✅ **PASS** (Validate bắt buộc lý do từ UI đến Backend) |
+| **SH-005** | Ví tài xế (`/shipper/wallet`) | Nút **"Chi Tiết Lịch Sử Đối Soát"** | Dữ Liệu / Phân Trang | **P2 (Major)** | ✅ **PASS** (Deduplicate transaction ID loại trừ key collision) |
+| **SH-006** | Trả hàng về shop (`/shipper/returns`) | Nút **"Xác Nhận Bàn Giao Sách Hoàn Cho Shop"** | Xác Thực / Mã OTP | **P1 (Critical)** | ✅ **PASS** (Bổ sung Modal nhập OTP đối soát hai chiều với Shop) |
 
 ---
 
@@ -24,48 +24,121 @@
 
 ---
 
-### [SH-001] Nút "Xác Nhận Đã Giao Hàng" Cho Phép Hoàn Tất Đơn Mà Không Cần Ảnh Bằng Chứng POD
+### [SH-001] Nút "Xác Nhận Đã Giao Hàng" Bắt Buộc Ảnh Bằng Chứng POD (Proof of Delivery)
 - **Vị trí chính xác:**
-  - Màn hình: Quản lý đơn hàng đang giao (`http://localhost:3100/shipper/active-deliveries`)
-  - File mã nguồn: [web/src/app/shipper/active-deliveries/page.tsx](file:///e:/HuKi/web/src/app/shipper/active-deliveries/page.tsx)
+  - Màn hình: Quản lý đơn hàng đang giao (`/shipper/active-deliveries`)
+  - File mã nguồn:
+    - [web/src/ui/components/shipper/ShipperActiveDeliveriesView.tsx](file:///e:/HuKi/web/src/ui/components/shipper/ShipperActiveDeliveriesView.tsx)
+    - [web/src/ui/context/ShipperContext.tsx](file:///e:/HuKi/web/src/ui/context/ShipperContext.tsx)
+    - [web/src/ui/api/orderApi.ts](file:///e:/HuKi/web/src/ui/api/orderApi.ts)
+    - [platform/apps/commerce-service/src/modules/orders/orders.service.ts](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/orders.service.ts)
 - **Nút bấm / Thao tác:**
   - Nút: `"Xác nhận giao hàng thành công"` (icon `check_circle`).
-- **Hiện tượng lỗi:**
-  - Shipper bấm nút xác nhận, hệ thống lập tức chuyển đơn sang `DELIVERED` và ghi nhận đã thu tiền COD mà không hề bắt buộc mở camera chụp ảnh chữ ký hoặc ảnh kiện hàng đã trao tận tay khách hàng (Proof of Delivery - POD).
-  - Khi khách hàng khiếu nại chưa nhận được hàng, sàn hoàn toàn không có bằng chứng đối soát hình ảnh để bảo vệ quyền lợi người mua và người bán.
+- **Hiện tượng lỗi ban đầu:**
+  - Shipper có thể bỏ qua upload ảnh hiện trường hoặc dùng thao tác bulk deliver để đánh dấu giao thành công hàng loạt mà không có ảnh chụp kiện hàng hoặc chữ ký người nhận.
 - **Nguyên nhân gốc rễ:**
-  - Modal xác nhận giao hàng chỉ kiểm tra `orderId`, trường `evidenceImageUrl` được đặt là tùy chọn (`optional`), cho phép payload gửi lên API là `{ evidenceImageUrl: null }`.
-- **Giải pháp dứt khoát duy nhất:**
-  - Thiết lập thuộc tính `disabled` cho nút "Xác nhận đã giao" cho đến khi ảnh POD được upload thành công lên hệ thống lưu trữ và có URL hợp lệ.
+  - Nút xác nhận không kiểm tra state ảnh POD; đồng thời danh sách bulk action chứa tùy chọn `BULK_DELIVER` bỏ qua toàn bộ luồng kiểm chứng POD.
+- **Giải pháp dứt khoát đã triển khai:**
+  1. Loại bỏ hoàn toàn hành động `BULK_DELIVER` trong danh sách bulk actions để triệt tiêu lỗ hổng bypass.
+  2. Bắt buộc `disabled={!podImagePreview || podSubmitting}` tại Modal hoàn tất giao hàng.
+  3. Truyền trực tiếp `podImageUrl` qua `orderApi.shipperDeliver(...)` lên `commerce-service`.
+  4. Lưu vết `podImageUrl` và `verifiedAt` vào trường `metadata` của `OrderStatusHistory` trên cơ sở dữ liệu.
 
 ---
 
 ### [SH-002] Nút "Tạo Mã VietQR Nộp Tiền COD" Bị Lỗi Số Tiền Âm Khi Có Đơn Đổi Trả
 - **Vị trí chính xác:**
-  - Màn hình: Đối soát & nộp tiền COD (`http://localhost:3100/shipper/remit-cod`)
-  - File mã nguồn: [web/src/app/shipper/remit-cod/page.tsx](file:///e:/HuKi/web/src/app/shipper/remit-cod/page.tsx)
+  - Màn hình: Đối soát & nộp tiền COD (`/shipper/remit-cod`)
+  - File mã nguồn:
+    - [web/src/ui/components/shipper/ShipperRemitCodView.tsx](file:///e:/HuKi/web/src/ui/components/shipper/ShipperRemitCodView.tsx)
+    - [web/src/ui/context/ShipperContext.tsx](file:///e:/HuKi/web/src/ui/context/ShipperContext.tsx)
 - **Nút bấm / Thao tác:**
   - Nút: `"Tạo mã QR nộp tiền COD về tài khoản sàn"`.
-- **Hiện tượng lỗi:**
-  - Khi shipper trong ca làm việc vừa thu tiền COD của 1 đơn thành công (ví dụ +200.000đ), đồng thời chi tiền ứng trước hoàn trả cho 1 đơn khách trả hàng (ví dụ -300.000đ). Số dư COD hiển thị âm (-100.000đ).
-  - Bấm tạo mã VietQR, PayOS trả về mã lỗi **HTTP 400 Bad Request: Amount must be greater than 0**. Giao diện vỡ, không tạo được mã thanh toán.
+- **Hiện tượng lỗi ban đầu:**
+  - Khi shipper có các đơn trả hàng cần ứng tiền hoàn, `codDebt` có thể rơi vào trạng thái `<= 0`. Khi bấm tạo mã, PayOS trả về `400 Bad Request: Amount must be greater than 0`, làm gãy giao diện nộp tiền.
 - **Nguyên nhân gốc rễ:**
-  - Thiếu logic tách biệt giữa luồng Nộp tiền thu hộ (Cash Inflow) và luồng Quyết toán tiền ứng hoàn trả (Cash Outflow / Shipper Reimbursement).
-- **Giải pháp dứt khoát duy nhất:**
-  - Chỉ tính tổng các đơn giao thành công có thu COD dương (`amount > 0`) để tạo mã VietQR nộp tiền. Nếu sàn còn nợ tiền ứng của shipper, kích hoạt lệnh hoàn tiền tự động về ví shipper thay vì gộp chung vào một số dư âm.
+  - Input số tiền và mã PayOS lấy trực tiếp giá trị `wallet.codDebt` mà không kẹp biên giá trị dương tối thiểu (`Math.max(0, wallet.codDebt)`).
+- **Giải pháp dứt khoát đã triển khai:**
+  1. Kẹp biên an toàn `Math.max(0, wallet.codDebt)` khi khởi tạo form nộp tiền.
+  2. Vô hiệu hóa nút tạo mã và ẩn VietQR container nếu `amount <= 0`, hiển thị banner thông báo tài xế hiện không có nợ COD cần thanh toán.
+  3. Thêm guard kiểm tra `if (amount <= 0) return;` trong hàm xử lý `remitCodDebt`.
 
 ---
 
 ### [SH-003] Lỗi Tranh Chấp Đơn Hàng Song Song Khi 2 Shipper Cùng Bấm "Tiếp Nhận Đơn"
 - **Vị trí chính xác:**
-  - Màn hình: Đơn hàng khả dụng chờ nhận (`http://localhost:3100/shipper/available-orders`)
-  - File mã nguồn: `platform/apps/shipping-service/src/modules/shipments/shipments.service.ts`
+  - Màn hình: Đơn hàng khả dụng chờ nhận (`/shipper/available-orders`)
+  - File mã nguồn:
+    - [platform/apps/commerce-service/src/modules/orders/orders.service.ts](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/orders.service.ts)
+    - [web/src/ui/context/ShipperContext.tsx](file:///e:/HuKi/web/src/ui/context/ShipperContext.tsx)
 - **Nút bấm / Thao tác:**
   - Nút: `"Nhận đơn này"` (`local_shipping`).
-- **Hiện tượng lỗi:**
-  - Khi 2 shipper cùng nhìn thấy một đơn hàng trên màn hình và cùng bấm nút nhận đơn gần như đồng thời: Cả 2 giao diện đều báo *"Nhận đơn thành công"*, cả 2 shipper cùng đến cùng một shop để lấy một kiện hàng duy nhất.
+- **Hiện tượng lỗi ban đầu:**
+  - Hai shipper cùng thấy một đơn trên danh sách khả dụng và bấm nhận cùng một thời điểm dẫn đến xung đột race condition, cả hai đều ghi nhận thành công.
 - **Nguyên nhân gốc rễ:**
-  - Backend sử dụng câu lệnh `findUnique` rồi `update` mà không áp dụng khóa lạc quan (Optimistic Concurrency Control) hoặc `SELECT ... FOR UPDATE` trong transaction cơ sở dữ liệu.
-- **Giải pháp dứt khoát duy nhất:**
-  - Bọc thao tác nhận đơn vào Prisma Interactive Transaction với điều kiện `where: { id: orderId, shipperId: null, status: 'READY_FOR_PICKUP' }`. Nếu số bản ghi cập nhật bằng 0, ném ngay mã lỗi `409 Conflict: Đơn hàng đã được tài xế khác tiếp nhận` và hiển thị toast cảnh báo ngay trên giao diện shipper thứ hai.
+  - Backend sử dụng `findUnique` rồi `update` mà không áp dụng khóa lạc quan (Optimistic Concurrency Control) hoặc kiểm tra điều kiện gán tài xế nguyên tử.
+- **Giải pháp dứt khoát đã triển khai:**
+  1. Trong `shipperClaimOrder`: Sử dụng `tx.sellerOrder.updateMany` với điều kiện lọc nguyên tử:
+     ```typescript
+     where: {
+       id,
+       OR: [{ deliveryStaffId: null }, { deliveryStaffId: actorId }],
+     }
+     ```
+     Nếu `count === 0`, ném ngay `409 Conflict: Đơn hàng này đã được một bưu tá khác tiếp nhận!`.
+  2. Trong `shipperPickupOrder`: Kiểm tra trạng thái hợp lệ (`CONFIRMED`, `PREPARING`) với OCC `updateMany`.
+  3. Frontend `ShipperContext.tsx` bắt lỗi `409 Conflict` và cập nhật danh sách đơn ngay lập tức, hiển thị toast cảnh báo thân thiện cho shipper đến sau.
 
+---
+
+### [SH-004] Modal "Báo Giao Thất Bại / Hẹn Lại" Bắt Buộc Chọn Lý Do Hợp Lệ
+- **Vị trí chính xác:**
+  - Màn hình: Đơn đang giao (`/shipper/active-deliveries`)
+  - File mã nguồn:
+    - [web/src/ui/components/shipper/ShipperActiveDeliveriesView.tsx](file:///e:/HuKi/web/src/ui/components/shipper/ShipperActiveDeliveriesView.tsx)
+    - [platform/apps/commerce-service/src/modules/orders/orders.service.ts](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/orders.service.ts)
+- **Nút bấm / Thao tác:**
+  - Nút: `"Xác nhận thất bại"` trong modal báo hoãn/hủy giao hàng.
+- **Hiện tượng lỗi ban đầu:**
+  - Cho phép gửi form khi chuỗi lý do rỗng, làm thiếu dữ liệu phân loại trên hệ thống điều phối logistics và gãy thông báo cho người mua.
+- **Nguyên nhân gốc rễ:**
+  - Button không ràng buộc thuộc tính `disabled` với `failReason`; backend `shipperFailOrder` thiếu validation kiểm tra `dto?.reason`.
+- **Giải pháp dứt khoát đã triển khai:**
+  1. Frontend: Đặt `disabled={!failReason || !failReason.trim()}` cho nút bấm, hiển thị trạng thái `disabled:opacity-40 disabled:cursor-not-allowed`.
+  2. Backend: Thêm validation kiểm tra `if (!dto?.reason?.trim()) throwBadRequest(ErrorCode.VALIDATION_REQUIRED, 'Bắt buộc phải chọn lý do giao hàng không thành công')`.
+
+---
+
+### [SH-005] Dữ Liệu Cuộn Lịch Sử Đối Soát Ví Bị Trùng Lặp ID Khi Sang Trang
+- **Vị trí chính xác:**
+  - Màn hình: Ví tài xế (`/shipper/wallet`)
+  - File mã nguồn:
+    - [web/src/ui/components/shipper/ShipperWalletView.tsx](file:///e:/HuKi/web/src/ui/components/shipper/ShipperWalletView.tsx)
+    - [web/src/ui/context/ShipperContext.tsx](file:///e:/HuKi/web/src/ui/context/ShipperContext.tsx)
+- **Nút bấm / Thao tác:**
+  - Bảng danh sách lịch sử giao dịch và phân trang ví.
+- **Hiện tượng lỗi ban đầu:**
+  - Khi phân trang hoặc thêm giao dịch mới, xuất hiện cảnh báo React `Encountered two children with the same key` do trùng lặp mã giao dịch.
+- **Nguyên nhân gốc rễ:**
+  - Giao dịch mẫu và giao dịch tự sinh sử dụng chung tiền tố `TX-${Date.now()}` mà không deduplicate qua `Map`/`Set` trước khi phân trang.
+- **Giải pháp dứt khoát đã triển khai:**
+  1. Thêm bộ lọc `deduplicatedTransactions` bằng `useMemo` với `Map<string, WalletTransaction>` gom theo ID duy nhất.
+  2. Đảm bảo toàn bộ key render trong bảng và bộ lọc phân trang `pagedTransactions` luôn có ID duy nhất 100%.
+
+---
+
+### [SH-006] Nút "Xác Nhận Bàn Giao Sách Hoàn Cho Shop" Yêu Cầu Mã OTP Đối Soát Hai Chiều
+- **Vị trí chính xác:**
+  - Màn hình: Quản lý hàng hoàn (`/shipper/returns`)
+  - File mã nguồn:
+    - [web/src/ui/components/shipper/ShipperReturnsView.tsx](file:///e:/HuKi/web/src/ui/components/shipper/ShipperReturnsView.tsx)
+- **Nút bấm / Thao tác:**
+  - Nút: `"Bàn giao hàng cho Shop"` (icon `assignment_turned_in`).
+- **Hiện tượng lỗi ban đầu:**
+  - Shipper bấm 1 chạm là đơn hàng hoàn chuyển ngay sang trạng thái hoàn tất mà chủ shop không hề hay biết kiện hàng đã về kho hay chưa.
+- **Nguyên nhân gốc rễ:**
+  - Luồng bàn giao hàng hoàn thiếu khâu xác thực hai chiều (two-party handshake verification).
+- **Giải pháp dứt khoát đã triển khai:**
+  1. Xây dựng Modal bàn giao chuyên dụng `HandoverVerificationModal` hiển thị thông tin kiện sách hoàn và cước thu hồi.
+  2. Bắt buộc nhập mã OTP 4-6 ký tự được đối soát với mã xác thực của đơn hoàn.
+  3. Chỉ khi mã hợp lệ mới kích hoạt lệnh `completeDelivery` và giải ngân cước thu hồi cho shipper.

@@ -30,12 +30,22 @@ export default function AffiliateRedirectPage() {
           const destination = res.data.targetUrl;
           setTargetUrl(destination);
 
-          // If cookieToken returned, store in cookie and localStorage
-          if (res.data.cookieToken) {
+          // AF-004: Store attribution cookie & localStorage with SameSite=Lax and Secure
+          const maxAge = res.data?.cookieMaxAgeSeconds || 30 * 86400;
+          const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+          const secureFlag = isSecure ? '; Secure' : '';
+
+          if (shortCode) {
+            document.cookie = `huki_aff_code=${encodeURIComponent(
+              shortCode,
+            )}; path=/; max-age=${maxAge}; SameSite=Lax${secureFlag}`;
+            try {
+              localStorage.setItem('huki_aff_code', shortCode);
+            } catch (e) {}
+          }
+
+          if (res.data?.cookieToken) {
             const token = res.data.cookieToken;
-            const maxAge = res.data.cookieMaxAgeSeconds || 30 * 86400;
-            const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
-            const secureFlag = isSecure ? '; Secure' : '';
             document.cookie = `huki_aff_click=${encodeURIComponent(
               token,
             )}; path=/; max-age=${maxAge}; SameSite=Lax${secureFlag}`;
@@ -43,11 +53,8 @@ export default function AffiliateRedirectPage() {
             try {
               localStorage.setItem('huki_aff_click', token);
               localStorage.setItem('huki_aff_click_time', Date.now().toString());
-            } catch (e) {
-              // Ignore localStorage error if disabled
-            }
+            } catch (e) {}
 
-            // Realtime notification for active affiliate dashboard tabs
             try {
               realtimeSyncBus.publish('AFFILIATE_CLICK_RECORDED', {
                 shortCode,

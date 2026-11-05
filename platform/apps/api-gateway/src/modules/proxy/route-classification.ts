@@ -48,6 +48,11 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
     }
   }
 
+  // 0. WebSocket Socket.IO handshake is always PUBLIC
+  if (normPath === '/socket.io' || normPath.startsWith('/socket.io')) {
+    return 'PUBLIC';
+  }
+
   // 1. Health checks & Swagger documentation are always PUBLIC
   if (
     normPath === '/health' ||

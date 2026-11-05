@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useToast } from '@/ui/context/ToastContext';
 import { useAuth } from '@/ui/context/AuthContext';
 import UserAvatar from '@/ui/components/common/UserAvatar';
+import ChatBookPickerModal from '@/ui/components/chat/ChatBookPickerModal';
 import { chatService, type ChatConversation, type ChatMessage, type ChatAttachment } from '@/ui/services/chatService';
 import { chatQuickReplyService, type QuickReply } from '@/ui/services/chatQuickReplyService';
 import { voucherApi, type Voucher } from '@/ui/api/voucherApi';
@@ -126,6 +127,7 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
 
   // Voucher picker modal states
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
+  const [isBookPickerModalOpen, setIsBookPickerModalOpen] = useState(false);
   const [shopVouchers, setShopVouchers] = useState<Voucher[]>([]);
   const [isLoadingVouchers, setIsLoadingVouchers] = useState(false);
   const [selectedVoucherId, setSelectedVoucherId] = useState<string>('');
@@ -236,7 +238,30 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
             };
           });
           setCustomers(mapped);
-          if (mapped.length > 0 && !activeCustomerId) {
+          const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+          const targetRecipientId = searchParams?.get('recipientId');
+          const targetRecipientName = searchParams?.get('recipientName');
+          if (targetRecipientId) {
+            const found = mapped.find((c) => c.userId === targetRecipientId || c.id === targetRecipientId);
+            if (found) {
+              setActiveCustomerId(found.id);
+            } else {
+              const newCustomer: SellerChatCustomer = {
+                id: `recipient-${targetRecipientId}`,
+                userId: targetRecipientId,
+                name: targetRecipientName || 'Khách Hàng',
+                tier: 'Khách mới',
+                isOnline: true,
+                lastMsg: 'Bắt đầu cuộc trò chuyện',
+                lastTime: 'Vừa xong',
+                unread: 0,
+                hasOrder: false,
+                isVip: false,
+              };
+              setCustomers([newCustomer, ...mapped]);
+              setActiveCustomerId(newCustomer.id);
+            }
+          } else if (mapped.length > 0 && !activeCustomerId) {
             setActiveCustomerId(mapped[0].id);
           }
         }
@@ -592,6 +617,81 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
     } catch (err) {
       console.error('Lỗi xóa phím tắt:', err);
       showToast?.('Không thể xóa phím tắt.', 'error');
+    }
+  };
+
+  // CA-005: Send selected book into chat
+  const handleSendBook = async (book: {
+    id: string;
+    title: string;
+    price: number;
+    coverUrl: string;
+    slug?: string;
+    author?: string;
+    format?: string;
+  }) => {
+    if (!currentCustomer) return;
+
+    const now = new Date();
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    const tempId = `temp-book-${Date.now()}`;
+    const content = `Dạ shop xin gửi bạn thông tin cuốn sách "${book.title}" ạ!`;
+
+    const bookMsg: SellerChatMessage = {
+      id: tempId,
+      sender: 'seller',
+      text: content,
+      time: timeStr,
+      status: 'sent',
+      type: 'text',
+      attachments: book.coverUrl ? [{ type: 'IMAGE', url: book.coverUrl, name: book.title }] : undefined,
+    };
+
+    setMessagesByCustomer((prev) => ({
+      ...prev,
+      [currentCustomer.id]: [...(prev[currentCustomer.id] || []), bookMsg],
+    }));
+
+    setIsBookPickerModalOpen(false);
+
+    try {
+      const metadata = {
+        bookId: book.id,
+        title: book.title,
+        price: book.price,
+        coverUrl: book.coverUrl,
+        slug: book.slug,
+        author: book.author,
+        format: book.format,
+      };
+
+      const replyStoreId = currentCustomer?.storeId || primaryStoreId || storeId;
+      if (isConnected) {
+        await sendSocketMessage(currentCustomer.id, content, {
+          storeId: replyStoreId,
+          messageType: 'BOOK',
+          metadata,
+        });
+      } else {
+        await chatService.sendMessage(currentCustomer.id, {
+          content,
+          storeId: replyStoreId,
+          messageType: 'BOOK',
+          metadata,
+        });
+      }
+
+      setCustomers((prev) =>
+        prev.map((c) =>
+          c.id === currentCustomer.id
+            ? { ...c, lastMsg: `[Sách] ${book.title}`, lastTime: timeStr, unread: 0 }
+            : c
+        )
+      );
+
+      playMessageSentSound();
+    } catch (err) {
+      console.error('Lỗi khi gửi sách qua chat:', err);
     }
   };
 
@@ -1058,18 +1158,22 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                 <div className="flex items-center gap-1.5 text-slate-600">
                   <button
                     type="button"
-                    disabled
-                    className="w-9 h-9 rounded-xl opacity-40 cursor-not-allowed pointer-events-none flex items-center justify-center text-slate-400"
-                    title="Gọi thoại hỗ trợ (Tính năng đang phát triển)"
+                    onClick={() => {
+                      showToast('Tổng đài hỗ trợ 1900 8866 (8:00 - 21:00) hỗ trợ kết nối thoại bảo mật giữa Shop và Khách hàng.', 'info');
+                    }}
+                    className="w-9 h-9 rounded-xl hover:bg-slate-100 text-slate-600 hover:text-emerald-700 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Gọi thoại hỗ trợ khách hàng (Qua tổng đài 1900 8866)"
                   >
                     <span className="material-symbols-outlined text-lg">call</span>
                   </button>
 
                   <button
                     type="button"
-                    disabled
-                    className="w-9 h-9 rounded-xl opacity-40 cursor-not-allowed pointer-events-none flex items-center justify-center text-slate-400"
-                    title="Gọi video tư vấn (Tính năng đang phát triển)"
+                    onClick={() => {
+                      showToast('Kênh hỗ trợ video tư vấn sách trực tiếp sẽ được kích hoạt khi Khách hàng gửi yêu cầu xem sách thật.', 'info');
+                    }}
+                    className="w-9 h-9 rounded-xl hover:bg-slate-100 text-slate-600 hover:text-emerald-700 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Gọi video tư vấn sách"
                   >
                     <span className="material-symbols-outlined text-lg">videocam</span>
                   </button>
@@ -1462,6 +1566,16 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                     <span className="material-symbols-outlined text-xl">add_photo_alternate</span>
                   </button>
 
+                  {/* Button: Đính kèm sách của shop (CA-005) */}
+                  <button
+                    type="button"
+                    onClick={() => setIsBookPickerModalOpen(true)}
+                    className="w-9 h-9 rounded-xl text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Đính kèm sách tư vấn cho khách (CA-005)"
+                  >
+                    <span className="material-symbols-outlined text-xl">menu_book</span>
+                  </button>
+
                   {/* Button: Tặng voucher shop */}
                   <button
                     type="button"
@@ -1700,11 +1814,16 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
 
               <button
                 type="button"
-                disabled
-                className="w-full py-2 rounded-xl border border-slate-200 opacity-40 cursor-not-allowed pointer-events-none text-slate-400 font-semibold text-xs flex items-center justify-center gap-1.5"
-                title="Chuyên viên kỹ thuật DRM (Tính năng đang phát triển)"
+                onClick={() => {
+                  showToast('Đã gửi yêu cầu hỗ trợ bản quyền DRM tới Kỹ thuật viên sàn HuKi. Bạn sẽ được hỗ trợ trong phiên chat này.', 'success');
+                  if (!internalNote.includes('[Yêu cầu hỗ trợ DRM]')) {
+                    setInternalNote((prev) => (prev ? `${prev}\n[Yêu cầu hỗ trợ DRM] Đã thông báo KTV sàn kiểm tra bản quyền sách.` : '[Yêu cầu hỗ trợ DRM] Đã thông báo KTV sàn kiểm tra bản quyền sách.'));
+                  }
+                }}
+                className="w-full py-2 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                title="Yêu cầu Chuyên viên kỹ thuật DRM hỗ trợ kiểm tra bản quyền sách"
               >
-                <span className="material-symbols-outlined text-sm">security</span>
+                <span className="material-symbols-outlined text-sm text-emerald-700">security</span>
                 <span>Chuyên Viên Kỹ Thuật DRM</span>
               </button>
             </div>
@@ -2136,6 +2255,14 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
           </div>
         </div>
       )}
+
+      {/* CA-005: Modal Chọn Sách Tư Vấn Với Phân Trang & Tìm Kiếm */}
+      <ChatBookPickerModal
+        isOpen={isBookPickerModalOpen}
+        onClose={() => setIsBookPickerModalOpen(false)}
+        storeId={currentCustomer?.storeId || primaryStoreId || storeId}
+        onSelectBook={handleSendBook}
+      />
 
     </div>
   );

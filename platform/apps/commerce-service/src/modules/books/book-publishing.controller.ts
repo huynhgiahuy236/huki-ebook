@@ -1,4 +1,4 @@
-import { Controller, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { BookActor, BookWriteGuard } from '../../common/book-auth.guard';
 import { CurrentBookActor } from '../../common/current-book-actor.decorator';
@@ -16,6 +16,7 @@ export class BookPublishingController {
   async publish(
     @Param('bookId', ParseUUIDPipe) bookId: string,
     @CurrentBookActor() actor: BookActor,
+    @Body() dto?: { reason?: string },
   ) {
     return { message: 'Book published', data: await this.publishingService.publish(bookId, actor) };
   }
@@ -25,6 +26,7 @@ export class BookPublishingController {
   async hide(
     @Param('bookId', ParseUUIDPipe) bookId: string,
     @CurrentBookActor() actor: BookActor,
+    @Body() dto?: { reason?: string },
   ) {
     return { message: 'Book hidden', data: await this.publishingService.hide(bookId, actor) };
   }
@@ -34,6 +36,7 @@ export class BookPublishingController {
   async archive(
     @Param('bookId', ParseUUIDPipe) bookId: string,
     @CurrentBookActor() actor: BookActor,
+    @Body() dto?: { reason?: string },
   ) {
     return { message: 'Book archived', data: await this.publishingService.archive(bookId, actor) };
   }
@@ -43,7 +46,8 @@ export class BookPublishingController {
   async suspend(
     @Param('bookId', ParseUUIDPipe) bookId: string,
     @CurrentBookActor() actor: BookActor,
+    @Body() dto?: { reason?: string },
   ) {
-    return { message: 'Book suspended', data: await this.publishingService.suspend(bookId, actor) };
+    return { message: 'Book suspended', data: await this.publishingService.suspend(bookId, actor, (dto as any)?.reason) };
   }
 }

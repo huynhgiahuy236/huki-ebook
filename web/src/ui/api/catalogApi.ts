@@ -248,9 +248,10 @@ export const catalogApi = {
   },
 
   /** Suspend/reject a book (platform administrator only - BUG-03-012) */
-  async suspendBook(id: string): Promise<ApiResponse<BookData>> {
+  async suspendBook(id: string, reason?: string): Promise<ApiResponse<BookData>> {
     return apiClient<BookData>(`/books/${id}/suspend`, {
       method: 'POST',
+      body: JSON.stringify({ reason }),
     });
   },
 

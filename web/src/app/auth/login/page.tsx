@@ -397,6 +397,7 @@ function LoginForm() {
             </div>
             <Link
               href="/seller/register"
+              prefetch={false}
               className="font-semibold text-[#ac2c19] hover:underline inline-flex items-center gap-1"
             >
               <span className="material-symbols-outlined text-base">storefront</span>

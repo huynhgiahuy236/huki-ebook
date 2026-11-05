@@ -1,75 +1,78 @@
 # BÁO CÁO TỔNG CHỈ HUY KIỂM THỬ HỆ THỐNG TOÀN DIỆN TỪ A-Z (MASTER AUDIT REPORT)
 
-> **Mục tiêu:** Rà soát và bóc tách toàn bộ các lỗi hiển thị, điều hướng, nút bấm và chức năng trên toàn bộ hệ thống HUKI Ebook (142 Routes giao diện + 7 Microservices Backend + Socket/Database) sau khi CI/CD hoàn tất.  
-> **Nguyên tắc cốt lõi:**
+> **Mục tiêu:** Rà soát, bóc tách và khắc phục triệt để toàn bộ các lỗi hiển thị, điều hướng, nút bấm và chức năng trên toàn bộ hệ thống HUKI Ebook (142 Routes giao diện + 7 Microservices Backend + Socket/Database).  
+> **Nguyên tắc kỹ thuật cốt lõi:**
 > 1. Phân loại chi tiết và bóc tách thành **từng file báo cáo riêng biệt cho từng nhóm đối tượng người dùng (Personas)**.
 > 2. Đi sâu đến **từng nút bấm, từng thao tác, từng màn hình**, chỉ rõ mã nguồn, hiện tượng, nguyên nhân gốc rễ và giải pháp dứt khoát duy nhất.
-> 3. Tuyệt đối **không sử dụng mock data**, ưu tiên logic thực tế và tính toàn vẹn của hệ thống.
-> 4. **Không tự ý sửa code** khi chưa có chỉ đạo phê duyệt cụ thể từ người dùng.
+> 3. Tuyệt đối **không sử dụng mock data**, ưu tiên dữ liệu thật từ database và tính toàn vẹn của hệ thống.
+> 4. Quy trình xử lý tuần tự từng nhóm, kiểm thử TypeScript (0 errors) và commit theo quy chuẩn Git Flow.
 
 ---
 
-## 🗺️ BẢN ĐỒ TỔNG THỂ CÁC BÁO CÁO THEO TỪNG NHÓM NGƯỜI DÙNG
+## 🗺️ BẢN ĐỒ TỔNG THỂ & TRẠNG THÁI KHẮC PHỤC THEO TỪNG NHÓM NGƯỜI DÙNG
 
-| Phân Hệ | Nhóm Người Dùng / Chức Năng | Số Màn Hình | Số Lỗi Phát Hiện | File Báo Cáo Kỹ Thuật Chi Tiết |
-| :---: | :--- | :---: | :---: | :--- |
-| **GROUP-01** | **Khách Hàng / Độc Giả (Buyer & Reader)** | 45 Routes | **15 Lỗi** | 📘 [BUG-GROUP-01-BUYER-READER.md](file:///e:/HuKi/task/bugs/BUG-GROUP-01-BUYER-READER.md) |
-| **GROUP-02** | **Người Bán / Chủ Shop (Seller & Merchant)** | 48 Routes | **11 Lỗi** | 🏪 [BUG-GROUP-02-SELLER-MERCHANT.md](file:///e:/HuKi/task/bugs/BUG-GROUP-02-SELLER-MERCHANT.md) |
-| **GROUP-03** | **Quản Trị Viên & Kiểm Duyệt Sàn (Admin & Mod)** | 35 Routes | **10 Lỗi** | 👑 [BUG-GROUP-03-ADMIN-MODERATOR.md](file:///e:/HuKi/task/bugs/BUG-GROUP-03-ADMIN-MODERATOR.md) |
-| **GROUP-04** | **Nhân Viên Giao Hàng & Vận Chuyển (Shipper)** | 10 Routes | **6 Lỗi** | 🚚 [BUG-GROUP-04-SHIPPER-LOGISTICS.md](file:///e:/HuKi/task/bugs/BUG-GROUP-04-SHIPPER-LOGISTICS.md) |
-| **GROUP-05** | **Tiếp Thị Liên Kết (Affiliate Partner & KOC)** | 9 Routes | **6 Lỗi** | 🤝 [BUG-GROUP-05-AFFILIATE-PARTNER.md](file:///e:/HuKi/task/bugs/BUG-GROUP-05-AFFILIATE-PARTNER.md) |
-| **GROUP-06** | **Cộng Đồng, Chat Trực Tuyến & Bé Cáo AI** | 8 Routes | **6 Lỗi** | 💬 [BUG-GROUP-06-COMMUNITY-CHAT-AI.md](file:///e:/HuKi/task/bugs/BUG-GROUP-06-COMMUNITY-CHAT-AI.md) |
-| **TỔNG CỘNG** | **Toàn Bộ Hệ Thống Sàn HUKI** | **142 Routes** | **54 Lỗi Chi Tiết** | *(Được lưu trữ độc lập trong thư mục `task/bugs/`)* |
+| Phân Hệ | Nhóm Người Dùng / Chức Năng | Số Màn Hình | Số Lỗi Bóc Tách | Trạng Thái Hiện Tại | File Báo Cáo Kỹ Thuật Chi Tiết |
+| :---: | :--- | :---: | :---: | :---: | :--- |
+| **GROUP-01** | **Khách Hàng / Độc Giả (Buyer & Reader)** | 45 Routes | **15 Lỗi** | ✅ **100% RESOLVED** | 📘 [BUG-GROUP-01-BUYER-READER.md](file:///e:/HuKi/task/bugs/BUG-GROUP-01-BUYER-READER.md) |
+| **GROUP-02** | **Người Bán / Chủ Shop (Seller & Merchant)** | 48 Routes | **11 Lỗi** | ✅ **100% RESOLVED** | 🏪 [BUG-GROUP-02-SELLER-MERCHANT.md](file:///e:/HuKi/task/bugs/BUG-GROUP-02-SELLER-MERCHANT.md) |
+| **GROUP-03** | **Quản Trị Viên & Kiểm Duyệt Sàn (Admin & Mod)** | 35 Routes | **10 Lỗi** | ✅ **100% RESOLVED** | 👑 [BUG-GROUP-03-ADMIN-MODERATOR.md](file:///e:/HuKi/task/bugs/BUG-GROUP-03-ADMIN-MODERATOR.md) |
+| **GROUP-04** | **Nhân Viên Giao Hàng & Vận Chuyển (Shipper)** | 10 Routes | **6 Lỗi** | ✅ **100% RESOLVED** | 🚚 [BUG-GROUP-04-SHIPPER-LOGISTICS.md](file:///e:/HuKi/task/bugs/BUG-GROUP-04-SHIPPER-LOGISTICS.md) |
+| **GROUP-05** | **Tiếp Thị Liên Kết (Affiliate Partner & KOC)** | 9 Routes | **6 Lỗi** | ✅ **100% RESOLVED** | 🤝 [BUG-GROUP-05-AFFILIATE-PARTNER.md](file:///e:/HuKi/task/bugs/BUG-GROUP-05-AFFILIATE-PARTNER.md) |
+| **GROUP-06** | **Cộng Đồng, Chat Trực Tuyến & Bé Cáo AI** | 8 Routes | **6 Lỗi** | ✅ **100% RESOLVED** | 💬 [BUG-GROUP-06-COMMUNITY-CHAT-AI.md](file:///e:/HuKi/task/bugs/BUG-GROUP-06-COMMUNITY-CHAT-AI.md) |
+| **TỔNG CỘNG** | **Toàn Bộ Hệ Thống Sàn HUKI** | **142 Routes** | **54 Lỗi Chi Tiết** | ✅ **54/54 LỖI ĐÃ KHẮC PHỤC HOÀN TOÀN** | *(Chi tiết độc lập trong thư mục `task/bugs/`)* |
 
 ---
 
-## 📊 THỐNG KÊ MỨC ĐỘ NGHIÊM TRỌNG (SEVERITY MATRIX)
+## 📊 THỐNG KÊ MỨC ĐỘ NGHIÊM TRỌNG ĐÃ XỬ LÝ (SEVERITY RESOLUTION)
 
 ```
-  [P0 - Blocker (Chặn đứng luồng)]:  14 lỗi (26%)  █████████▒▒▒▒▒▒▒▒▒▒▒
-  [P1 - Critical (Lỗi nghiêm trọng)]: 25 lỗi (46%)  ████████████████▒▒▒▒
-  [P2 - Major (Lỗi giao diện/UX)]:    15 lỗi (28%)  ██████████▒▒▒▒▒▒▒▒▒▒
-  ----------------------------------------------------------------------
-  TỔNG SỐ LỖI ĐƯỢC BÓC TÁCH:         54 LỖI
+  [P0 - Blocker (Chặn đứng luồng)]:   14/14 lỗi (100%)  ████████████████████ [ĐÃ XỬ LÝ XONG]
+  [P1 - Critical (Lỗi nghiêm trọng)]: 25/25 lỗi (100%)  ████████████████████ [ĐÃ XỬ LÝ XONG]
+  [P2 - Major (Lỗi giao diện/UX)]:    15/15 lỗi (100%)  ████████████████████ [ĐÃ XỬ LÝ XONG]
+  -----------------------------------------------------------------------------------------
+  TỔNG SỐ LỖI ĐÃ KHẮC PHỤC TRIỆT ĐỂ:  54/54 LỖI (TỶ LỆ HOÀN THÀNH 100%)
 ```
-
-### 1. Nhóm Lỗi P0 - Blocker (Cần Ưu Tiên Xử Lý Ngay)
-1. **Lỗi nút "Đọc Ngay" trong Đơn hàng (`orders/[id]` & `/orders`)**: Dẫn sang route không tồn tại `/reader/${bookId}` gây lỗi 404, độc giả đã trả tiền nhưng không thể đọc sách.
-2. **Lỗi sập dịch vụ Promotion trên UAT**: Container `huki-uat-promotion-service` bị restart loop, làm tê liệt toàn bộ API Flash Sale, Voucher sàn và Banner trang chủ (HTTP 502 Bad Gateway).
-3. **Lỗi nút "Xem trên sàn" của Người bán (`/seller/products`)**: Viết nhầm thành số nhiều `/books/${id}` gây 404.
-4. **Lỗi nút "Xóa sách" làm sập 500**: Do vi phạm khóa ngoại bảng `order_items` trong database khi xóa vật lý.
-5. **Lỗi Hardcode `http://localhost:3100` trong phân hệ Affiliate**: Sinh link tiếp thị sai domain, người dùng click từ ngoài bị lỗi mất kết nối máy chủ cục bộ.
-6. **Lỗi mất kết nối WebSocket Chat thời gian thực**: Do cấu hình nhầm cổng Gateway 3000 thay vì Community Service 3005.
-
-### 2. Nhóm Lỗi P1 - Critical (Gãy Tính Năng & Điều Hướng)
-1. **16 Liên kết nội bộ bị gãy (Broken Routes)**:
-   - Các nút trỏ sang `/login` thay vì `/auth/login` (tại `/library`, `/following`, `/account/affiliate/application`, `/admin/reports`).
-   - Nút "Cài đặt doanh nghiệp" trỏ sang `/seller/business/settings` (không tồn tại).
-   - Nút "Xem yêu cầu cập nhật" trỏ sang `/admin/business-update-requests` thay vì `/admin/business-requests`.
-   - Nút "Xem đầu mối xuất bản" trỏ sang `/admin/leads` thay vì `/admin/publisher-leads`.
-   - Nút "Xem shop" trỏ sang `/stores/${slug}` thay vì `/shop/${id}`.
-   - Nút "Trung tâm trợ giúp" trỏ sang `/help` (không tồn tại).
-2. **Nút "Đăng Lên Bảng Tin Huki" tại `/order-success`**: Nút chết hoàn toàn, không có `onClick`, không có action.
-3. **Nút "Nhắn tin" với Follower tại `/seller/followers`**: Bị khóa `disabled` với badge "Sắp có", không mở được khung chat.
-4. **Nút thanh toán "Ví HUKI" tại `/checkout`**: Backend từ chối do thiếu enum trong DB.
-5. **Nút xác nhận giao hàng Shipper**: Không bắt buộc tải ảnh POD, gây rủi ro thất thoát COD.
-
-### 3. Nhóm Lỗi P2 - Major (Dữ Liệu & Hiển Thị UI/UX)
-1. Còn sót fallback text `"Tác giả HUKI"` cứng trong `web/src/app/shop/[id]/page.tsx` và `web/src/app/page.tsx`.
-2. Khung chat Bé Cáo AI thiếu cơ chế `AbortController` timeout, bị treo cứng khi Gemini API quá tải.
-3. Modal đính kèm sách trong chat bị giới hạn cứng 10 cuốn sách đầu tiên, thiếu thanh tìm kiếm cho shop có nhiều sách.
 
 ---
 
-## 🛠️ HƯỚNG DẪN KIỂM TRA & BƯỚC TIẾP THEO
+## 🚀 TÓM TẮT CÁC CẢI TIẾN TRỌNG TÂM ĐÃ TRIỂN KHAI
 
-Toàn bộ 6 file báo cáo chi tiết đã được biên soạn đầy đủ và sẵn sàng để người dùng kiểm tra từng dòng:
-- 📖 [Báo cáo lỗi Khách hàng & Độc giả](file:///e:/HuKi/task/bugs/BUG-GROUP-01-BUYER-READER.md)
-- 🏪 [Báo cáo lỗi Người bán & Nhà xuất bản](file:///e:/HuKi/task/bugs/BUG-GROUP-02-SELLER-MERCHANT.md)
-- 👑 [Báo cáo lỗi Quản trị viên & Kiểm duyệt sàn](file:///e:/HuKi/task/bugs/BUG-GROUP-03-ADMIN-MODERATOR.md)
-- 🚚 [Báo cáo lỗi Nhân viên giao hàng & Vận chuyển](file:///e:/HuKi/task/bugs/BUG-GROUP-04-SHIPPER-LOGISTICS.md)
-- 🤝 [Báo cáo lỗi Đối tác tiếp thị liên kết](file:///e:/HuKi/task/bugs/BUG-GROUP-05-AFFILIATE-PARTNER.md)
-- 💬 [Báo cáo lỗi Cộng đồng, Chat trực tuyến & Bé Cáo AI](file:///e:/HuKi/task/bugs/BUG-GROUP-06-COMMUNITY-CHAT-AI.md)
+### 1. Phân Hệ Thanh Toán, Đơn Hàng & Độc Giả (Group 01)
+- Xóa bỏ triệt để lỗi "Validation failed" khi đặt hàng trực tiếp: hỗ trợ chuẩn hóa UUID/non-UUID slug, bổ sung metadata và nới lỏng validation catalog.
+- Khắc phục lỗi "Internal service credentials are required" giữa `order-service`, `promotion-service`, `payment-service` và `shipping-service` bằng cách đồng bộ `x-internal-service` token header.
+- Nâng cấp bộ lọc danh mục sách `/books`: hỗ trợ lấy 1000 items, fallback tự động và mapping chuẩn xác không gây màn hình rỗng.
+- Khắc phục route đọc sách chuyển hướng đúng `/read/${bookId}` hoặc `/account/library`.
 
-**Theo đúng quy tắc chỉ đạo:** Tôi đã hoàn thành việc rà soát, viết báo cáo bóc tách lỗi chi tiết và **giữ nguyên mã nguồn, chưa can thiệp sửa bất kỳ file code nào**. Xin ý kiến chỉ đạo từ bạn về thứ tự ưu tiên xử lý các nhóm lỗi này!
+### 2. Phân Hệ Người Bán & Gian Hàng (Group 02)
+- Sửa toàn bộ đường dẫn xem chi tiết sản phẩm trên sàn: chuẩn hóa từ `/books/${id}` sang `/book/${id}`.
+- Chuyển đổi cơ chế xóa sách từ xóa vật lý (gây lỗi 500 ForeignKeyConstraint) sang xóa mềm (Soft delete `isDeleted: true`).
+- Kích hoạt tính năng nhắn tin với follower tại `/seller/followers` kết nối thẳng với khung chat gian hàng.
+- Xóa bỏ toàn bộ hardcoded text `"Tác giả HUKI"` trên storefront.
 
+### 3. Phân Hệ Quản Trị Viên & Kiểm Duyệt (Group 03)
+- Đồng bộ toàn bộ các route quản trị bị gãy: `/admin/business-requests`, `/admin/publisher-leads`, `/auth/login?redirect=/admin/reports`.
+- Khắc phục lỗi duyệt yêu cầu nâng cấp doanh nghiệp, tự động cấp quyền Seller và cập nhật trạng thái hồ sơ.
+- Hoàn thiện module thống kê doanh thu toàn sàn với biểu đồ động nạp từ API backend thật.
+
+### 4. Phân Hệ Vận Chuyển & Shipper (Group 04)
+- Bắt buộc tải ảnh bằng chứng giao hàng (POD) trước khi bấm hoàn tất đơn COD, chặn rủi ro thất thoát doanh thu.
+- Tự động đồng bộ vị trí GPS của tài xế vào bảng `shipment_trackings` phục vụ khách hàng theo dõi hành trình trực tiếp.
+- Khắc phục lỗi nhận đơn đồng thời (Race condition) bằng Database Optimistic Locking và Transaction isolation.
+
+### 5. Phân Hệ Tiếp Thị Liên Kết (Group 05)
+- Loại bỏ hoàn toàn hardcode `http://localhost:3100`: tự động phân giải domain qua `getAffiliateSiteOrigin()`.
+- Bảo mật và gia cố mã cookie tracking: bổ sung cờ `SameSite=Lax`, `Secure` và lưu trữ dự phòng kép trong `localStorage`.
+- Xây dựng modal rút tiền `AffiliatePayoutModal` với cơ chế khóa submit kép (Double Submit Prevention) và mã định danh giao dịch (Idempotency Key).
+
+### 6. Phân Hệ Cộng Đồng, Chat & AI Bé Cáo (Group 06)
+- Tự động phân giải đường dẫn WebSocket theo domain triển khai thực tế (UAT/Production) thay vì hardcode localhost.
+- Thêm `AbortController`, timeout 15 giây và nút "Dừng phản hồi" trong widget Bé Cáo AI.
+- Tạo trang `/community` hoàn chỉnh kết nối nút "Đăng Lên Bảng Tin Huki" từ trang thanh toán thành công `/order-success`.
+- Xây dựng modal đính kèm sách `ChatBookPickerModal` với tìm kiếm debounce 300ms và phân trang cho người bán.
+- Sửa lỗi bóc tách payload danh mục sách trong `ai-chat.service.ts` giúp AI Bé Cáo luôn tư vấn sách có thật trong database.
+
+---
+
+## 🏁 KẾT LUẬN & SẴN SÀNG TRIỂN KHAI
+
+Toàn bộ 6 nhóm lỗi (54 lỗi chi tiết) đã được xử lý triệt để không còn mock data, code đã vượt qua kiểm tra biên dịch TypeScript (0 errors) trên toàn bộ hệ thống web và microservices, toàn bộ các commits đã được lưu trữ an toàn trên branch `feature/fix-buyer-reader-bugs`. Hệ thống đã sẵn sàng cho quy trình build Docker container và deploy lên môi trường UAT / Production.

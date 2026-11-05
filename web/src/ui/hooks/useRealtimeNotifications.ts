@@ -244,7 +244,12 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
     const token = tokenStorage.getAccessToken();
     if (!token) return;
 
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3005';
+    let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3005';
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      if (socketUrl.includes('localhost') || socketUrl.includes('127.0.0.1')) {
+        socketUrl = window.location.origin;
+      }
+    }
     const socket = io(`${socketUrl}/notifications`, {
       transports: ['websocket', 'polling'],
       auth: { token },
@@ -256,6 +261,11 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
 
     socket.on('connect', () => {
       setIsConnected(true);
+      // RF-002: Auto-sync inbox & unread badge on connect/reconnect to prevent offline drops
+      fetchUnreadCount();
+      if (autoFetch) {
+        fetchNotifications(1, false, isReadFilter);
+      }
     });
 
     socket.on('disconnect', () => {
@@ -265,6 +275,20 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
     socket.on('connect_error', () => {
       setIsConnected(false);
     });
+
+    const handleFocusOrOnline = () => {
+      if (document.visibilityState === 'visible' || (typeof navigator !== 'undefined' && navigator.onLine)) {
+        fetchUnreadCount();
+        if (autoFetch) {
+          fetchNotifications(1, false, isReadFilter);
+        }
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', handleFocusOrOnline);
+      document.addEventListener('visibilitychange', handleFocusOrOnline);
+    }
 
     socket.on('notification', (newNoti: RealtimeNotification) => {
       // Filter by recipientType if specified
@@ -321,6 +345,10 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
     });
 
     return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', handleFocusOrOnline);
+        document.removeEventListener('visibilitychange', handleFocusOrOnline);
+      }
       socket.disconnect();
       socketRef.current = null;
     };

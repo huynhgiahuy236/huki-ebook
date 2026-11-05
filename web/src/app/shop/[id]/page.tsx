@@ -627,7 +627,7 @@ export default function ShopPage() {
         ...normalized,
         id: rb.id,
         title: rb.title,
-        author: (typeof rb.author === 'object' ? rb.author?.name : rb.author) || 'Tác giả HUKI',
+        author: (typeof rb.author === 'object' ? rb.author?.name : rb.author) || (rb as any).authorName || 'Nhiều tác giả',
         publisher: business?.name || normalized.publisher,
         storeId: targetStoreId,
         businessId: targetBusinessId,

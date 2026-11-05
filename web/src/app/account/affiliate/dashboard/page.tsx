@@ -6,6 +6,7 @@ import AccountLayout from '@/ui/components/layout/AccountLayout';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 import { useAffiliateGuard } from '@/lib/affiliate/useAffiliateGuard';
 import AffiliateKycModal from '@/ui/components/affiliate/AffiliateKycModal';
+import AffiliatePayoutModal from '@/ui/components/affiliate/AffiliatePayoutModal';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
@@ -57,6 +58,7 @@ interface CtvStats {
 export default function AffiliateDashboardPage() {
   const { step, hasBank, kycData, refetch: refetchGuard } = useAffiliateGuard({ enforceActive: true });
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
+  const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
   const { user } = useAuth();
   const { showToast } = useToast();
 
@@ -218,6 +220,18 @@ export default function AffiliateDashboardPage() {
               >
                 <span className="material-symbols-outlined text-[16px]">download</span>
                 <span>Xuất CSV</span>
+              </button>
+            )}
+
+            {isLive && (stats?.metrics.netAvailableCommission ?? 0) >= 100000 && (
+              <button
+                type="button"
+                onClick={() => setIsPayoutModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                title="Tạo lệnh rút hoa hồng về tài khoản ngân hàng"
+              >
+                <span className="material-symbols-outlined text-[16px]">account_balance_wallet</span>
+                <span>Rút Hoa Hồng</span>
               </button>
             )}
 
@@ -390,6 +404,16 @@ export default function AffiliateDashboardPage() {
                 </div>
                 <span className="text-xs font-bold text-gray-800 block">{kpi.label}</span>
                 <p className="text-[11px] text-gray-500 leading-snug">{kpi.desc}</p>
+                {kpi.highlight && isLive && (stats?.metrics.netAvailableCommission ?? 0) >= 100000 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsPayoutModalOpen(true)}
+                    className="mt-2 w-full py-1.5 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold shadow-xs flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">account_balance_wallet</span>
+                    <span>Rút hoa hồng ngay</span>
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -517,6 +541,16 @@ export default function AffiliateDashboardPage() {
           refetchGuard();
           fetchDashboardData(true);
         }}
+      />
+      <AffiliatePayoutModal
+        isOpen={isPayoutModalOpen}
+        onClose={() => setIsPayoutModalOpen(false)}
+        availableAmount={stats?.metrics.netAvailableCommission || 0}
+        bankSnapshot={kycData?.bankSnapshot || null}
+        onSuccess={() => {
+          fetchDashboardData(true);
+        }}
+        onOpenKyc={() => setIsKycModalOpen(true)}
       />
     </AccountLayout>
   );

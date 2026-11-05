@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useTransition } from 'react';
 import Link from 'next/link';
 import AccountLayout from '@/ui/components/layout/AccountLayout';
 import { useToast } from '@/ui/context/ToastContext';
-import { affiliateApi } from '@/lib/affiliate/affiliateApi';
+import { affiliateApi, getAffiliateSiteOrigin } from '@/lib/affiliate/affiliateApi';
 import { useAffiliateGuard } from '@/lib/affiliate/useAffiliateGuard';
 
 interface AffiliateBookItem {
@@ -108,7 +108,7 @@ export default function AffiliateMarketplacePage() {
       });
 
       if (res.success && res.data) {
-        const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3100';
+        const origin = getAffiliateSiteOrigin();
         const fullShortUrl = `${origin}${res.data.shortUrl}`;
 
         // 1. Copy to clipboard
@@ -435,9 +435,9 @@ export default function AffiliateMarketplacePage() {
             <div className="flex items-center justify-center gap-2 pt-6 pb-2">
               <button
                 type="button"
-                disabled={page <= 1}
+                disabled={loading || page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="px-3.5 py-2 rounded-xl border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 cursor-pointer flex items-center gap-1"
+                className="px-3.5 py-2 rounded-xl border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed disabled:pointer-events-none flex items-center gap-1"
               >
                 <span className="material-symbols-outlined text-[16px]">chevron_left</span>
                 <span>Trang trước</span>
@@ -469,9 +469,9 @@ export default function AffiliateMarketplacePage() {
 
               <button
                 type="button"
-                disabled={page >= totalPages}
+                disabled={loading || page >= totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="px-3.5 py-2 rounded-xl border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 cursor-pointer flex items-center gap-1"
+                className="px-3.5 py-2 rounded-xl border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed disabled:pointer-events-none flex items-center gap-1"
               >
                 <span>Trang sau</span>
                 <span className="material-symbols-outlined text-[16px]">chevron_right</span>

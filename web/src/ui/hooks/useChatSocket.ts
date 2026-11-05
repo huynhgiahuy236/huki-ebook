@@ -51,7 +51,12 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
     const token = tokenStorage.getAccessToken();
     if (!token) return;
 
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3005';
+    let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3005';
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      if (socketUrl.includes('localhost') || socketUrl.includes('127.0.0.1')) {
+        socketUrl = window.location.origin;
+      }
+    }
     const socket = io(`${socketUrl}/chat`, {
       transports: ['websocket', 'polling'],
       auth: { token },

@@ -35,12 +35,12 @@ export class BookListQueryDto {
   @Min(1)
   page = 1;
 
-  @ApiPropertyOptional({ default: 20, maximum: 100 })
+  @ApiPropertyOptional({ default: 20, maximum: 1000 })
   @Type(() => Number)
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(1000)
   limit = 20;
 
   @ApiPropertyOptional({ description: 'Title, ISBN, author or publisher', minLength: 1 })

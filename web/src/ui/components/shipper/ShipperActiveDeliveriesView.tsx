@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useShipper, ShipperOrder } from '@/ui/context/ShipperContext';
 import {
@@ -16,7 +16,21 @@ import QuickDispatchNotificationModal from '../common/QuickDispatchNotificationM
 type GroupByMode = 'SHOP' | 'STATUS' | 'ZONE' | 'NONE';
 
 export default function ShipperActiveDeliveriesView() {
-  const { activeDeliveries, confirmPickup, completeDelivery, failDelivery } = useShipper();
+  const { activeDeliveries, confirmPickup, completeDelivery, failDelivery, offlineQueueCount, syncOfflineDeliveries } = useShipper();
+
+  const [isNetworkOnline, setIsNetworkOnline] = useState(true);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setIsNetworkOnline(navigator.onLine);
+    const handleOnline = () => setIsNetworkOnline(true);
+    const handleOffline = () => setIsNetworkOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // 1. Chỉ quản lý các đơn hàng giao thông thường (Đơn hoàn đã tách sang /shipper/returns)
   const forwardDeliveries = useMemo(() => {
@@ -71,7 +85,7 @@ export default function ShipperActiveDeliveriesView() {
     }
     setPodSubmitting(true);
     try {
-      await completeDelivery(podModalOrder.id, `POD_VERIFIED: ${podReceiverNote}`);
+      await completeDelivery(podModalOrder.id, `POD_VERIFIED: ${podReceiverNote}`, podImagePreview);
       setPodModalOrder(null);
     } finally {
       setPodSubmitting(false);
@@ -215,17 +229,12 @@ export default function ShipperActiveDeliveriesView() {
 
   const shipperBulkGroups: BulkActionGroup[] = [
     {
-      groupLabel: 'Thao tác giao nhận',
+      groupLabel: 'Thao tác kho vận',
       actions: [
         {
           value: 'BULK_PICKUP',
           label: 'Lấy hàng loạt từ Shop',
           confirmMessage: 'Xác nhận đã nhận hàng từ các Shop được chọn?',
-        },
-        {
-          value: 'BULK_DELIVER',
-          label: 'Giao thành công hàng loạt',
-          confirmMessage: 'Đánh dấu giao thành công các đơn đang giao được chọn?',
         },
       ],
     },
@@ -505,6 +514,35 @@ export default function ShipperActiveDeliveriesView() {
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
+      {/* Offline Status & Pending POD Sync Banner (RF-005) */}
+      {!isNetworkOnline && (
+        <div className="flex items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs text-amber-900 shadow-sm animate-in fade-in">
+          <span className="material-symbols-outlined text-[20px] text-amber-600">signal_wifi_off</span>
+          <div>
+            <strong className="block font-semibold">Chế độ ngoại tuyến (Offline): Thiết bị đang ở vùng mất sóng</strong>
+            Bạn vẫn có thể bàn giao đơn và chụp ảnh POD bình thường. Mọi biên bản và chữ ký sẽ được lưu tạm trong bộ nhớ máy và tự động đồng bộ lên sàn HuKi ngay khi có sóng.
+          </div>
+        </div>
+      )}
+
+      {offlineQueueCount > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-900 shadow-sm animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px] text-blue-600 animate-pulse">cloud_sync</span>
+            <span>Đang có <strong>{offlineQueueCount}</strong> biên bản giao hàng POD đã lưu ngoại tuyến chờ đồng bộ.</span>
+          </div>
+          <button
+            onClick={() => syncOfflineDeliveries()}
+            disabled={!isNetworkOnline}
+            className={`flex items-center gap-1 rounded-lg px-3 py-1 font-semibold text-white transition-colors ${
+              isNetworkOnline ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer' : 'bg-slate-400 cursor-not-allowed'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[14px]">sync</span>
+            {isNetworkOnline ? 'Đồng bộ ngay' : 'Đang đợi sóng...'}
+          </button>
+        </div>
+      )}
       {/* 1. Compact Action Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
         <div className="flex items-center gap-2">
@@ -936,11 +974,13 @@ export default function ShipperActiveDeliveriesView() {
               </button>
               <button
                 type="button"
+                disabled={!failReason || !failReason.trim()}
                 onClick={() => {
-                  failDelivery(selectedOrderToFail, failReason);
+                  if (!failReason || !failReason.trim()) return;
+                  failDelivery(selectedOrderToFail, failReason.trim());
                   setSelectedOrderToFail(null);
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-2xs cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-2xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Xác nhận thất bại
               </button>

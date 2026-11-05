@@ -134,7 +134,7 @@ export function SellerStoresView() {
                   <span>Xem trên sàn</span>
                 </Link>
                 <Link
-                  href="/seller/business/settings"
+                  href="/seller/business"
                   className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#003b2b] px-4 text-xs font-semibold text-white hover:bg-[#002b1f] transition-colors"
                 >
                   <span className="material-symbols-outlined text-base">edit</span>
