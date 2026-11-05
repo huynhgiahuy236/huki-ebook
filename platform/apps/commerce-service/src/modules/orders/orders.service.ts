@@ -30,6 +30,7 @@ import {
   throwConflict,
   throwNotFound,
   throwForbidden,
+  throwBadRequest,
 } from "@huki/shared/errors";
 import { ErrorCode } from "@huki/shared/errors";
 import { FlashSaleClientService } from "./flash-sale-client.service";
@@ -3936,13 +3937,28 @@ export class OrdersService {
     const trackingCode = sellerOrder.trackingCode || `HUKI-EXP-${randomBytes(4).toString('hex').toUpperCase()}`;
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      const up = await tx.sellerOrder.update({
-        where: { id },
+      // SH-003: Optimistic concurrency lock when claiming order
+      const claimResult = await tx.sellerOrder.updateMany({
+        where: {
+          id,
+          OR: [
+            { deliveryStaffId: null },
+            { deliveryStaffId: actorId },
+          ],
+        },
         data: {
           carrier,
           trackingCode,
           deliveryStaffId: actorId,
         },
+      });
+
+      if (claimResult.count === 0) {
+        throwConflict(ErrorCode.ORDER_ALREADY_CANCELLED, 'Đơn hàng này đã được một bưu tá khác tiếp nhận!');
+      }
+
+      const up = await tx.sellerOrder.findUniqueOrThrow({
+        where: { id },
       });
 
       await tx.orderStatusHistory.create({
@@ -4025,12 +4041,20 @@ export class OrdersService {
     const carrier = dto?.carrier || 'GHTK';
     const trackingCode = dto?.trackingCode || `GHTK-${randomBytes(4).toString('hex').toUpperCase()}`;
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const itemIds = sellerOrder.items.map((item) => item.id);
-      await this.reservations.commit(tx as any, sellerOrder.orderId, itemIds);
+    // SH-003: Check if order already picked up or delivered by another driver
+    if (sellerOrder.status === SellerOrderStatus.SHIPPED || sellerOrder.status === SellerOrderStatus.DELIVERED) {
+      throwConflict(ErrorCode.ORDER_ALREADY_CANCELLED, 'Đơn hàng này đã được một tài xế khác tiếp nhận trước đó!');
+    }
 
-      const updated = await tx.sellerOrder.update({
-        where: { id },
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Optimistic concurrency lock: only update if still in eligible status (SH-003)
+      const count = await tx.sellerOrder.updateMany({
+        where: {
+          id,
+          status: {
+            in: [SellerOrderStatus.CONFIRMED, SellerOrderStatus.PREPARING],
+          },
+        },
         data: {
           carrier,
           trackingCode,
@@ -4039,13 +4063,24 @@ export class OrdersService {
         },
       });
 
+      if (count.count === 0) {
+        throwConflict(ErrorCode.ORDER_ALREADY_CANCELLED, 'Đơn hàng này đã được một tài xế khác tiếp nhận trước đó!');
+      }
+
+      const itemIds = sellerOrder.items.map((item) => item.id);
+      await this.reservations.commit(tx as any, sellerOrder.orderId, itemIds);
+
+      const updated = await tx.sellerOrder.findUniqueOrThrow({
+        where: { id },
+      });
+
       return updated;
     });
 
     return result;
   }
 
-  async shipperDeliverOrder(actor?: BookActor, id?: string, dto?: { note?: string }) {
+  async shipperDeliverOrder(actor?: BookActor, id?: string, dto?: { note?: string; podImageUrl?: string; evidenceImageUrl?: string }) {
     if (!id) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
 
     // 1. Check if id is a return request
@@ -4123,7 +4158,11 @@ export class OrdersService {
               : 'Đơn đã được giao thành công',
           actorType: 'SHIPPER',
           actorId: actor?.sub,
-          metadata: dto?.note ? { note: dto.note } : undefined,
+          metadata: {
+            note: dto?.note,
+            podImageUrl: dto?.podImageUrl || dto?.evidenceImageUrl,
+            verifiedAt: now.toISOString(),
+          },
         },
       });
 
@@ -4145,6 +4184,9 @@ export class OrdersService {
 
   async shipperFailOrder(actor?: BookActor, id?: string, dto?: { reason: string }) {
     if (!id) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
+    if (!dto?.reason?.trim()) {
+      throwBadRequest(ErrorCode.VALIDATION_REQUIRED, 'Bắt buộc phải chọn lý do giao hàng không thành công');
+    }
     const sellerOrder = await this.prisma.sellerOrder.findUnique({
       where: { id },
       include: { items: true, order: true },

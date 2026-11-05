@@ -71,7 +71,7 @@ export default function ShipperActiveDeliveriesView() {
     }
     setPodSubmitting(true);
     try {
-      await completeDelivery(podModalOrder.id, `POD_VERIFIED: ${podReceiverNote}`);
+      await completeDelivery(podModalOrder.id, `POD_VERIFIED: ${podReceiverNote}`, podImagePreview);
       setPodModalOrder(null);
     } finally {
       setPodSubmitting(false);
@@ -215,17 +215,12 @@ export default function ShipperActiveDeliveriesView() {
 
   const shipperBulkGroups: BulkActionGroup[] = [
     {
-      groupLabel: 'Thao tác giao nhận',
+      groupLabel: 'Thao tác kho vận',
       actions: [
         {
           value: 'BULK_PICKUP',
           label: 'Lấy hàng loạt từ Shop',
           confirmMessage: 'Xác nhận đã nhận hàng từ các Shop được chọn?',
-        },
-        {
-          value: 'BULK_DELIVER',
-          label: 'Giao thành công hàng loạt',
-          confirmMessage: 'Đánh dấu giao thành công các đơn đang giao được chọn?',
         },
       ],
     },
@@ -936,11 +931,13 @@ export default function ShipperActiveDeliveriesView() {
               </button>
               <button
                 type="button"
+                disabled={!failReason || !failReason.trim()}
                 onClick={() => {
-                  failDelivery(selectedOrderToFail, failReason);
+                  if (!failReason || !failReason.trim()) return;
+                  failDelivery(selectedOrderToFail, failReason.trim());
                   setSelectedOrderToFail(null);
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-2xs cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-2xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Xác nhận thất bại
               </button>

@@ -94,7 +94,7 @@ export interface ShipperContextType {
   refreshOrders: () => Promise<void>;
   acceptOrder: (orderId: string) => Promise<void> | void;
   confirmPickup: (orderId: string) => Promise<void> | void;
-  completeDelivery: (orderId: string, note?: string) => Promise<void> | void;
+  completeDelivery: (orderId: string, note?: string, podImageUrl?: string) => Promise<void> | void;
   failDelivery: (orderId: string, reason: string) => Promise<void> | void;
   remitCodDebt: (amount: number, method: string) => void;
   requestWithdrawal: (amount: number, bankInfo: { bank: string; account: string; name: string }) => void;
@@ -704,7 +704,7 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   // 3. Complete delivery & collect COD (calls DB PATCH deliver)
-  const completeDelivery = async (orderId: string, note?: string) => {
+  const completeDelivery = async (orderId: string, note?: string, podImageUrl?: string) => {
     const target = activeDeliveries.find((o) => o.id === orderId);
     if (!target) return;
 
@@ -762,11 +762,17 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
     }
 
-    setTransactions((prev) => [...newTxList, ...prev]);
+    setTransactions((prev) => {
+      const map = new Map<string, WalletTransaction>();
+      [...newTxList, ...prev].forEach((t) => {
+        if (!map.has(t.id)) map.set(t.id, t);
+      });
+      return Array.from(map.values());
+    });
 
     removeClaimedId(orderId);
     try {
-      await orderApi.shipperDeliver(orderId, { note });
+      await orderApi.shipperDeliver(orderId, { note, podImageUrl });
     } catch (err) {
       console.error('Error delivering order in DB:', err);
     }

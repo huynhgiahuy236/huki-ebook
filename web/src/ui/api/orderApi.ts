@@ -737,7 +737,7 @@ export const orderApi = {
    */
   shipperDeliver: async (
     id: string,
-    payload?: { note?: string }
+    payload?: { note?: string; podImageUrl?: string; evidenceImageUrl?: string }
   ): Promise<ApiResponse<any>> => {
     return apiClient(`/orders/shipper/orders/${id}/deliver`, {
       method: 'PATCH',

@@ -37,8 +37,28 @@ export default function ShipperWalletView() {
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
   const [bulkLoading, setBulkLoading] = useState(false);
 
+  // SH-005: Deduplicate transaction IDs to prevent duplicate keys across pagination
+  const deduplicatedTransactions = useMemo(() => {
+    const seen = new Set<string>();
+    const result: typeof transactions = [];
+    transactions.forEach((tx, idx) => {
+      const uniqueId = tx.id || `tx-fallback-${idx}`;
+      if (!seen.has(uniqueId)) {
+        seen.add(uniqueId);
+        result.push({ ...tx, id: uniqueId });
+      } else {
+        const altId = `${uniqueId}-p${idx}`;
+        if (!seen.has(altId)) {
+          seen.add(altId);
+          result.push({ ...tx, id: altId });
+        }
+      }
+    });
+    return result;
+  }, [transactions]);
+
   const filteredTransactions = useMemo(() => {
-    return transactions.filter((tx) => {
+    return deduplicatedTransactions.filter((tx) => {
       if (activeTab !== 'ALL' && tx.type !== activeTab) return false;
       if (!matchesDateFilter(tx.createdAt, dateFilter)) return false;
       if (searchQuery.trim()) {
@@ -52,7 +72,7 @@ export default function ShipperWalletView() {
       }
       return true;
     });
-  }, [transactions, activeTab, dateFilter, searchQuery]);
+  }, [deduplicatedTransactions, activeTab, dateFilter, searchQuery]);
 
   // Double-Lock slicing
   const paginatedTransactions = useMemo(() => {
