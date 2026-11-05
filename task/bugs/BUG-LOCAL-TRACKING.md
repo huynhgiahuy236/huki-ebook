@@ -11,6 +11,7 @@
 > 4. **Quản lý Git:** Xong tác vụ nào thì commit cục bộ (`git commit`) với message chuẩn Conventional Commits; **TUYỆT ĐỐI KHÔNG PUSH**.
 > 5. **Đóng tiến trình dứt điểm sau khi chạy (Process Hygiene):** Tuyệt đối không để script chạy ngầm / treo tiến trình (luôn đảm bảo đóng kết nối DB, ngắt server hoặc `process.exit(0)` trong `finally`). Phải tắt/kill ngay lập tức mọi background task sau khi hoàn thành, không để nghẽn hàng đợi hoặc làm đứng yêu cầu của người dùng.
 > 6. **Tập trung hóa thư mục `scripts/` (Code Hygiene):** Toàn bộ script hỗ trợ, migration, verification hoặc chạy thử nghiệm phải được đặt 100% trong thư mục `scripts/`. Tuyệt đối không tạo file script rải rác ngoài thư mục gốc hay trong `task/`, giữ cho codebase luôn gọn gàng và sạch sẽ.
+> 7. **Dọn sạch file tạm & JSON dump sau khi dùng (Artifact Cleanup):** Các file `.json` dump dữ liệu quét thô, cache trung gian sau khi đã nạp hoặc tổng hợp xong vào báo cáo chính thức phải được xóa bỏ ngay, tuyệt đối không để lưu cữu gây rối mắt và làm bẩn cây thư mục dự án.
 
 ---
 
