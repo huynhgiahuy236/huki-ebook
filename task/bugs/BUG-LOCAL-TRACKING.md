@@ -21,6 +21,10 @@
 | :---: | :---: | :--- | :--- | :---: | :---: | :---: |
 | 1 | **BUG-LOC-001** | Voucher dải banner trang chủ load lại bị mất trạng thái "Đã lưu"; Chưa đồng bộ ví `user_saved_vouchers` | `web/src/app/page.tsx` + `promotion-service` | Major | ✅ Đã bóc tách gốc rễ & Giải pháp | ⏳ Chờ lệnh duyệt code |
 | 2 | **BUG-LOC-002** | Rà soát & Thẩm định Bộ lọc `/books` (`@Max(1000)`) và 7 Kịch bản Edge Cases Thanh toán | `commerce-service` + `promotion-service` + `web` | Blocker | ✅ Đã kiểm tra thực tế trong code & Thẩm định đạt chuẩn | ℹ️ Đã có sẵn trong code (Commit `f4ff6a3`, `cd3789d`) |
+| 3 | **BUG-LOC-003** | Lỗi hiển thị 2 thông báo (duplicate toasts) cùng lúc khi thanh toán thành công | `web/src/app/checkout/payment/[orderId]/page.tsx` | Minor | ✅ Đã bóc tách gốc rễ & Giải pháp | ⏳ Chờ lệnh duyệt code |
+| 4 | **BUG-LOC-004** | Thiết kế lại UI Toast thông báo: Xóa bỏ hiệu ứng mờ ảo đục, nâng cấp chuẩn Top-tier (Sonner/Radix sắc nét) | `web/src/ui/components/common/Toast.tsx` | UX/UI | ✅ Đã xây dựng phương án thiết kế | ⏳ Chờ lệnh duyệt code |
+| 5 | **BUG-LOC-005** | Tinh chỉnh Design System BookCard (Nút tim & Giỏ hàng) và Header Action Icons (Đồng bộ kiểu dáng) | `BookCard.tsx` + `StoreHeader.tsx` | UX/UI | ✅ Đã bóc tách điểm dị biệt & Giải pháp | ⏳ Chờ lệnh duyệt code |
+| 6 | **BUG-LOC-006** | Loại bỏ toàn bộ nút & tính năng "Đọc thử"; Tái cấu trúc layout 3 cột trang `/book/[id]` khử khoảng hở | `web/src/app/book/[id]/page.tsx` + toàn sàn | UX/UI + Scope | ✅ Đã quét toàn bộ & Thiết kế bố cục cân đối | ⏳ Chờ lệnh duyệt code |
 
 ---
 
@@ -140,3 +144,106 @@ Vấn đề nằm tại mã nguồn `web/src/app/page.tsx`:
      - Đã có tại `checkoutApi.confirmCheckout` tạo danh sách `sellerOrders` độc lập cho từng chủ shop.
 
 - **Thẩm định giải pháp:** Mô hình xử lý 7 kịch bản này là **chuẩn mực kiến trúc TMĐT phân tán (Enterprise Distributed E-commerce)**. Toàn bộ logic đã có sẵn trong codebase hiện tại của nhánh `fix/local-fixes`.
+
+---
+
+### [BUG-LOC-003] Lỗi Hiển Thị Trùng Lặp 2 Thông Báo Toast Khi Thanh Toán Thành Công
+
+#### 1. Hiện Tượng Thực Tế
+- Khi hoàn tất thanh toán đơn hàng (qua PayOS VietQR hoặc nút xác nhận mô phỏng), trên góc màn hình văng ra liên tiếp **2 thông báo toast** chồng chéo lên nhau:
+  - Toast 1: *"Thanh toán thành công! Đang chuyển hướng..."*
+  - Toast 2: *"Thanh toán PayOS thành công! Đang chuyển hướng..."*
+
+#### 2. Vị Trí Mã Nguồn & Nguyên Nhân Gốc Rễ
+- **Tập tin:** [web/src/app/checkout/payment/[orderId]/page.tsx](file:///e:/HuKi/web/src/app/checkout/payment/[orderId]/page.tsx)
+- **Nguyên nhân kỹ thuật:**
+  1. Trong hàm `pollInterval` (dòng 170-179): Khi phát hiện trạng thái đơn hàng đã thanh toán (`isPaid = true`), code thực hiện 2 thao tác liên tiếp:
+     - Gọi `realtimeSyncBus.publish('ORDER_PAYMENT_SUCCEEDED', { ... })`
+     - Đồng thời tự gọi `showToast('Thanh toán thành công! Đang chuyển hướng...', 'success')`
+  2. Tuy nhiên, ngay phía trên (dòng 152-160), chính component này lại đăng ký lắng nghe sự kiện bus đó:
+     ```typescript
+     const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+       if (msg.type === 'ORDER_PAYMENT_SUCCEEDED' && ...) {
+         showToast('Thanh toán PayOS thành công! Đang chuyển hướng...', 'success');
+         window.location.href = ...;
+       }
+     });
+     ```
+  3. Kết quả: Khi component tự publish sự kiện, subscriber của chính nó cũng nhận được sự kiện và kích hoạt toast thứ hai. Cơ chế này tương tự lặp lại trong hàm `handleSimulateSuccess` (vừa showToast vừa publish bus kích hoạt subscriber).
+
+#### 3. Giải Pháp Dứt Khoát
+- Đặt cờ trạng thái `isRedirecting = useRef(false)` hoặc chỉ để một nguồn duy nhất phát toast chuyển hướng (ưu tiên qua handler sự kiện thanh toán).
+- Khi đã bắt đầu quá trình chuyển hướng, chặn toàn bộ các lệnh `showToast` dư thừa tiếp theo trong vòng đời component.
+
+---
+
+### [BUG-LOC-004] Thiết Kế Lại UI Toast Thông Báo (Loại Bỏ Mờ Đục, Nâng Cấp Chuẩn Top-Tier)
+
+#### 1. Hiện Tượng & Đánh Giá UI
+- Toast hiện tại ở [web/src/ui/components/common/Toast.tsx](file:///e:/HuKi/web/src/ui/components/common/Toast.tsx) sử dụng:
+  - `bg-white/98 backdrop-blur-xl`: Gây hiện tượng đục mờ, chữ và icon bị nhòe trên nền phức tạp.
+  - Viền mờ `border-slate-200/90` kết hợp màu badge nhạt khiến thông báo thiếu điểm nhấn, không sắc sảo.
+  - Thiếu cảm giác cao cấp của các Design System hiện đại (như Sonner, Radix UI, Vercel, Apple).
+
+#### 2. Định Hướng Thiết Kế Lại Chuẩn Top-Tier
+- **Nền & Viền (Surface & Border):**
+  - Chuyển sang nền trắng tinh khiết đặc `bg-white` 100% (không dùng backdrop-blur gây mờ).
+  - Viền sắc nét, tinh tế: `border border-slate-200` với shadow đa tầng sâu lắng (`shadow-lg shadow-slate-900/8`).
+  - Bo góc hiện đại `rounded-xl` (12px), vừa vặn, không quá tròn bầu dục.
+- **Biểu Tượng & Phân Cấp Thị Giác (Typography & Icons):**
+  - Icon Solid rõ ràng trong khối bo tròn tinh tế với màu sắc chuẩn mực (Success: Emerald `#00875A`, Error: Rose `#E11D48`, Warning: Amber `#D97706`, Info: Blue `#2563EB`).
+  - Tiêu đề đậm sắc sảo (`font-bold text-[13px] text-slate-900`), nội dung tin nhắn (`text-[12px] text-slate-600 font-normal leading-relaxed`).
+  - Thanh đếm ngược thời gian (Progress line) siêu mỏng 2px mượt mà ở đáy toast.
+
+---
+
+### [BUG-LOC-005] Tinh Chỉnh Design System: BookCard (Nút Tim & Giỏ Hàng) và Header Action Icons
+
+#### 1. Bóc Tách Điểm Dị Biệt Trên Giao Diện Hiện Tại
+- **Ảnh 1 - Thẻ Sách (`BookCard.tsx`):**
+  - Nút tim (Yêu thích) hiện là một nút tròn xám `w-7.5 h-7.5 rounded-full backdrop-blur-md` đè trực tiếp lên bìa sách ở góc dưới ảnh bìa, tạo cảm giác như một miếng dán che mất hình ảnh bìa sách.
+  - Nút thêm vào giỏ (`🛒`) ở đáy thẻ là một vòng tròn viền xanh nhạt nằm trơ trọi cạnh giá tiền.
+- **Ảnh 2 - Thanh Điều Hướng Header (`StoreHeader.tsx`):**
+  - 4 nút chức năng cạnh nhau có 4 kiểu dáng khác nhau: Nút Giỏ hàng hình vuông bo góc, nút Chuông hình vuông bo góc có badge số 24 bị lệch, nút Tin nhắn lại là hình con nhộng (pill) dài có chữ "Tin nhắn", còn Avatar người dùng là hình tròn. Sự không đồng nhất này phá vỡ tính liền mạch của Header.
+
+#### 2. Giải Pháp Chuẩn Hóa Chuẩn Sàn TMĐT Top Đầu
+- **Về `BookCard`:**
+  - Chuyển nút tim lên góc trên bên phải ảnh bìa (`top-2 right-2`), thiết kế nút tròn trong suốt nhẹ nhàng, chỉ hiện rõ khi hover (hoặc subtle outline), khi bấm yêu thích thì tim đỏ rực rỡ nổi bật. Không che chắn nội dung bìa sách.
+  - Chuẩn hóa nút Giỏ hàng: Thiết kế nút giỏ bo tròn thanh lịch, hover chuyển màu xanh HUKI thương hiệu sắc sảo, bấm có phản hồi haptic/active scale rõ ràng.
+- **Về Header Actions:**
+  - Đồng bộ 100% form factor các nút hành động thành chuẩn kích thước **40x40px** bo góc nhẹ (`rounded-xl` hoặc `rounded-full` đồng nhất):
+    - [Giỏ Hàng] [Chuông Thông Báo] [Hộp Thư Tin Nhắn] [Avatar Người Dùng]
+  - Thống nhất nút Tin nhắn thành dạng icon trực quan (tương tự Giỏ hàng và Chuông) có tooltip khi hover, loại bỏ chữ "Tin nhắn" gây kéo dài bất đối xứng.
+  - Badge đỏ số `24` được căn chỉnh chuẩn mực tại góc trên bên phải (`-top-1 -right-1`), font chữ mono sắc nét với viền `ring-2 ring-white` chống chìm trên mọi nền.
+
+---
+
+### [BUG-LOC-006] Loại Bỏ Toàn Bộ Tính Năng "Đọc Thử" & Tái Cấu Trúc Bố Cục 3 Cột Trang `/book/[id]`
+
+#### 1. Yêu Cầu & Bối Cảnh Nghiệp Vụ
+- Hệ thống sách HUKI là nền tảng sách số bản quyền DRM và sách in thật, dữ liệu đọc thử demo (như PDF Bill Gates cũ) không phục vụ nghiệp vụ thực tế.
+- Bỏ triệt để toàn bộ các nút, nhãn và tab "Đọc thử" trên toàn sàn.
+- **Thách thức bố cục:** Trang chi tiết sách [web/src/app/book/[id]/page.tsx](file:///e:/HuKi/web/src/app/book/[id]/page.tsx) chia làm 3 cột:
+  - Cột 1 (Trái): Bìa sách.
+  - Cột 2 (Giữa): Thông tin tác phẩm, specs, chọn hình thức mua (Sách in, Ebook, Combo).
+  - Cột 3 (Phải): Sticky Box mua hàng & cam kết quyền lợi.
+- Khi bỏ nút "Đọc Thử Bản Trực Tuyến" ở Cột 1, chiều cao cột 1 bị hụt sâu so với Cột 2 và Cột 3, tạo ra một khoảng trống vô lý gây mất cân đối thị giác.
+
+#### 2. Kế Hoạch Loại Bỏ Triệt Để "Đọc Thử"
+1. **Trang chi tiết sách (`web/src/app/book/[id]/page.tsx`):**
+   - Xóa bỏ nút `[Đọc Thử Bản Trực Tuyến]` tại cột 1 (dòng 1101-1109).
+   - Xóa bỏ ô `Đọc thử: Miễn phí` trong lưới thông số Specs Mini Grid (dòng 1166) -> chuyển thành lưới 3 cột cân đối: **[Số trang]**, **[Ngôn ngữ]**, **[Định dạng sách]**.
+   - Xóa bỏ Tab `Đọc Thử Mẫu` (dòng 1382) và toàn bộ khối nội dung demo (dòng 1580-1591). Chỉ giữ lại 2 tab thực chất: **Giới Thiệu Tác Phẩm** và **Đánh Giá & Nhận Xét**.
+2. **Quét toàn sàn:**
+   - Xóa bỏ route đọc thử mẫu [web/src/app/book/[id]/preview/page.tsx](file:///e:/HuKi/web/src/app/book/[id]/preview/page.tsx).
+
+#### 3. Tái Cấu Trúc Bố Cục 3 Cột Khử Khoảng Hở (Harmonized 3-Column Layout)
+- **Tối ưu Cột 1 (Khung Bìa Sách):**
+  - Căn chỉnh tỉ lệ ảnh bìa sách về tỉ lệ chuẩn ấn phẩm thực tế (tỉ lệ vàng 3:4 hoặc 1:1.414 bìa sách chuẩn) với khung viền sắc nét, shadow nổi khối nhẹ.
+  - Căn giữa (`flex flex-col items-center justify-between h-full`).
+  - Bổ sung khối **Huy Hiệu & Cam Kết Bản Quyền Sàn (Security & Trust Badges)** ở đáy cột 1 để lấp đầy không gian một cách chuyên nghiệp:
+    - 🛡️ *Bản Quyền Số HUKI DRM Chính Thức*
+    - 🔒 *Đọc Bảo Mật Trên 5 Thiết Bị Cá Nhân*
+    - 📦 *Đóng Gói Chống Sốc Tiêu Chuẩn NXB*
+  - Nhờ đó, cả 3 cột đạt độ cao hài hòa, trọn vẹn, không còn bất kỳ khoảng trống vô lý nào.
+
