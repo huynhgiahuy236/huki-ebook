@@ -277,7 +277,7 @@ services:
       dockerfile: Dockerfile
     container_name: huki-uat-promotion-service
     restart: unless-stopped
-    command: ["sh", "-c", "npx prisma migrate deploy --schema=apps/promotion-service/prisma/schema.prisma || true; exec node dist/out-tsc/promotion-service/apps/promotion-service/src/main.js"]
+    command: ["node", "dist/out-tsc/promotion-service/apps/promotion-service/src/main.js"]
     environment:
       PORT: 3007
       PROMOTION_SERVICE_PORT: 3007

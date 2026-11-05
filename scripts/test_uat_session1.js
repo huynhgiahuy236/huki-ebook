@@ -92,7 +92,7 @@ async function runSession1Audit() {
 
   // TEST 5: Stores & Businesses Public API
   try {
-    const res = await safeFetch(`${API_BASE}/businesses/public`);
+    const res = await safeFetch(`${API_BASE}/businesses`);
     if (res.status === 200) {
       const json = await res.json();
       const businesses = json.data || json || [];
