@@ -107,7 +107,7 @@ jobs:
           JWT_SECRET: ci-test-super-secret-jwt-key-minimum-32-chars
           JWT_REFRESH_SECRET: ci-test-refresh-secret-jwt-key-minimum-32-chars
           INTERNAL_SERVICE_KEY: ci-internal-service-key-test
-        run: npm test -- --runInBand
+        run: npm test -- --runInBand --forceExit
 
   # ========================================================
   # Job 2: Frontend Quality Gates (Typecheck, Lint, Test, Build)
