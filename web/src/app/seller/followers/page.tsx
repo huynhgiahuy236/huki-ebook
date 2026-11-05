@@ -408,18 +408,14 @@ function SellerFollowersContent() {
                             <span className="material-symbols-outlined text-sm">loyalty</span>
                             <span>Tặng Voucher</span>
                           </Link>
-                          <button
-                            type="button"
-                            disabled
-                            className="px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-400 font-medium text-xs flex items-center gap-1 cursor-not-allowed select-none opacity-80"
-                            title="Tính năng nhắn tin trực tiếp với khách hàng đang được phát triển (Sắp ra mắt)"
+                          <Link
+                            href={`/seller/chat?recipientId=${follower.userId}&recipientName=${encodeURIComponent(follower.fullName)}`}
+                            className="px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-semibold text-xs flex items-center gap-1 transition-colors shadow-2xs"
+                            title={`Nhắn tin trực tiếp với ${follower.fullName}`}
                           >
                             <span className="material-symbols-outlined text-sm">chat</span>
                             <span>Nhắn tin</span>
-                            <span className="text-[9px] bg-gray-200 text-gray-600 px-1 py-0.2 rounded font-bold ml-0.5">
-                              Sắp có
-                            </span>
-                          </button>
+                          </Link>
                         </div>
                       </td>
                     </tr>

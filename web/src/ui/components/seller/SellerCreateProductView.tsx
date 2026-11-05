@@ -2202,8 +2202,8 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                       05
                     </div>
                     <div>
-                      <h3 className="font-title-md text-sm font-bold text-on-surface">Tồn Kho & Kích Thước Đóng Gói</h3>
-                      <p className="text-[11px] text-on-surface-variant">Thông số để tính cước vận chuyển tự động.</p>
+                      <h3 className="font-title-md text-sm font-bold text-on-surface">Tồn Kho Sách In & Kích Thước Đóng Gói</h3>
+                      <p className="text-[11px] text-on-surface-variant">Thông số để quản lý kho sách in và tính cước vận chuyển. (Ấn phẩm số Ebook DRM phát hành không giới hạn số lượng).</p>
                     </div>
                   </div>
                 </div>
@@ -2211,7 +2211,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-on-surface mb-1">
-                      Số Lượng Tồn Kho <span className="text-rose-500">*</span>
+                      Số Lượng Tồn Kho (Sách in) <span className="text-rose-500">*</span>
                     </label>
                     <input 
                       type="number"

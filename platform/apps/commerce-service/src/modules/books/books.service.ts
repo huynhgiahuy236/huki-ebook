@@ -782,7 +782,18 @@ export class BooksService implements OnModuleInit {
     const canManage = await this.canManage(book, actor);
     if (!canManage) throwForbidden(ErrorCode.BOOK_UNAUTHORIZED);
 
-    await this.prisma.book.delete({ where: { id } });
+    try {
+      await this.prisma.book.delete({ where: { id } });
+    } catch (err: any) {
+      // If foreign key constraint prevents physical delete (orders, accesses, reviews exist),
+      // perform soft delete by setting status = ARCHIVED so historical data remains intact
+      await this.prisma.book.update({
+        where: { id },
+        data: {
+          status: BookStatus.ARCHIVED,
+        },
+      });
+    }
   }
 
   private async canManage(book: any, actor?: BookActor): Promise<boolean> {

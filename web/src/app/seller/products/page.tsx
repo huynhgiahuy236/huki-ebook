@@ -838,7 +838,7 @@ export default function SellerProductsPage() {
                 <span>Sửa Đầy Đủ</span>
               </Link>
               <Link
-                href={`/books/${book.id}`}
+                href={`/book/${book.id}`}
                 target="_blank"
                 className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs flex items-center gap-1 transition-colors"
               >

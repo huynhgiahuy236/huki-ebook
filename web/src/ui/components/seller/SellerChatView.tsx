@@ -236,7 +236,30 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
             };
           });
           setCustomers(mapped);
-          if (mapped.length > 0 && !activeCustomerId) {
+          const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+          const targetRecipientId = searchParams?.get('recipientId');
+          const targetRecipientName = searchParams?.get('recipientName');
+          if (targetRecipientId) {
+            const found = mapped.find((c) => c.userId === targetRecipientId || c.id === targetRecipientId);
+            if (found) {
+              setActiveCustomerId(found.id);
+            } else {
+              const newCustomer: SellerChatCustomer = {
+                id: `recipient-${targetRecipientId}`,
+                userId: targetRecipientId,
+                name: targetRecipientName || 'Khách Hàng',
+                tier: 'Khách mới',
+                isOnline: true,
+                lastMsg: 'Bắt đầu cuộc trò chuyện',
+                lastTime: 'Vừa xong',
+                unread: 0,
+                hasOrder: false,
+                isVip: false,
+              };
+              setCustomers([newCustomer, ...mapped]);
+              setActiveCustomerId(newCustomer.id);
+            }
+          } else if (mapped.length > 0 && !activeCustomerId) {
             setActiveCustomerId(mapped[0].id);
           }
         }
