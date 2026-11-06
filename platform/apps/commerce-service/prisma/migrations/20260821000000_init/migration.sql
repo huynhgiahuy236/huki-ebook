@@ -32,7 +32,7 @@ DO $$ BEGIN
 END $$;
 
 -- CreateTable
-CREATE TABLE "categories" (
+CREATE TABLE IF NOT EXISTS "categories" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "normalized_name" TEXT NOT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE "categories" (
 );
 
 -- CreateTable
-CREATE TABLE "authors" (
+CREATE TABLE IF NOT EXISTS "authors" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "normalized_name" TEXT NOT NULL,
@@ -64,7 +64,7 @@ CREATE TABLE "authors" (
 );
 
 -- CreateTable
-CREATE TABLE "publishers" (
+CREATE TABLE IF NOT EXISTS "publishers" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "normalized_name" TEXT NOT NULL,
@@ -79,7 +79,7 @@ CREATE TABLE "publishers" (
 );
 
 -- CreateTable
-CREATE TABLE "books" (
+CREATE TABLE IF NOT EXISTS "books" (
     "id" TEXT NOT NULL,
     "store_id" TEXT NOT NULL,
     "owner_user_id" TEXT NOT NULL,
@@ -105,7 +105,7 @@ CREATE TABLE "books" (
 );
 
 -- CreateTable
-CREATE TABLE "physical_book_details" (
+CREATE TABLE IF NOT EXISTS "physical_book_details" (
     "id" TEXT NOT NULL,
     "book_id" TEXT NOT NULL,
     "stock" INTEGER NOT NULL DEFAULT 0,
@@ -121,7 +121,7 @@ CREATE TABLE "physical_book_details" (
 );
 
 -- CreateTable
-CREATE TABLE "digital_book_details" (
+CREATE TABLE IF NOT EXISTS "digital_book_details" (
     "id" TEXT NOT NULL,
     "book_id" TEXT NOT NULL,
     "pdf_key" TEXT,
@@ -135,7 +135,7 @@ CREATE TABLE "digital_book_details" (
 );
 
 -- CreateTable
-CREATE TABLE "carts" (
+CREATE TABLE IF NOT EXISTS "carts" (
     "id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -145,7 +145,7 @@ CREATE TABLE "carts" (
 );
 
 -- CreateTable
-CREATE TABLE "cart_items" (
+CREATE TABLE IF NOT EXISTS "cart_items" (
     "id" TEXT NOT NULL,
     "cart_id" TEXT NOT NULL,
     "book_id" TEXT NOT NULL,
@@ -159,7 +159,7 @@ CREATE TABLE "cart_items" (
 );
 
 -- CreateTable
-CREATE TABLE "checkout_sessions" (
+CREATE TABLE IF NOT EXISTS "checkout_sessions" (
     "id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
     "cart_id" TEXT NOT NULL,
@@ -173,7 +173,7 @@ CREATE TABLE "checkout_sessions" (
 );
 
 -- CreateTable
-CREATE TABLE "orders" (
+CREATE TABLE IF NOT EXISTS "orders" (
     "id" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
@@ -197,7 +197,7 @@ CREATE TABLE "orders" (
 );
 
 -- CreateTable
-CREATE TABLE "seller_orders" (
+CREATE TABLE IF NOT EXISTS "seller_orders" (
     "id" TEXT NOT NULL,
     "order_id" TEXT NOT NULL,
     "code" TEXT NOT NULL,
@@ -222,7 +222,7 @@ CREATE TABLE "seller_orders" (
 );
 
 -- CreateTable
-CREATE TABLE "order_items" (
+CREATE TABLE IF NOT EXISTS "order_items" (
     "id" TEXT NOT NULL,
     "seller_order_id" TEXT NOT NULL,
     "book_id" TEXT NOT NULL,
@@ -239,7 +239,7 @@ CREATE TABLE "order_items" (
 );
 
 -- CreateTable
-CREATE TABLE "inventory_reservations" (
+CREATE TABLE IF NOT EXISTS "inventory_reservations" (
     "id" TEXT NOT NULL,
     "order_id" TEXT NOT NULL,
     "order_item_id" TEXT NOT NULL,
@@ -255,7 +255,7 @@ CREATE TABLE "inventory_reservations" (
 );
 
 -- CreateTable
-CREATE TABLE "inventory_logs" (
+CREATE TABLE IF NOT EXISTS "inventory_logs" (
     "id" TEXT NOT NULL,
     "book_id" TEXT NOT NULL,
     "change" INTEGER NOT NULL,
@@ -269,7 +269,7 @@ CREATE TABLE "inventory_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "payments" (
+CREATE TABLE IF NOT EXISTS "payments" (
     "id" TEXT NOT NULL,
     "order_id" TEXT NOT NULL,
     "amount" DECIMAL(14,2) NOT NULL,
@@ -294,7 +294,7 @@ CREATE TABLE "payments" (
 );
 
 -- CreateTable
-CREATE TABLE "refunds" (
+CREATE TABLE IF NOT EXISTS "refunds" (
     "id" TEXT NOT NULL,
     "order_id" TEXT NOT NULL,
     "payment_id" TEXT NOT NULL,
@@ -315,7 +315,7 @@ CREATE TABLE "refunds" (
 );
 
 -- CreateTable
-CREATE TABLE "book_accesses" (
+CREATE TABLE IF NOT EXISTS "book_accesses" (
     "id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
     "book_id" TEXT NOT NULL,
@@ -334,7 +334,7 @@ CREATE TABLE "book_accesses" (
 );
 
 -- CreateTable
-CREATE TABLE "order_status_history" (
+CREATE TABLE IF NOT EXISTS "order_status_history" (
     "id" TEXT NOT NULL,
     "order_id" TEXT NOT NULL,
     "seller_order_id" TEXT,
@@ -351,7 +351,7 @@ CREATE TABLE "order_status_history" (
 );
 
 -- CreateTable
-CREATE TABLE "outbox_events" (
+CREATE TABLE IF NOT EXISTS "outbox_events" (
     "id" TEXT NOT NULL,
     "event_id" TEXT NOT NULL,
     "type" TEXT NOT NULL,
@@ -364,170 +364,253 @@ CREATE TABLE "outbox_events" (
     CONSTRAINT "outbox_events_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE UNIQUE INDEX "categories_slug_key" ON "categories"("slug");
+
+-- Ensure columns added in Sprint 11 exist if table was already created in earlier migration
+ALTER TABLE "categories" ADD COLUMN IF NOT EXISTS "normalized_name" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "authors" ADD COLUMN IF NOT EXISTS "normalized_name" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "authors" ADD COLUMN IF NOT EXISTS "is_active" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "publishers" ADD COLUMN IF NOT EXISTS "normalized_name" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "publishers" ADD COLUMN IF NOT EXISTS "is_active" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "checkout_url" TEXT;
+ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "qr_code" TEXT;
+ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMP(3);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "categories_parent_id_normalized_name_key" ON "categories"("parent_id", "normalized_name");
+CREATE UNIQUE INDEX IF NOT EXISTS "categories_slug_key" ON "categories"("slug");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "authors_normalized_name_key" ON "authors"("normalized_name");
+CREATE UNIQUE INDEX IF NOT EXISTS "categories_parent_id_normalized_name_key" ON "categories"("parent_id", "normalized_name");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "authors_slug_key" ON "authors"("slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "authors_normalized_name_key" ON "authors"("normalized_name");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "publishers_normalized_name_key" ON "publishers"("normalized_name");
+CREATE UNIQUE INDEX IF NOT EXISTS "authors_slug_key" ON "authors"("slug");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "publishers_slug_key" ON "publishers"("slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "publishers_normalized_name_key" ON "publishers"("normalized_name");
 
 -- CreateIndex
-CREATE INDEX "books_store_id_status_idx" ON "books"("store_id", "status");
+CREATE UNIQUE INDEX IF NOT EXISTS "publishers_slug_key" ON "publishers"("slug");
 
 -- CreateIndex
-CREATE INDEX "books_owner_user_id_idx" ON "books"("owner_user_id");
+CREATE INDEX IF NOT EXISTS "books_store_id_status_idx" ON "books"("store_id", "status");
 
 -- CreateIndex
-CREATE INDEX "books_category_id_idx" ON "books"("category_id");
+CREATE INDEX IF NOT EXISTS "books_owner_user_id_idx" ON "books"("owner_user_id");
 
 -- CreateIndex
-CREATE INDEX "books_author_id_idx" ON "books"("author_id");
+CREATE INDEX IF NOT EXISTS "books_category_id_idx" ON "books"("category_id");
 
 -- CreateIndex
-CREATE INDEX "books_publisher_id_idx" ON "books"("publisher_id");
+CREATE INDEX IF NOT EXISTS "books_author_id_idx" ON "books"("author_id");
 
 -- CreateIndex
-CREATE INDEX "books_status_price_idx" ON "books"("status", "price");
+CREATE INDEX IF NOT EXISTS "books_publisher_id_idx" ON "books"("publisher_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "books_store_id_slug_key" ON "books"("store_id", "slug");
+CREATE INDEX IF NOT EXISTS "books_status_price_idx" ON "books"("status", "price");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "physical_book_details_book_id_key" ON "physical_book_details"("book_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "books_store_id_slug_key" ON "books"("store_id", "slug");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "digital_book_details_book_id_key" ON "digital_book_details"("book_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "physical_book_details_book_id_key" ON "physical_book_details"("book_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "carts_user_id_key" ON "carts"("user_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "digital_book_details_book_id_key" ON "digital_book_details"("book_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "cart_items_cart_id_book_id_key" ON "cart_items"("cart_id", "book_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "carts_user_id_key" ON "carts"("user_id");
 
 -- CreateIndex
-CREATE INDEX "checkout_sessions_user_id_expiresAt_idx" ON "checkout_sessions"("user_id", "expiresAt");
+CREATE UNIQUE INDEX IF NOT EXISTS "cart_items_cart_id_book_id_key" ON "cart_items"("cart_id", "book_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "orders_code_key" ON "orders"("code");
+CREATE INDEX IF NOT EXISTS "checkout_sessions_user_id_expiresAt_idx" ON "checkout_sessions"("user_id", "expiresAt");
 
 -- CreateIndex
-CREATE INDEX "orders_user_id_created_at_idx" ON "orders"("user_id", "created_at");
+CREATE UNIQUE INDEX IF NOT EXISTS "orders_code_key" ON "orders"("code");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "orders_user_id_idempotency_key_key" ON "orders"("user_id", "idempotency_key");
+CREATE INDEX IF NOT EXISTS "orders_user_id_created_at_idx" ON "orders"("user_id", "created_at");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "seller_orders_code_key" ON "seller_orders"("code");
+CREATE UNIQUE INDEX IF NOT EXISTS "orders_user_id_idempotency_key_key" ON "orders"("user_id", "idempotency_key");
 
 -- CreateIndex
-CREATE INDEX "seller_orders_order_id_idx" ON "seller_orders"("order_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "seller_orders_code_key" ON "seller_orders"("code");
 
 -- CreateIndex
-CREATE INDEX "seller_orders_store_id_idx" ON "seller_orders"("store_id");
+CREATE INDEX IF NOT EXISTS "seller_orders_order_id_idx" ON "seller_orders"("order_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "inventory_reservations_order_item_id_key" ON "inventory_reservations"("order_item_id");
+CREATE INDEX IF NOT EXISTS "seller_orders_store_id_idx" ON "seller_orders"("store_id");
 
 -- CreateIndex
-CREATE INDEX "inventory_reservations_order_id_status_idx" ON "inventory_reservations"("order_id", "status");
+CREATE UNIQUE INDEX IF NOT EXISTS "inventory_reservations_order_item_id_key" ON "inventory_reservations"("order_item_id");
 
 -- CreateIndex
-CREATE INDEX "inventory_logs_book_id_created_at_idx" ON "inventory_logs"("book_id", "created_at");
+CREATE INDEX IF NOT EXISTS "inventory_reservations_order_id_status_idx" ON "inventory_reservations"("order_id", "status");
 
 -- CreateIndex
-CREATE INDEX "payments_transaction_id_idx" ON "payments"("transaction_id");
+CREATE INDEX IF NOT EXISTS "inventory_logs_book_id_created_at_idx" ON "inventory_logs"("book_id", "created_at");
 
 -- CreateIndex
-CREATE INDEX "payments_order_id_status_idx" ON "payments"("order_id", "status");
+CREATE INDEX IF NOT EXISTS "payments_transaction_id_idx" ON "payments"("transaction_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "payments_provider_payos_order_id_key" ON "payments"("provider", "payos_order_id");
+CREATE INDEX IF NOT EXISTS "payments_order_id_status_idx" ON "payments"("order_id", "status");
 
 -- CreateIndex
-CREATE INDEX "refunds_order_id_status_idx" ON "refunds"("order_id", "status");
+CREATE UNIQUE INDEX IF NOT EXISTS "payments_provider_payos_order_id_key" ON "payments"("provider", "payos_order_id");
 
 -- CreateIndex
-CREATE INDEX "refunds_payment_id_idx" ON "refunds"("payment_id");
+CREATE INDEX IF NOT EXISTS "refunds_order_id_status_idx" ON "refunds"("order_id", "status");
 
 -- CreateIndex
-CREATE INDEX "book_accesses_user_id_idx" ON "book_accesses"("user_id");
+CREATE INDEX IF NOT EXISTS "refunds_payment_id_idx" ON "refunds"("payment_id");
 
 -- CreateIndex
-CREATE INDEX "book_accesses_book_id_idx" ON "book_accesses"("book_id");
+CREATE INDEX IF NOT EXISTS "book_accesses_user_id_idx" ON "book_accesses"("user_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "book_accesses_user_id_book_id_key" ON "book_accesses"("user_id", "book_id");
+CREATE INDEX IF NOT EXISTS "book_accesses_book_id_idx" ON "book_accesses"("book_id");
 
 -- CreateIndex
-CREATE INDEX "order_status_history_order_id_idx" ON "order_status_history"("order_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "book_accesses_user_id_book_id_key" ON "book_accesses"("user_id", "book_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "outbox_events_event_id_key" ON "outbox_events"("event_id");
+CREATE INDEX IF NOT EXISTS "order_status_history_order_id_idx" ON "order_status_history"("order_id");
 
 -- CreateIndex
-CREATE INDEX "outbox_events_status_created_at_idx" ON "outbox_events"("status", "created_at");
+CREATE UNIQUE INDEX IF NOT EXISTS "outbox_events_event_id_key" ON "outbox_events"("event_id");
+
+-- CreateIndex
+CREATE INDEX IF NOT EXISTS "outbox_events_status_created_at_idx" ON "outbox_events"("status", "created_at");
 
 -- AddForeignKey
-ALTER TABLE "categories" ADD CONSTRAINT "categories_parent_id_fkey" FOREIGN KEY ("parent_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'categories_parent_id_fkey') THEN
+        ALTER TABLE "categories" ADD CONSTRAINT "categories_parent_id_fkey" FOREIGN KEY ("parent_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "books" ADD CONSTRAINT "books_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'books_category_id_fkey') THEN
+        ALTER TABLE "books" ADD CONSTRAINT "books_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "books" ADD CONSTRAINT "books_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "authors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'books_author_id_fkey') THEN
+        ALTER TABLE "books" ADD CONSTRAINT "books_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "authors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "books" ADD CONSTRAINT "books_publisher_id_fkey" FOREIGN KEY ("publisher_id") REFERENCES "publishers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'books_publisher_id_fkey') THEN
+        ALTER TABLE "books" ADD CONSTRAINT "books_publisher_id_fkey" FOREIGN KEY ("publisher_id") REFERENCES "publishers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "physical_book_details" ADD CONSTRAINT "physical_book_details_book_id_fkey" FOREIGN KEY ("book_id") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'physical_book_details_book_id_fkey') THEN
+        ALTER TABLE "physical_book_details" ADD CONSTRAINT "physical_book_details_book_id_fkey" FOREIGN KEY ("book_id") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "digital_book_details" ADD CONSTRAINT "digital_book_details_book_id_fkey" FOREIGN KEY ("book_id") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'digital_book_details_book_id_fkey') THEN
+        ALTER TABLE "digital_book_details" ADD CONSTRAINT "digital_book_details_book_id_fkey" FOREIGN KEY ("book_id") REFERENCES "books"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "cart_items" ADD CONSTRAINT "cart_items_cart_id_fkey" FOREIGN KEY ("cart_id") REFERENCES "carts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cart_items_cart_id_fkey') THEN
+        ALTER TABLE "cart_items" ADD CONSTRAINT "cart_items_cart_id_fkey" FOREIGN KEY ("cart_id") REFERENCES "carts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "cart_items" ADD CONSTRAINT "cart_items_book_id_fkey" FOREIGN KEY ("book_id") REFERENCES "books"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cart_items_book_id_fkey') THEN
+        ALTER TABLE "cart_items" ADD CONSTRAINT "cart_items_book_id_fkey" FOREIGN KEY ("book_id") REFERENCES "books"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "seller_orders" ADD CONSTRAINT "seller_orders_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'seller_orders_order_id_fkey') THEN
+        ALTER TABLE "seller_orders" ADD CONSTRAINT "seller_orders_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "order_items" ADD CONSTRAINT "order_items_seller_order_id_fkey" FOREIGN KEY ("seller_order_id") REFERENCES "seller_orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'order_items_seller_order_id_fkey') THEN
+        ALTER TABLE "order_items" ADD CONSTRAINT "order_items_seller_order_id_fkey" FOREIGN KEY ("seller_order_id") REFERENCES "seller_orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "order_items" ADD CONSTRAINT "order_items_book_id_fkey" FOREIGN KEY ("book_id") REFERENCES "books"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'order_items_book_id_fkey') THEN
+        ALTER TABLE "order_items" ADD CONSTRAINT "order_items_book_id_fkey" FOREIGN KEY ("book_id") REFERENCES "books"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "inventory_reservations" ADD CONSTRAINT "inventory_reservations_order_item_id_fkey" FOREIGN KEY ("order_item_id") REFERENCES "order_items"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'inventory_reservations_order_item_id_fkey') THEN
+        ALTER TABLE "inventory_reservations" ADD CONSTRAINT "inventory_reservations_order_item_id_fkey" FOREIGN KEY ("order_item_id") REFERENCES "order_items"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "inventory_logs" ADD CONSTRAINT "inventory_logs_book_id_fkey" FOREIGN KEY ("book_id") REFERENCES "physical_book_details"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'inventory_logs_book_id_fkey') THEN
+        ALTER TABLE "inventory_logs" ADD CONSTRAINT "inventory_logs_book_id_fkey" FOREIGN KEY ("book_id") REFERENCES "physical_book_details"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "payments" ADD CONSTRAINT "payments_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payments_order_id_fkey') THEN
+        ALTER TABLE "payments" ADD CONSTRAINT "payments_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "refunds" ADD CONSTRAINT "refunds_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'refunds_order_id_fkey') THEN
+        ALTER TABLE "refunds" ADD CONSTRAINT "refunds_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "refunds" ADD CONSTRAINT "refunds_payment_id_fkey" FOREIGN KEY ("payment_id") REFERENCES "payments"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'refunds_payment_id_fkey') THEN
+        ALTER TABLE "refunds" ADD CONSTRAINT "refunds_payment_id_fkey" FOREIGN KEY ("payment_id") REFERENCES "payments"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "book_accesses" ADD CONSTRAINT "book_accesses_book_id_fkey" FOREIGN KEY ("book_id") REFERENCES "books"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'book_accesses_book_id_fkey') THEN
+        ALTER TABLE "book_accesses" ADD CONSTRAINT "book_accesses_book_id_fkey" FOREIGN KEY ("book_id") REFERENCES "books"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "order_status_history" ADD CONSTRAINT "order_status_history_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'order_status_history_order_id_fkey') THEN
+        ALTER TABLE "order_status_history" ADD CONSTRAINT "order_status_history_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
