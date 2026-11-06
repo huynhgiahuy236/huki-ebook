@@ -192,3 +192,4 @@
    - Thêm xử lý `socket.destroy()` cho các request HTTP Upgrade không hợp lệ và lọc header cho kết nối WebSocket.
 3. **Chuẩn hóa Định dạng Lỗi (P2):**
    - Đảm bảo toàn bộ phản hồi lỗi từ Gateway (401, 403, 429, 502, 504) đều đính kèm `requestId` (`correlationId`) trong thân JSON theo chuẩn P3 chung của nền tảng.
+
