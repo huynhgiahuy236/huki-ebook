@@ -331,3 +331,4 @@ Giai đoạn kiểm thử sống tại Message 15 đã hoàn thành xuất sắc
 2. Kiểm chứng thành công mọi cơ chế: Webhook Checksum HMAC-SHA256, Idempotency, TTL Cancellation Worker.
 3. Bóc tách và định vị chính xác 5 lỗ hổng/khiếm khuyết kiến trúc cốt tử (P0/P1) bằng bằng chứng thực tế từ log terminal.
 4. Cơ sở dữ liệu và mã nguồn sẵn sàng 100% để bước sang **Message 16: Root Cause Analysis & Architectural Solution Design** cho phân hệ Dòng tiền & Tổ chức Sàn.
+
