@@ -371,6 +371,9 @@ export class VouchersService {
         break;
     }
 
+    // Ensure discount never exceeds orderSubtotal (prevents negative order amount)
+    discount = Math.min(discount, Math.max(0, dto.orderSubtotal));
+
     return {
       valid: true,
       voucher: {
@@ -759,13 +762,21 @@ export class VouchersService {
 
     const v = voucher;
     return this.prisma.$transaction(async (tx) => {
+      // Check if voucher has already been applied for this order (Idempotency)
+      const existingUsage = await tx.voucherUsage.findFirst({
+        where: { voucherId: v.id, orderId },
+      });
+      if (existingUsage) {
+        return existingUsage;
+      }
+
       // Create usage record
-      await tx.voucherUsage.create({
+      const usage = await tx.voucherUsage.create({
         data: {
           voucherId: v.id,
           userId,
           orderId,
-          discount: discountAmount,
+          discount: Math.max(0, discountAmount),
         },
       });
 
@@ -785,6 +796,8 @@ export class VouchersService {
           data: { status: 'USED_UP' },
         });
       }
+
+      return usage;
     });
   }
 

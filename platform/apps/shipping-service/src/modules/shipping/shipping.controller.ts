@@ -6,7 +6,7 @@ import {
   ApiHeader,
 } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
-import { throwUnauthorized } from '@huki/shared/errors';
+import { throwForbidden } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
 import { ShippingFeeQueryDto, ShippingFeeBodyDto } from './dto/shipping-fee.dto';
 import { ShippingService } from './shipping.service';
@@ -62,13 +62,13 @@ export class ShippingController {
   })
   @ApiHeader({ name: 'x-internal-service-key', required: true })
   @ApiResponse({ status: 200, description: 'Shipping fee calculation result' })
-  @ApiResponse({ status: 401, description: 'Invalid internal key' })
+  @ApiResponse({ status: 403, description: 'Forbidden: Invalid internal key' })
   calculateFeeInternal(
     @Headers('x-internal-service-key') serviceKey: string,
     @Body() body: ShippingFeeBodyDto,
   ) {
     if (!validateInternalKey(this.config, serviceKey)) {
-      throwUnauthorized(ErrorCode.AUTH_INTERNAL_API_KEY_INVALID, 'Invalid internal service key');
+      throwForbidden(ErrorCode.AUTHZ_FORBIDDEN, 'Internal service credentials are required');
     }
     return this.shipping.calculateFee(body);
   }
