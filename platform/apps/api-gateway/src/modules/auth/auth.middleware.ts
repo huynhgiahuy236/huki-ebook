@@ -21,6 +21,21 @@ export interface AuthenticatedRequest extends Request {
 @Injectable()
 export class AuthMiddleware implements NestMiddleware {
   async use(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    // 1. Strip denylist spoofed identity & internal keys from incoming client headers immediately
+    for (const key of Object.keys(req.headers)) {
+      const lower = key.toLowerCase();
+      if (
+        lower.startsWith('x-user-') ||
+        lower.startsWith('x-internal-') ||
+        lower === 'x-internal-service' ||
+        lower === 'x-business-id' ||
+        lower === 'x-store-id' ||
+        lower === 'x-roles'
+      ) {
+        delete req.headers[key];
+      }
+    }
+
     let token: string | undefined;
     const authHeader = req.headers.authorization;
 

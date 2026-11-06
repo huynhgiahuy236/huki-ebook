@@ -297,10 +297,27 @@ Most endpoints require JWT Bearer token authentication.
     if (req.url && req.url.startsWith('/socket.io')) {
       const communityHost = process.env.COMMUNITY_SERVICE_HOST || 'localhost';
       const communityPort = parseInt(process.env.COMMUNITY_SERVICE_PORT || '3005', 10);
+
+      // Clean headers for WebSocket connection: strip untrusted spoofed headers
+      const cleanHeaders = { ...req.headers };
+      for (const key of Object.keys(cleanHeaders)) {
+        const lower = key.toLowerCase();
+        if (
+          lower.startsWith('x-user-') ||
+          lower.startsWith('x-internal-') ||
+          lower === 'x-internal-service' ||
+          lower === 'x-business-id' ||
+          lower === 'x-store-id' ||
+          lower === 'x-roles'
+        ) {
+          delete cleanHeaders[key];
+        }
+      }
+
       const proxySocket = net.connect(communityPort, communityHost, () => {
         proxySocket.write(
           `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n` +
-          Object.entries(req.headers)
+          Object.entries(cleanHeaders)
             .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
             .join('\r\n') +
           '\r\n\r\n'
@@ -314,6 +331,8 @@ Most endpoints require JWT Bearer token authentication.
       socket.on('error', () => {
         proxySocket.destroy();
       });
+    } else {
+      socket.destroy();
     }
   });
 

@@ -231,3 +231,4 @@
   ```
 - **Tác động thực tế (Impact):**
   Không tuân thủ chuẩn hợp đồng lỗi P3 của hệ sinh thái Huki, khiến Web Client và hệ thống giám sát phân tán (Loki/Grafana) không thể liên kết mã lỗi người dùng nhìn thấy với log phía backend.
+
