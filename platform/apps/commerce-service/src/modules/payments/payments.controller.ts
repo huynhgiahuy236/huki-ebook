@@ -48,13 +48,8 @@ export class PaymentsController {
         'Endpoint mô phỏng thanh toán bị vô hiệu hóa hoàn toàn trên môi trường Production',
       );
     }
-    if (actor.role !== 'PLATFORM_ADMIN') {
-      throwForbidden(
-        ErrorCode.AUTHZ_ROLE_INSUFFICIENT,
-        'Chỉ Quản trị viên hệ thống (PLATFORM_ADMIN) mới có quyền mô phỏng thanh toán',
-      );
-    }
-    return this.payments.simulateSuccess(actor.sub, orderId);
+    const isPlatformAdmin = actor.role === 'PLATFORM_ADMIN' || actor.role === 'ADMIN';
+    return this.payments.simulateSuccess(actor.sub, orderId, isPlatformAdmin);
   }
 
   @Get('orders/:orderId')

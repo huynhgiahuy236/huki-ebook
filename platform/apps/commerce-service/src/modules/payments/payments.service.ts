@@ -248,9 +248,13 @@ export class PaymentsService
     };
   }
 
-  async simulateSuccess(userId: string, orderId: string) {
+  async simulateSuccess(userId: string, orderId: string, isAdmin = false) {
+    const paymentWhere: Prisma.PaymentWhereInput = isAdmin
+      ? { orderId }
+      : { orderId, order: { userId } };
+
     let payment = await this.prisma.payment.findFirst({
-      where: { orderId, order: { userId } },
+      where: paymentWhere,
       include: {
         order: {
           include: { sellerOrders: { include: { items: true } } },
@@ -260,8 +264,12 @@ export class PaymentsService
     });
 
     if (!payment) {
+      const orderWhere: Prisma.OrderWhereInput = isAdmin
+        ? { id: orderId }
+        : { id: orderId, userId };
+
       const order = await this.prisma.order.findFirst({
-        where: { id: orderId, userId },
+        where: orderWhere,
         include: { sellerOrders: { include: { items: true } } },
       });
       if (!order) throwNotFound(ErrorCode.ORDER_NOT_FOUND);

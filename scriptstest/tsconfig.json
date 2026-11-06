@@ -5,5 +5,7 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": []
+  "files": [
+    "types.d.ts"
+  ]
 }
