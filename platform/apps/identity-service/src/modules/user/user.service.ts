@@ -136,8 +136,9 @@ export class UserService {
     let storeMapByOwner: Record<string, string> = {};
     let storeMapByMember: Record<string, { storeName: string; role: string }> = {};
 
+    let pgClient: any = null;
     try {
-      const pgClient = this.getBusinessDbClient();
+      pgClient = this.getBusinessDbClient();
       await pgClient.connect();
 
       // Get businesses and stores
@@ -171,10 +172,12 @@ export class UserService {
           };
         }
       }
-
-      await pgClient.end();
     } catch (err) {
       console.warn('[UserService] Could not load store details from business DB:', err);
+    } finally {
+      if (pgClient) {
+        await pgClient.end().catch(() => {});
+      }
     }
 
     const formattedUsers = users.map((u) => {
@@ -435,7 +438,11 @@ export class UserService {
       },
     });
 
-    console.log(`[USER DELETION OTP] OTP for ${user.email}: ${otp}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[USER DELETION OTP DEV ONLY] OTP for ${user.email}: ${otp}`);
+    } else {
+      console.log(`[USER DELETION OTP] OTP dispatched to ${user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3')}`);
+    }
 
     try {
       await this.emailService.sendVerificationEmail(user.email, otp);
@@ -515,10 +522,18 @@ export class UserService {
     });
 
     // Thu hồi các phiên đăng nhập khác để bảo đảm an toàn
-    await this.prisma.authSession.updateMany({
-      where: { userId },
-      data: { revokedAt: new Date() },
-    }).catch(() => {});
+    try {
+      await this.prisma.authSession.updateMany({
+        where: { userId },
+        data: { revokedAt: new Date() },
+      });
+      await this.prisma.refreshToken.updateMany({
+        where: { session: { userId }, revokedAt: null },
+        data: { revokedAt: new Date(), revokedReason: 'account_pending_deletion' },
+      });
+    } catch (err: any) {
+      console.error(`[UserService] Failed to revoke sessions during confirmDeletion:`, err?.message || err);
+    }
 
     await this.auditService.log({
       actorId: userId,
@@ -777,5 +792,46 @@ export class UserService {
       limit: params.limit,
       action: params.action,
     });
+  }
+  async purgeExpiredPendingDeletions() {
+    const now = new Date();
+    const expiredUsers = await this.prisma.user.findMany({
+      where: {
+        status: UserStatus.PENDING_DELETION,
+        deletionScheduledAt: { lte: now },
+      },
+    });
+
+    for (const u of expiredUsers) {
+      try {
+        const anonymizedEmail = `deleted_${Date.now()}_${u.id.substring(0, 8)}_${u.email.replace(/@.*/, '')}@anonymized.huki.vn`;
+        await this.prisma.$transaction([
+          this.prisma.user.update({
+            where: { id: u.id },
+            data: {
+              status: UserStatus.DELETED,
+              deletedAt: now,
+              deletionScheduledAt: null,
+              email: anonymizedEmail,
+              fullName: 'Người dùng đã xóa',
+              phone: null,
+              avatar: null,
+            },
+          }),
+          this.prisma.authSession.updateMany({
+            where: { userId: u.id, revokedAt: null },
+            data: { revokedAt: now },
+          }),
+          this.prisma.refreshToken.updateMany({
+            where: { session: { userId: u.id }, revokedAt: null },
+            data: { revokedAt: now, revokedReason: 'account_purged' },
+          }),
+        ]);
+        console.log(`[USER PURGE] Successfully purged expired pending deletion user: ${u.id}`);
+      } catch (err: any) {
+        console.error(`[USER PURGE] Failed to purge user ${u.id}:`, err?.message || err);
+      }
+    }
+    return { purgedCount: expiredUsers.length };
   }
 }

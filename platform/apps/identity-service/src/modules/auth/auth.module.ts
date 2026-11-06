@@ -12,10 +12,12 @@ import { AuthController } from "./auth.controller";
 import { JwtStrategy } from "./strategies/jwt.strategy";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { EmailModule } from "@huki/shared";
+import { IdentityOutboxModule } from "../outbox/outbox.module";
 
 @Module({
   imports: [
     EmailModule,
+    IdentityOutboxModule,
     PassportModule.register({ defaultStrategy: "jwt" }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

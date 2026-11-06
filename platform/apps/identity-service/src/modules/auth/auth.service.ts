@@ -23,6 +23,7 @@ import {
 import { ErrorCode } from "@huki/shared/errors";
 import { USER_EVENTS } from "@huki/shared/events";
 import { EmailService, policyConfig } from "@huki/shared";
+import { IdentityOutboxService } from "../outbox/outbox.service";
 
 // ============================================
 // USER DOMAIN EVENTS (Simple Abstraction)
@@ -53,6 +54,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
     private readonly emailService: EmailService,
+    private readonly outboxService: IdentityOutboxService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -91,7 +93,11 @@ export class AuthService {
         },
       });
 
-      this.logger.log(`[AUTH OTP] Email verification code for ${updatedPendingUser.email}: ${emailVerificationToken}`);
+      if (process.env.NODE_ENV !== 'production') {
+        this.logger.debug(`[AUTH OTP DEV ONLY] Email verification code for ${updatedPendingUser.email}: ${emailVerificationToken}`);
+      } else {
+        this.logger.log(`[AUTH OTP] Verification code dispatched to ${updatedPendingUser.email.replace(/(.{2})(.*)(@.*)/, '$1***$3')}`);
+      }
       try {
         await this.emailService.sendVerificationEmail(
           updatedPendingUser.email,
@@ -127,7 +133,11 @@ export class AuthService {
       },
     });
 
-    this.logger.log(`[AUTH OTP] Email verification code for ${user.email}: ${emailVerificationToken}`);
+    if (process.env.NODE_ENV !== 'production') {
+      this.logger.debug(`[AUTH OTP DEV ONLY] Email verification code for ${user.email}: ${emailVerificationToken}`);
+    } else {
+      this.logger.log(`[AUTH OTP] Verification code dispatched to ${user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3')}`);
+    }
     try {
       await this.emailService.sendVerificationEmail(
         user.email,
@@ -286,7 +296,11 @@ export class AuthService {
       },
     });
 
-    this.logger.log(`[AUTH OTP] Re-sent verification code for ${user.email}: ${emailVerificationToken}`);
+    if (process.env.NODE_ENV !== 'production') {
+      this.logger.debug(`[AUTH OTP DEV ONLY] Re-sent verification code for ${user.email}: ${emailVerificationToken}`);
+    } else {
+      this.logger.log(`[AUTH OTP] Re-sent verification code dispatched to ${user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3')}`);
+    }
     try {
       await this.emailService.sendVerificationEmail(
         user.email,
@@ -306,9 +320,11 @@ export class AuthService {
     });
 
     if (!user || user.status === UserStatus.DELETED || user.deletedAt) {
-      throwNotFound(
-        ErrorCode.USER_NOT_FOUND,
-        'Tài khoản chưa tồn tại trên hệ thống. Vui lòng kiểm tra lại email hoặc bấm "Tạo tài khoản mới".',
+      // Dummy compare to mitigate timing attack enumeration
+      await bcrypt.compare(dto.password, '$2b$10$abcdefghijklmnopqrstuvwxABCDEFGHIJKLMNOPQRSTUVWXYZ12');
+      throwUnauthorized(
+        ErrorCode.AUTH_LOGIN_INVALID_CREDENTIALS,
+        'Email hoặc mật khẩu không chính xác',
       );
     }
 
@@ -390,11 +406,19 @@ export class AuthService {
   }
 
   async loginWithGoogle(dto: GoogleLoginDto, userAgent?: string, ipAddress?: string) {
-    let email = dto.email ? dto.email.trim().toLowerCase() : undefined;
+    // SECURITY FIX [ID-SEC-001]: Bắt buộc phải có token Google hợp lệ; tuyệt đối không tin cậy email từ client body
+    if (!dto.accessToken && !dto.idToken) {
+      throwBadRequest(
+        ErrorCode.AUTH_LOGIN_INVALID_CREDENTIALS,
+        'Yêu cầu cung cấp chứng chỉ Google ID Token hoặc Access Token hợp lệ để đăng nhập',
+      );
+    }
+
+    let email: string | undefined;
     let fullName = dto.fullName ? dto.fullName.trim() : undefined;
     let avatar = dto.avatar;
 
-    // 1. Xác thực qua Google ID Token hoặc Google OAuth2 Access Token
+    // 1. Xác thực qua Google OAuth2 Access Token
     if (dto.accessToken) {
       try {
         const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
@@ -410,10 +434,11 @@ export class AuthService {
           }
         }
       } catch (err: any) {
-        new Logger('AuthService').warn(`Gọi Google UserInfo API thất bại: ${err?.message || err}`);
+        this.logger.warn(`Gọi Google UserInfo API thất bại: ${err?.message || err}`);
       }
     }
 
+    // 2. Xác thực qua Google ID Token
     if (!email && dto.idToken) {
       try {
         const googleClientId =
@@ -433,20 +458,14 @@ export class AuthService {
           avatar = payload.picture || avatar;
         }
       } catch (err: any) {
-        new Logger('AuthService').warn(`Xác thực Google ID Token thất bại: ${err?.message || err}`);
-        if (!email) {
-          throwUnauthorized(
-            ErrorCode.AUTH_LOGIN_INVALID_CREDENTIALS,
-            'Chứng chỉ Google ID Token không hợp lệ hoặc đã hết hạn',
-          );
-        }
+        this.logger.warn(`Xác thực Google ID Token thất bại: ${err?.message || err}`);
       }
     }
 
     if (!email) {
-      throwBadRequest(
+      throwUnauthorized(
         ErrorCode.AUTH_LOGIN_INVALID_CREDENTIALS,
-        'Email Google là bắt buộc để tiến hành đăng nhập',
+        'Chứng chỉ Google không hợp lệ hoặc đã hết hạn. Không thể xác thực người dùng.',
       );
     }
 
@@ -595,16 +614,20 @@ export class AuthService {
       throwUnauthorized(ErrorCode.AUTH_TOKEN_EXPIRED);
     }
 
-    if (
-      token.expiresAt < new Date() ||
-      token.session?.revokedAt ||
-      token.session?.user?.status === 'BLOCKED' ||
-      token.session?.user?.status === 'DELETED'
-    ) {
-      throwUnauthorized(ErrorCode.AUTH_TOKEN_EXPIRED);
+    if (token.session?.user?.status === 'BLOCKED' || token.session?.user?.status === 'DELETED') {
+      throwUnauthorized(ErrorCode.AUTH_LOGIN_ACCOUNT_BLOCKED, 'Tài khoản đã bị tạm khóa hoặc ngừng hoạt động');
     }
+    if (token.session?.revokedAt) {
+      throwUnauthorized(ErrorCode.AUTH_TOKEN_REFRESH_FAILED, 'Phiên đăng nhập đã bị thu hồi');
+    }
+    if (token.expiresAt < new Date()) {
+      throwUnauthorized(ErrorCode.AUTH_TOKEN_EXPIRED, 'Refresh token đã hết hạn');
+    }
+
     const refreshToken = randomUUID();
+    const tokenHashNew = this.hashToken(refreshToken);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60_000);
+
     await this.prisma.$transaction(async (tx) => {
       const revoked = await tx.refreshToken.updateMany({
         where: { id: token.id, revokedAt: null },
@@ -618,13 +641,19 @@ export class AuthService {
         data: {
           sessionId: token.sessionId,
           tokenFamily: token.tokenFamily,
-          tokenHash: this.hashToken(refreshToken),
+          tokenHash: tokenHashNew,
           expiresAt,
         },
       });
       await tx.refreshToken.update({
         where: { id: token.id },
         data: { replacedByTokenId: replacement.id },
+      });
+
+      // Synchronize latest refresh_token_hash in auth_sessions
+      await tx.authSession.update({
+        where: { id: token.sessionId },
+        data: { refreshTokenHash: tokenHashNew, lastActiveAt: new Date() },
       });
     });
 
@@ -639,32 +668,8 @@ export class AuthService {
   }
 
   private async ensureBusinessRoleIfApproved(user: User): Promise<User> {
-    if (user.role === UserRole.BUSINESS || user.role === UserRole.PLATFORM_ADMIN) {
-      return user;
-    }
-    try {
-      const { Client } = require('pg');
-      const bizDbUrl =
-        process.env.BUSINESS_DATABASE_URL ||
-        process.env.DATABASE_URL?.replace(/\/[^\/]+$/, '/huki_business') ||
-        'postgresql://postgres:postgres123@localhost:5432/huki_business';
-      const pgClient = new Client({ connectionString: bizDbUrl });
-      await pgClient.connect();
-      const res = await pgClient.query(
-        "SELECT id FROM businesses WHERE owner_id = $1 AND status = 'APPROVED' AND deleted_at IS NULL LIMIT 1",
-        [user.id],
-      );
-      await pgClient.end();
-      if (res.rows.length > 0) {
-        const updated = await this.prisma.user.update({
-          where: { id: user.id },
-          data: { role: UserRole.BUSINESS },
-        });
-        return updated;
-      }
-    } catch {
-      // ignore if business db is not reachable
-    }
+    // Architectural Clean Decoupling [ID-PERF-001]:
+    // Role synchronization is handled via Event-Driven architecture (RabbitMQ) or direct updates in identity users table.
     return user;
   }
 
@@ -688,24 +693,24 @@ export class AuthService {
   }
 
   async resetPassword(dto: ResetPasswordDto) {
-    let user = await this.prisma.user.findFirst({
+    // SECURITY FIX [ID-SEC-002]: Xóa bỏ hoàn toàn backdoor token 123456 và NODE_ENV
+    const user = await this.prisma.user.findFirst({
       where: {
         passwordResetToken: dto.token,
         passwordResetExpiresAt: { gt: new Date() },
       },
     });
 
-    if (!user && (dto.token === '123456' || process.env.NODE_ENV !== 'production')) {
-      user = await this.prisma.user.findFirst({
-        where: { passwordResetToken: { not: null } },
-        orderBy: { updatedAt: 'desc' },
-      });
+    if (!user) {
+      throwBadRequest(
+        ErrorCode.AUTH_RESET_TOKEN_EXPIRED,
+        'Mã đặt lại mật khẩu không hợp lệ hoặc đã hết hạn',
+      );
     }
 
-    if (!user) throwBadRequest(ErrorCode.AUTH_RESET_TOKEN_EXPIRED);
     await this.prisma.$transaction([
       this.prisma.user.update({
-        where: { id: user!.id },
+        where: { id: user.id },
         data: {
           passwordHash: await bcrypt.hash(dto.newPassword, 12),
           passwordResetToken: null,
@@ -713,8 +718,12 @@ export class AuthService {
         },
       }),
       this.prisma.authSession.updateMany({
-        where: { userId: user!.id, revokedAt: null },
+        where: { userId: user.id, revokedAt: null },
         data: { revokedAt: new Date() },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { session: { userId: user.id }, revokedAt: null },
+        data: { revokedAt: new Date(), revokedReason: 'password_reset' },
       }),
     ]);
     return { message: "Đặt lại mật khẩu thành công" };
@@ -806,12 +815,24 @@ export class AuthService {
           });
         }
 
-        await tx.authSession.create({
+        const newSession = await tx.authSession.create({
           data: {
             userId: user.id,
             refreshTokenHash: tokenHash,
             ipAddress: deviceInfo?.ipAddress,
             userAgent: deviceInfo?.userAgent,
+            expiresAt,
+          },
+        });
+
+        // FIX [ID-BIZ-001]: Khởi tạo đồng thời bản ghi trong refresh_tokens với tokenFamily mới
+        await tx.refreshToken.create({
+          data: {
+            sessionId: newSession.id,
+            tokenFamily: randomUUID(),
+            tokenHash: tokenHash,
+            tokenType: 'REFRESH',
+            deviceInfo: deviceInfo?.userAgent,
             expiresAt,
           },
         });
@@ -876,19 +897,34 @@ export class AuthService {
   // EVENT EMITTERS (Simple Abstraction)
   // ============================================
 
-  private emitUserRegistered(event: UserRegisteredEvent) {
+  private async emitUserRegistered(event: UserRegisteredEvent, tx?: any) {
+    try {
+      await this.outboxService.addToOutbox('identity.user.registered', event.userId, event as any, tx);
+    } catch (err: any) {
+      this.logger.error(`Failed to add user.registered to outbox: ${err.message}`, err.stack);
+    }
     setImmediate(() => {
       this.eventEmitter.emit(USER_EVENTS.REGISTERED, event);
     });
   }
 
-  private emitUserLoggedIn(event: UserLoggedInEvent) {
+  private async emitUserLoggedIn(event: UserLoggedInEvent, tx?: any) {
+    try {
+      await this.outboxService.addToOutbox('identity.user.logged_in', event.userId, event as any, tx);
+    } catch (err: any) {
+      this.logger.error(`Failed to add user.logged_in to outbox: ${err.message}`, err.stack);
+    }
     setImmediate(() => {
       this.eventEmitter.emit(USER_EVENTS.LOGGED_IN, event);
     });
   }
 
-  private emitUserEmailVerified(event: UserEmailVerifiedEvent) {
+  private async emitUserEmailVerified(event: UserEmailVerifiedEvent, tx?: any) {
+    try {
+      await this.outboxService.addToOutbox('identity.user.email_verified', event.userId, event as any, tx);
+    } catch (err: any) {
+      this.logger.error(`Failed to add user.email_verified to outbox: ${err.message}`, err.stack);
+    }
     setImmediate(() => {
       this.eventEmitter.emit(USER_EVENTS.EMAIL_VERIFIED, event);
     });
