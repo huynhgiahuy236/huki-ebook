@@ -363,6 +363,31 @@ export default function UniversalNotificationBell({
       const lowerTitle = (n.title || '').toLowerCase();
       const lowerMsg = (n.message || '').toLowerCase();
 
+      // Kiểm tra có phải thông báo Vận chuyển (ưu tiên kiểm tra trước đơn hàng)
+      const isShippingNotif =
+        n.type === 'SHIPPING_UPDATE' ||
+        lowerTitle.includes('vận chuyển') ||
+        lowerMsg.includes('vận chuyển') ||
+        lowerTitle.includes('giao hàng') ||
+        lowerMsg.includes('giao hàng');
+
+      if (isShippingNotif) {
+        list.push({
+          id: n.id,
+          notifId: n.id,
+          category: 'SHIPPING',
+          title: n.title || 'Cập nhật vận chuyển',
+          message: n.message,
+          createdAt: n.createdAt,
+          isRead: n.isRead,
+          carrier: String(payload.carrier || 'HUKI Express'),
+          trackingCode: String(payload.trackingCode || ''),
+          actionUrl: payload.orderCode ? `/orders/${payload.orderCode}` : '/account/orders',
+          actionLabel: 'Theo dõi đơn hàng',
+        });
+        return;
+      }
+
       // Kiểm tra có phải thông báo Đơn hàng
       const isOrderNotif =
         n.type === 'ORDER_STATUS' ||
@@ -584,28 +609,6 @@ export default function UniversalNotificationBell({
         return;
       }
 
-      // Kiểm tra có phải thông báo Vận chuyển
-      const isShippingNotif =
-        n.type === 'SHIPPING_UPDATE' ||
-        lowerTitle.includes('vận chuyển') ||
-        lowerMsg.includes('vận chuyển') ||
-        lowerTitle.includes('giao hàng') ||
-        lowerMsg.includes('giao hàng');
-
-      if (isShippingNotif) {
-        list.push({
-          id: n.id,
-          notifId: n.id,
-          category: 'SHIPPING',
-          title: n.title || 'Cập nhật vận chuyển',
-          message: n.message,
-          createdAt: n.createdAt,
-          isRead: n.isRead,
-          carrier: String(payload.carrier || 'HUKI Express'),
-          trackingCode: String(payload.trackingCode || ''),
-        });
-        return;
-      }
 
       // Kiểm tra có phải thông báo Tài chính / Ví
       const isFinanceNotif =

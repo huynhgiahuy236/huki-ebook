@@ -81,6 +81,16 @@ jobs:
             git checkout develop
             git pull origin develop
 
+            echo "=== Loading environment variables from /root/huki/.env ==="
+            if [ -f /root/huki/.env ]; then
+              set -a
+              . /root/huki/.env
+              set +a
+              echo "Loaded .env successfully"
+            else
+              echo "WARNING: /root/huki/.env not found"
+            fi
+
             echo "=== [2/5] Ensuring Infrastructure is healthy ==="
             docker compose -f docker-compose.prod.yml up -d postgres mongo redis rabbitmq
             echo "Restarting PostgreSQL to clear any out-of-disk crash lock..."

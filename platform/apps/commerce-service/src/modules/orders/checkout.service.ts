@@ -1,5 +1,5 @@
 import { EmailService } from "@huki/shared";
-import { Injectable, Optional } from "@nestjs/common";
+import { Injectable, Optional, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { randomBytes } from "crypto";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -92,6 +92,8 @@ export interface CheckoutSnapshot {
 
 @Injectable()
 export class CheckoutService {
+  private readonly logger = new Logger(CheckoutService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cartService: CartService,
@@ -955,6 +957,7 @@ export class CheckoutService {
         });
         if (duplicate) return this.confirmResponse(duplicate, true);
       }
+      this.logger.error(`[Checkout Confirm Failure] userId=${userId} sessionId=${dto.sessionId}: ${(error as any)?.message}`, (error as any)?.stack);
       throw error;
     }
   }

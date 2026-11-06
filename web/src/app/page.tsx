@@ -51,8 +51,20 @@ export default function HomePage() {
   const { showToast } = useToast();
   const { user, isLoggedIn } = useAuth();
 
-  // 1. REAL COMMERCE DATA FROM BACKEND DATABASE
-  const [realBooks, setRealBooks] = useState<BookData[]>([]);
+  // 1. REAL COMMERCE DATA FROM BACKEND DATABASE (Cached warm fallback for instant rendering)
+  const [realBooks, setRealBooks] = useState<BookData[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("huki_cached_public_books");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [isLoadingBooks, setIsLoadingBooks] = useState<boolean>(() => realBooks.length === 0);
   const [realCategories, setRealCategories] = useState<CategoryData[]>([]);
   const [realPublishers, setRealPublishers] = useState<CatalogEntity[]>([]);
   const [realAuthors, setRealAuthors] = useState<CatalogEntity[]>([]);
@@ -67,8 +79,19 @@ export default function HomePage() {
   const [isHeroHovered, setIsHeroHovered] = useState(false);
   const [customBanners, setCustomBanners] = useState<any[]>([]);
 
-  // Local Interactivity States
-  const [savedVouchers, setSavedVouchers] = useState<string[]>([]);
+  // Local Interactivity States (Instant sync with local wallet cache)
+  const [savedVouchers, setSavedVouchers] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("huki_saved_voucher_codes");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [bestsellerTab, setBestsellerTab] = useState("all");
   const [selectedCategoryTab, setSelectedCategoryTab] = useState("all");
   const tabsContainerRef = React.useRef<HTMLDivElement>(null);
@@ -86,17 +109,40 @@ export default function HomePage() {
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [personalizationTick, setPersonalizationTick] = useState(0);
 
-  // Fetch Real Books
+  // Fetch Real Books (with exponential backoff retry to guard against cold-start DB latency)
   useEffect(() => {
-    catalogApi
-      .getPublicBooks({ limit: 100 })
-      .then((res) => {
+    let isSubscribed = true;
+    const fetchBooksWithRetry = async (attempt = 1) => {
+      try {
+        const res = await catalogApi.getPublicBooks({ limit: 100 });
+        if (!isSubscribed) return;
         if (res.success && Array.isArray(res.data) && res.data.length > 0) {
           setRealBooks(res.data);
+          setIsLoadingBooks(false);
+          try {
+            localStorage.setItem("huki_cached_public_books", JSON.stringify(res.data.slice(0, 60)));
+          } catch {}
+          return;
         }
-      })
-      .catch((err) => console.warn("Could not fetch real books:", err));
+        if (attempt < 3 && isSubscribed) {
+          setTimeout(() => fetchBooksWithRetry(attempt + 1), attempt * 1200);
+        } else if (isSubscribed) {
+          setIsLoadingBooks(false);
+        }
+      } catch (err) {
+        if (attempt < 3 && isSubscribed) {
+          setTimeout(() => fetchBooksWithRetry(attempt + 1), attempt * 1200);
+        } else if (isSubscribed) {
+          setIsLoadingBooks(false);
+        }
+      }
+    };
+    fetchBooksWithRetry();
+    return () => { isSubscribed = false; };
+  }, []);
 
+  // Fetch Real Categories, Publishers, Authors
+  useEffect(() => {
     // Fetch Real Categories
     catalogApi
       .getCategories()
@@ -155,7 +201,12 @@ export default function HomePage() {
       voucherApi.getWalletVouchers().then((wRes) => {
         if (wRes.success && wRes.data) {
           const savedIdentifiers: string[] = [];
-          (wRes.data.platform?.all || []).forEach((x: any) => {
+          const platformVouchersList = [
+            ...(wRes.data.platform?.all || []),
+            ...(wRes.data.platform?.discount || []),
+            ...(wRes.data.platform?.freeship || []),
+          ];
+          platformVouchersList.forEach((x: any) => {
             if (x.code) savedIdentifiers.push(x.code);
             if (x.id) savedIdentifiers.push(x.id);
           });
@@ -165,7 +216,20 @@ export default function HomePage() {
               if (x.id) savedIdentifiers.push(x.id);
             });
           });
-          setSavedVouchers(Array.from(new Set(savedIdentifiers)));
+          if (Array.isArray(wRes.data)) {
+            (wRes.data as any[]).forEach((x: any) => {
+              if (x.code) savedIdentifiers.push(x.code);
+              if (x.id) savedIdentifiers.push(x.id);
+            });
+          }
+          const uniqueSaved = Array.from(new Set(savedIdentifiers));
+          setSavedVouchers(uniqueSaved);
+          try {
+            localStorage.setItem("huki_saved_voucher_codes", JSON.stringify(uniqueSaved));
+          } catch {}
+          setRealVouchers((prev) =>
+            prev.map((rv) => (uniqueSaved.includes(rv.code) || (rv.id && uniqueSaved.includes(rv.id)) ? { ...rv, isSaved: true } : rv))
+          );
         }
       }).catch(() => {});
     } else {
@@ -175,6 +239,9 @@ export default function HomePage() {
         }
       }).catch(() => {});
       setSavedVouchers([]);
+      try {
+        localStorage.removeItem("huki_saved_voucher_codes");
+      } catch {}
     }
   }, [user?.id, isLoggedIn]);
 
@@ -841,7 +908,13 @@ export default function HomePage() {
     try {
       const res = await voucherApi.saveVoucher(v.id);
       if (res.success) {
-        setSavedVouchers((prev) => Array.from(new Set([...prev, v.code, ...(v.id ? [v.id] : [])])));
+        setSavedVouchers((prev) => {
+          const updated = Array.from(new Set([...prev, v.code, ...(v.id ? [v.id] : [])]));
+          try {
+            localStorage.setItem("huki_saved_voucher_codes", JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
         setRealVouchers((prev) => prev.map((rv) => (rv.id === v.id || rv.code === v.code ? { ...rv, isSaved: true } : rv)));
         showToast({ title: "Thành công!", message: `Đã lưu voucher ${v.code} vào ví của bạn` }, "success");
       } else {
@@ -1250,11 +1323,16 @@ export default function HomePage() {
       {/* =========================================================================
           SECTION 4: SẢN PHẨM BÁN CHẠY (BESTSELLERS - 100% REAL)
       ========================================================================= */}
-      {allBestsellers.length > 0 && (
+      {(allBestsellers.length > 0 || (isLoadingBooks && realBooks.length === 0)) && (
         <section className="flex flex-col gap-2.5">
           <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/90">
-            <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-              Sản Phẩm Bán Chạy
+            <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide flex items-center gap-2">
+              <span>Sản Phẩm Bán Chạy</span>
+              {isLoadingBooks && realBooks.length === 0 && (
+                <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full lowercase font-normal">
+                  đang tải...
+                </span>
+              )}
             </h2>
 
             {/* Pill Tabs */}
@@ -1280,13 +1358,22 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
-            {filteredBestsellers.slice(0, 6).map((book) => (
-              <BookCard
-                key={book.id}
-                book={book as any}
-                variant="compact"
-              />
-            ))}
+            {isLoadingBooks && realBooks.length === 0
+              ? Array.from({ length: 6 }).map((_, idx) => (
+                  <div key={idx} className="bg-white rounded-xl p-2.5 border border-gray-100 flex flex-col gap-2 animate-pulse">
+                    <div className="bg-gray-200 rounded-lg aspect-[3/4] w-full" />
+                    <div className="h-3.5 bg-gray-200 rounded w-4/5 mt-1" />
+                    <div className="h-3 bg-gray-100 rounded w-1/2" />
+                    <div className="h-4 bg-emerald-100 rounded w-2/3 mt-2" />
+                  </div>
+                ))
+              : filteredBestsellers.slice(0, 6).map((book) => (
+                  <BookCard
+                    key={book.id}
+                    book={book as any}
+                    variant="compact"
+                  />
+                ))}
           </div>
         </section>
       )}
