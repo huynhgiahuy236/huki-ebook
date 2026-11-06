@@ -59,6 +59,7 @@ export class PayOSService {
         expiredAt: input.expiredAt,
         signature: this.sign(signedFields, credentials.checksumKey),
       }),
+      signal: AbortSignal.timeout(5000),
     });
     const payload = (await response.json()) as PayOSResponse<PayOSPaymentLink>;
     if (!response.ok || payload.code !== '00' || !payload.data) {
@@ -76,6 +77,7 @@ export class PayOSService {
           'x-client-id': credentials.clientId,
           'x-api-key': credentials.apiKey,
         },
+        signal: AbortSignal.timeout(3000),
       });
       const payload = (await response.json()) as PayOSResponse<any>;
       if (!response.ok || payload.code !== '00' || !payload.data) {

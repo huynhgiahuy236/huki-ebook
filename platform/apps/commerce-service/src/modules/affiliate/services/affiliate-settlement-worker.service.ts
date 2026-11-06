@@ -2,6 +2,7 @@ import { Injectable, Logger, OnApplicationShutdown, Optional } from '@nestjs/com
 import { Cron } from '@nestjs/schedule';
 import { AffiliateLifecycleService } from './affiliate-lifecycle.service';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { RedisService } from '../../redis/redis.service';
 import { AffiliateMetricsService } from '../monitoring/affiliate-metrics.service';
 import { AffiliateAlertService } from '../monitoring/affiliate-alert.service';
 
@@ -14,6 +15,7 @@ export class AffiliateSettlementWorker implements OnApplicationShutdown {
   constructor(
     private readonly lifecycleService: AffiliateLifecycleService,
     private readonly prisma: PrismaService,
+    @Optional() private readonly redisService?: RedisService,
     @Optional() private readonly metricsService?: AffiliateMetricsService,
     @Optional() private readonly alertService?: AffiliateAlertService,
   ) {}
@@ -50,9 +52,21 @@ export class AffiliateSettlementWorker implements OnApplicationShutdown {
       return { status: 'SKIPPED_SHUTTING_DOWN' as const };
     }
 
-    if (this.isRunning) {
-      this.logger.warn('Settlement batch is already running. Skipping concurrent invocation.');
-      return { status: 'SKIPPED_ALREADY_RUNNING' as const };
+    const lockKey = 'lock:cron:affiliate_settlement';
+    let lockAcquired = false;
+
+    if (this.redisService) {
+      const acquired = await this.redisService.setNx(lockKey, process.pid.toString(), 600);
+      if (!acquired) {
+        this.logger.warn('Settlement batch is already running on another instance (Distributed Lock active). Skipping.');
+        return { status: 'SKIPPED_ALREADY_RUNNING' as const };
+      }
+      lockAcquired = true;
+    } else {
+      if (this.isRunning) {
+        this.logger.warn('Settlement batch is already running. Skipping concurrent invocation.');
+        return { status: 'SKIPPED_ALREADY_RUNNING' as const };
+      }
     }
 
     this.isRunning = true;
@@ -108,6 +122,9 @@ export class AffiliateSettlementWorker implements OnApplicationShutdown {
       throw error;
     } finally {
       this.isRunning = false;
+      if (lockAcquired && this.redisService) {
+        await this.redisService.del(lockKey);
+      }
     }
   }
 }

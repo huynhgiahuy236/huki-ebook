@@ -15,6 +15,7 @@ import { AuthenticatedGuard, BookActor } from '../../common/book-auth.guard';
 import { CurrentBookActor } from '../../common/current-book-actor.decorator';
 import { CreateRefundDto, InitiatePaymentDto, PayOSWebhookDto, SettleRefundDto } from './dto/payment.dto';
 import { PaymentsService } from './payments.service';
+import { throwForbidden, ErrorCode } from '@huki/shared/errors';
 
 @ApiTags('Payments')
 @Controller('payments')
@@ -41,6 +42,18 @@ export class PaymentsController {
     @CurrentBookActor() actor: BookActor,
     @Param('orderId', ParseUUIDPipe) orderId: string,
   ) {
+    if (process.env.NODE_ENV === 'production') {
+      throwForbidden(
+        ErrorCode.AUTHZ_FORBIDDEN,
+        'Endpoint mô phỏng thanh toán bị vô hiệu hóa hoàn toàn trên môi trường Production',
+      );
+    }
+    if (actor.role !== 'PLATFORM_ADMIN') {
+      throwForbidden(
+        ErrorCode.AUTHZ_ROLE_INSUFFICIENT,
+        'Chỉ Quản trị viên hệ thống (PLATFORM_ADMIN) mới có quyền mô phỏng thanh toán',
+      );
+    }
     return this.payments.simulateSuccess(actor.sub, orderId);
   }
 

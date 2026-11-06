@@ -14,6 +14,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { BroadcastModule } from './modules/broadcast/broadcast.module';
 import { FeatureModule } from './modules/feature/feature.module';
 import { PenaltyModule } from './modules/penalty/penalty.module';
+import { InternalModule } from './modules/internal/internal.module';
 
 // Health
 import { HealthController } from './modules/health/health.controller';
@@ -40,6 +41,7 @@ import { HealthController } from './modules/health/health.controller';
     BroadcastModule,
     FeatureModule,
     PenaltyModule,
+    InternalModule,
   ],
   controllers: [HealthController],
 })

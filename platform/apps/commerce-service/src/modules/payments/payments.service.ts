@@ -344,7 +344,7 @@ export class PaymentsService
           failureReason: null,
         },
       });
-      if (updated.count === 0) return;
+      if (updated.count === 0) return { success: true, message: 'Giao dịch đã được ghi nhận trước đó' };
 
       const hasPhysicalOrders = orderData.sellerOrders.some((so: any) => so.requiresShipping);
 
@@ -487,7 +487,10 @@ export class PaymentsService
     // PayOS sends a signed test webhook while confirming the URL.
     if (!payment) return { success: true };
     if (payment.status === PaymentStatus.SUCCEEDED) return { success: true };
-    if (Number(payment.amount) !== Number(payload.data.amount)) {
+    if (Math.round(Number(payment.amount)) !== Math.round(Number(payload.data.amount))) {
+      this.logger.warn(
+        `PAYOS_SECURITY_WARNING: Amount mismatch for order ${payment.orderId}. Expected ${payment.amount}, received ${payload.data.amount}`,
+      );
       throwBadRequest(ErrorCode.PAYMENT_AMOUNT_MISMATCH);
     }
 
@@ -518,7 +521,7 @@ export class PaymentsService
           failureReason: null,
         },
       });
-      if (updated.count === 0) return;
+      if (updated.count === 0) return { success: true, message: 'Giao dịch đã được ghi nhận trước đó' };
 
       await tx.order.update({
         where: { id: payment.orderId },
@@ -668,6 +671,10 @@ export class PaymentsService
       if (canRestore) {
         // Step 2A: Stock is available -> Restore order & re-lock inventory
         await this.reservations.reserve(tx, payment.orderId, physicalItems);
+        const physicalItemIds = physicalItems.map(({ id }: any) => id);
+        if (physicalItemIds.length > 0) {
+          await this.reservations.commit(tx, payment.orderId, physicalItemIds);
+        }
 
         await tx.payment.update({
           where: { id: payment.id },
@@ -1215,6 +1222,7 @@ export class PaymentsService
       include: {
         order: { include: { sellerOrders: { include: { items: true } } } },
       },
+      take: 20,
     });
     for (const payment of expired) {
       const isFlashSalePayment = Boolean(
@@ -1271,6 +1279,19 @@ export class PaymentsService
       }
 
       await this.prisma.$transaction(async (tx) => {
+        const currentOrder = await tx.order.findUnique({
+          where: { id: payment.orderId },
+          select: { status: true, paymentStatus: true },
+        });
+        if (
+          !currentOrder ||
+          currentOrder.paymentStatus === PaymentStatus.SUCCEEDED ||
+          currentOrder.status === 'PROCESSING' ||
+          currentOrder.status === 'COMPLETED'
+        ) {
+          return;
+        }
+
         const changed = await tx.payment.updateMany({
           where: {
             id: payment.id,

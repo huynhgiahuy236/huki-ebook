@@ -31,6 +31,16 @@ export class RedisService {
     }
   }
 
+  async setNx(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+    try {
+      const res = await this.redis.set(key, value, 'EX', ttlSeconds, 'NX');
+      return res === 'OK';
+    } catch (error) {
+      this.logger.warn(`Redis setNx failed for key ${key}`, error);
+      return false;
+    }
+  }
+
   async del(key: string): Promise<void> {
     try {
       await this.redis.del(key);
@@ -119,13 +129,26 @@ export class RedisService {
 
   /**
    * Synchronize stock cache with DB available stock
+   * Uses NX (Set if Not Exists) to prevent cold-start race overwrites (COM-INV-002)
    */
   async syncStock(bookId: string, availableStock: number, ttlSeconds = 86400): Promise<void> {
     const key = `stock:book:${bookId}`;
     try {
-      await this.redis.setex(key, ttlSeconds, availableStock.toString());
+      await this.redis.set(key, availableStock.toString(), 'EX', ttlSeconds, 'NX');
     } catch (error) {
       this.logger.warn(`syncStock failed for ${key}`, error);
+    }
+  }
+
+  /**
+   * Force synchronize stock cache unconditionally (e.g. on manual inventory update or commit)
+   */
+  async forceSyncStock(bookId: string, availableStock: number, ttlSeconds = 86400): Promise<void> {
+    const key = `stock:book:${bookId}`;
+    try {
+      await this.redis.setex(key, ttlSeconds, availableStock.toString());
+    } catch (error) {
+      this.logger.warn(`forceSyncStock failed for ${key}`, error);
     }
   }
 
@@ -190,4 +213,3 @@ export class RedisService {
     }
   }
 }
-
