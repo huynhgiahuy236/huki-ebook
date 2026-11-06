@@ -45,11 +45,12 @@ async function runTest() {
     console.log('✅ User test đã sẵn sàng: status=ACTIVE, failed_login_attempts=0, locked_until=NULL\n');
 
     // 2. EXECUTION: Bắn 5 request đăng nhập sai mật khẩu liên tiếp
-    console.log('--- BƯỚC 2: BẮN 5 REQUEST ĐĂNG NHẬP SAI MẬT KHẨU LIÊN TIẾP ---');
+    const testIp = `10.0.${Math.floor(Date.now() / 1000) % 200 + 50}.1`;
+    console.log(`--- BƯỚC 2: BẮN 5 REQUEST ĐĂNG NHẬP SAI MẬT KHẨU LIÊN TIẾP (IP: ${testIp}) ---`);
     for (let attempt = 1; attempt <= 5; attempt++) {
       const response = await fetch(`${BASE_URL}/api/v1/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': testIp },
         body: JSON.stringify({ email: TEST_EMAIL, password: WRONG_PASS }),
       });
 
@@ -75,11 +76,12 @@ async function runTest() {
       }
     }
 
-    // 3. EXECUTION: Thử đăng nhập lần thứ 6 với MẬT KHẨU ĐÚNG
-    console.log('\n--- BƯỚC 3: THỬ ĐĂNG NHẬP LẦN THỨ 6 VỚI MẬT KHẨU ĐÚNG (TEST LOCKOUT ENFORCEMENT) ---');
+    // 3. EXECUTION: Thử đăng nhập lần thứ 6 với MẬT KHẨU ĐÚNG từ IP khác
+    const newIp = `10.0.${Math.floor(Date.now() / 1000) % 200 + 50}.2`;
+    console.log(`\n--- BƯỚC 3: THỬ ĐĂNG NHẬP LẦN THỨ 6 VỚI MẬT KHẨU ĐÚNG TỪ IP MỚI (${newIp}) ---`);
     const correctRes = await fetch(`${BASE_URL}/api/v1/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': newIp },
       body: JSON.stringify({ email: TEST_EMAIL, password: CORRECT_PASS }),
     });
 

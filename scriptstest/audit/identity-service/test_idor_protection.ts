@@ -100,9 +100,9 @@ async function runTest() {
       console.log('✅ PASS: Cơ chế SessionController kiểm tra chặt chẽ userId, chặn thành công IDOR (404 Not Found).\n');
     }
 
-    // 4. KỊCH BẢN BOLA / ADMIN ACCESS CONTROL: User A gọi các endpoint Admin không có Guard (BUG-ID-03)
-    console.log('--- BƯỚC 4: KIỂM CHỨNG LỖI BOLA & BROKEN ACCESS CONTROL TRÊN ADMIN USER APIS ---');
-    console.log('🎯 Thử nghiệm 4.1: User A (Customer thường) gọi GET /api/v1/users/admin/all');
+    // 4. KỊCH BẢN BOLA / ADMIN ACCESS CONTROL: User A (Customer) cố tình gọi các endpoint Admin
+    console.log('--- BƯỚC 4: KIỂM TRA PHÂN QUYỀN ADMIN RBAC (NGĂN CHẶN BOLA / BROKEN ACCESS CONTROL) ---');
+    console.log('🎯 Thử nghiệm 4.1: User A (Role USER) gọi GET /api/v1/users/admin/all');
     const adminAllRes = await fetch(`${BASE_URL}/api/v1/users/admin/all`, {
       method: 'GET',
       headers: {
@@ -111,14 +111,12 @@ async function runTest() {
       },
     });
     const adminAllData = await adminAllRes.json();
-    console.log(`[Result 4.1] HTTP Status: ${adminAllRes.status}`);
-    if (adminAllRes.status === 200 && Array.isArray(adminAllData.data || adminAllData)) {
-      const count = (adminAllData.data || adminAllData).length;
-      console.log(`🚨 LỖI BẢO MẬT XÁC THỰC [BUG-ID-03]: User A (Customer) đọc được toàn bộ ${count} tài khoản người dùng của sàn!`);
-      console.log(`   Sample leaked user:`, (adminAllData.data || adminAllData)[0]?.email);
-    } else {
-      console.log(`[Status 4.1] Không truy cập được: ${adminAllRes.status}`);
+    console.log(`[Result 4.1] HTTP Status: ${adminAllRes.status} | Body: ${JSON.stringify(adminAllData)}`);
+
+    if (adminAllRes.status !== 403) {
+      throw new Error(`❌ LỖI BẢO MẬT: Endpoint Admin /users/admin/all không chặn Role USER (HTTP ${adminAllRes.status})!`);
     }
+    console.log('✅ PASS [ID-SEC-003 FIXED]: User A (Role USER) bị chặn truy cập 403 Forbidden!');
 
     console.log('\n🎯 Thử nghiệm 4.2: User A gọi POST /api/v1/users/admin/:id/toggle-lock để khóa User B');
     const toggleLockRes = await fetch(`${BASE_URL}/api/v1/users/admin/${userBId}/toggle-lock`, {
@@ -129,21 +127,24 @@ async function runTest() {
       },
     });
     const toggleLockData = await toggleLockRes.json();
-    console.log(`[Result 4.2] HTTP Status: ${toggleLockRes.status}`);
-    console.log(`             Message: "${toggleLockData.message || JSON.stringify(toggleLockData)}"`);
+    console.log(`[Result 4.2] HTTP Status: ${toggleLockRes.status} | Body: ${JSON.stringify(toggleLockData)}`);
 
-    // Kiểm tra DB xem User B có bị khóa trái phép không
-    const userBCheck = await pgClient.query(`SELECT status FROM users WHERE id = $1`, [userBId]);
-    console.log(`             User B Status in DB sau khi User A tấn công: ${userBCheck.rows[0]?.status}`);
-
-    if (userBCheck.rows[0]?.status === 'BLOCKED') {
-      console.log(`🚨 LỖI BẢO MẬT CRITICAL [BUG-ID-03]: User A KHÔNG PHẢI ADMIN nhưng đã KHÓA THÀNH CÔNG tài khoản của User B!`);
-      // Khôi phục lại trạng thái cho User B
-      await pgClient.query(`UPDATE users SET status = 'ACTIVE' WHERE id = $1`, [userBId]);
+    if (toggleLockRes.status !== 403) {
+      throw new Error(`❌ LỖI BẢO MẬT: Endpoint toggle-lock không chặn Role USER (HTTP ${toggleLockRes.status})!`);
     }
+    console.log('✅ PASS [ID-SEC-003 FIXED]: Thao tác khóa tài khoản trái phép bị chặn 403 Forbidden!');
+
+    // Kiểm tra DB xem User B có bị ảnh hưởng không
+    const userBCheck = await pgClient.query(`SELECT status FROM users WHERE id = $1`, [userBId]);
+    console.log(`             User B Status in DB sau khi chặn tấn công: ${userBCheck.rows[0]?.status}`);
+
+    if (userBCheck.rows[0]?.status !== 'ACTIVE') {
+      throw new Error(`❌ Lỗi dữ liệu: Trạng thái User B bị thay đổi bất thường (${userBCheck.rows[0]?.status})!`);
+    }
+    console.log('✅ PASS: Trạng thái User B được bảo toàn nguyên vẹn ACTIVE.');
 
     console.log('\n===============================================================');
-    console.log('🎉 [KẾT QUẢ TEST 3]: HOÀN THÀNH (CHỨNG MINH THÀNH CÔNG IDOR SESSION ĐƯỢC BẢO VỆ, NHƯNG ADMIN APIS BỊ BOLA CRITICAL)');
+    console.log('🎉 [KẾT QUẢ TEST 3]: PASS 100% - IDOR TRÊN SESSION VÀ BOLA TRÊN ADMIN ENDPOINTS ĐƯỢC BẢO VỆ TRIỆT ĐỂ');
     console.log('===============================================================');
   } catch (error) {
     console.error('\n❌ [TEST 3 FAILED]:', error.message || error);

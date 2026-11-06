@@ -20,7 +20,7 @@ function hashToken(token) {
 
 async function runTest() {
   console.log('===============================================================');
-  console.log('🚀 [TEST 2] AN TOÀN XOAY VÒNG REFRESH TOKEN (RTR) & PHÁT HIỆN TÁI SỬ DỤNG (REUSE ATTACK)');
+  console.log('🚀 [TEST 2 - POSITIVE] XOAY VÒNG REFRESH TOKEN (RTR) & PHÁT HIỆN TÁI SỬ DỤNG (REUSE ATTACK)');
   console.log(`🎯 Endpoint: ${BASE_URL}/api/v1/auth/refresh`);
   console.log(`👤 Target User: ${TEST_EMAIL}`);
   console.log('===============================================================\n');
@@ -72,24 +72,29 @@ async function runTest() {
     console.log(`   - AccessToken 1 (length): ${accessToken1?.length}`);
     console.log(`   - RefreshToken A: ${refreshTokenA}`);
 
-    // Kiểm tra DB: auth_sessions vs refresh_tokens
+    // Kiểm tra DB: auth_sessions & refresh_tokens khởi tạo
     const sessionRes = await pgClient.query(
       `SELECT id, user_id, refresh_token_hash, revoked_at FROM auth_sessions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
       [userId]
     );
     const sessionRow = sessionRes.rows[0];
     const tokenHashA = hashToken(refreshTokenA);
-    console.log(`   - AuthSession created in DB: ID=${sessionRow?.id}, refreshTokenHash matched=${sessionRow?.refresh_token_hash === tokenHashA}`);
 
     const rtCountRes = await pgClient.query(
       `SELECT COUNT(*) FROM refresh_tokens WHERE session_id = $1`,
       [sessionRow?.id]
     );
     const initialRtCount = parseInt(rtCountRes.rows[0].count, 10);
-    console.log(`   - Initial count in refresh_tokens table: ${initialRtCount}`);
+    console.log(`   - AuthSession ID: ${sessionRow?.id}`);
+    console.log(`   - RefreshTokens count sau khi login: ${initialRtCount}`);
 
-    // 3. TÁI HIỆN BUG: Thử Refresh ngay sau khi đăng nhập
-    console.log('\n--- BƯỚC 3: KIỂM CHỨNG LỖI TẠI RUNTIME: REFRESH NGAY SAU ĐĂNG NHẬP ---');
+    if (initialRtCount !== 1) {
+      throw new Error(`❌ Lỗi: Bản ghi khởi tạo trong refresh_tokens không tồn tại (${initialRtCount})!`);
+    }
+    console.log('✅ PASS [ID-BIZ-001 FIXED]: Bản ghi khởi tạo trong refresh_tokens đã được tạo tự động khi login!');
+
+    // 3. THỰC HIỆN REFRESH HỢP LỆ LẦN 1: Token A -> Token B
+    console.log('\n--- BƯỚC 3: THỰC HIỆN REFRESH HỢP LỆ (TOKEN A -> TOKEN B) ---');
     const firstRefreshRes = await fetch(`${BASE_URL}/api/v1/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '10.0.99.1' },
@@ -97,49 +102,29 @@ async function runTest() {
     });
     const firstRefreshData = await firstRefreshRes.json();
     console.log(`[First Refresh Attempt] HTTP Status: ${firstRefreshRes.status}`);
-    console.log(`                        Error Code: ${firstRefreshData.code}`);
-    console.log(`                        Message: "${firstRefreshData.message}"`);
 
-    if (firstRefreshRes.status === 401 && initialRtCount === 0) {
-      console.log('🚨 PHÁT HIỆN LỖI RUNTIME [BUG-ID-12]: auth.service.ts createSession() không ghi bản ghi khởi tạo vào bảng refresh_tokens!');
-      console.log('   Do đó, hàm refreshToken() không tìm thấy token trong refresh_tokens và ném lỗi 401 AUTH_TOKEN_EXPIRED.');
+    if (firstRefreshRes.status !== 200) {
+      throw new Error(`❌ Refresh thất bại: ${JSON.stringify(firstRefreshData)}`);
     }
 
-    // 4. KÍCH HOẠT SEED BẢN GHI REFRESH TOKEN ĐỂ KIỂM TOÁN CƠ CHẾ RTR VÀ REUSE DETECTION
-    console.log('\n--- BƯỚC 4: SEED BẢN GHI REFRESH TOKEN ĐỂ KIỂM TOÁN BẢO MẬT RTR & REUSE ATTACK ---');
-    const familyId = crypto.randomUUID();
-    const rtId = crypto.randomUUID();
-    await pgClient.query(`
-      INSERT INTO refresh_tokens (id, session_id, token_family, token_hash, token_type, expires_at, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, 'REFRESH', NOW() + INTERVAL '7 days', NOW(), NOW());
-    `, [rtId, sessionRow.id, familyId, tokenHashA]);
-    console.log(`✅ Đã seed bản ghi ban đầu vào refresh_tokens: family=${familyId}`);
-
-    // Thử lại refresh hợp lệ: Token A -> Token B
-    const validRefreshRes = await fetch(`${BASE_URL}/api/v1/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '10.0.99.1' },
-      body: JSON.stringify({ refreshToken: refreshTokenA }),
-    });
-    const validRefreshData = await validRefreshRes.json();
-    console.log(`[Valid Refresh Attempt] HTTP Status: ${validRefreshRes.status}`);
-    if (validRefreshRes.status !== 200) {
-      throw new Error(`❌ Refresh thất bại sau khi seed: ${JSON.stringify(validRefreshData)}`);
-    }
-
-    const refreshTokenB = validRefreshData.data?.refreshToken;
+    const refreshTokenB = firstRefreshData.data?.refreshToken;
     console.log(`✅ Refresh thành công! Nhận được RefreshToken B: ${refreshTokenB?.substring(0, 16)}...`);
 
     // Kiểm tra DB: Token A đã bị revoked chưa?
-    const checkTokenARes = await pgClient.query(`SELECT id, revoked_at, revoked_reason, replaced_by_token_id FROM refresh_tokens WHERE id = $1`, [rtId]);
+    const checkTokenARes = await pgClient.query(
+      `SELECT id, revoked_at, revoked_reason, replaced_by_token_id FROM refresh_tokens WHERE session_id = $1 AND token_hash = $2`,
+      [sessionRow.id, tokenHashA]
+    );
     const tokenARow = checkTokenARes.rows[0];
     console.log(`   - Token A State: revoked_at=${tokenARow.revoked_at ? tokenARow.revoked_at.toISOString() : 'NULL'}, reason=${tokenARow.revoked_reason}`);
+
     if (!tokenARow.revoked_at) {
       throw new Error('❌ Lỗi: Token A không bị thu hồi sau khi cấp Token B!');
     }
+    console.log('✅ PASS: Token A đã bị thu hồi chính xác với reason=token_rotation.');
 
-    // 5. MÔ PHỎNG TẤN CÔNG REUSE ATTACK: Dùng lại Token A đã bị revoked
-    console.log('\n--- BƯỚC 5: MÔ PHỎNG REUSE ATTACK: DÙNG LẠI TOKEN A ĐÃ BỊ THU HỒI ---');
+    // 4. MÔ PHỎNG TẤN CÔNG REUSE ATTACK: Dùng lại Token A đã bị revoked
+    console.log('\n--- BƯỚC 4: MÔ PHỎNG REUSE ATTACK: DÙNG LẠI TOKEN A ĐÃ BỊ THU HỒI ---');
     const reuseAttackRes = await fetch(`${BASE_URL}/api/v1/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '10.0.99.1' },
@@ -149,8 +134,12 @@ async function runTest() {
     console.log(`[Reuse Attack Attempt] HTTP Status: ${reuseAttackRes.status} | Code: ${reuseAttackData.code}`);
     console.log(`                       Message: "${reuseAttackData.message}"`);
 
-    // 6. KIỂM TRA PHẢN ỨNG THU HỒI TOÀN BỘ TOKEN FAMILY (BREACH CONTAINMENT)
-    console.log('\n--- BƯỚC 6: KIỂM TRA BREACH CONTAINMENT (XÁC THỰC THU HỒI CẢ FAMILY VÀ SESSION) ---');
+    if (reuseAttackRes.status === 200) {
+      throw new Error(`❌ LỖI AN NINH: Token cũ đã bị thu hồi nhưng hệ thống vẫn chấp nhận!`);
+    }
+
+    // 5. KIỂM TRA PHẢN ỨNG THU HỒI TOÀN BỘ TOKEN FAMILY (BREACH CONTAINMENT)
+    console.log('\n--- BƯỚC 5: KIỂM TRA BREACH CONTAINMENT (XÁC THỰC THU HỒI CẢ FAMILY VÀ SESSION) ---');
     const tokensAfterBreach = await pgClient.query(
       `SELECT id, token_family, revoked_at, revoked_reason FROM refresh_tokens WHERE session_id = $1`,
       [sessionRow.id]
@@ -175,8 +164,8 @@ async function runTest() {
     }
     console.log('✅ PASS: Cơ chế Reuse Detection hoạt động chuẩn xác: Thu hồi toàn bộ family và session!');
 
-    // 7. THỬ DÙNG TOKEN B CỦA NẠN NHÂN
-    console.log('\n--- BƯỚC 7: XÁC MINH TOKEN B CỦA NẠN NHÂN CŨNG ĐÃ BỊ VÔ HIỆU HÓA HOÀN TOÀN ---');
+    // 6. THỬ DÙNG TOKEN B CỦA NẠN NHÂN
+    console.log('\n--- BƯỚC 6: XÁC MINH TOKEN B CỦA NẠN NHÂN CŨNG ĐÃ BỊ VÔ HIỆU HÓA HOÀN TOÀN ---');
     const victimRes = await fetch(`${BASE_URL}/api/v1/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '10.0.99.1' },
@@ -192,7 +181,7 @@ async function runTest() {
     console.log('✅ PASS: Token B của nạn nhân đã bị từ chối thành công.');
 
     console.log('\n===============================================================');
-    console.log('🎉 [KẾT QUẢ TEST 2]: PASS (PHÁT HIỆN THÊM BUG-ID-12 TRONG CREATE_SESSION)');
+    console.log('🎉 [KẾT QUẢ TEST 2]: PASS 100% - REFRESH TOKEN ROTATION & REUSE ATTACK CONTAINMENT HOẠT ĐỘNG HOÀN HẢO');
     console.log('===============================================================');
   } catch (error) {
     console.error('\n❌ [TEST 2 FAILED]:', error.message || error);

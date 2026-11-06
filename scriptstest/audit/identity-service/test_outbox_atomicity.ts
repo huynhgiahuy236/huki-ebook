@@ -80,13 +80,9 @@ async function runTest() {
     console.log(`🔍 Tìm kiếm sự kiện của User ${createdUser.id} trong outbox_events: ${newEventsInDb.rows.length} bản ghi`);
 
     if (newEventsInDb.rows.length === 0) {
-      console.log('\n🚨 PHÁT HIỆN LỖI KIẾN TRÚC NGHIÊM TRỌNG [BUG-ID-05 - OUTBOX PIPELINE IS DEAD]:');
-      console.log('   - Thao tác đăng ký user thành công trong DB nhưng HOÀN TOÀN KHÔNG CÓ sự kiện nào được ghi vào bảng `outbox_events`!');
-      console.log('   - Nguyên nhân gốc: auth.service.ts chỉ gọi in-memory EventEmitter2 (`this.eventEmitter.emit`), không có bất kỳ listener nào hứng sự kiện và gọi IdentityOutboxService.addToOutbox()!');
-      console.log('   - Worker IdentityOutboxPublisher quét bảng outbox_events mỗi 1s nhưng bảng luôn rỗng, dẫn đến 0 sự kiện nào được bắn lên RabbitMQ Topic Exchange `huki.events`!');
-      console.log('   - Hậu quả: analytics-service, business-service, community-service vĩnh viễn không đồng bộ được trạng thái user mới.');
+      throw new Error('❌ Lỗi: Thao tác đăng ký user thành công nhưng không có sự kiện outbox nào được ghi vào bảng outbox_events!');
     } else {
-      console.log('✅ Sự kiện outbox được ghi nhận:', newEventsInDb.rows[0]);
+      console.log('✅ PASS [ID-DATA-001 FIXED]: Sự kiện outbox được ghi nhận thành công và tự động xuất bản:', newEventsInDb.rows[0]);
     }
 
     // 4. CLEANUP USER TEST
@@ -95,7 +91,7 @@ async function runTest() {
     console.log(`✅ Đã xóa user test ${NEW_EMAIL} khỏi DB.`);
 
     console.log('\n===============================================================');
-    console.log('🎉 [KẾT QUẢ TEST 5]: HOÀN THÀNH (TÁI HIỆN VÀ CHỨNG MINH THÀNH CÔNG LỖ HỔNG BUG-ID-05)');
+    console.log('🎉 [KẾT QUẢ TEST 5]: PASS 100% - TRANSACTIONAL OUTBOX PIPELINE HOẠT ĐỘNG CHUẨN XÁC');
     console.log('===============================================================');
   } catch (error) {
     console.error('\n❌ [TEST 5 FAILED]:', error.message || error);

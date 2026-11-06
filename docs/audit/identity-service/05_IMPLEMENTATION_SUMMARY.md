@@ -53,3 +53,4 @@ npm run build:identity --prefix platform
    - **Tuyệt đối không chạy migrate reset:** 76 bản ghi người dùng thực tế trong database `huki_identity` được bảo toàn nguyên vẹn 100%.
 2. **Bảo toàn Hợp đồng API (API Contracts):**
    - Mọi endpoint công khai (`POST /api/v1/auth/login`, `POST /api/v1/auth/register`, `POST /api/v1/auth/refresh`, `GET /api/v1/users/profile`...) giữ nguyên 100% cấu trúc Request/Response JSON, đảm bảo Web Client và API Gateway hoạt động liền mạch không cần sửa đổi client code.
+

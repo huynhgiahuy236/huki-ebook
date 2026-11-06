@@ -32,3 +32,4 @@ export class UserPurgeCron implements OnApplicationBootstrap, OnModuleDestroy {
     if (this.timer) clearInterval(this.timer);
   }
 }
+
