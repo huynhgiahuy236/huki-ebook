@@ -59,8 +59,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER || 'root' }}
-          key: ${{ secrets.VPS_SSH_KEY }}
+          username: 'root'
           password: ${{ secrets.VPS_PASSWORD }}
           script_stop: true
           command_timeout: 25m
@@ -75,15 +74,21 @@ jobs:
             echo "=== [2/5] Ensuring Infrastructure is healthy ==="
             docker compose -f docker-compose.prod.yml up -d postgres mongo redis rabbitmq
             set +e
-            for i in $(seq 1 30); do
+            PG_READY=0
+            for i in $(seq 1 60); do
               if docker exec huki-postgres pg_isready -U postgres; then
                 echo "PostgreSQL is ready!"
+                PG_READY=1
                 break
               fi
-              echo "Waiting for PostgreSQL to be ready ($i/30)..."
-              sleep 3
+              echo "Waiting for PostgreSQL to be ready ($i/60)..."
+              sleep 5
             done
             set -e
+            if [ "$PG_READY" -ne 1 ]; then
+              echo "Error: PostgreSQL failed to become ready in time"
+              exit 1
+            fi
 
             echo "=== Ensuring UAT databases exist in PostgreSQL ==="
             for db in huki_uat_identity huki_uat_business huki_uat_commerce huki_uat_shipping huki_uat_promotion huki_uat_analytics; do

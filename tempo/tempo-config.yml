@@ -1,6 +1,3 @@
-# Tempo Configuration for HUKI EBOOK
-# https://grafana.com/docs/tempo/latest/configuration/
-
 server:
   http_listen_port: 3200
 
@@ -12,26 +9,21 @@ distributor:
           endpoint: 0.0.0.0:4317
         http:
           endpoint: 0.0.0.0:4318
-    jaeger:
-      protocols:
-        thrift_http:
-          endpoint: 0.0.0.0:14268
 
 ingester:
   max_block_duration: 5m
 
 compactor:
   compaction:
-    block_retention: 30d
+    block_retention: 720h
 
 storage:
   trace:
     backend: local
     wal:
-      path: /var/tempo/wal
+      path: /tmp/tempo/wal
     local:
-      path: /var/tempo/blocks
+      path: /tmp/tempo/blocks
 
 overrides:
-  defaults:
-    max_bytes_per_trace: 5000000
+  max_bytes_per_trace: 5000000

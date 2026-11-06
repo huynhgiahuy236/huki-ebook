@@ -196,7 +196,7 @@ export class ServiceProxyMiddleware implements NestMiddleware {
           host,
           port,
           method: req.method,
-          path: req.originalUrl.replace(/\/+/g, '/'),
+          path: req.originalUrl,
           headers,
           timeout: this.timeoutMs,
         },
@@ -269,7 +269,7 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     const correlationId =
       (reqHeaders['x-correlation-id'] as string) ||
       (reqHeaders['x-request-id'] as string) ||
-      (res && !res.headersSent ? (res.getHeader('x-correlation-id') as string) : null) ||
+      (res && typeof res.getHeader === 'function' && !res.headersSent ? (res.getHeader('x-correlation-id') as string) : null) ||
       randomUUID();
     return correlationId;
   }
@@ -313,7 +313,7 @@ export class ServiceProxyMiddleware implements NestMiddleware {
   ) {
     this.logger.warn(
       `Retrying proxy ${req.method} ${req.originalUrl} to ${service} ` +
-        `(attempt ${attempt + 1})${error ? ` after ${error.message}` : ''}`,
+      `(attempt ${attempt + 1})${error ? ` after ${error.message}` : ''}`,
     );
     setTimeout(() => proxy(attempt + 1), this.retryDelayMs);
   }
@@ -324,16 +324,15 @@ export class ServiceProxyMiddleware implements NestMiddleware {
       return 'community';
     }
 
-    const cleanPath = path.replace(/\/+/g, '/');
-    // Match first segment (case-insensitive)
-    const match = cleanPath.match(/^\/(?:api\/v1\/)?([^/?]+)/i);
+    // Match first segment
+    const match = path.match(/^\/(?:api\/v1\/)?([^/?]+)/);
     if (!match) return undefined;
 
-    const firstSegment = match[1].toLowerCase();
+    const firstSegment = match[1];
 
     // Check for nested paths: /{first}/{id}/{second} or /{first}/{second}
-    const nestedMatch = cleanPath.match(/^\/(?:api\/v1\/)?[^/]+\/[^/?]+\/([^/?]+)/i);
-    const secondNestedSegment = nestedMatch ? nestedMatch[1].toLowerCase() : null;
+    const nestedMatch = path.match(/^\/(?:api\/v1\/)?[^/]+\/[^/?]+\/([^/?]+)/);
+    const secondNestedSegment = nestedMatch ? nestedMatch[1] : null;
 
     // Route /books/:id/reviews → community
     if (secondNestedSegment === 'reviews') {

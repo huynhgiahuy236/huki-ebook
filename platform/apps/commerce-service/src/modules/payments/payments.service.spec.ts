@@ -50,7 +50,7 @@ describe("PaymentsService", () => {
       }),
       verifyWebhook: jest.fn().mockReturnValue(true),
     };
-    const reservations: any = { release: jest.fn(), reserve: jest.fn() };
+    const reservations: any = { release: jest.fn(), reserve: jest.fn(), commit: jest.fn().mockResolvedValue({}) };
     const flashSales: any = {
       hasReservations: jest.fn().mockResolvedValue(false),
       releaseOrder: jest.fn().mockResolvedValue({ success: true }),
@@ -177,7 +177,7 @@ describe("PaymentsService", () => {
     const mockTx = {
       payment: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       sellerOrder: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
-      order: { update: jest.fn().mockResolvedValue({}) },
+      order: { update: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue({ status: 'PENDING', paymentStatus: 'PENDING' }) },
       orderStatusHistory: { create: jest.fn().mockResolvedValue({}) },
       outboxEvent: { createMany: jest.fn().mockResolvedValue({}) },
     };
@@ -237,7 +237,7 @@ describe("PaymentsService", () => {
         }),
       },
       payment: { update: jest.fn().mockResolvedValue({}) },
-      order: { update: jest.fn().mockResolvedValue({}) },
+      order: { update: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue({ status: 'PENDING', paymentStatus: 'PENDING' }) },
       sellerOrder: { updateMany: jest.fn().mockResolvedValue({}) },
       orderStatusHistory: { create: jest.fn().mockResolvedValue({}) },
       bookAccess: { upsert: jest.fn() },
@@ -302,7 +302,7 @@ describe("PaymentsService", () => {
         }), // 1 - 1 = 0 < 2 -> out of stock
       },
       payment: { update: jest.fn().mockResolvedValue({}) },
-      order: { update: jest.fn().mockResolvedValue({}) },
+      order: { update: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue({ status: 'PENDING', paymentStatus: 'PENDING' }) },
       refund: { create: jest.fn().mockResolvedValue({}) },
       orderStatusHistory: { create: jest.fn().mockResolvedValue({}) },
     };
@@ -370,7 +370,7 @@ describe("PaymentsService", () => {
         }),
       },
       payment: { update: jest.fn().mockResolvedValue({}) },
-      order: { update: jest.fn().mockResolvedValue({}) },
+      order: { update: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue({ status: 'PENDING', paymentStatus: 'PENDING' }) },
       refund: { create: jest.fn().mockResolvedValue({}) },
       orderStatusHistory: { create: jest.fn().mockResolvedValue({}) },
     };
@@ -410,7 +410,7 @@ describe("PaymentsService", () => {
     const mockTx = {
       payment: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       sellerOrder: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
-      order: { update: jest.fn().mockResolvedValue({}) },
+      order: { update: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue({ status: 'PENDING', paymentStatus: 'PENDING' }) },
       orderStatusHistory: { create: jest.fn().mockResolvedValue({}) },
       outboxEvent: { createMany: jest.fn().mockResolvedValue({}) },
     };
@@ -471,7 +471,7 @@ describe("PaymentsService", () => {
           }),
         },
         payment: { update: jest.fn().mockResolvedValue({}) },
-        order: { update: jest.fn().mockResolvedValue({}) },
+        order: { update: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue({ status: 'PENDING', paymentStatus: 'PENDING' }) },
         outboxEvent: { create: jest.fn().mockResolvedValue({}) },
       };
       prisma.$transaction = jest.fn(async (cb) => cb(mockTx));
@@ -531,7 +531,7 @@ describe("PaymentsService", () => {
           aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 100000 } }),
         },
         payment: { update: jest.fn().mockResolvedValue({}) },
-        order: { update: jest.fn().mockResolvedValue({}) },
+        order: { update: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue({ status: 'PENDING', paymentStatus: 'PENDING' }) },
         bookAccess: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
         outboxEvent: { create: jest.fn().mockResolvedValue({}) },
       };
@@ -613,7 +613,7 @@ describe("PaymentsService", () => {
             }),
           },
           payment: { update: jest.fn().mockResolvedValue({}) },
-          order: { update: jest.fn().mockResolvedValue({}) },
+          order: { update: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue({ status: 'PENDING', paymentStatus: 'PENDING' }) },
           outboxEvent: { create: jest.fn().mockResolvedValue({}) },
         };
         prisma.$transaction = jest.fn(async (cb) => cb(mockTx));
@@ -653,7 +653,7 @@ describe("PaymentsService", () => {
             }),
           },
           payment: { update: jest.fn().mockResolvedValue({}) },
-          order: { update: jest.fn().mockResolvedValue({}) },
+          order: { update: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue({ status: 'PENDING', paymentStatus: 'PENDING' }) },
           outboxEvent: { create: jest.fn().mockResolvedValue({}) },
         };
         prisma.$transaction = jest.fn(async (cb) => cb(mockTx));

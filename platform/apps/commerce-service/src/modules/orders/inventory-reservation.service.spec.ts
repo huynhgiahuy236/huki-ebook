@@ -6,6 +6,7 @@ describe('InventoryReservationService (Prisma)', () => {
     reserveStockAtomic: jest.fn().mockResolvedValue(1),
     releaseStockAtomic: jest.fn().mockResolvedValue(1),
     syncStock: jest.fn().mockResolvedValue(undefined),
+    forceSyncStock: jest.fn().mockResolvedValue(undefined),
   };
   const prismaMock = {
     inventoryReservation: {
@@ -38,8 +39,10 @@ describe('InventoryReservationService (Prisma)', () => {
         create: jest.fn(),
         findMany: jest.fn().mockResolvedValue(reservations),
         update: jest.fn(),
+        upsert: jest.fn().mockResolvedValue({}),
       },
       inventoryLog: { create: jest.fn() },
+      $executeRaw: jest.fn().mockResolvedValue(1),
     };
   }
 
@@ -48,10 +51,8 @@ describe('InventoryReservationService (Prisma)', () => {
     await service.reserve(tx as any, 'order-id', [
       { id: 'item-id', bookId: 'book-id', quantity: 2, format: 'PHYSICAL' },
     ]);
-    expect(tx.physicalBookDetails.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { reserved: { increment: 2 } } }),
-    );
-    expect(tx.inventoryReservation.create).toHaveBeenCalled();
+    expect(tx.$executeRaw).toHaveBeenCalled();
+    expect(tx.inventoryReservation.upsert).toHaveBeenCalled();
     expect(tx.inventoryLog.create).toHaveBeenCalled();
   });
 
@@ -195,7 +196,7 @@ describe('InventoryReservationService (Prisma)', () => {
         where: { bookId: 'book-1' },
         data: { reserved: 4 },
       });
-      expect(redis.syncStock).toHaveBeenCalledWith('book-1', 46);
+      expect(redis.forceSyncStock).toHaveBeenCalledWith('book-1', 46);
     });
   });
 });

@@ -16,6 +16,7 @@ describe("AuthService refresh rotation & DRM active device limits", () => {
       create: jest.fn(),
       findMany: jest.fn(),
       updateMany: jest.fn(),
+      update: jest.fn().mockResolvedValue({}),
     },
     $executeRaw: jest.fn().mockResolvedValue(1),
   };
@@ -35,12 +36,18 @@ describe("AuthService refresh rotation & DRM active device limits", () => {
     sendVerificationEmail: jest.fn(),
     sendPasswordResetEmail: jest.fn(),
   };
+  const outbox = {
+    createEvent: jest.fn().mockResolvedValue({ id: 'outbox-1' }),
+    recordEvent: jest.fn().mockResolvedValue({ id: 'outbox-1' }),
+    addToOutbox: jest.fn().mockResolvedValue({ id: 'outbox-1' }),
+  };
   const service = new AuthService(
     prisma as any,
     jwt as any,
     config as any,
     { emit: jest.fn() } as any,
     email as any,
+    outbox as any,
   );
 
   beforeEach(() => {

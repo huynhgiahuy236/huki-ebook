@@ -26,7 +26,7 @@ services:
     container_name: huki-loki
     restart: unless-stopped
     ports:
-      - "3100:3100"
+      - "3105:3100"
     volumes:
       - ./loki/loki-config.yml:/etc/loki/local-config.yaml
       - loki_data:/loki
@@ -99,3 +99,4 @@ networks:
   huki-network:
     external: true
     name: huki-network
+
