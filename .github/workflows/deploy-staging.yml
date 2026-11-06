@@ -72,21 +72,49 @@ jobs:
             git pull origin develop
 
             echo "=== [2/5] Ensuring Infrastructure is healthy ==="
+            df -h
             docker compose -f docker-compose.prod.yml up -d postgres mongo redis rabbitmq
+            echo "--- Container status ---"
+            docker ps -a --filter "name=huki-postgres"
+            echo "--- Postgres recent logs ---"
+            docker logs --tail 30 huki-postgres || true
+
+            # If there's an errant standby/recovery signal on standalone postgres, remove it
+            docker exec huki-postgres rm -f /var/lib/postgresql/data/standby.signal /var/lib/postgresql/data/recovery.signal 2>/dev/null || true
+
             set +e
             PG_READY=0
-            for i in $(seq 1 60); do
+            for i in $(seq 1 30); do
               if docker exec huki-postgres pg_isready -U postgres; then
                 echo "PostgreSQL is ready!"
                 PG_READY=1
                 break
               fi
-              echo "Waiting for PostgreSQL to be ready ($i/60)..."
+              echo "Waiting for PostgreSQL to be ready ($i/30)..."
+              docker logs --tail 3 huki-postgres 2>/dev/null || true
               sleep 5
             done
+
+            # If still not ready after 150s, try one clean container restart
+            if [ "$PG_READY" -ne 1 ]; then
+              echo "PostgreSQL not ready, attempting container restart..."
+              docker restart huki-postgres
+              for i in $(seq 1 20); do
+                if docker exec huki-postgres pg_isready -U postgres; then
+                  echo "PostgreSQL is ready after restart!"
+                  PG_READY=1
+                  break
+                fi
+                echo "Waiting for PostgreSQL to be ready after restart ($i/20)..."
+                docker logs --tail 3 huki-postgres 2>/dev/null || true
+                sleep 5
+              done
+            fi
             set -e
+
             if [ "$PG_READY" -ne 1 ]; then
               echo "Error: PostgreSQL failed to become ready in time"
+              docker logs --tail 100 huki-postgres
               exit 1
             fi
 
