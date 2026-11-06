@@ -87,7 +87,10 @@ export class OrdersService {
 
   async buyerDetail(userId: string, id: string) {
     const order = await this.prisma.order.findFirst({
-      where: { id, userId },
+      where: {
+        OR: [{ id }, { code: id }],
+        userId,
+      },
       include: { sellerOrders: { include: { items: true } } },
     });
     if (!order) throwNotFound(ErrorCode.ORDER_NOT_FOUND);

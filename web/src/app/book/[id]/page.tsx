@@ -1003,6 +1003,8 @@ export default function BookDetailPage() {
       format: buyFormat,
       type: buyFormat === 'DIGITAL' ? 'ebook' : 'physical',
       storeId: realBook?.businessId || realBook?.storeId || storeInfo?.id || publisherProfile?.id || 'huki-official',
+      storeName: publisherProfile?.name || storeInfo?.name || book.publisher || (realBook as any)?.business?.name || 'Gian Hàng HUKI',
+      publisher: publisherProfile?.name || book.publisher || storeInfo?.name || 'Gian Hàng HUKI',
       flashSaleId: flashSaleInfo?.flashSaleId,
       isFlashSale: Boolean(flashSaleInfo?.isFlashSale),
     };

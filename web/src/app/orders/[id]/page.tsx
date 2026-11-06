@@ -20,7 +20,7 @@ export default function OrderDetailPage() {
   const params = useParams();
   const id = typeof params?.id === 'string' ? params.id : Array.isArray(params?.id) ? params.id[0] : '';
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isLoggedIn } = useAuth();
   const { showToast } = useToast();
 
   const [order, setOrder] = useState<any>(null);
@@ -350,19 +350,31 @@ export default function OrderDetailPage() {
               <span className="material-symbols-outlined text-3xl">search_off</span>
             </div>
             <h2 className="font-editorial text-2xl font-bold text-on-surface mb-2">
-              Không Tìm Thấy Đơn Hàng
+              {!isLoggedIn ? "Vui Lòng Đăng Nhập" : "Không Tìm Thấy Đơn Hàng"}
             </h2>
             <p className="text-xs sm:text-sm text-on-surface-variant mb-6 leading-relaxed">
-              Mã đơn hàng không tồn tại hoặc bạn không có quyền truy cập đơn hàng này. Vui lòng kiểm tra lại đường dẫn.
+              {!isLoggedIn
+                ? "Bạn cần đăng nhập vào tài khoản đặt hàng để xem chi tiết đơn và hành trình giao bưu tá."
+                : "Mã đơn hàng không tồn tại hoặc bạn không có quyền truy cập đơn hàng này. Vui lòng kiểm tra lại đường dẫn."}
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link
-                href="/orders"
-                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-theme-primary text-white font-bold text-xs hover:bg-theme-primary-hover transition-all shadow-xs inline-flex items-center justify-center gap-2"
-              >
-                <span className="material-symbols-outlined text-base">receipt_long</span>
-                <span>Về Danh Sách Đơn Hàng</span>
-              </Link>
+              {!isLoggedIn ? (
+                <Link
+                  href={`/auth/login?redirect=/orders/${id}`}
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-theme-primary text-white font-bold text-xs hover:bg-theme-primary-hover transition-all shadow-xs inline-flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-base">login</span>
+                  <span>Đăng Nhập Ngay</span>
+                </Link>
+              ) : (
+                <Link
+                  href="/orders"
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-theme-primary text-white font-bold text-xs hover:bg-theme-primary-hover transition-all shadow-xs inline-flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-base">receipt_long</span>
+                  <span>Về Danh Sách Đơn Hàng</span>
+                </Link>
+              )}
               <Link
                 href="/"
                 className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-theme-surface hover:bg-theme-bg border border-theme-border text-on-surface font-semibold text-xs transition-all"

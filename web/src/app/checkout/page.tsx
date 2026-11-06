@@ -457,10 +457,12 @@ export default function CheckoutPage() {
         const storeName =
           matchedWalletStore?.name ||
           item.store?.name ||
+          item.storeName ||
+          item.publisher ||
           item.book?.business?.name ||
           item.book?.business?.displayName ||
           item.book?.publisher ||
-          (canonicalId !== "huki-official" ? `Gian hàng (${canonicalId.slice(0, 8)}...)` : "Gian hàng HUKI");
+          (canonicalId !== "huki-official" && canonicalId ? "Gian Hàng Đối Tác" : "Gian hàng HUKI");
 
         group = {
           canonicalId,
@@ -476,7 +478,7 @@ export default function CheckoutPage() {
       if (matchedWalletStore) {
         if (matchedWalletStore.id) group.allIds.add(matchedWalletStore.id.toLowerCase());
         if (matchedWalletStore.businessId) group.allIds.add(matchedWalletStore.businessId.toLowerCase());
-        if (group.storeName === "Gian hàng HUKI" || group.storeName.startsWith("Gian hàng (")) {
+        if (group.storeName === "Gian hàng HUKI" || group.storeName === "Gian Hàng Đối Tác" || group.storeName.startsWith("Gian hàng (")) {
           group.storeName = matchedWalletStore.name;
         }
       }
@@ -1957,66 +1959,68 @@ export default function CheckoutPage() {
           </div>
 
           {/* Right Column (4 Cols): Order Summary & Placement */}
-          <div className="col-span-12 lg:col-span-4 flex flex-col gap-3">
-            <div className="sticky top-16 bg-[var(--theme-surface,#ffffff)] border border-[var(--theme-border,#e8e5df)] rounded-xl p-3.5 sm:p-4 shadow-2xs flex flex-col gap-3">
-              <h2 className="font-editorial text-sm sm:text-base font-bold text-[var(--theme-text,#1c1b1f)] pb-2 border-b border-[var(--theme-border,#e8e5df)]/60 flex items-center justify-between">
+          <div className="col-span-12 lg:col-span-4 flex flex-col gap-4">
+            <div className="sticky top-16 bg-[var(--theme-surface,#ffffff)] border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-sm flex flex-col gap-4">
+              <h2 className="font-editorial text-base sm:text-lg font-bold text-slate-900 pb-3 border-b border-slate-100 flex items-center justify-between">
                 <span>Đơn Hàng ({checkedItems.length} ấn phẩm)</span>
                 {isLoadingSession && (
-                  <span className="text-[9.5px] text-[var(--theme-text-muted,#49454f)] animate-pulse">
+                  <span className="text-xs text-slate-400 font-normal animate-pulse">
                     Đang tính giá...
                   </span>
                 )}
               </h2>
 
               {/* Items Grouped by Store List */}
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                 {storeGroups.map((group) => {
                   const appliedVoucher = appliedStoreVouchers[group.canonicalId];
                   return (
                     <div
                       key={group.canonicalId}
-                      className="rounded-lg border border-[var(--theme-border,#e8e5df)]/60 bg-[var(--theme-background,#F2FBF9)]/30 p-2 space-y-1.5"
+                      className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 sm:p-3.5 space-y-2.5"
                     >
-                      <div className="flex items-center justify-between text-[11px] pb-1 border-b border-[var(--theme-border,#e8e5df)]/40">
-                        <span className="font-bold text-[var(--theme-text,#1c1b1f)] flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[13px] text-amber-600">storefront</span>
+                      <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-200/60 font-medium">
+                        <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-base text-amber-600">storefront</span>
                           <span className="line-clamp-1">{group.storeName}</span>
                         </span>
                         {appliedVoucher && (
-                          <span className="text-[9.5px] font-bold text-amber-700 bg-amber-100 dark:bg-amber-950/40 px-1.5 py-0.2 rounded">
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
                             -{Number(appliedVoucher.discount).toLocaleString("vi-VN")}đ
                           </span>
                         )}
                       </div>
 
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         {group.items.map((item: any) => (
                           <Link
                             key={item.id}
                             href={`/book/${item.bookId || item.id}`}
-                            className="flex items-center justify-between gap-2 text-xs p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800/80 transition-all duration-150 group cursor-pointer"
+                            className="flex items-center justify-between gap-3 text-xs p-2 rounded-lg hover:bg-white transition-all group cursor-pointer border border-transparent hover:border-slate-200/60"
                           >
-                            <div className="flex items-center gap-2 min-w-0">
+                            <div className="flex items-center gap-3 min-w-0">
                               <img
-                                className="w-7 h-10 rounded object-cover shrink-0 border border-[var(--theme-border,#e8e5df)]"
+                                className="w-11 h-15 rounded-md object-cover shrink-0 border border-slate-200/80 shadow-2xs"
                                 alt={item.title}
                                 src={item.cover}
                               />
                               <div className="min-w-0">
-                                <span className="font-bold text-[11.5px] text-[var(--theme-text,#1c1b1f)] line-clamp-1 block group-hover:text-[var(--theme-primary,#003B2B)] transition-colors">
+                                <span className="font-semibold text-xs sm:text-[13px] text-slate-900 line-clamp-2 block group-hover:text-[#006953] transition-colors leading-snug">
                                   {item.title}
                                 </span>
-                                <span className="text-[9.5px] text-[var(--theme-text-muted,#49454f)]">
-                                  x{item.quantity} · {item.format}
-                                </span>
-                                {serverUnitPrices.get(item.bookId)?.isFlashSale && (
-                                  <span className="ml-1 text-[9px] font-bold text-rose-600">
-                                    Flash Sale
+                                <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                                  <span className="text-[11px] text-slate-500 font-medium">
+                                    SL: {item.quantity} · {item.format}
                                   </span>
-                                )}
+                                  {serverUnitPrices.get(item.bookId)?.isFlashSale && (
+                                    <span className="text-[9.5px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200/60">
+                                      Flash Sale
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                            <span className="font-bold text-[11.5px] text-[var(--theme-text,#1c1b1f)] shrink-0">
+                            <span className="font-bold text-xs sm:text-[13px] text-slate-900 shrink-0">
                               {(
                                 (serverUnitPrices.get(item.bookId)?.unitPrice ||
                                   item.price) * item.quantity
@@ -2032,28 +2036,28 @@ export default function CheckoutPage() {
               </div>
 
               {/* Shopee-style Voucher Section */}
-              <div className="pt-2 border-t border-[var(--theme-border,#e8e5df)]/60">
+              <div className="pt-3 border-t border-slate-100">
                 <div
                   onClick={() => setShowVoucherDrawer((prev) => !prev)}
-                  className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-between cursor-pointer hover:bg-amber-500/15 transition-colors"
+                  className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between cursor-pointer hover:bg-amber-500/15 transition-colors"
                 >
-                  <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-amber-600 text-[17px]">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-amber-600 text-lg">
                       confirmation_number
                     </span>
-                    <span className="font-bold text-[11.5px] text-amber-900 dark:text-amber-200">
+                    <span className="font-bold text-xs sm:text-sm text-amber-950 dark:text-amber-200">
                       HUKI Voucher
                     </span>
                   </div>
-                  <div className="flex items-center gap-0.5 text-xs">
+                  <div className="flex items-center gap-1 text-xs">
                     {appliedPlatformVoucher ? (
-                      <span className="font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded-full text-[10px]">
+                      <span className="font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full text-xs">
                         -{appliedPlatformVoucher?.discount?.toLocaleString("vi-VN")}đ
                       </span>
                     ) : (
-                      <span className="text-[var(--theme-text-muted,#49454f)] text-[10.5px] font-medium flex items-center">
+                      <span className="text-slate-500 text-xs font-medium flex items-center gap-0.5">
                         Chọn mã{" "}
-                        <span className="material-symbols-outlined text-[13px]">
+                        <span className="material-symbols-outlined text-base">
                           chevron_right
                         </span>
                       </span>
@@ -2572,11 +2576,11 @@ export default function CheckoutPage() {
               </div>
 
               {/* Price Breakdown - Rành mạch, rõ ràng từng dòng */}
-              <div className="pt-2 border-t border-[var(--theme-border,#e8e5df)]/60 space-y-2 text-xs text-[var(--theme-text-muted,#49454f)]">
+              <div className="pt-3 border-t border-slate-100 space-y-2.5 text-xs sm:text-sm text-slate-600">
                 {/* 1. Tạm tính */}
                 <div className="flex justify-between items-center">
                   <span>Tạm tính ({checkedItems.length} sản phẩm):</span>
-                  <span className="font-semibold text-[var(--theme-text,#1c1b1f)]">
+                  <span className="font-semibold text-slate-900">
                     {(checkoutPreview?.itemSubtotal ?? rawSubtotal).toLocaleString("vi-VN")}đ
                   </span>
                 </div>
@@ -2585,7 +2589,7 @@ export default function CheckoutPage() {
                 {appliedPlatformVoucher && (
                   <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400">
                     <span className="flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[15px]">confirmation_number</span>
+                      <span className="material-symbols-outlined text-base">confirmation_number</span>
                       <span>Voucher Sàn ({appliedPlatformVoucher.code}):</span>
                     </span>
                     <span className="font-bold font-mono">
@@ -2598,7 +2602,7 @@ export default function CheckoutPage() {
                 {Object.entries(appliedStoreVouchers).map(([sId, sv]: [string, any]) => (
                   <div key={`${sId}-${sv.code}`} className="flex justify-between items-center text-amber-700 dark:text-amber-300">
                     <span className="flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[15px]">storefront</span>
+                      <span className="material-symbols-outlined text-base">storefront</span>
                       <span>Voucher Shop ({sv.code}):</span>
                     </span>
                     <span className="font-bold font-mono">
@@ -2610,10 +2614,10 @@ export default function CheckoutPage() {
                 {/* 4. Phí vận chuyển */}
                 <div className="flex justify-between items-center">
                   <span className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[15px]">local_shipping</span>
+                    <span className="material-symbols-outlined text-base">local_shipping</span>
                     <span>Phí vận chuyển:</span>
                   </span>
-                  <span className="font-semibold text-[var(--theme-text,#1c1b1f)]">
+                  <span className="font-semibold text-slate-900">
                     {effectiveShippingFee === 0 && effectiveHasPhysical ? (
                       <span className="text-emerald-600 dark:text-emerald-400 font-bold">
                         MIỄN PHÍ
@@ -2628,7 +2632,7 @@ export default function CheckoutPage() {
                 {appliedShippingVoucher && effectiveShippingDiscount > 0 && (
                   <div className="flex justify-between items-center text-teal-600 dark:text-teal-400">
                     <span className="flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[15px]">local_shipping</span>
+                      <span className="material-symbols-outlined text-base">local_shipping</span>
                       <span>Mã Freeship ({appliedShippingVoucher.code}):</span>
                     </span>
                     <span className="font-bold font-mono">
@@ -2639,11 +2643,11 @@ export default function CheckoutPage() {
               </div>
 
               {/* Total & Submit Button */}
-              <div className="pt-2 border-t border-[var(--theme-border,#e8e5df)]/60 flex items-baseline justify-between">
-                <span className="font-bold text-xs text-[var(--theme-text,#1c1b1f)]">
+              <div className="pt-3 border-t border-slate-200 flex items-baseline justify-between">
+                <span className="font-bold text-sm text-slate-900">
                   Tổng cộng:
                 </span>
-                <span className="text-xl font-black text-[var(--theme-primary,#003B2B)]">
+                <span className="text-2xl font-black text-[#006953]">
                   {calculatedGrandTotal.toLocaleString("vi-VN")}đ
                 </span>
               </div>
@@ -2651,18 +2655,18 @@ export default function CheckoutPage() {
               <button
                 onClick={handlePlaceOrder}
                 disabled={isSubmitting || checkedItems.length === 0}
-                className="w-full h-10 bg-[var(--theme-primary,#003B2B)] hover:opacity-95 text-white rounded-lg font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                className="w-full h-12 bg-[#006953] hover:bg-[#005241] text-white rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer active:scale-[0.99]"
               >
                 {isSubmitting ? (
                   <>
-                    <span className="material-symbols-outlined text-[17px] animate-spin">
+                    <span className="material-symbols-outlined text-lg animate-spin">
                       progress_activity
                     </span>
                     Đang Xử Lý Đơn Hàng...
                   </>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined text-[17px]">
+                    <span className="material-symbols-outlined text-lg">
                       lock
                     </span>
                     Hoàn Tất Đặt Hàng ({checkedItems.length})

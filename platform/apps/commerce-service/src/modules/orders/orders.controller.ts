@@ -1,3 +1,4 @@
+import { throwUnauthorized, ErrorCode } from '@huki/shared/errors';
 /**
  * HUKI EBOOK - Orders Controller
  *
@@ -266,6 +267,7 @@ export class OrdersController {
   @Get('buyer/replacements')
   @ApiOperation({ summary: 'Buyer lists replacement orders' })
   buyerListReplacements(@CurrentBookActor() actor: BookActor) {
+    if (!actor?.sub) return [];
     return this.orders.buyerListReplacements(actor.sub);
   }
 
@@ -276,6 +278,7 @@ export class OrdersController {
     @Query('type') type?: string,
     @Query('status') status?: string,
   ) {
+    if (!actor?.sub) return [];
     return this.orders.buyerListReturnRequests(actor.sub, { type, status });
   }
 
@@ -309,15 +312,18 @@ export class OrdersController {
     summary: 'Get order details',
     description: 'Returns detailed information about a specific order.',
   })
-  @ApiParam({ name: 'id', description: 'Order ID' })
+  @ApiParam({ name: 'id', description: 'Order ID or Order Code' })
   @ApiResponse({ status: 200, description: 'Order details' })
   @ApiNotFoundResponse({ description: 'Order not found' })
   @ApiForbiddenResponse({ description: 'Order does not belong to user' })
   @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   detail(
     @CurrentBookActor() actor: BookActor,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
   ) {
+    if (!actor?.sub) {
+      throwUnauthorized(ErrorCode.AUTH_TOKEN_MISSING, 'Vui lòng đăng nhập để xem thông tin đơn hàng');
+    }
     return this.orders.buyerDetail(actor.sub, id);
   }
 

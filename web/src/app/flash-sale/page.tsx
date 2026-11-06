@@ -326,6 +326,8 @@ export default function FlashSalePage() {
         format: item.format || "PHYSICAL",
         type: item.format === "DIGITAL" ? "ebook" : "physical",
         storeId: (item as any).storeId || (item as any).book?.storeId || "huki-official",
+        storeName: (item as any).storeName || (item as any).book?.store?.name || (item as any).book?.business?.name || (item as any).book?.publisher || "Gian Hàng HUKI",
+        publisher: (item as any).book?.publisher || (item as any).storeName || "Gian Hàng HUKI",
         flashSaleId: item.flashSaleId,
         isFlashSale: true,
       };
