@@ -80,10 +80,6 @@ export class ReviewVerificationService {
           return (
             s === "COMPLETED" ||
             s === "DELIVERED" ||
-            s === "PROCESSING" ||
-            s === "CONFIRMED" ||
-            s === "PAID" ||
-            s === "SHIPPED" ||
             s === "SUCCESS"
           );
         };
