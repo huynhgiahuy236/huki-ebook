@@ -168,3 +168,4 @@ Giai đoạn UAT gần đây ghi nhận nhiều phản ánh nghiêm trọng về
 - Không gian làm việc cho nhánh `audit/commerce-service` đã được cô lập hoàn chỉnh.
 - Toàn bộ 6 trục kiến trúc, thanh toán, tồn kho, phân quyền và sổ cái đã được bóc tách chi tiết với đầy đủ bằng chứng mã nguồn dòng code thật.
 - Hệ thống đã sẵn sàng chuyển giao sang **Message 15** để xây dựng các kịch bản kiểm thử động (Live Dynamic Test Scripts) tại `scriptstest/audit/commerce-service/`, chứng minh thực nghiệm các lỗi thanh toán và tranh chấp kho trên cổng 3003 và 3002.
+
