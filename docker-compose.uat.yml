@@ -217,7 +217,7 @@ services:
       dockerfile: Dockerfile
     container_name: huki-uat-shipping-service
     restart: unless-stopped
-    command: ["sh", "-c", "npx prisma migrate deploy --schema=apps/shipping-service/prisma/schema.prisma && node dist/out-tsc/shipping-service/apps/shipping-service/src/main.js"]
+    command: ["sh", "-c", "npx prisma migrate deploy --schema=apps/shipping-service/prisma/schema.prisma || true && node dist/out-tsc/shipping-service/apps/shipping-service/src/main.js"]
     environment:
       PORT: 3004
       SHIPPING_SERVICE_PORT: 3004
@@ -277,7 +277,7 @@ services:
       dockerfile: Dockerfile
     container_name: huki-uat-promotion-service
     restart: unless-stopped
-    command: ["node", "dist/out-tsc/promotion-service/apps/promotion-service/src/main.js"]
+    command: ["sh", "-c", "npx prisma migrate deploy --schema=apps/promotion-service/prisma/schema.prisma || true && node dist/out-tsc/promotion-service/apps/promotion-service/src/main.js"]
     environment:
       PORT: 3007
       PROMOTION_SERVICE_PORT: 3007

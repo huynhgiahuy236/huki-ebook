@@ -23,7 +23,7 @@ import {
   ApiHeader,
 } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
-import { throwUnauthorized, throwNotFound } from '@huki/shared/errors';
+import { throwUnauthorized, throwNotFound, throwForbidden } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -64,7 +64,7 @@ export class InternalAddressesController {
   @ApiHeader({ name: 'x-user-id', required: true, description: 'User ID to validate ownership' })
   @ApiParam({ name: 'id', description: 'Address ID' })
   @ApiResponse({ status: 200, description: 'Address details' })
-  @ApiResponse({ status: 401, description: 'Invalid internal key' })
+  @ApiResponse({ status: 403, description: 'Forbidden: Invalid internal key' })
   @ApiResponse({ status: 404, description: 'Address not found' })
   async findOne(
     @Headers('x-internal-service-key') serviceKey: string,
@@ -72,7 +72,7 @@ export class InternalAddressesController {
     @Param('id') id: string,
   ) {
     if (!validateInternalKey(this.config, serviceKey)) {
-      throwUnauthorized(ErrorCode.AUTH_INTERNAL_API_KEY_INVALID, 'Invalid internal service key');
+      throwForbidden(ErrorCode.AUTHZ_FORBIDDEN, 'Internal service credentials are required');
     }
 
     if (!userId) {
@@ -98,13 +98,13 @@ export class InternalAddressesController {
   })
   @ApiHeader({ name: 'x-internal-service-key', required: true, description: 'Internal service key' })
   @ApiResponse({ status: 200, description: 'List of addresses' })
-  @ApiResponse({ status: 401, description: 'Invalid internal key' })
+  @ApiResponse({ status: 403, description: 'Forbidden: Invalid internal key' })
   async list(
     @Headers('x-internal-service-key') serviceKey: string,
     @Headers('x-user-id') userId: string,
   ) {
     if (!validateInternalKey(this.config, serviceKey)) {
-      throwUnauthorized(ErrorCode.AUTH_INTERNAL_API_KEY_INVALID, 'Invalid internal service key');
+      throwForbidden(ErrorCode.AUTHZ_FORBIDDEN, 'Internal service credentials are required');
     }
 
     if (!userId) {

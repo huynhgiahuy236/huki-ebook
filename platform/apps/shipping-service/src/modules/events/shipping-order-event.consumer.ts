@@ -1,4 +1,4 @@
-import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import {
   DomainEvent,
   ORDER_EVENTS,
@@ -11,6 +11,8 @@ import { ShipmentsService } from '../shipments/shipments.service';
 
 @Injectable()
 export class ShippingOrderEventConsumer implements OnApplicationBootstrap {
+  private readonly logger = new Logger(ShippingOrderEventConsumer.name);
+
   constructor(
     private readonly bus: RabbitMqEventBus,
     private readonly prisma: PrismaService,
@@ -31,30 +33,7 @@ export class ShippingOrderEventConsumer implements OnApplicationBootstrap {
   }
 
   private async handle(event: DomainEvent): Promise<void> {
-    if (
-      await this.prisma.inboxEvent.findUnique({
-        where: { eventId: event.eventId },
-      })
-    )
-      return;
-    if (event.eventType === ORDER_EVENTS.CREATED) {
-      await this.shipments.createFromOrder(
-        event.payload as unknown as CreateShipmentsFromOrderDto,
-      );
-    } else if (event.eventType === ORDER_EVENTS.CANCELLED) {
-      await this.shipments.cancelByOrder(
-        String(event.payload.orderId ?? event.aggregateId),
-        String(event.payload.reason ?? 'Order cancelled'),
-      );
-    } else if (
-      event.eventType === ORDER_EVENTS.SELLER_CANCELLED &&
-      event.payload.requiresShipping !== false
-    ) {
-      await this.shipments.cancelBySellerOrder(
-        String(event.payload.sellerOrderId),
-        { reason: String(event.payload.reason ?? 'Seller order cancelled') },
-      );
-    }
+    // 1. Atomic Deduplication: Attempt to record into inbox_events first
     try {
       await this.prisma.inboxEvent.create({
         data: {
@@ -65,7 +44,41 @@ export class ShippingOrderEventConsumer implements OnApplicationBootstrap {
         },
       });
     } catch (error) {
-      if ((error as { code?: string }).code !== 'P2002') throw error;
+      if ((error as { code?: string }).code === 'P2002') {
+        // Unique constraint violation on event_id: duplicate message, discard safely
+        this.logger.debug(
+          `[ShippingOrderEventConsumer] Duplicate event discarded: ${event.eventId} (${event.eventType})`,
+        );
+        return;
+      }
+      throw error;
+    }
+
+    // 2. Process event exclusively
+    this.logger.log(
+      `[ShippingOrderEventConsumer] Processing ${event.eventType} for aggregate ${event.aggregateId} (eventId: ${event.eventId})`,
+    );
+
+    if (
+      event.eventType === ORDER_EVENTS.CREATED ||
+      event.eventType === ORDER_EVENTS.PAID
+    ) {
+      await this.shipments.createFromOrder(
+        event.payload as unknown as CreateShipmentsFromOrderDto,
+      );
+    } else if (event.eventType === ORDER_EVENTS.CANCELLED) {
+      await this.shipments.cancelByOrder(
+        String(event.payload?.orderId ?? event.aggregateId),
+        String(event.payload?.reason ?? 'Order cancelled'),
+      );
+    } else if (
+      event.eventType === ORDER_EVENTS.SELLER_CANCELLED &&
+      event.payload?.requiresShipping !== false
+    ) {
+      await this.shipments.cancelBySellerOrder(
+        String(event.payload.sellerOrderId),
+        { reason: String(event.payload?.reason ?? 'Seller order cancelled') },
+      );
     }
   }
 }
