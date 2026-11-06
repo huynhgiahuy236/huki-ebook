@@ -71,6 +71,8 @@ async function runTest() {
 
   try {
     // 0. Cleanup any previous test data
+    await db.query("DELETE FROM outbox_events WHERE event_id LIKE '%899100%' OR aggregate_id IN ($1, '11111111-2222-3333-4444-555555555554', '11111111-2222-3333-4444-555555555556')", [testOrderId]);
+    await db.query("DELETE FROM order_status_history WHERE order_id IN ($1, '11111111-2222-3333-4444-555555555554', '11111111-2222-3333-4444-555555555556')", [testOrderId]);
     await db.query('DELETE FROM payments WHERE id = $1 OR payos_order_id = $2', [testPaymentId, String(testPayosOrderCode)]);
     await db.query('DELETE FROM seller_orders WHERE id = $1', [testSellerOrderId]);
     await db.query('DELETE FROM orders WHERE id = $1', [testOrderId]);
@@ -250,10 +252,12 @@ async function runTest() {
       console.log(`  ✅ Endpoint simulate-success đã bị chặn hoặc bảo vệ.`);
     }
 
-    assertCheck('Phát hiện & ghi nhận lỗ hổng PAY-VULN-001 (simulate-success bypass rủi ro)', isVulnerable);
+    assertCheck('Xác nhận endpoint simulate-success đã được bảo vệ nghiêm ngặt (chặn đứng bypass thanh toán)', !isVulnerable && res5.status === 403, 'Status: ' + res5.status);
 
     // 6. Cleanup
     console.log('\n--- BƯỚC 6: DỌN DẸP DỮ LIỆU TEST ---');
+    await db.query("DELETE FROM outbox_events WHERE event_id LIKE '%899100%' OR aggregate_id IN ($1, $2, $3)", [testOrderId, testOrderId3, testOrderId5]);
+    await db.query('DELETE FROM order_status_history WHERE order_id IN ($1, $2, $3)', [testOrderId, testOrderId3, testOrderId5]);
     await db.query('DELETE FROM payments WHERE id IN ($1, $2, $3)', [testPaymentId, testPaymentId3, testPaymentId5]);
     await db.query('DELETE FROM seller_orders WHERE id = $1', [testSellerOrderId]);
     await db.query('DELETE FROM orders WHERE id IN ($1, $2, $3)', [testOrderId, testOrderId3, testOrderId5]);

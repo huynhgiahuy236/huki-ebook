@@ -205,9 +205,9 @@ async function runTest() {
     }
 
     assertCheck(
-      'Ghi nhận khiếm khuyết ràng buộc UNIQUE order_item_id khiến handleLateWebhook bị văng lỗi 409 Conflict',
-      isLateWebhookBugObserved,
-      `Status: ${resLate.status}, Error: ${bodyLate.message}`
+      'Xác nhận lỗi 409 đã được khắc phục: handleLateWebhook khôi phục đơn thành công (Status 200, Order PROCESSING)',
+      resLate.status === 200 && orderAfterLate?.status === 'PROCESSING',
+      `Status: ${resLate.status}, Restored: ${bodyLate.data?.restored}`
     );
 
     // 6. Cleanup

@@ -54,7 +54,7 @@ async function runTest() {
     await db.query('DELETE FROM order_items WHERE book_id = $1', [testBookId]);
     await db.query('DELETE FROM physical_book_details WHERE book_id = $1', [testBookId]);
     await db.query('DELETE FROM books WHERE id = $1', [testBookId]);
-    await redis.del(`inventory:stock:${testBookId}`);
+    await redis.del(`inventory:stock:${testBookId}`, `stock:book:${testBookId}`);
 
     // 1. Seed book with stock = 1, reserved = 0
     console.log('\n--- BƯỚC 1: SEED SÁCH DUY NHẤT 1 CUỐN TRONG KHO (STOCK = 1, RESERVED = 0) ---');
@@ -208,9 +208,9 @@ async function runTest() {
     }
 
     assertCheck(
-      'Ghi nhận hành vi xử lý tranh mua đồng thời (Đánh giá mức độ phòng chống bán vượt tồn kho INV-RACE-001)',
-      true,
-      `Thành công: ${successCount}/5, Tạm giữ DB: ${stockRow?.reserved}/${stockRow?.stock}, Oversold: ${isOversold}`
+      'Xác nhận không bán vượt tồn kho (Overselling = false, đúng 1 đơn thành công và 4 đơn bị từ chối)',
+      !isOversold && successCount === 1 && conflictCount === 4,
+      `Thành công: ${successCount}/5, Bị chặn: ${conflictCount}/5, Tạm giữ DB: ${stockRow?.reserved}/${stockRow?.stock}`
     );
 
     // 5. Cleanup
@@ -229,7 +229,7 @@ async function runTest() {
     await db.query('DELETE FROM inventory_logs WHERE book_id IN (SELECT id FROM physical_book_details WHERE book_id = $1)', [testBookId]);
     await db.query('DELETE FROM physical_book_details WHERE book_id = $1', [testBookId]);
     await db.query('DELETE FROM books WHERE id = $1', [testBookId]);
-    await redis.del(`inventory:stock:${testBookId}`);
+    await redis.del(`inventory:stock:${testBookId}`, `stock:book:${testBookId}`);
     console.log('  Cleaned up all concurrent test records.');
 
   } catch (error: any) {

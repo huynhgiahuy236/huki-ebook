@@ -594,6 +594,7 @@ export class PaymentsService
             payload: eventPayload,
           },
         ],
+        skipDuplicates: true,
       });
 
       const digitalItems = payment.order.sellerOrders

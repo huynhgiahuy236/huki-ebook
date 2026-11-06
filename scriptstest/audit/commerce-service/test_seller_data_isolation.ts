@@ -168,16 +168,17 @@ async function runTest() {
     const seesBookBWithTamper = Array.isArray(itemsTampered) && itemsTampered.some((b: any) => b.id === bookBId);
     console.log(`  Seller A gọi /books/owned?store=${storeBId}: Số sách tìm thấy = ${itemsTampered.length}, Thấy sách B = ${seesBookBWithTamper}`);
 
-    if (seesBookBWithTamper) {
-      console.log(`  🚨 [LỖ HỔNG BOLA / TENANT LEAK XÁC NHẬN - BOLA-BOOK-001]:`);
-      console.log(`     Tại books.service.ts:539, param query.store được push trực tiếp vào orConditions!`);
-      console.log(`     Seller A đã đọc được toàn bộ danh mục sách của Store B chỉ bằng cách truyền ?store=${storeBId}!`);
+    const isBolaBlocked = resBooksATampered.status === 403 && !seesBookBWithTamper;
+    if (isBolaBlocked) {
+      console.log(`  🛡️ [BẢO MẬT ĐÃ ĐƯỢC CỦNG CỐ]: Hệ thống chặn đứng 403 Forbidden khi Seller A truyền ?store=${storeBId} của Seller B!`);
+    } else {
+      console.log(`  🚨 LỖ HỔNG BOLA: Seller A vẫn có thể đọc sách của Store B!`);
     }
 
     assertCheck(
-      'Ghi nhận và bóc tách lỗ hổng rò rỉ dữ liệu sách đa gian hàng (BOLA-BOOK-001)',
-      seesBookBWithTamper,
-      `Leaked Book B: ${seesBookBWithTamper}`
+      'Xác nhận lỗ hổng BOLA đã được khắc phục: Seller A bị chặn 403 Forbidden khi truyền ?store của Seller B',
+      isBolaBlocked,
+      `Status: ${resBooksATampered.status}, Leaked: ${seesBookBWithTamper}`
     );
 
     // 6. SCENARIO 4: Wallet Multi-tenant Isolation
