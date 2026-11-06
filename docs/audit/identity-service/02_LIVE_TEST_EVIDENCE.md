@@ -284,3 +284,4 @@
    - User thường không có quyền admin nhưng có thể gọi trực tiếp `GET /api/v1/users/admin/all` để lấy thông tin toàn bộ người dùng và gọi `POST /api/v1/users/admin/:id/toggle-lock` để khóa tài khoản người khác.
 3. **Xác thực thành công 100% BUG-ID-05 (P1 - Architecture Deadlock):**
    - Hệ thống Transactional Outbox bị chết hoàn toàn do không có bridge kết nối giữa in-memory EventEmitter và `outbox_events` table.
+

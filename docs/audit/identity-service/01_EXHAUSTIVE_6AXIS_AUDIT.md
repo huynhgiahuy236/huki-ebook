@@ -330,3 +330,4 @@ Hệ thống quản lý trạng thái tài khoản qua Enum `UserStatus`:
 Báo cáo đã bóc tách toàn diện 6 trục vận hành của `identity-service`, xác định chính xác **2 lỗ hổng an ninh cấp độ P0 (Critical)** cho phép chiếm quyền tài khoản tùy ý, cùng các điểm yếu về hiệu năng liên kết cơ sở dữ liệu và đường truyền sự kiện bất đồng bộ.
 
 Kết quả kiểm tra tĩnh này là cơ sở vững chắc để thiết kế bộ kịch bản kiểm thử thực nghiệm (Proof of Concept Test Scripts) nhằm tái hiện chính xác 100% các lỗi trên môi trường runtime tại Task 11 & Task 12.
+
