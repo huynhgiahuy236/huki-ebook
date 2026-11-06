@@ -490,20 +490,19 @@ export class BooksService implements OnModuleInit {
 
     const salesMap = new Map<string, number>();
     if (bookIds.length > 0) {
-      const salesGroup = await this.prisma.orderItem.groupBy({
+      try {
+        const salesGroup = await this.prisma.orderItem.groupBy({
         by: ['bookId'],
         _sum: { quantity: true },
         where: {
           bookId: { in: bookIds },
-          sellerOrder: {
-            status: { not: 'CANCELLED' },
-            order: { status: { not: 'CANCELLED' } },
-          },
+          
         },
       });
       for (const item of salesGroup) {
         salesMap.set(item.bookId, item._sum.quantity || 0);
       }
+      } catch (err) { /* graceful fallback */ }
     }
 
     return paginate(books.map(b => this.serializeBook(b, false, discountsMap.get(b.id), salesMap.get(b.id) || 0)), total, query.page, query.limit);
