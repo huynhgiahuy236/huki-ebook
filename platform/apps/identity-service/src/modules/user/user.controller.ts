@@ -116,6 +116,9 @@ export class UserController {
   }
 
   @Post('admin/:id/restore')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Admin restore user account' })
   async restoreUserByAdmin(@Param('id') id: string) {
     return this.userService.restoreUserByAdmin(id);
@@ -131,6 +134,9 @@ export class UserController {
 
   // ===================== ADMIN USER MANAGEMENT APIS =====================
   @Get('admin/all')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Admin get all users with store info' })
   async getAllUsersForAdmin(
     @Query('search') search?: string,
@@ -141,6 +147,9 @@ export class UserController {
   }
 
   @Post('admin/customer')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Admin create customer account' })
   async createCustomerByAdmin(
     @Body() dto: { fullName: string; email: string; phone: string; password?: string },
@@ -149,6 +158,9 @@ export class UserController {
   }
 
   @Patch('admin/:id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Admin update user' })
   async updateUserByAdmin(
     @Param('id') id: string,
@@ -158,12 +170,18 @@ export class UserController {
   }
 
   @Post('admin/:id/toggle-lock')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Admin toggle user lock status' })
   async toggleLockByAdmin(@Param('id') id: string) {
     return this.userService.toggleLockByAdmin(id);
   }
 
   @Delete('admin/:id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Admin delete user' })
   async deleteUserByAdmin(@Param('id') id: string) {
     return this.userService.deleteUserByAdmin(id);

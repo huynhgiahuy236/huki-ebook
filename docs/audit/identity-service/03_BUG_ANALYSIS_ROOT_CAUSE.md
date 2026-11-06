@@ -216,3 +216,4 @@
 ## KẾT LUẬN
 
 13 lỗi trên đã được định danh, phân tích cơ chế kích hoạt và định vị chính xác vị trí dòng lệnh trong mã nguồn thực tế. Đây là cơ sở cốt lõi để xây dựng tài liệu thiết kế giải pháp `04_SOLUTION_DESIGN.md`.
+
