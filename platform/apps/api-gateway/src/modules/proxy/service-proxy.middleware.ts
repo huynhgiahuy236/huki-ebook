@@ -196,7 +196,7 @@ export class ServiceProxyMiddleware implements NestMiddleware {
           host,
           port,
           method: req.method,
-          path: req.originalUrl,
+          path: req.originalUrl.replace(/\/+/g, '/'),
           headers,
           timeout: this.timeoutMs,
         },
@@ -324,15 +324,16 @@ export class ServiceProxyMiddleware implements NestMiddleware {
       return 'community';
     }
 
-    // Match first segment
-    const match = path.match(/^\/(?:api\/v1\/)?([^/?]+)/);
+    const cleanPath = path.replace(/\/+/g, '/');
+    // Match first segment (case-insensitive)
+    const match = cleanPath.match(/^\/(?:api\/v1\/)?([^/?]+)/i);
     if (!match) return undefined;
 
-    const firstSegment = match[1];
+    const firstSegment = match[1].toLowerCase();
 
     // Check for nested paths: /{first}/{id}/{second} or /{first}/{second}
-    const nestedMatch = path.match(/^\/(?:api\/v1\/)?[^/]+\/[^/?]+\/([^/?]+)/);
-    const secondNestedSegment = nestedMatch ? nestedMatch[1] : null;
+    const nestedMatch = cleanPath.match(/^\/(?:api\/v1\/)?[^/]+\/[^/?]+\/([^/?]+)/i);
+    const secondNestedSegment = nestedMatch ? nestedMatch[1].toLowerCase() : null;
 
     // Route /books/:id/reviews → community
     if (secondNestedSegment === 'reviews') {

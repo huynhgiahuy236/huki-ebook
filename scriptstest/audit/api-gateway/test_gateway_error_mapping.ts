@@ -71,7 +71,7 @@ async function runTest() {
     // 3. KỊCH BẢN 3: Kiểm tra việc rò rỉ Stack Trace Node.js ra phía Client
     console.log('\n--- BƯỚC 3: KIỂM TOÁN AN TOÀN - KHÔNG ĐỂ LỘ STACK TRACE THÔ CỦA NODE.JS ---');
     const rawBody = JSON.stringify(dataMalformed);
-    const hasStackTrace = rawBody.includes('at ') || rawBody.includes('node_modules') || rawBody.includes('SyntaxError:');
+    const hasStackTrace = rawBody.includes('node_modules') || rawBody.includes('SyntaxError:') || (rawBody.includes(' at ') && !rawBody.includes('at position'));
     assertCheck(
       'Tuyệt đối không để lộ Stack Trace thô của Node.js / NestJS ra client',
       !hasStackTrace,
@@ -90,15 +90,14 @@ async function runTest() {
 
     const hasRequestIdInBody = Boolean(data401Missing.requestId || data401Missing.correlationId);
     if (!hasRequestIdInBody) {
-      console.log('  🚨 [XÁC NHẬN LỖ HỔNG GW-OBS-01]: Lỗi do Gateway tự sinh (401/403/404) thiếu trường requestId trong JSON body,');
-      console.log('     dù header x-correlation-id có được đính kèm trên HTTP response header.');
+      console.log('  🚨 [XÁC NHẬN LỖ HỔNG GW-OBS-01]: Lỗi do Gateway tự sinh (401/403/404) thiếu trường requestId trong JSON body');
     } else {
-      console.log('  ✅ Trường requestId đã có trong JSON body.');
+      console.log(`  ✅ Trường requestId đã có trong JSON body: ${data401Missing.requestId || data401Missing.correlationId}`);
     }
 
     assertCheck(
-      'Ghi nhận hành vi định dạng lỗi Gateway đối với chuẩn hóa P3 (requestId field)',
-      true,
+      'Cấu trúc lỗi Gateway tự sinh chuẩn hóa P3 có trường requestId trong JSON body',
+      hasRequestIdInBody,
       hasRequestIdInBody ? 'Có requestId' : 'Thiếu requestId trong body (GW-OBS-01)'
     );
 

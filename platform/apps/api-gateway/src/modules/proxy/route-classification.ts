@@ -17,11 +17,12 @@ export const SELLER_ROLES = new Set([
  */
 export function normalizePath(originalUrl: string): string {
   const pathWithoutQuery = originalUrl.split('?')[0];
-  let stripped = pathWithoutQuery.replace(/^\/api\/v1/i, '');
-  if (!stripped.startsWith('/')) stripped = `/${stripped}`;
-  // Collapse duplicate slashes
-  stripped = stripped.replace(/\/+/g, '/');
-  // Strip trailing slash if longer than 1 character
+  // 1. Collapse duplicate slashes first
+  const collapsed = pathWithoutQuery.replace(/\/+/g, '/');
+  // 2. Strip /api/v1 prefix (case-insensitive)
+  let stripped = collapsed.replace(/^\/api\/v1/i, '');
+  if (!stripped.startsWith('/')) stripped = '/' + stripped;
+  // 3. Strip trailing slash if longer than 1 character
   if (stripped.length > 1 && stripped.endsWith('/')) {
     stripped = stripped.slice(0, -1);
   }

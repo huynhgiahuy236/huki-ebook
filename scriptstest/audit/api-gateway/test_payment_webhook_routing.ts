@@ -126,6 +126,4 @@ async function runTest() {
   }
 }
 
-runTest().then(() => {
-  process.exit(process.exitCode || 0);
-});
+runTest();

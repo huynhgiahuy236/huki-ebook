@@ -24,6 +24,14 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, options);
   app.enableShutdownHooks();
 
+  // Normalize incoming URL to prevent double slash routing bypass (RFC 3986 normalization)
+  app.use((req: any, _res: any, next: any) => {
+    if (req.url && req.url.includes('//')) {
+      req.url = req.url.replace(/\/+/g, '/');
+    }
+    next();
+  });
+
   // Increase body size limit to allow PDF/image/video evidence uploads
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
