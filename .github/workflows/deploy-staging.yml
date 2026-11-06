@@ -136,6 +136,7 @@ jobs:
               docker exec -i huki-postgres psql -U postgres -d huki_uat_promotion < /root/huki/platform/apps/promotion-service/prisma/migrations/20260916073000_add_flash_sale_banner/migration.sql
             }
             docker exec -i huki-postgres psql -U postgres -d huki_uat_promotion < /root/huki/platform/apps/promotion-service/prisma/migrations/20261105000000_add_voucher_target_audience/migration.sql || true
+            docker exec -i huki-postgres psql -U postgres -d huki_uat_promotion < /root/huki/platform/apps/promotion-service/prisma/migrations/20261106000000_add_outbox_audit_saved/migration.sql || true
 
             echo "=== [3/5] Pulling latest pre-built images from Docker Hub ==="
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin || true
