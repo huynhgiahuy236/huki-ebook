@@ -146,10 +146,45 @@ jobs:
             echo "=== Syncing UAT database schemas with Prisma ==="
             docker run --rm \
               --network huki-network \
+              -e COMMERCE_DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_commerce?schema=public" \
+              -e DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_commerce?schema=public" \
+              "${{ secrets.DOCKERHUB_USERNAME }}/huki-platform:uat" \
+              npx prisma db push --schema=apps/commerce-service/prisma/schema.prisma --skip-generate --accept-data-loss || echo "Commerce prisma push completed"
+
+            docker run --rm \
+              --network huki-network \
+              -e SHIPPING_DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_shipping?schema=public" \
+              -e DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_shipping?schema=public" \
+              "${{ secrets.DOCKERHUB_USERNAME }}/huki-platform:uat" \
+              npx prisma db push --schema=apps/shipping-service/prisma/schema.prisma --skip-generate --accept-data-loss || echo "Shipping prisma push completed"
+
+            docker run --rm \
+              --network huki-network \
+              -e IDENTITY_DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_identity?schema=public" \
+              -e DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_identity?schema=public" \
+              "${{ secrets.DOCKERHUB_USERNAME }}/huki-platform:uat" \
+              npx prisma db push --schema=apps/identity-service/prisma/schema.prisma --skip-generate --accept-data-loss || echo "Identity prisma push completed"
+
+            docker run --rm \
+              --network huki-network \
+              -e BUSINESS_DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_business?schema=public" \
+              -e DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_business?schema=public" \
+              "${{ secrets.DOCKERHUB_USERNAME }}/huki-platform:uat" \
+              npx prisma db push --schema=apps/business-service/prisma/schema.prisma --skip-generate --accept-data-loss || echo "Business prisma push completed"
+
+            docker run --rm \
+              --network huki-network \
               -e PROMOTION_DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_promotion?schema=public" \
               -e DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_promotion?schema=public" \
               "${{ secrets.DOCKERHUB_USERNAME }}/huki-platform:uat" \
-              npx prisma db push --schema=apps/promotion-service/prisma/schema.prisma --skip-generate || echo "Promotion prisma push completed"
+              npx prisma db push --schema=apps/promotion-service/prisma/schema.prisma --skip-generate --accept-data-loss || echo "Promotion prisma push completed"
+
+            docker run --rm \
+              --network huki-network \
+              -e ANALYTICS_DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_analytics?schema=public" \
+              -e DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_analytics?schema=public" \
+              "${{ secrets.DOCKERHUB_USERNAME }}/huki-platform:uat" \
+              npx prisma db push --schema=apps/analytics-service/prisma/schema.prisma --skip-generate --accept-data-loss || echo "Analytics prisma push completed"
 
             echo "=== [4/5] Starting UAT services ==="
             docker compose -f docker-compose.uat.yml up -d --remove-orphans

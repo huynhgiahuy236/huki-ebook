@@ -1482,7 +1482,7 @@ export default function CheckoutPage() {
                           </span>
                         </div>
                         <span className="font-bold text-[var(--theme-primary,#003B2B)]">
-                          20.000đ
+                          {(effectiveShippingFee || 20000).toLocaleString("vi-VN")}đ
                         </span>
                       </label>
 
@@ -1503,7 +1503,7 @@ export default function CheckoutPage() {
                           </span>
                         </div>
                         <span className="font-bold text-[var(--theme-primary,#003B2B)]">
-                          35.000đ
+                          {Math.max(35000, Math.round((effectiveShippingFee || 20000) * 1.5)).toLocaleString("vi-VN")}đ
                         </span>
                       </label>
                     </div>
