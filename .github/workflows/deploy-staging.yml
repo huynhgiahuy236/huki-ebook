@@ -74,10 +74,16 @@ jobs:
 
             echo "=== [2/5] Ensuring Infrastructure is healthy ==="
             docker compose -f docker-compose.prod.yml up -d postgres mongo redis rabbitmq
-            until docker exec huki-postgres pg_isready -U postgres; do
-              echo "Waiting for PostgreSQL to be ready..."
+            set +e
+            for i in $(seq 1 30); do
+              if docker exec huki-postgres pg_isready -U postgres; then
+                echo "PostgreSQL is ready!"
+                break
+              fi
+              echo "Waiting for PostgreSQL to be ready ($i/30)..."
               sleep 3
             done
+            set -e
 
             echo "=== Ensuring UAT databases exist in PostgreSQL ==="
             for db in huki_uat_identity huki_uat_business huki_uat_commerce huki_uat_shipping huki_uat_promotion huki_uat_analytics; do
