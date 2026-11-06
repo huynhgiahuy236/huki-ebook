@@ -231,7 +231,7 @@ export default function HierarchicalSidebar({
               {
                 id: 'shipper-portal',
                 title: 'Cổng Bưu Tá HuKi',
-                to: '/shipper/deliveries',
+                to: '/shipper',
                 icon: 'local_shipping',
                 badge: 'SHIPPER',
                 badgeColor: 'bg-blue-600 text-white font-bold',

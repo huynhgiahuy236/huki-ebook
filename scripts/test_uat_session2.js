@@ -70,7 +70,7 @@ async function runSession2Audit() {
   // PART 2: Shipper Frontend Pages Inspection
   const shipperPages = [
     { path: '/shipper', name: 'Shipper Portal Root (/shipper)' },
-    { path: '/shipper/deliveries', name: 'Cổng bưu tá giao nhận (/shipper/deliveries)' },
+    { path: '/shipper/active-deliveries', name: 'Đơn hàng đang giao (/shipper/active-deliveries)' },
     { path: '/shipper/available-orders', name: 'Đơn hàng khả dụng nhận cuốc (/shipper/available-orders)' },
     { path: '/shipper/history', name: 'Lịch sử giao hàng (/shipper/history)' },
     { path: '/shipper/remit-cod', name: 'Nộp tiền COD về sàn (/shipper/remit-cod)' },
@@ -102,7 +102,7 @@ async function runSession2Audit() {
     { name: 'Seller Orders API', endpoint: '/seller/orders', expectedStatus: 401 },
     { name: 'Seller Vouchers API', endpoint: '/seller/vouchers', expectedStatus: 401 },
     { name: 'Seller Wallet API', endpoint: '/wallet/balance', expectedStatus: 401 },
-    { name: 'Shipper Orders API', endpoint: '/shipper/orders/available', expectedStatus: 401 },
+    { name: 'Shipper Orders API', endpoint: '/orders/shipper/orders', expectedStatus: 401 },
     { name: 'Shipping Carriers API', endpoint: '/shipping/carriers', expectedStatus: 401 },
     { name: 'Shipments Tracking API', endpoint: '/shipments', expectedStatus: 401 },
   ];
