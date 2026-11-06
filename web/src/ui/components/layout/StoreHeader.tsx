@@ -31,7 +31,7 @@ export default function StoreHeader({
   const pathname = usePathname() || '';
   const router = useRouter();
   const { totalItemsCount } = useCart();
-  const { user, isLoggedIn, logout, hasRole } = useAuth();
+  const { user, isLoggedIn, isLoading, logout, hasRole } = useAuth();
   const { theme, setTheme, isDarkMode, toggleDarkMode, palettes, currentPalette } = useTheme();
   const { showToast } = useToast();
   const [unreadChatCount, setUnreadChatCount] = useState(0);
@@ -934,6 +934,8 @@ export default function StoreHeader({
                 </div>
               )}
             </div>
+          ) : isLoading ? (
+            <div className="h-9 w-9 sm:w-24 bg-slate-100 dark:bg-zinc-800/60 animate-pulse rounded-xl shrink-0" />
           ) : (
             <div className="flex items-center gap-2">
               <Link

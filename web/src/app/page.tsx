@@ -49,7 +49,7 @@ export default function HomePage() {
   const router = useRouter();
   const { addToCart } = useCart();
   const { showToast } = useToast();
-  const { user } = useAuth();
+  const { user, isLoggedIn } = useAuth();
 
   // 1. REAL COMMERCE DATA FROM BACKEND DATABASE
   const [realBooks, setRealBooks] = useState<BookData[]>([]);
@@ -127,12 +127,16 @@ export default function HomePage() {
       })
       .catch(() => {});
 
-    // Fetch Real Vouchers & User Wallet Vouchers
+  }, []);
+
+  // Fetch Real Vouchers & User Wallet Vouchers (auto-sync when auth state changes)
+  useEffect(() => {
     const hasToken = typeof window !== "undefined" && Boolean(tokenStorage.getAccessToken());
-    (hasToken ? voucherApi.getAvailableVouchers() : voucherApi.getPlatformVouchers())
-      .then((res) => {
-        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-          setRealVouchers(res.data);
+
+    if (hasToken) {
+      voucherApi.getEligibleFeed().then((res) => {
+        if (res.success && res.data?.platformVouchers && res.data.platformVouchers.length > 0) {
+          setRealVouchers(res.data.platformVouchers);
         } else {
           voucherApi.getPlatformVouchers().then((pRes) => {
             if (pRes.success && Array.isArray(pRes.data)) {
@@ -140,20 +144,39 @@ export default function HomePage() {
             }
           }).catch(() => {});
         }
-      })
-      .catch(() => {});
+      }).catch(() => {
+        voucherApi.getPlatformVouchers().then((pRes) => {
+          if (pRes.success && Array.isArray(pRes.data)) {
+            setRealVouchers(pRes.data);
+          }
+        }).catch(() => {});
+      });
 
-    if (hasToken) {
       voucherApi.getWalletVouchers().then((wRes) => {
         if (wRes.success && wRes.data) {
-          const platformCodes = (wRes.data.platform?.all || []).map((x: any) => x.code);
-          const storeCodes = (wRes.data.stores || []).flatMap((st: any) => (st.vouchers || []).map((x: any) => x.code));
-          const allSaved = Array.from(new Set([...platformCodes, ...storeCodes]));
-          setSavedVouchers(allSaved);
+          const savedIdentifiers: string[] = [];
+          (wRes.data.platform?.all || []).forEach((x: any) => {
+            if (x.code) savedIdentifiers.push(x.code);
+            if (x.id) savedIdentifiers.push(x.id);
+          });
+          (wRes.data.stores || []).forEach((st: any) => {
+            (st.vouchers || []).forEach((x: any) => {
+              if (x.code) savedIdentifiers.push(x.code);
+              if (x.id) savedIdentifiers.push(x.id);
+            });
+          });
+          setSavedVouchers(Array.from(new Set(savedIdentifiers)));
         }
       }).catch(() => {});
+    } else {
+      voucherApi.getPlatformVouchers().then((res) => {
+        if (res.success && Array.isArray(res.data)) {
+          setRealVouchers(res.data);
+        }
+      }).catch(() => {});
+      setSavedVouchers([]);
     }
-  }, []);
+  }, [user?.id, isLoggedIn]);
 
   // Fetch Real Flash Sale
   useEffect(() => {
@@ -385,6 +408,7 @@ export default function HomePage() {
     if (!realVouchers || realVouchers.length === 0) return [];
 
     return realVouchers.map((v) => {
+      const isSaved = Boolean(v.isSaved || savedVouchers.includes(v.code) || (v.id && savedVouchers.includes(v.id)));
       const badge =
         v.type === 'PERCENTAGE'
           ? `GIẢM ${v.value}%`
@@ -418,9 +442,10 @@ export default function HomePage() {
           ? `HSD: ${new Date(v.expiresAt).toLocaleDateString('vi-VN')}`
           : 'HSD: Dài hạn',
         icon,
+        isSaved,
       };
     });
-  }, [realVouchers]);
+  }, [realVouchers, savedVouchers]);
 
   // 4. Flash Sale Items (Real campaign items OR real discounted books from DB)
   const allFlashSale = useMemo(() => {
@@ -816,10 +841,12 @@ export default function HomePage() {
     try {
       const res = await voucherApi.saveVoucher(v.id);
       if (res.success) {
-        setSavedVouchers((prev) => [...prev, v.code]);
+        setSavedVouchers((prev) => Array.from(new Set([...prev, v.code, ...(v.id ? [v.id] : [])])));
+        setRealVouchers((prev) => prev.map((rv) => (rv.id === v.id || rv.code === v.code ? { ...rv, isSaved: true } : rv)));
         showToast({ title: "Thành công!", message: `Đã lưu voucher ${v.code} vào ví của bạn` }, "success");
       } else {
-        showToast({ title: "Lỗi", message: (res as any)?.message || "Không thể lưu mã vào ví." }, "error");
+        const errorMsg = res.error?.message || (res as any)?.message || "Không thể lưu mã vào ví.";
+        showToast({ title: "Chưa thể lưu mã", message: errorMsg }, "error");
       }
     } catch (err: any) {
       showToast({ title: "Lỗi", message: err?.message || "Không thể lưu voucher vào ví." }, "error");
@@ -1132,7 +1159,7 @@ export default function HomePage() {
           {voucherList.length > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {voucherList.map((v, idx) => {
-                const isSaved = savedVouchers.includes(v.code);
+                const isSaved = Boolean(v.isSaved || savedVouchers.includes(v.code) || (v.id && savedVouchers.includes(v.id)));
                 return (
                   <div
                     key={idx}

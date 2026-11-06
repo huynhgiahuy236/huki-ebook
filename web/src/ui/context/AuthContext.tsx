@@ -35,9 +35,36 @@ export interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<UserSession | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
+  const [user, setUser] = useState<UserSession | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const token = tokenStorage.getAccessToken();
+        const cached = tokenStorage.getUserSession();
+        if (token && cached) {
+          return cached;
+        }
+      } catch {
+        // ignore parse error
+      }
+    }
+    return null;
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const token = tokenStorage.getAccessToken();
+      const cached = tokenStorage.getUserSession();
+      if (token && cached) {
+        return false;
+      }
+    }
+    return true;
+  });
+  const [activeBusinessId, setActiveBusinessId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('huki_active_business_id') || null;
+    }
+    return null;
+  });
   const [authError, setAuthError] = useState<string | null>(null);
 
   const isLoggedIn = Boolean(user);
@@ -140,6 +167,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const initAuth = async () => {
       const tokens = tokenStorage.getTokens();
       if (!tokens) {
+        setUser(null);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('huki_user');
+        }
         if (isMounted) setIsLoading(false);
         return;
       }
@@ -151,8 +182,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             let userData: any = (res.data as any).user || res.data;
             userData = await hydrateBusiness(userData);
             setUser(userData);
-            if (typeof window !== 'undefined' && userData) {
-              localStorage.setItem('huki_user', JSON.stringify(userData));
+            if (userData) {
+              tokenStorage.setUserSession(userData);
             }
             // Wire tracker với user đã đăng nhập
             if (userData?.id) {
@@ -162,15 +193,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setActiveBusinessId(userData.memberships[0].businessId);
             }
           } else {
-            tokenStorage.clearTokens();
-            setUser(null);
+            // Chỉ xóa token và session khi máy chủ trả về 401 Unauthorized
+            if (res.error?.statusCode === 401) {
+              tokenStorage.clearTokens();
+              setUser(null);
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('huki_user');
+              }
+            }
           }
         }
-      } catch {
-        if (isMounted) {
-          tokenStorage.clearTokens();
-          setUser(null);
-        }
+      } catch (err) {
+        // Lỗi kết nối mạng tạm thời: giữ session cached của người dùng, không xóa tokens
+        console.warn('[AuthContext] Session re-validation non-fatal error:', err);
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -185,6 +220,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Tab khác đã đăng xuất -> đồng bộ đăng xuất trên tab này
           setUser(null);
           setActiveBusinessId(null);
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('huki_user');
+          }
         } else if (e.newValue !== e.oldValue) {
           // Tab khác đăng nhập tài khoản mới -> làm mới dữ liệu user theo tài khoản mới
           initAuth();
@@ -218,6 +256,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         userData = await hydrateBusiness(userData);
 
         setUser(userData);
+        if (userData) {
+          tokenStorage.setUserSession(userData);
+        }
 
         // Wire tracker với userId sau khi login thành công
         if (userData?.id) {
@@ -265,7 +306,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Chỉ lưu session & setUser khi có token và tài khoản đã ACTIVE (không PENDING)
         if (accessToken && userData?.status === 'ACTIVE') {
           tokenStorage.setTokens({ accessToken, refreshToken });
-          setUser(normalizeUserData(userData));
+          const normalized = normalizeUserData(userData);
+          setUser(normalized);
+          if (normalized) {
+            tokenStorage.setUserSession(normalized);
+          }
           // Wire tracker với userId sau khi register thành công
           if (userData?.id) {
             getTracker().setUserId(userData.id);
@@ -457,6 +502,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         userData = (await hydrateBusiness(userData)) || userData;
         setUser(userData);
+        if (userData) {
+          tokenStorage.setUserSession(userData);
+        }
 
         if (userData.id) {
           getTracker().setUserId(userData.id);

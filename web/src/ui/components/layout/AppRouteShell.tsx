@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/ui/context/AuthContext';
 import { maintenanceService } from '@/ui/services/maintenanceService';
 import AppLayout from './AppLayout';
+import AccountPendingDeletionModal from '@/ui/components/common/AccountPendingDeletionModal';
 
 interface AppRouteShellProps {
   children: ReactNode;
@@ -194,6 +195,7 @@ export default function AppRouteShell({ children }: AppRouteShellProps) {
     return (
       <>
         {drainBanner}
+        <AccountPendingDeletionModal />
         {children}
       </>
     );
@@ -203,6 +205,7 @@ export default function AppRouteShell({ children }: AppRouteShellProps) {
   return (
     <>
       {drainBanner}
+      <AccountPendingDeletionModal />
       <AppLayout>{children}</AppLayout>
     </>
   );

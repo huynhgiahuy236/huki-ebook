@@ -38,6 +38,9 @@ export interface UserSession {
   phone?: string;
   role: 'USER' | 'BUSINESS' | 'PLATFORM_ADMIN' | string;
   status?: string;
+  isPendingDeletion?: boolean;
+  deletionScheduledAt?: string | null;
+  remainingDays?: number | null;
   createdAt?: string;
   mustChangePassword?: boolean;
   memberships?: BusinessMembership[];

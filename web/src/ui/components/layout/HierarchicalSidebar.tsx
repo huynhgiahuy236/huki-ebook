@@ -37,7 +37,7 @@ export default function HierarchicalSidebar({
 }: HierarchicalSidebarProps) {
   const pathname = usePathname() || '';
   const { totalItemsCount } = useCart();
-  const { user, isLoggedIn, hasRole } = useAuth();
+  const { user, isLoggedIn, isLoading, hasRole } = useAuth();
 
   const isAdmin = Boolean(
     user?.role === 'PLATFORM_ADMIN' ||
@@ -428,6 +428,8 @@ export default function HierarchicalSidebar({
                   <span className="material-symbols-outlined text-[18px]">manage_accounts</span>
                 </Link>
               </div>
+            ) : isLoading ? (
+              <div className="h-10 bg-white/10 animate-pulse rounded-lg" />
             ) : (
               <div className="flex items-center gap-2">
                 <Link

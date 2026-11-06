@@ -386,6 +386,53 @@ export class UserService {
   }
 
   // ===================== DELETION LIFECYCLE APIS (7-DAY GRACE PERIOD & ANTI-SPAM) =====================
+  /**
+   * Kiểm tra nghĩa vụ thương mại trước khi cho phép xóa tài khoản (Bảo vệ người mua & người bán)
+   */
+  private async checkCommercialObligations(userId: string): Promise<void> {
+    try {
+      const commerceClient = this.getCommerceDbClient();
+      await commerceClient.connect();
+      try {
+        // 1. Kiểm tra đơn mua chưa hoàn tất
+        const orderRes = await commerceClient.query(
+          `SELECT id, code, status FROM orders 
+           WHERE user_id = $1 
+             AND status IN ('PENDING', 'PENDING_PAYMENT', 'PROCESSING', 'SHIPPING') 
+           LIMIT 5`,
+          [userId],
+        );
+        if (orderRes.rows && orderRes.rows.length > 0) {
+          const codes = orderRes.rows.map((r: any) => r.code || r.id).join(', ');
+          throw new BadRequestException(
+            `Không thể yêu cầu xóa tài khoản do bạn đang có ${orderRes.rows.length} đơn hàng chưa hoàn tất (Mã: ${codes}). Vui lòng chờ nhận hàng thành công hoặc hủy đơn trước khi xóa tài khoản.`,
+          );
+        }
+
+        // 2. Kiểm tra đơn bán chưa hoàn tất (nếu tài khoản là Người bán / Đối tác)
+        const sellerOrderRes = await commerceClient.query(
+          `SELECT id, status FROM seller_orders 
+           WHERE owner_user_id = $1 
+             AND status IN ('PENDING_PAYMENT', 'PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'SHIPPED') 
+           LIMIT 5`,
+          [userId],
+        );
+        if (sellerOrderRes.rows && sellerOrderRes.rows.length > 0) {
+          throw new BadRequestException(
+            `Không thể yêu cầu xóa tài khoản do gian hàng của bạn đang có ${sellerOrderRes.rows.length} đơn bán đang chờ xử lý hoặc giao hàng. Vui lòng hoàn tất nghĩa vụ giao dịch trước khi xóa tài khoản.`,
+          );
+        }
+      } finally {
+        await commerceClient.end().catch(() => {});
+      }
+    } catch (err: any) {
+      if (err instanceof BadRequestException || err instanceof ForbiddenException) {
+        throw err;
+      }
+      console.warn('[UserService] Could not verify commercial obligations before deletion:', err?.message || err);
+    }
+  }
+
   async requestDeletionOtp(userId: string) {
     const user = await this.findById(userId);
     if (user.role === UserRole.PLATFORM_ADMIN) {
@@ -398,33 +445,8 @@ export class UserService {
       );
     }
 
-    // Kiểm tra đơn hàng chưa hoàn tất trong Commerce DB
-    try {
-      const commerceClient = this.getCommerceDbClient();
-      await commerceClient.connect();
-      try {
-        const orderRes = await commerceClient.query(
-          `SELECT id, code, status FROM orders 
-           WHERE user_id = $1 
-             AND status IN ('PENDING', 'PENDING_PAYMENT', 'PROCESSING', 'SHIPPING') 
-           LIMIT 5`,
-          [userId]
-        );
-        if (orderRes.rows && orderRes.rows.length > 0) {
-          const codes = orderRes.rows.map((r: any) => r.code).join(', ');
-          throw new BadRequestException(
-            `Không thể yêu cầu xóa tài khoản do bạn đang có ${orderRes.rows.length} đơn hàng chưa hoàn tất (Mã: ${codes}). Vui lòng chờ hoàn thành đơn hoặc hủy đơn trước khi xóa.`,
-          );
-        }
-      } finally {
-        await commerceClient.end().catch(() => {});
-      }
-    } catch (err: any) {
-      if (err instanceof BadRequestException || err instanceof ForbiddenException) {
-        throw err;
-      }
-      console.warn('[UserService] Could not verify orders before deletion OTP:', err?.message || err);
-    }
+    // Kiểm tra đơn hàng chưa hoàn tất trong Commerce DB (Bảo vệ người mua & người bán)
+    await this.checkCommercialObligations(userId);
 
     // Tạo mã OTP 6 số ngẫu nhiên
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -502,6 +524,9 @@ export class UserService {
     if (user.deletionOtpExpiresAt && user.deletionOtpExpiresAt < new Date()) {
       throw new BadRequestException('Mã xác thực OTP đã hết hạn (quá 15 phút). Vui lòng yêu cầu gửi lại mã mới.');
     }
+
+    // Kiểm tra nghĩa vụ đơn hàng lần cuối trước khi kích hoạt chờ xóa
+    await this.checkCommercialObligations(userId);
 
     // 3. Thiết lập chế độ Chờ xóa 7 ngày (Grace Period)
     const now = new Date();
@@ -672,32 +697,7 @@ export class UserService {
     }
 
     // 1. KIỂM TRA ĐƠN HÀNG ĐANG XỬ LÝ / ĐANG GIAO (BẢO VỆ CHUỖI CUNG ỨNG TMĐT)
-    try {
-      const commerceClient = this.getCommerceDbClient();
-      await commerceClient.connect();
-      try {
-        const orderRes = await commerceClient.query(
-          `SELECT id, code, status FROM orders 
-           WHERE user_id = $1 
-             AND status IN ('PENDING', 'PENDING_PAYMENT', 'PROCESSING', 'SHIPPING') 
-           LIMIT 5`,
-          [userId]
-        );
-        if (orderRes.rows && orderRes.rows.length > 0) {
-          const codes = orderRes.rows.map((r: any) => r.code).join(', ');
-          throw new BadRequestException(
-            `Không thể xóa tài khoản do bạn đang có ${orderRes.rows.length} đơn hàng chưa hoàn tất (Mã: ${codes}). Vui lòng chờ đơn hàng được giao thành công hoặc hủy đơn trước khi xóa tài khoản.`
-          );
-        }
-      } finally {
-        await commerceClient.end().catch(() => {});
-      }
-    } catch (err: any) {
-      if (err instanceof BadRequestException || err instanceof ForbiddenException) {
-        throw err;
-      }
-      console.warn('Could not verify active orders before deletion:', err?.message || err);
-    }
+    await this.checkCommercialObligations(userId);
 
     // 2. TIẾN HÀNH SOFT DELETE, ẨN DANH DỮ LIỆU (NGHỊ ĐỊNH 13) VÀ THU HỒI PHIÊN ĐĂNG NHẬP
     const anonymizedEmail = `deleted_${Date.now()}_${user.id.substring(0, 8)}_${user.email}`;

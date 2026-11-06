@@ -788,7 +788,11 @@ export class AuthService {
 
   async validateUser(userId: string): Promise<User | null> {
     return this.prisma.user.findFirst({
-      where: { id: userId, status: UserStatus.ACTIVE, deletedAt: null },
+      where: {
+        id: userId,
+        status: { in: [UserStatus.ACTIVE, UserStatus.PENDING_DELETION] },
+        deletedAt: null,
+      },
     });
   }
 
@@ -896,6 +900,12 @@ export class AuthService {
       (user as any).mustChangePassword === true ||
       (user as any).must_change_password === true
     );
+    const isPendingDeletion = user.status === UserStatus.PENDING_DELETION;
+    let remainingDays = 0;
+    if (isPendingDeletion && user.deletionScheduledAt) {
+      const diffMs = new Date(user.deletionScheduledAt).getTime() - Date.now();
+      remainingDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    }
 
     return {
       id: user.id,
@@ -908,6 +918,9 @@ export class AuthService {
       mustChangePassword: isMustChangePassword,
       hasCompletedOnboarding: Boolean((user as any).hasCompletedOnboarding),
       createdAt: user.createdAt,
+      isPendingDeletion,
+      deletionScheduledAt: user.deletionScheduledAt,
+      remainingDays,
     };
   }
 

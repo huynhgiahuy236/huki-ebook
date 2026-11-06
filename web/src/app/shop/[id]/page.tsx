@@ -539,11 +539,17 @@ export default function ShopPage() {
         voucherApi.getWalletVouchers().then((wRes) => {
           if (wRes.success && wRes.data) {
             const savedFromWallet: string[] = [];
-            wRes.data.platform?.all?.forEach((pv: any) => pv.code && savedFromWallet.push(pv.code));
-            wRes.data.stores?.forEach((sg: any) => {
-              sg.vouchers?.forEach((sv: any) => sv.code && savedFromWallet.push(sv.code));
+            wRes.data.platform?.all?.forEach((pv: any) => {
+              if (pv.code) savedFromWallet.push(pv.code);
+              if (pv.id) savedFromWallet.push(pv.id);
             });
-            setSavedVouchers(savedFromWallet);
+            wRes.data.stores?.forEach((sg: any) => {
+              sg.vouchers?.forEach((sv: any) => {
+                if (sv.code) savedFromWallet.push(sv.code);
+                if (sv.id) savedFromWallet.push(sv.id);
+              });
+            });
+            setSavedVouchers(Array.from(new Set(savedFromWallet)));
           }
         }).catch(() => { });
       }
@@ -579,7 +585,8 @@ export default function ShopPage() {
       try {
         const res = await voucherApi.saveVoucher(voucher.id);
         if (res.success) {
-          setSavedVouchers((prev) => [...prev, code]);
+          setSavedVouchers((prev) => Array.from(new Set([...prev, code, ...(voucher.id ? [voucher.id] : [])])));
+          setShopVouchers((prev) => prev.map((sv) => (sv.id === voucher.id || sv.code === code ? { ...sv, isSaved: true } : sv)));
           showToast(`Đã lưu voucher ${code} vào ví của bạn thành công!`, 'success');
         } else {
           showToast((res as any)?.message || 'Không thể lưu mã voucher', 'error');
@@ -1153,7 +1160,7 @@ export default function ShopPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {shopVouchers.map((v) => {
-              const isSaved = savedVouchers.includes(v.code);
+              const isSaved = Boolean(v.isSaved || savedVouchers.includes(v.code) || (v.id && savedVouchers.includes(v.id)));
               const isFollowerVoucher = v.targetAudience === 'FOLLOWERS_ONLY';
               const req = formatFollowerRequirement(v.minFollowDays);
 

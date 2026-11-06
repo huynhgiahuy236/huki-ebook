@@ -432,75 +432,95 @@ export default function UniversalNotificationBell({
           return;
         }
 
-        // ĐỐI VỚI SELLER: Đưa vào danh sách xử lý đơn hàng
-        if (cleanCode) seenOrderCodes.add(cleanCode);
+        // ĐỐI VỚI SELLER (variant === 'seller'): Đưa vào danh sách xử lý đơn hàng người bán
+        if (isSeller) {
+          if (cleanCode) seenOrderCodes.add(cleanCode);
 
-        // Tra cứu trong cache đơn hàng thật (tìm chính xác, tìm theo rawCode, và tìm gần đúng)
-        let cached = cleanCode ? orderCache.get(cleanCode) : undefined;
-        if (!cached && rawCode) {
-          cached = orderCache.get(rawCode);
-        }
-        if (!cached && cleanCode) {
-          for (const [k, v] of orderCache.entries()) {
-            if (k.includes(cleanCode) || cleanCode.includes(k)) {
-              cached = v;
-              break;
+          let cached = cleanCode ? orderCache.get(cleanCode) : undefined;
+          if (!cached && rawCode) {
+            cached = orderCache.get(rawCode);
+          }
+          if (!cached && cleanCode) {
+            for (const [k, v] of orderCache.entries()) {
+              if (k.includes(cleanCode) || cleanCode.includes(k)) {
+                cached = v;
+                break;
+              }
             }
           }
+          if (!cached && cleanCode) {
+            searchMissingOrder(cleanCode);
+          }
+
+          const buyer = cached?.order;
+          const addr = buyer?.shippingAddress || payload.shippingAddress;
+
+          const recipientName =
+            addr?.recipientName || addr?.receiverName || addr?.fullName || 'Khách nhận';
+          const phone = addr?.phone || addr?.receiverPhone || '';
+          const address =
+            addr?.fullAddress ||
+            [addr?.line1 || addr?.address, addr?.ward, addr?.district, addr?.province]
+              .filter(Boolean)
+              .join(', ') ||
+            'Theo thông tin đặt hàng';
+
+          const items = cached
+            ? normalizeItemsList(cached.items)
+            : normalizeItemsList(payload.items);
+
+          const isPending = cached
+            ? cached.status === 'PENDING_CONFIRMATION'
+            : !payload.status || payload.status === 'PENDING_CONFIRMATION';
+
+          const sellerOrderId =
+            cached?.id ||
+            payload.sellerOrderId ||
+            payload.sellerOrders?.[0]?.sellerOrderId ||
+            null;
+
+          const grandTotal = Number(
+            cached?.grandTotal ?? payload.total ?? payload.grandTotal ?? 0
+          );
+
+          list.push({
+            id: n.id,
+            notifId: n.id,
+            category: isPending ? 'ORDER_PENDING' : 'ORDER_OTHER',
+            title: isPending ? 'Có đơn hàng mới chờ xác nhận' : n.title || 'Cập nhật đơn hàng',
+            message: n.message,
+            createdAt: n.createdAt,
+            isRead: n.isRead,
+            orderCode: cleanCode || rawCode,
+            cleanCode: cleanCode || rawCode,
+            sellerOrderId,
+            isPendingOrder: isPending,
+            grandTotal,
+            paymentMethod: buyer?.paymentMethod || payload.paymentMethod || 'COD',
+            recipientName,
+            phone,
+            address,
+            items,
+          });
+          return;
         }
-        if (!cached && cleanCode && isSeller) {
-          searchMissingOrder(cleanCode);
-        }
 
-        const buyer = cached?.order;
-        const addr = buyer?.shippingAddress || payload.shippingAddress;
-
-        const recipientName =
-          addr?.recipientName || addr?.receiverName || addr?.fullName || 'Khách nhận';
-        const phone = addr?.phone || addr?.receiverPhone || '';
-        const address =
-          addr?.fullAddress ||
-          [addr?.line1 || addr?.address, addr?.ward, addr?.district, addr?.province]
-            .filter(Boolean)
-            .join(', ') ||
-          'Theo thông tin đặt hàng';
-
-        const items = cached
-          ? normalizeItemsList(cached.items)
-          : normalizeItemsList(payload.items);
-
-        const isPending = cached
-          ? cached.status === 'PENDING_CONFIRMATION'
-          : !payload.status || payload.status === 'PENDING_CONFIRMATION';
-
-        const sellerOrderId =
-          cached?.id ||
-          payload.sellerOrderId ||
-          payload.sellerOrders?.[0]?.sellerOrderId ||
-          null;
-
-        const grandTotal = Number(
-          cached?.grandTotal ?? payload.total ?? payload.grandTotal ?? 0
-        );
-
+        // ĐỐI VỚI BUYER / KHÁCH HÀNG (variant === 'store' hoặc người mua cá nhân):
+        // Giữ nguyên tiêu đề và nội dung thông báo đơn mua, tuyệt đối không đổi thành "Có đơn hàng mới chờ xác nhận"
+        if (cleanCode) seenOrderCodes.add(cleanCode);
         list.push({
           id: n.id,
           notifId: n.id,
-          category: isPending ? 'ORDER_PENDING' : 'ORDER_OTHER',
-          title: isPending ? 'Có đơn hàng mới chờ xác nhận' : n.title || 'Cập nhật đơn hàng',
+          category: 'ORDER_OTHER',
+          title: n.title || (cleanCode ? `Đơn hàng #${cleanCode}` : 'Cập nhật đơn hàng'),
           message: n.message,
+          content: n.message,
           createdAt: n.createdAt,
           isRead: n.isRead,
           orderCode: cleanCode || rawCode,
           cleanCode: cleanCode || rawCode,
-          sellerOrderId,
-          isPendingOrder: isPending,
-          grandTotal,
-          paymentMethod: buyer?.paymentMethod || payload.paymentMethod || 'COD',
-          recipientName,
-          phone,
-          address,
-          items,
+          actionUrl: cleanCode ? `/orders/${cleanCode}` : '/orders',
+          actionLabel: 'Xem chi tiết đơn mua',
         });
         return;
       }
@@ -1233,8 +1253,10 @@ export default function UniversalNotificationBell({
                       <div
                         key={card.id}
                         onClick={() => {
-                          if (card.cleanCode) {
+                          if (isSeller && card.cleanCode) {
                             setActiveModalOrder(card);
+                          } else if (card.actionUrl) {
+                            router.push(card.actionUrl);
                           } else {
                             setActiveModalNotif(card);
                           }

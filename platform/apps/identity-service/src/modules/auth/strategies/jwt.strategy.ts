@@ -28,6 +28,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User not found or inactive');
     }
 
+    const isPendingDeletion = user.status === 'PENDING_DELETION';
+    let remainingDays = 0;
+    if (isPendingDeletion && user.deletionScheduledAt) {
+      const diffMs = new Date(user.deletionScheduledAt).getTime() - Date.now();
+      remainingDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    }
+
     return {
       id: user.id,
       email: user.email,
@@ -35,6 +42,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       fullName: user.fullName,
       status: user.status,
       avatar: user.avatar,
+      isPendingDeletion,
+      deletionScheduledAt: user.deletionScheduledAt,
+      remainingDays,
     };
   }
 }

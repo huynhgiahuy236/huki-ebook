@@ -134,7 +134,7 @@ export class VouchersController {
   })
   @ApiHeader({ name: 'x-user-id', required: false, description: 'User ID' })
   async saveToWallet(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Headers('x-user-id') userId: string,
     @Req() req: Request,
   ) {
@@ -151,7 +151,7 @@ export class VouchersController {
   })
   @ApiHeader({ name: 'x-user-id', required: false, description: 'User ID' })
   async unsaveFromWallet(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Headers('x-user-id') userId: string,
     @Req() req: Request,
   ) {
@@ -187,7 +187,7 @@ export class VouchersController {
   @ApiResponse({ status: 200, description: 'Voucher details' })
   @ApiNotFoundResponse({ description: 'Voucher not found' })
   @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
+  findOne(@Param('id') id: string) {
     return this.vouchers.findOne(id);
   }
 
@@ -219,7 +219,7 @@ export class VouchersController {
   @ApiForbiddenResponse({ description: 'Requires PLATFORM_ADMIN role' })
   @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   update(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Body() dto: UpdateVoucherDto,
   ) {
     return this.vouchers.update(id, dto);
@@ -238,7 +238,7 @@ export class VouchersController {
   @ApiNotFoundResponse({ description: 'Voucher not found' })
   @ApiForbiddenResponse({ description: 'Requires PLATFORM_ADMIN role' })
   @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
-  delete(@Param('id', ParseUUIDPipe) id: string) {
+  delete(@Param('id') id: string) {
     return this.vouchers.delete(id);
   }
 

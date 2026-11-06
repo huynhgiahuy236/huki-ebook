@@ -120,14 +120,28 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     // Rate Limiting on Authentication Endpoints (BUG-MOD07-04)
     if (req.method === 'POST' && req.originalUrl.includes('/auth/login')) {
       const clientIp = this.getClientIp(req);
-      if (this.isRateLimited(clientIp, 5, 60_000)) {
+      const isLoopback =
+        clientIp === '127.0.0.1' ||
+        clientIp === '::1' ||
+        clientIp === '::ffff:127.0.0.1' ||
+        clientIp === 'localhost' ||
+        clientIp === 'unknown';
+      const isDev = process.env.NODE_ENV !== 'production';
+
+      const bodyEmail = (req.body && typeof req.body.email === 'string')
+        ? req.body.email.trim().toLowerCase()
+        : '';
+      const rateLimitKey = bodyEmail ? `${clientIp}:${bodyEmail}` : clientIp;
+      const limit = isDev && isLoopback ? 100 : 10;
+
+      if (this.isRateLimited(rateLimitKey, limit, 60_000)) {
         res.setHeader('Retry-After', '60');
         return this.sendGatewayError(
           res,
           req,
           429,
           'RATE_LIMIT_EXCEEDED',
-          'Bạn đã thử đăng nhập quá nhiều lần. Vui lòng thử lại sau 60 giây.',
+          'Bạn đã thử đăng nhập tài khoản này quá nhiều lần. Vui lòng thử lại sau 60 giây.',
         );
       }
     }
@@ -436,6 +450,9 @@ export class ServiceProxyMiddleware implements NestMiddleware {
       if (user.role) forwarded['x-user-role'] = user.role;
       if (user.email) forwarded['x-user-email'] = user.email;
       if (user.businessId) forwarded['x-business-id'] = user.businessId;
+      if (!forwarded['authorization'] && (req as any).token) {
+        forwarded['authorization'] = `Bearer ${(req as any).token}`;
+      }
     }
 
     return forwarded;

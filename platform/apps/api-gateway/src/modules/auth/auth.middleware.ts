@@ -84,6 +84,7 @@ export class AuthMiddleware implements NestMiddleware {
       const secret = getJwtSecret();
       const payload = jwt.verify(token, secret) as any;
 
+      (req as any).token = token;
       req.user = {
         id: payload.sub || payload.id,
         email: payload.email,
