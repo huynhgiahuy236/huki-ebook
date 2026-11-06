@@ -52,7 +52,7 @@ jobs:
     name: Deploy UAT Stack on VPS
     needs: build-and-push
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: Pull and Restart on VPS
@@ -62,17 +62,17 @@ jobs:
           username: 'root'
           password: ${{ secrets.VPS_PASSWORD }}
           script_stop: true
-          command_timeout: 25m
+          command_timeout: 35m
           script: |
             set -e
-            echo "=== [0/5] Freeing disk space on VPS ==="
+            echo "=== [0/5] Checking and maintaining disk space on VPS ==="
             df -h
-            # Clean Docker unused images and builder cache (NEVER touch volumes)
-            docker system prune -af --volumes=false || true
-            docker builder prune -af || true
+            # Clean dangling images and builder cache
+            docker image prune -f || true
+            docker builder prune -f || true
             journalctl --vacuum-size=100M 2>/dev/null || true
             rm -rf /tmp/* /var/tmp/* 2>/dev/null || true
-            echo "--- Disk space after cleanup ---"
+            echo "--- Disk space status ---"
             df -h
 
             echo "=== [1/5] Pulling latest code on develop branch ==="
