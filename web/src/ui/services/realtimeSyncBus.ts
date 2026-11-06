@@ -210,7 +210,7 @@ export function getDefaultRolesForEventType(type: SyncEventType): NotificationRo
       return ['SHIPPER'];
 
     case 'SHIPPER_ORDER_CLAIMED':
-      return ['SHIPPER', 'SELLER'];
+      return ['SHIPPER', 'SELLER', 'BUYER'];
 
     case 'SHIPPER_PICKED_UP':
     case 'SHIPPER_DELIVERED':

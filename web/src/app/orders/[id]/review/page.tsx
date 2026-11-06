@@ -7,6 +7,7 @@ import { useToast } from '@/ui/context/ToastContext';
 import { useAuth } from '@/ui/context/AuthContext';
 import { orderApi, BuyerOrder, OrderItem } from '@/ui/api/orderApi';
 import { reviewApi, ReviewItemData } from '@/ui/api/reviewApi';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import VerifiedPurchaseBadge from '@/ui/components/review/VerifiedPurchaseBadge';
 
 interface DisplayReviewItem {
@@ -201,6 +202,11 @@ export default function OrderReviewPage() {
 
       if (res?.success) {
         showToast('Đã gửi đánh giá thành công! Bạn nhận được +50 HUKI Xu thưởng.', 'success');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('huki_review_created', { detail: { bookId, orderId } }));
+          localStorage.setItem('huki_review_sync', String(Date.now()));
+        }
+        realtimeSyncBus.publish('NOTIFICATIONS_UPDATED', { bookId, orderId });
         router.push(`/orders/${orderId}`);
       } else if (res?.error?.code === 'REVIEW_ALREADY_EXISTS') {
         showToast('Bạn đã gửi đánh giá cho sản phẩm này rồi.', 'info');

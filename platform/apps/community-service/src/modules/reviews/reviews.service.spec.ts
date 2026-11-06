@@ -51,7 +51,7 @@ describe("ReviewsService", () => {
     });
     reviews.create.mockResolvedValue({
       id: new Types.ObjectId().toString(),
-      status: "PENDING_REVIEW",
+      status: "PUBLISHED",
       verifiedPurchase: true,
       createdAt: new Date(),
       authorId: actor.sub,
@@ -76,7 +76,7 @@ describe("ReviewsService", () => {
 
     expect(result.data).toEqual(
       expect.objectContaining({
-        status: "PENDING_REVIEW",
+        status: "PUBLISHED",
         verifiedPurchase: true,
       }),
     );
@@ -85,7 +85,7 @@ describe("ReviewsService", () => {
         orderId: "order-1",
         sellerOrderId: "seller-order-1",
         storeId: "store-1",
-        status: "PENDING_REVIEW",
+        status: "PUBLISHED",
       }),
     );
   });

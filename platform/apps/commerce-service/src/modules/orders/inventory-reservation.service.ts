@@ -12,7 +12,7 @@ export class InventoryReservationService {
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
     @Optional() private readonly eventEmitter?: EventEmitter2,
-  ) {}
+  ) { }
 
   async reserve(tx: Prisma.TransactionClient, orderId: string, items: any[]): Promise<void> {
     const physical = items

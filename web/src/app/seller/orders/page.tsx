@@ -320,6 +320,7 @@ function SellerOrdersContent() {
       } else if (
         msg.type === 'ORDER_STATUS_CHANGED' ||
         msg.type === 'ORDER_CANCELLED' ||
+        msg.type === 'SHIPPER_ORDER_CLAIMED' ||
         msg.type === 'SHIPPER_PICKED_UP' ||
         msg.type === 'SHIPPER_DELIVERED'
       ) {

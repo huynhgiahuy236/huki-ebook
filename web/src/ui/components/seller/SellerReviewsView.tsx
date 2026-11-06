@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { catalogApi } from '@/ui/api/catalogApi';
 import { businessApi } from '@/ui/api/businessApi';
 import { reviewApi, ReviewItemData, ReviewReplyItem } from '@/ui/api/reviewApi';
@@ -47,6 +47,8 @@ interface ReviewRowItem extends ReviewItemData {
 
 export function SellerReviewsView() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const targetReviewId = searchParams?.get('reviewId');
   const { user, activeBusinessId } = useAuth();
   const { showToast } = useToast();
 
@@ -224,6 +226,16 @@ export function SellerReviewsView() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Tự động mở review từ URL query param khi click từ thông báo
+  useEffect(() => {
+    if (targetReviewId && reviews.length > 0) {
+      const found = reviews.find((r) => String(r.id) === String(targetReviewId));
+      if (found) {
+        setSelectedReview(found);
+      }
+    }
+  }, [targetReviewId, reviews]);
 
   // Real-time synchronization: Auto-refresh interval (10s) & cross-tab events
   useEffect(() => {

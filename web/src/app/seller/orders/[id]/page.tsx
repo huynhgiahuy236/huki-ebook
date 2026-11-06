@@ -181,7 +181,10 @@ export default function SellerOrderDetailPage() {
       if (
         msg.type === 'ORDER_STATUS_CHANGED' ||
         msg.type === 'ORDER_PAYMENT_SUCCEEDED' ||
-        msg.type === 'ORDER_CANCELLED'
+        msg.type === 'ORDER_CANCELLED' ||
+        msg.type === 'SHIPPER_ORDER_CLAIMED' ||
+        msg.type === 'SHIPPER_PICKED_UP' ||
+        msg.type === 'SHIPPER_DELIVERED'
       ) {
         fetchOrderDetail();
       }
@@ -199,6 +202,8 @@ export default function SellerOrderDetailPage() {
       const res = await orderApi.confirmOrder(order.id);
       if (res.success) {
         showToast?.({ title: 'Thành công', message: 'Đã xác nhận đơn hàng thành công!', type: 'success' });
+        realtimeSyncBus.publish('SHIPPER_AVAILABLE_ORDER_BROADCAST', { orderId: order.id, status: 'CONFIRMED' });
+        realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { orderId: order.id, status: 'CONFIRMED' });
         await fetchOrderDetail();
       } else {
         showToast?.({ title: 'Lỗi', message: res.error?.message || 'Không thể xác nhận đơn hàng.', type: 'error' });
@@ -217,6 +222,8 @@ export default function SellerOrderDetailPage() {
       const res = await orderApi.prepareOrder(order.id);
       if (res.success) {
         showToast?.({ title: 'Thành công', message: 'Đã chuyển đơn hàng sang trạng thái Chuẩn Bị Đóng Gói!', type: 'success' });
+        realtimeSyncBus.publish('SHIPPER_AVAILABLE_ORDER_BROADCAST', { orderId: order.id, status: 'PREPARING' });
+        realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { orderId: order.id, status: 'PREPARING' });
         await fetchOrderDetail();
       } else {
         showToast?.({ title: 'Lỗi', message: res.error?.message || 'Không thể cập nhật đóng gói.', type: 'error' });
@@ -243,6 +250,8 @@ export default function SellerOrderDetailPage() {
       });
       if (res.success) {
         showToast?.({ title: 'Thành công', message: 'Đã bàn giao vận chuyển thành công!', type: 'success' });
+        realtimeSyncBus.publish('SHIPPER_PICKED_UP', { orderId: order.id, carrier, trackingCode: trackingCode.trim() });
+        realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { orderId: order.id, status: 'SHIPPED' });
         setActiveActionBox(null);
         setTrackingCode('');
         await fetchOrderDetail();

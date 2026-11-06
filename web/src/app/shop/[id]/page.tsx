@@ -469,6 +469,7 @@ export default function ShopPage() {
     fetchBusinessData();
   }, [fetchBusinessData]);
 
+
   useEffect(() => {
     if (!business?.id) return;
     const fetchBooks = async () => {
@@ -647,6 +648,30 @@ export default function ShopPage() {
     return formattedRealBooks;
   }, [realBooks, business]);
 
+  // Tính toán điểm đánh giá và tổng lượt đánh giá thật của gian hàng
+  const storeRatingStats = useMemo(() => {
+    let totalReviews = 0;
+    let weightedRatingSum = 0;
+
+    allStoreBooks.forEach((b: any) => {
+      const summary = reviewSummaryService.get(b.id);
+      const revCount = summary?.totalReviews ?? (b.ratingCount || b.reviewsCount ? Number(b.ratingCount || b.reviewsCount) : 0);
+      const avg = summary?.averageRating ?? (b.rating ? Number(b.rating) : 0);
+      if (revCount > 0 && avg > 0) {
+        totalReviews += revCount;
+        weightedRatingSum += avg * revCount;
+      }
+    });
+
+    const averageRating = totalReviews > 0 ? Number((weightedRatingSum / totalReviews).toFixed(1)) : 5.0;
+    return {
+      averageRating,
+      totalReviews,
+      hasReviews: totalReviews > 0,
+    };
+  }, [allStoreBooks]);
+
+
   // Filter books by tabs & search
   const filteredBooks = useMemo(() => {
     return allStoreBooks.filter(book => {
@@ -788,7 +813,14 @@ export default function ShopPage() {
               <div className="flex flex-wrap items-center gap-4 text-xs text-theme-text-muted mt-1">
                 <span className="flex items-center gap-1">
                   <span className="material-symbols-outlined text-amber-500 text-sm fill-current">star</span>
-                  <strong className="text-theme-text">—</strong> Đánh giá
+                  {storeRatingStats.hasReviews ? (
+                    <>
+                      <strong className="text-theme-text">{storeRatingStats.averageRating.toFixed(1)}</strong>
+                      <span>({storeRatingStats.totalReviews.toLocaleString('vi-VN')}) Đánh giá</span>
+                    </>
+                  ) : (
+                    <span className="text-theme-text-muted">Chưa có đánh giá</span>
+                  )}
                 </span>
                 <span>•</span>
                 <span><strong>{allStoreBooks.length}</strong> Đầu sách</span>

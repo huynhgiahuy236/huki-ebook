@@ -197,7 +197,7 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
             type: "NEW_REVIEW",
             title: "Có đánh giá mới",
             message: `Khách hàng vừa gửi đánh giá ${payload.rating} sao.`,
-            actionUrl: `/reviews/${payload.reviewId}`,
+            actionUrl: `/seller/reviews?reviewId=${payload.reviewId}`,
           });
         }
         break;

@@ -18,7 +18,7 @@ export class AffiliateSettlementWorker implements OnApplicationShutdown {
     @Optional() private readonly redisService?: RedisService,
     @Optional() private readonly metricsService?: AffiliateMetricsService,
     @Optional() private readonly alertService?: AffiliateAlertService,
-  ) {}
+  ) { }
 
   onApplicationShutdown(signal?: string) {
     this.logger.log(`AffiliateSettlementWorker received shutdown signal (${signal}). Preventing new settlement batches.`);

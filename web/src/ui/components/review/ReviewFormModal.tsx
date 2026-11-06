@@ -156,6 +156,10 @@ export default function ReviewFormModal({
 
         if (res?.success) {
           showToast('Đã gửi đánh giá thành công! Đánh giá đã được lưu vào hệ thống.', 'success');
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('huki_review_created', { detail: { bookId } }));
+            localStorage.setItem('huki_review_sync', String(Date.now()));
+          }
           onSuccess?.();
           onClose();
         } else if (res?.error?.code === 'REVIEW_ALREADY_EXISTS') {

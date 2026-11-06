@@ -693,6 +693,30 @@ export default function BookDetailPage() {
     };
   }, [id, realBook, storeInfo]);
 
+  const publisherReviewStats = useMemo(() => {
+    const rawRating = storeInfo?.rating || realBook?.business?.rating;
+    const rawCount = storeInfo?.reviewsCount || storeInfo?.reviewCount || realBook?.business?.reviewsCount;
+    if (rawCount && Number(rawCount) > 0) {
+      return {
+        rating: Number(rawRating || 5.0),
+        reviewsCount: String(rawCount),
+        hasReviews: true,
+      };
+    }
+    if (reviewSummary && reviewSummary.totalReviews > 0) {
+      return {
+        rating: reviewSummary.averageRating,
+        reviewsCount: String(reviewSummary.totalReviews),
+        hasReviews: true,
+      };
+    }
+    return {
+      rating: 5.0,
+      reviewsCount: '0',
+      hasReviews: false,
+    };
+  }, [storeInfo, realBook, reviewSummary]);
+
   const publisherProfile = useMemo(() => {
     const rawPublisher = realBook?.publisher;
     const publisherObj = typeof rawPublisher === 'object' && rawPublisher ? rawPublisher : null;
@@ -738,8 +762,9 @@ export default function BookDetailPage() {
         logo: storeLogo,
         description: storeInfo.description || storeInfo.stores?.[0]?.description || 'Gian hàng và Nhà xuất bản chính thức được chứng nhận bản quyền bởi HUKI Platform.',
         address: storeInfo.address || 'Hà Nội & TP. Hồ Chí Minh, Việt Nam',
-        rating: 4.9,
-        reviewsCount: '2.8k',
+        rating: publisherReviewStats.rating,
+        reviewsCount: publisherReviewStats.reviewsCount,
+        hasReviews: publisherReviewStats.hasReviews,
         responseRate: '99%',
         isVerified: true,
       };
@@ -752,8 +777,9 @@ export default function BookDetailPage() {
         logo: storeLogo,
         description: realBook.business.description || realBook.business.stores?.[0]?.description || 'Nhà xuất bản và phát hành sách bản quyền chính thức trên hệ thống HUKI Platform.',
         address: realBook.business.address || 'Hà Nội & TP. Hồ Chí Minh, Việt Nam',
-        rating: 4.9,
-        reviewsCount: '2.8k',
+        rating: publisherReviewStats.rating,
+        reviewsCount: publisherReviewStats.reviewsCount,
+        hasReviews: publisherReviewStats.hasReviews,
         responseRate: '99%',
         isVerified: true,
       };
@@ -765,12 +791,13 @@ export default function BookDetailPage() {
       logo: storeLogo,
       description: 'Nhà xuất bản và phát hành sách bản quyền chính thức trên hệ thống HUKI Platform.',
       address: 'Hà Nội & TP. Hồ Chí Minh, Việt Nam',
-      rating: 4.9,
-      reviewsCount: '2.8k',
+      rating: publisherReviewStats.rating,
+      reviewsCount: publisherReviewStats.reviewsCount,
+      hasReviews: publisherReviewStats.hasReviews,
       responseRate: '99%',
       isVerified: true,
     };
-  }, [storeInfo, book.publisher, realBook]);
+  }, [storeInfo, book.publisher, realBook, publisherReviewStats]);
 
   const formatPricing = useMemo(() => {
     const bookFormat = realBook?.format || book.format || 'BOTH';
@@ -1499,7 +1526,13 @@ export default function BookDetailPage() {
                       <div className="flex items-center gap-3 sm:gap-4 mt-2 text-xs text-gray-500 flex-wrap">
                         <span className="flex items-center gap-1 text-[#fea619] font-bold">
                           <span className="material-symbols-outlined text-sm fill" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                          {publisherProfile.rating} <span className="text-gray-400 font-normal">({publisherProfile.reviewsCount})</span>
+                          {publisherProfile.hasReviews ? (
+                            <>
+                              {publisherProfile.rating.toFixed(1)} <span className="text-gray-400 font-normal">({publisherProfile.reviewsCount})</span>
+                            </>
+                          ) : (
+                            <span className="text-gray-500 font-normal text-xs">Chưa có đánh giá</span>
+                          )}
                         </span>
                         <span className="text-gray-300">•</span>
                         <span>Phản hồi: <strong className="text-gray-800">{publisherProfile.responseRate}</strong></span>

@@ -667,7 +667,12 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
               'warning'
             );
           }
+        } else {
+          // Nếu đơn do chính shipper này nhận ở tab khác hoặc vừa cập nhật, reload lại nền
+          refreshOrders(true);
         }
+      } else if (msg.type === 'SHIPPER_PICKED_UP' || msg.type === 'SHIPPER_DELIVERED') {
+        refreshOrders(true);
       } else if (msg.type === 'SHIPPER_COD_REMITTED') {
         refreshOrders(true);
       } else if (msg.type === 'ORDER_CANCELLED') {

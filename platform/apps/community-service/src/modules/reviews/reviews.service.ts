@@ -371,7 +371,7 @@ export class ReviewsService {
         authorId: actor.sub,
         authorName: this.actorName(actor),
         authorAvatar: actor.avatar,
-        status: moderation.flagged ? "FLAGGED" : "PENDING_REVIEW",
+        status: moderation.flagged ? "FLAGGED" : "PUBLISHED",
         moderationNote: this.autoModeration.note(moderation),
       });
       void this.publishCreated(review);
