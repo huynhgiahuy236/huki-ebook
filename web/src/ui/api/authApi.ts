@@ -98,9 +98,10 @@ export const authApi = {
    * Làm mới Access Token
    */
   async refreshToken(refreshToken?: string): Promise<ApiResponse<AuthTokens>> {
+    const token = refreshToken || tokenStorage.getRefreshToken() || undefined;
     return apiClient<AuthTokens>('/auth/refresh', {
       method: 'POST',
-      body: JSON.stringify(refreshToken ? { refreshToken } : {}),
+      body: JSON.stringify(token ? { refreshToken: token } : {}),
       skipAuth: true,
     });
   },

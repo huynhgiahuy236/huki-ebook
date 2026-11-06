@@ -20,7 +20,7 @@ export default function OrderDetailPage() {
   const params = useParams();
   const id = typeof params?.id === 'string' ? params.id : Array.isArray(params?.id) ? params.id[0] : '';
   const router = useRouter();
-  const { user, isLoggedIn } = useAuth();
+  const { user, isLoggedIn, isLoading: isAuthLoading } = useAuth();
   const { showToast } = useToast();
 
   const [order, setOrder] = useState<any>(null);
@@ -324,7 +324,7 @@ export default function OrderDetailPage() {
   };
 
   // Loading Skeleton State
-  if (isLoading) {
+  if (isLoading || (isAuthLoading && !order)) {
     return (
       <div className="w-full min-h-screen flex flex-col font-sans text-on-surface bg-theme-bg py-6 md:py-8">
         <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 animate-pulse space-y-6">

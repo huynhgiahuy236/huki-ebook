@@ -599,8 +599,26 @@ export class AuthService {
       throwUnauthorized(ErrorCode.AUTH_TOKEN_EXPIRED);
     }
 
-    // Token reuse detection: if token was already revoked, someone is replaying an old rotated token!
+    // Token reuse detection: allow safe 5s grace period for concurrent requests during token rotation
     if (token.revokedAt) {
+      const gracePeriodMs = 5000;
+      const isWithinGracePeriod =
+        token.revokedReason === "token_rotation" &&
+        (Date.now() - new Date(token.revokedAt).getTime()) < gracePeriodMs;
+
+      if (isWithinGracePeriod && !token.session?.revokedAt) {
+        let tokenUser = token.session?.user;
+        if (tokenUser && tokenUser.status !== "BLOCKED" && tokenUser.status !== "DELETED") {
+          tokenUser = await this.ensureBusinessRoleIfApproved(tokenUser);
+          return {
+            accessToken: this.signAccessToken(tokenUser),
+            refreshToken: dto.refreshToken,
+            tokenType: "Bearer",
+            expiresIn: 900,
+          };
+        }
+      }
+
       await this.prisma.$transaction(async (tx) => {
         await tx.refreshToken.updateMany({
           where: { sessionId: token.sessionId, revokedAt: null },
