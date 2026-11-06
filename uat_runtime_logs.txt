@@ -1,0 +1,139 @@
+================================================================================
+HUKI EBOOK - UAT RUNTIME CONTAINER LOGS AUDIT (13 CONTAINERS STACK)
+Environment: UAT / Staging (Domain: https://huki-uat.duckdns.org)
+Timestamp: 2026-11-06T12:15:00.000Z
+================================================================================
+
+--- [CONTAINER 1/13] huki-uat-nginx ---
+2026/11/06 12:10:07 [notice] 1#1: using the "epoll" event method
+2026/11/06 12:10:07 [notice] 1#1: nginx/1.25.4
+2026/11/06 12:10:07 [notice] 1#1: OS: Linux 5.15.0-105-generic
+2026/11/06 12:10:07 [notice] 1#1: start worker processes
+2026/11/06 12:11:16 [info] 8#8: *1 client 103.67.197.73:58210 GET /api/v1/health/live HTTP/1.1, host: "huki-uat.duckdns.org", upstream: "http://172.28.0.10:3000/api/v1/health/live" 200 247 "-" "curl/8.4.0"
+2026/11/06 12:11:16 [info] 8#8: *2 client 103.67.197.73:58212 POST /api/v1/auth/login HTTP/1.1, host: "huki-uat.duckdns.org", upstream: "http://172.28.0.10:3000/api/v1/auth/login" 429 231 "-" "node-fetch"
+2026/11/06 12:11:16 [info] 8#8: *3 client 103.67.197.73:58214 GET /api/v1/cart HTTP/1.1, host: "huki-uat.duckdns.org", upstream: "http://172.28.0.10:3000/api/v1/cart" 401 198 "-" "node-fetch"
+2026/11/06 12:11:16 [info] 8#8: *4 client 103.67.197.73:58216 GET /api/v1/admin/finance/reconciliation HTTP/1.1, host: "huki-uat.duckdns.org", upstream: "http://172.28.0.10:3000/api/v1/admin/finance/reconciliation" 403 214 "-" "node-fetch"
+2026/11/06 12:11:16 [info] 8#8: *5 client 103.67.197.73:58218 GET /api/v1/internal/addresses HTTP/1.1, host: "huki-uat.duckdns.org", upstream: "http://172.28.0.10:3000/api/v1/internal/addresses" 404 186 "-" "node-fetch"
+2026/11/06 12:11:17 [info] 8#8: *6 client 103.67.197.73:58220 POST /api/v1/payments/webhooks/payos HTTP/1.1, host: "huki-uat.duckdns.org", upstream: "http://172.28.0.10:3000/api/v1/payments/webhooks/payos" 400 215 "-" "node-fetch"
+2026/11/06 12:11:17 [info] 8#8: *7 client 103.67.197.73:58222 POST /api/v1/payments/webhooks/payos HTTP/1.1, host: "huki-uat.duckdns.org", upstream: "http://172.28.0.10:3000/api/v1/payments/webhooks/payos" 200 184 "-" "node-fetch"
+2026/11/06 12:11:17 [info] 8#8: *8 client 103.67.197.73:58224 GET /api/v1/seller/orders?storeId=store-uuid-002 HTTP/1.1, host: "huki-uat.duckdns.org", upstream: "http://172.28.0.10:3000/api/v1/seller/orders" 403 192 "-" "node-fetch"
+2026/11/06 12:11:18 [info] 8#8: *9 client 103.67.197.73:58226 GET /api/v1/books?limit=10&page=1 HTTP/1.1, host: "huki-uat.duckdns.org", upstream: "http://172.28.0.10:3000/api/v1/books" 200 3820 "-" "node-fetch"
+
+--- [CONTAINER 2/13] huki-uat-api-gateway ---
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [NestFactory] Starting Nest application...
+[Nest] 1  - 11/06/2026, 12:10:06 PM     LOG [InstanceLoader] AppModule dependencies initialized
+[Nest] 1  - 11/06/2026, 12:10:06 PM     LOG [InstanceLoader] ConfigHostModule dependencies initialized
+[Nest] 1  - 11/06/2026, 12:10:06 PM     LOG [InstanceLoader] GatewayModule dependencies initialized
+[Nest] 1  - 11/06/2026, 12:10:06 PM     LOG [RoutesResolver] HealthController {/api/v1}:
+[Nest] 1  - 11/06/2026, 12:10:06 PM     LOG [RouterExplorer] Mapped {/api/v1/health/live, GET} route
+[Nest] 1  - 11/06/2026, 12:10:06 PM     LOG [NestApplication] Nest application successfully started on port 3000
+[Nest] 1  - 11/06/2026, 12:11:16 PM     LOG [GatewayProxy] GET /api/v1/health/live -> 200 (reqId: b35ac948-8911-4a07-9004-cd4341df894a)
+[Nest] 1  - 11/06/2026, 12:11:16 PM    WARN [RateLimitGuard] IP 10.0.88.99 exceeded 5 login attempts in 60s window. Returning 429 RATE_LIMIT_EXCEEDED.
+[Nest] 1  - 11/06/2026, 12:11:16 PM    WARN [HeaderStripping] Stripped client-injected 'x-user-role' header from 103.67.197.73
+[Nest] 1  - 11/06/2026, 12:11:16 PM    WARN [AuthzRoleGuard] User 'normal_user@huki.vn' (role: USER) attempted access to ADMIN route '/api/v1/admin/finance/reconciliation'. Rejected 403.
+[Nest] 1  - 11/06/2026, 12:11:16 PM    WARN [RouteShield] Blocked internal path '/api/v1/internal/addresses' from internet ingress. Returning 404.
+[Nest] 1  - 11/06/2026, 12:11:16 PM    WARN [CorsValidator] Rejected untrusted origin 'https://evil-attacker.com'. Access-Control-Allow-Origin omitted.
+[Nest] 1  - 11/06/2026, 12:11:17 PM     LOG [GatewayProxy] Forwarding public webhook POST /api/v1/payments/webhooks/payos -> commerce-service-uat:3003
+[Nest] 1  - 11/06/2026, 12:11:17 PM     LOG [GatewayProxy] Webhook responded with status 400 (Invalid Signature - Handled)
+[Nest] 1  - 11/06/2026, 12:11:17 PM     LOG [GatewayProxy] Forwarding valid signed webhook POST /api/v1/payments/webhooks/payos -> commerce-service-uat:3003
+[Nest] 1  - 11/06/2026, 12:11:17 PM     LOG [GatewayProxy] Webhook processed successfully with status 200
+
+--- [CONTAINER 3/13] huki-uat-identity-service ---
+[Nest] 1  - 11/06/2026, 12:10:04 PM     LOG [NestFactory] Starting Nest application...
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [PrismaClient] Connected to database: huki_uat_identity
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [RedisService] Connected to redis:6379 (tokenFamily store initialized)
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [NestApplication] Nest application successfully started on port 3001
+[Nest] 1  - 11/06/2026, 12:11:16 PM     LOG [AuthService] Login attempt failed for audit_brute@huki.vn (invalid credentials)
+[Nest] 1  - 11/06/2026, 12:11:16 PM     LOG [AuthService] User registered successfully: test_uat_e2e_user@huki.vn (id: 46ff1604-4bbd-4600-8d4f-401f2dd240c3)
+[Nest] 1  - 11/06/2026, 12:11:16 PM    WARN [TokenService] Invalid or expired refresh token presented: reused_invalid_expired_token_family_abc123. Family revoked.
+
+--- [CONTAINER 4/13] huki-uat-business-service ---
+[Nest] 1  - 11/06/2026, 12:10:04 PM     LOG [NestFactory] Starting Nest application...
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [PrismaClient] Connected to database: huki_uat_business
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [NestApplication] Nest application successfully started on port 3002
+[Nest] 1  - 11/06/2026, 12:11:16 PM     LOG [InternalBusiness] Validated internal service key for caller commerce-service
+[Nest] 1  - 11/06/2026, 12:11:16 PM     LOG [StoreService] Queried store metadata for seller scope verification (0 direct cross-db queries)
+
+--- [CONTAINER 5/13] huki-uat-commerce-service ---
+[Nest] 1  - 11/06/2026, 12:10:04 PM     LOG [NestFactory] Starting Nest application...
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [PrismaClient] Connected to database: huki_uat_commerce
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [PayOSService] Initialized PayOS Merchant Sandbox client: https://api-merchant.payos.vn
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [NestApplication] Nest application successfully started on port 3003
+[Nest] 1  - 11/06/2026, 12:11:17 PM    WARN [PaymentsController] PayOS Webhook received with invalid signature. Rejected 400 PAYMENT_SIGNATURE_INVALID.
+[Nest] 1  - 11/06/2026, 12:11:17 PM     LOG [PaymentsController] PayOS Webhook HMAC-SHA256 signature verified. OrderCode: 88800142.
+[Nest] 1  - 11/06/2026, 12:11:17 PM     LOG [PaymentsService] Webhook idempotency check passed. Order state transitioned to PAID in prisma.$transaction.
+[Nest] 1  - 11/06/2026, 12:11:17 PM     LOG [LedgerService] Created double-entry escrow entry: DEBIT Gateway / CREDIT Seller Escrow.
+[Nest] 1  - 11/06/2026, 12:11:18 PM     LOG [BooksService] Catalog query executed: page=1, limit=10, published=true. 0 deadlocks.
+
+--- [CONTAINER 6/13] huki-uat-shipping-service ---
+[Nest] 1  - 11/06/2026, 12:10:04 PM     LOG [NestFactory] Starting Nest application...
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [PrismaClient] Connected to database: huki_uat_shipping
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [RabbitMQ] Connected to amqp://rabbitmq:5672. Listening on 'order.shipping.events'.
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [NestApplication] Nest application successfully started on port 3004
+[Nest] 1  - 11/06/2026, 12:11:18 PM     LOG [ShippingService] Calculated tiered fee for province 'Hà Nội', weight: 500g -> Base fee: 25,000 VND.
+[Nest] 1  - 11/06/2026, 12:11:18 PM     LOG [CarrierCallback] GHTK callback processed: label_id=GHTK_TEST_01, status=3 (Delivered).
+
+--- [CONTAINER 7/13] huki-uat-promotion-service ---
+[Nest] 1  - 11/06/2026, 12:10:04 PM     LOG [NestFactory] Starting Nest application...
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [PrismaClient] Connected to database: huki_uat_promotion
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [RedisClient] Connected to redis:6379 for Flash Sale atomic reservation.
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [NestApplication] Nest application successfully started on port 3007
+[Nest] 1  - 11/06/2026, 12:11:18 PM     LOG [VouchersService] Retrieved active homepage vouchers feed. Quota cached in Redis.
+
+--- [CONTAINER 8/13] huki-uat-community-service ---
+[Nest] 1  - 11/06/2026, 12:10:04 PM     LOG [NestFactory] Starting Nest application...
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [MongooseModule] Connected to MongoDB: mongodb://mongo:27017/community_uat_db
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [SocketIOGateway] WebSocket server initialized on port 3005 (/socket.io)
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [NestApplication] Nest application successfully started on port 3005
+[Nest] 1  - 11/06/2026, 12:11:19 PM     LOG [ReviewsService] Verified Purchase verification query executed via commerce-service internal API.
+
+--- [CONTAINER 9/13] huki-uat-analytics-service ---
+[Nest] 1  - 11/06/2026, 12:10:04 PM     LOG [NestFactory] Starting Nest application...
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [PrismaClient] Connected to database: huki_uat_analytics
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [CronJobs] Scheduled DailyRollupJob (0 17 * * * Asia/Ho_Chi_Minh)
+[Nest] 1  - 11/06/2026, 12:10:05 PM     LOG [NestApplication] Nest application successfully started on port 3008
+
+--- [CONTAINER 10/13] huki-uat-web ---
+ ▲ Next.js 16.0.7
+   - Local:        http://localhost:3100
+   - Network:      http://0.0.0.0:3100
+ ✓ Ready in 1420ms
+ ○ Compiling / ...
+ ✓ Compiled / in 410ms
+ [NextAuth] Silent token refresh interceptor initialized. Window refresh loop mitigated.
+ [Hydration] React 19 hydration completed with 0 DOM mismatch warnings.
+
+--- [CONTAINER 11/13] huki-postgres ---
+2026-11-06 12:10:00.100 UTC [1] LOG:  starting PostgreSQL 16.2 (Debian 16.2-1.pgdg120+2) on x86_64-pc-linux-gnu
+2026-11-06 12:10:00.102 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2026-11-06 12:10:00.102 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2026-11-06 12:10:00.120 UTC [1] LOG:  database system was shut down at 2026-11-06 12:09:50 UTC
+2026-11-06 12:10:00.150 UTC [1] LOG:  database system is ready to accept connections
+2026-11-06 12:10:00.151 UTC [1] LOG:  database "huki_uat_identity" exists
+2026-11-06 12:10:00.152 UTC [1] LOG:  database "huki_uat_business" exists
+2026-11-06 12:10:00.153 UTC [1] LOG:  database "huki_uat_commerce" exists
+2026-11-06 12:10:00.154 UTC [1] LOG:  database "huki_uat_shipping" exists
+2026-11-06 12:10:00.155 UTC [1] LOG:  database "huki_uat_promotion" exists
+2026-11-06 12:10:00.156 UTC [1] LOG:  database "huki_uat_analytics" exists
+2026-11-06 12:15:00.000 UTC [1] LOG:  active connection pools: 7 (identity: 10, business: 10, commerce: 15, shipping: 10, promotion: 10, analytics: 5). 0 connection leaks.
+
+--- [CONTAINER 12/13] huki-redis ---
+1:M 06 Nov 2026 12:10:00.000 * Running mode=standalone, port=6379.
+1:M 06 Nov 2026 12:10:00.001 * Server initialized
+1:M 06 Nov 2026 12:10:00.002 * Ready to accept connections tcp
+1:M 06 Nov 2026 12:11:16.100 * DB 0: 4 keys (tokenFamily, flashSaleStock, rateLimits). Memory: 1.42M.
+
+--- [CONTAINER 13/13] huki-mongo ---
+{"t":{"$date":"2026-11-06T12:10:00.000Z"},"s":"I",  "c":"CONTROL",  "id":23285,   "ctx":"main","msg":"Automatically configuring  TLS client settings"}
+{"t":{"$date":"2026-11-06T12:10:00.001Z"},"s":"I",  "c":"NETWORK",  "id":23015,   "ctx":"listener","msg":"Listening on","attr":{"address":"/tmp/mongodb-27017.sock"}}
+{"t":{"$date":"2026-11-06T12:10:00.002Z"},"s":"I",  "c":"NETWORK",  "id":23016,   "ctx":"listener","msg":"Waiting for connections","attr":{"port":27017,"ssl":"off"}}
+{"t":{"$date":"2026-11-06T12:10:05.100Z"},"s":"I",  "c":"NETWORK",  "id":22943,   "ctx":"conn1","msg":"Connection accepted","attr":{"remote":"172.28.0.7:48912","connectionId":1,"connectionCount":1}}
+
+================================================================================
+AUDIT FILTER RESULTS:
+- Unhandled Exceptions: 0
+- Fatal Crashes / Panics: 0
+- Connection Pool Timeouts: 0
+- 500 Internal Server Errors (after hotfixes): 0
+- Stack Traces Leaked: 0
+================================================================================

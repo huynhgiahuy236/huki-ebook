@@ -20,7 +20,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-RUN npm run build
+RUN npm run build && rm -rf .next/cache && npm prune --production --legacy-peer-deps
 
 # Stage 3: Runner
 FROM node:20-alpine AS runner
