@@ -384,13 +384,7 @@ export class BooksService implements OnModuleInit {
           { ownerUserId: bizVal },
           { publisherId: bizVal },
         );
-        if (bizVal === '1079fc76-a467-48a9-8034-b072aaa5afea') {
-          storeOrConditions.push({ storeId: '3094e54e-2549-42cc-92fb-14a8f8589277' });
-        } else if (bizVal === 'dede6cd4-454d-4e66-b0cd-ef18337fd25b') {
-          storeOrConditions.push({ storeId: '51c48059-37be-46a2-b4a6-04a8365f8cbd' });
-        } else if (bizVal === '2fe4493b-08a0-45a3-86cc-093e43ce119e') {
-          storeOrConditions.push({ storeId: 'store-002-nhanam-books' }, { storeId: '840daf2f-0f39-4a11-8bf3-f0cd2f64d9f1' });
-        }
+
       } else {
         const normSlug = bizVal.toLowerCase().replace(/-(official|store|shop)$/, '');
         storeOrConditions.push(
@@ -520,44 +514,37 @@ export class BooksService implements OnModuleInit {
     const conditions: any[] = [];
 
     if (!scope.isPlatformAdmin) {
-      const orConditions: any[] = [];
-      if (scope.storeIds.length > 0) {
-        orConditions.push({ storeId: { in: scope.storeIds } });
-      }
-      if (scope.businessIds.length > 0) {
-        orConditions.push({ storeId: { in: scope.businessIds } });
-      }
-      if (scope.ownerUserIds.length > 0) {
-        orConditions.push({ ownerUserId: { in: scope.ownerUserIds } });
-      }
-      if (actor.sub) {
-        orConditions.push({ ownerUserId: actor.sub });
-      }
-
+      // COM-LED-001: Strict intersection check against caller's authorized seller scope
       if (query.business || query.store) {
         const target = (query.business || query.store) as string;
-        orConditions.push({ storeId: target });
-        if (target === '1079fc76-a467-48a9-8034-b072aaa5afea') {
-          orConditions.push({ storeId: '3094e54e-2549-42cc-92fb-14a8f8589277' });
-        } else if (target === 'dede6cd4-454d-4e66-b0cd-ef18337fd25b') {
-          orConditions.push({ storeId: '51c48059-37be-46a2-b4a6-04a8365f8cbd' });
-        } else if (target === '2fe4493b-08a0-45a3-86cc-093e43ce119e') {
-          orConditions.push({ storeId: 'store-002-nhanam-books' }, { storeId: '840daf2f-0f39-4a11-8bf3-f0cd2f64d9f1' });
-        }
-      }
+        const isAuthorized =
+          scope.storeIds.includes(target) ||
+          scope.businessIds.includes(target);
 
-      if (orConditions.length === 0) {
-        return paginate([], 0, query.page, query.limit);
+        if (!isAuthorized) {
+          throwForbidden(ErrorCode.AUTHZ_NOT_OWNER, 'Bạn không có quyền quản lý gian hàng này');
+        }
+        conditions.push({ storeId: target });
+      } else {
+        const allowedStoreIds = Array.from(new Set([...scope.storeIds, ...scope.businessIds]));
+        const ownerUserIds = Array.from(new Set([...scope.ownerUserIds, ...(actor.sub ? [actor.sub] : [])]));
+
+        if (allowedStoreIds.length === 0 && ownerUserIds.length === 0) {
+          return paginate([], 0, query.page, query.limit);
+        }
+
+        const orFilters: any[] = [];
+        if (allowedStoreIds.length > 0) {
+          orFilters.push({ storeId: { in: allowedStoreIds } });
+        }
+        if (ownerUserIds.length > 0) {
+          orFilters.push({ ownerUserId: { in: ownerUserIds } });
+        }
+        conditions.push({ OR: orFilters });
       }
-      conditions.push({ OR: orConditions });
     } else if (query.business || query.store) {
       const target = (query.business || query.store) as string;
-      conditions.push({
-        OR: [
-          { storeId: target },
-          { storeId: { in: [query.business, query.store].filter(Boolean) as string[] } },
-        ],
-      });
+      conditions.push({ storeId: target });
     }
 
     if (query.status && query.status !== 'ALL') conditions.push({ status: query.status });

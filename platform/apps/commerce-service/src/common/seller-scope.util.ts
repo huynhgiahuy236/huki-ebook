@@ -1,32 +1,7 @@
-import { Pool } from 'pg';
 import { BookActor } from './book-auth.guard';
+import { BusinessServiceClient, SellerScope } from './business-service.client';
 
-export interface SellerScope {
-  isPlatformAdmin: boolean;
-  businessIds: string[];
-  storeIds: string[];
-  ownerUserIds: string[];
-}
-
-let poolInstance: Pool | null = null;
-function getBusinessPool(): Pool {
-  if (!poolInstance) {
-    const bizDbUrl =
-      process.env.BUSINESS_DATABASE_URL ||
-      process.env.DATABASE_URL?.replace(/\/[^\/]+$/, '/huki_business') ||
-      'postgresql://postgres:postgres123@localhost:5432/huki_business';
-    poolInstance = new Pool({
-      connectionString: bizDbUrl,
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
-    });
-    poolInstance.on('error', (err) => {
-      console.error('Unexpected error on idle business pg pool client', err);
-    });
-  }
-  return poolInstance;
-}
+export { SellerScope } from './business-service.client';
 
 export async function getSellerScope(actor?: BookActor): Promise<SellerScope> {
   if (!actor || !actor.sub || actor.role === 'PLATFORM_ADMIN') {
@@ -38,75 +13,20 @@ export async function getSellerScope(actor?: BookActor): Promise<SellerScope> {
     };
   }
 
-  const defaultScope: SellerScope = {
-    isPlatformAdmin: false,
-    businessIds: [],
-    storeIds: [],
-    ownerUserIds: [actor.sub],
-  };
-
-  try {
-    const pool = getBusinessPool();
-    const res = await pool.query(
-      `SELECT b.id AS business_id, b.owner_id, s.id AS store_id
-       FROM businesses b
-       LEFT JOIN stores s ON s.business_id = b.id AND s.deleted_at IS NULL
-       WHERE b.deleted_at IS NULL AND (
-         b.owner_id = $1
-         OR b.id IN (
-           SELECT m.business_id FROM members m 
-           WHERE m.user_id = $1 AND m.status = 'ACTIVE' AND m.deleted_at IS NULL
-         )
-       )`,
-      [actor.sub],
-    );
-
-    const businessIds = new Set<string>();
-    const storeIds = new Set<string>();
-    const ownerUserIds = new Set<string>([actor.sub]);
-
-    for (const row of res.rows) {
-      if (row.business_id) {
-        businessIds.add(row.business_id);
-        storeIds.add(row.business_id);
-      }
-      if (row.store_id) {
-        storeIds.add(row.store_id);
-      }
-      if (row.owner_id) {
-        ownerUserIds.add(row.owner_id);
-      }
-    }
-
-    return {
-      isPlatformAdmin: false,
-      businessIds: Array.from(businessIds),
-      storeIds: Array.from(storeIds),
-      ownerUserIds: Array.from(ownerUserIds),
-    };
-  } catch (err) {
-    console.error('getSellerScope error:', err);
-    return defaultScope;
-  }
+  const client = BusinessServiceClient.getInstance();
+  return client.getSellerScope(actor.sub);
 }
 
 export async function resolveStoreAndBusinessIds(targetId: string, actor?: BookActor): Promise<string[]> {
   const ids = new Set<string>([targetId]);
+  const client = BusinessServiceClient.getInstance();
+
   try {
-    const pool = getBusinessPool();
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
     if (isUuid) {
-      const res = await pool.query(
-        `SELECT b.id AS business_id, s.id AS store_id
-         FROM businesses b
-         LEFT JOIN stores s ON s.business_id = b.id AND s.deleted_at IS NULL
-         WHERE b.deleted_at IS NULL AND (b.id = $1 OR s.id = $1)`,
-        [targetId],
-      );
-      for (const row of res.rows) {
-        if (row.business_id) ids.add(row.business_id);
-        if (row.store_id) ids.add(row.store_id);
-      }
+      const resolved = await client.resolveTarget(targetId);
+      resolved.businessIds.forEach((id) => ids.add(id));
+      resolved.storeIds.forEach((id) => ids.add(id));
     }
 
     if (actor && actor.sub && actor.role !== 'PLATFORM_ADMIN') {
@@ -117,5 +37,6 @@ export async function resolveStoreAndBusinessIds(targetId: string, actor?: BookA
   } catch (err) {
     console.error('resolveStoreAndBusinessIds error:', err);
   }
+
   return Array.from(ids);
 }

@@ -45,20 +45,36 @@ export class InventoryReservationService {
         throw new ConflictException(`Sách đã hết hàng hoặc không đủ số lượng (Book ${item.bookId})`);
       }
 
-      // Layer 2: PostgreSQL reservation update
-      await tx.physicalBookDetails.update({
-        where: { bookId: item.bookId },
-        data: { reserved: { increment: item.quantity } },
-      });
+      // Layer 2: PostgreSQL reservation update with Atomic Conditional Update (COM-INV-001)
+      const updatedCount = await tx.$executeRaw`
+        UPDATE physical_book_details
+        SET reserved = reserved + ${item.quantity},
+            updated_at = NOW()
+        WHERE book_id = ${item.bookId}
+          AND physical_enabled = true
+          AND (stock - reserved) >= ${item.quantity}
+      `;
 
-      // Create reservation record
-      await tx.inventoryReservation.create({
-        data: {
+      if (updatedCount === 0) {
+        // Rollback Redis reservation
+        await this.redisService.releaseStockAtomic(item.bookId, item.quantity);
+        throw new ConflictException(`Sách đã hết hàng hoặc không đủ số lượng khả dụng (Book ${item.bookId})`);
+      }
+
+      // Create or reactivate reservation record (Upsert avoids 409 unique constraint on orderItemId - COM-ORD-001)
+      await tx.inventoryReservation.upsert({
+        where: { orderItemId: item.id },
+        create: {
           orderId,
           orderItemId: item.id,
           bookId: item.bookId,
           quantity: item.quantity,
           status: 'ACTIVE',
+        },
+        update: {
+          status: 'ACTIVE',
+          releasedAt: null,
+          quantity: item.quantity,
         },
       });
 
@@ -192,7 +208,7 @@ export class InventoryReservationService {
 
       // Synchronize available stock to Redis
       const available = Math.max(0, updated.stock - updated.reserved);
-      await this.redisService.syncStock(reservation.bookId, available);
+      await this.redisService.forceSyncStock(reservation.bookId, available);
 
       // Update reservation status
       await tx.inventoryReservation.update({
@@ -312,7 +328,7 @@ export class InventoryReservationService {
     }
 
     const available = Math.max(0, details.stock - actualReserved);
-    await this.redisService.syncStock(bookId, available);
+    await this.redisService.forceSyncStock(bookId, available);
 
     return {
       bookId,
@@ -324,4 +340,3 @@ export class InventoryReservationService {
     };
   }
 }
-
