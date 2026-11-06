@@ -120,3 +120,4 @@ Tài liệu này xác nhận việc khởi tạo workspace, tách nhánh cô l�
 4. Hạ tầng PostgreSQL, Redis, RabbitMQ trên Local đang hoạt động ổn định và chứa sẵn 76 bản ghi người dùng thực tế.
 
 Workspace đã hoàn toàn sẵn sàng để bước vào **Task 4 - Deep Audit 6 trục** cho `identity-service`.
+
