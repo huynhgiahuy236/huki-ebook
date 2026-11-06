@@ -29,9 +29,8 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
 
   const port = process.env.PROMOTION_SERVICE_PORT || 3007;
-  await app.listen(port);
-  console.log(`🚀 Promotion Service running on: http://localhost:${port}`);
+  await app.listen(port, '0.0.0.0');
+  console.log(`🚀 Promotion Service running on: http://0.0.0.0:${port}`);
 }
 
 bootstrap();
-

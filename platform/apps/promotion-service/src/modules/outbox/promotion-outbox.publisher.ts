@@ -94,6 +94,8 @@ export class PromotionOutboxPublisher
           );
         }
       }
+    } catch (err: any) {
+      this.logger.error('Failed to poll or process outbox events: ' + (err?.message || String(err)));
     } finally {
       this.publishing = false;
     }
