@@ -217,7 +217,7 @@ services:
       dockerfile: Dockerfile
     container_name: huki-uat-shipping-service
     restart: unless-stopped
-    command: ["sh", "-c", "npx prisma migrate deploy --schema=apps/shipping-service/prisma/schema.prisma || true && node dist/out-tsc/shipping-service/apps/shipping-service/src/main.js"]
+    command: ["node", "dist/out-tsc/shipping-service/apps/shipping-service/src/main.js"]
     environment:
       PORT: 3004
       SHIPPING_SERVICE_PORT: 3004
@@ -277,7 +277,7 @@ services:
       dockerfile: Dockerfile
     container_name: huki-uat-promotion-service
     restart: unless-stopped
-    command: ["sh", "-c", "npx prisma migrate deploy --schema=apps/promotion-service/prisma/schema.prisma || true && node dist/out-tsc/promotion-service/apps/promotion-service/src/main.js"]
+    command: ["node", "dist/out-tsc/promotion-service/apps/promotion-service/src/main.js"]
     environment:
       PORT: 3007
       PROMOTION_SERVICE_PORT: 3007
@@ -371,7 +371,7 @@ services:
     container_name: huki-uat-nginx
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "127.0.0.1:8088:80"
     volumes:
       - ./docker/nginx/uat-nginx.conf:/etc/nginx/conf.d/default.conf:ro
     healthcheck:
