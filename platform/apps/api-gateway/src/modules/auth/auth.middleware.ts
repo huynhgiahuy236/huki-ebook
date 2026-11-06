@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import * as jwt from 'jsonwebtoken';
@@ -21,6 +22,34 @@ export interface AuthenticatedRequest extends Request {
 @Injectable()
 export class AuthMiddleware implements NestMiddleware {
   async use(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    // 1. Strip denylist spoofed identity & internal keys from incoming client headers immediately
+    for (const key of Object.keys(req.headers)) {
+      const lower = key.toLowerCase();
+      if (
+        lower.startsWith('x-user-') ||
+        lower.startsWith('x-internal-') ||
+        lower === 'x-internal-service' ||
+        lower === 'x-business-id' ||
+        lower === 'x-store-id' ||
+        lower === 'x-roles'
+      ) {
+        delete req.headers[key];
+      }
+    }
+
+    // 2. Propagate or generate correlation ID early
+    const correlationId =
+      (req.headers['x-correlation-id'] as string) ||
+      (req.headers['x-request-id'] as string) ||
+      randomUUID();
+    req.headers['x-correlation-id'] = correlationId;
+    req.headers['x-request-id'] = correlationId;
+    (req as any).id = correlationId;
+    if (!res.headersSent) {
+      res.setHeader('x-correlation-id', correlationId);
+      res.setHeader('x-request-id', correlationId);
+    }
+
     let token: string | undefined;
     const authHeader = req.headers.authorization;
 

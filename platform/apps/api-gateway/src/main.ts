@@ -24,6 +24,14 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, options);
   app.enableShutdownHooks();
 
+  // Normalize incoming URL to prevent double slash routing bypass (RFC 3986 normalization)
+  app.use((req: any, _res: any, next: any) => {
+    if (req.url && req.url.includes('//')) {
+      req.url = req.url.replace(/\/+/g, '/');
+    }
+    next();
+  });
+
   // Increase body size limit to allow PDF/image/video evidence uploads
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
@@ -297,10 +305,27 @@ Most endpoints require JWT Bearer token authentication.
     if (req.url && req.url.startsWith('/socket.io')) {
       const communityHost = process.env.COMMUNITY_SERVICE_HOST || 'localhost';
       const communityPort = parseInt(process.env.COMMUNITY_SERVICE_PORT || '3005', 10);
+
+      // Clean headers for WebSocket connection: strip untrusted spoofed headers
+      const cleanHeaders = { ...req.headers };
+      for (const key of Object.keys(cleanHeaders)) {
+        const lower = key.toLowerCase();
+        if (
+          lower.startsWith('x-user-') ||
+          lower.startsWith('x-internal-') ||
+          lower === 'x-internal-service' ||
+          lower === 'x-business-id' ||
+          lower === 'x-store-id' ||
+          lower === 'x-roles'
+        ) {
+          delete cleanHeaders[key];
+        }
+      }
+
       const proxySocket = net.connect(communityPort, communityHost, () => {
         proxySocket.write(
           `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n` +
-          Object.entries(req.headers)
+          Object.entries(cleanHeaders)
             .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
             .join('\r\n') +
           '\r\n\r\n'
@@ -314,6 +339,8 @@ Most endpoints require JWT Bearer token authentication.
       socket.on('error', () => {
         proxySocket.destroy();
       });
+    } else {
+      socket.destroy();
     }
   });
 

@@ -5,6 +5,8 @@ import { randomUUID } from 'node:crypto';
 import { Request, Response, NextFunction } from 'express';
 import {
   classifyRoute,
+  isInternalRoute,
+  isPaymentWebhookRoute,
   ADMIN_ROLES,
   SELLER_ROLES,
 } from './route-classification';
@@ -99,6 +101,17 @@ export class ServiceProxyMiddleware implements NestMiddleware {
   }
 
   use(req: Request, res: Response, next: NextFunction) {
+    // 0. Ingress Hard Shielding: Block any attempt to access internal service-to-service endpoints
+    if (isInternalRoute(req.originalUrl)) {
+      return this.sendGatewayError(
+        res,
+        req,
+        404,
+        'SYSTEM_ERROR',
+        `Cannot ${req.method} ${req.originalUrl}`,
+      );
+    }
+
     // Nest strips the matched route from req.path for wildcard middleware.
     // originalUrl retains the client path, including the global /api/v1 prefix.
     const service = this.resolveService(req.originalUrl);
@@ -109,14 +122,13 @@ export class ServiceProxyMiddleware implements NestMiddleware {
       const clientIp = this.getClientIp(req);
       if (this.isRateLimited(clientIp, 5, 60_000)) {
         res.setHeader('Retry-After', '60');
-        return res.status(429).json({
-          status: 'error',
-          statusCode: 429,
-          code: 'RATE_LIMIT_EXCEEDED',
-          message: 'Bạn đã thử đăng nhập quá nhiều lần. Vui lòng thử lại sau 60 giây.',
-          timestamp: new Date().toISOString(),
-          path: req.originalUrl,
-        });
+        return this.sendGatewayError(
+          res,
+          req,
+          429,
+          'RATE_LIMIT_EXCEEDED',
+          'Bạn đã thử đăng nhập quá nhiều lần. Vui lòng thử lại sau 60 giây.',
+        );
       }
     }
 
@@ -155,7 +167,9 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     } else if (tier === 'PUBLIC') {
       // If the client explicitly sent an invalid/expired Bearer token to a public route,
       // return 401 so the client can trigger refresh instead of proceeding with an ambiguous session.
-      if (authError && req.headers.authorization) {
+      // EXEMPTION: Payment & logistics webhooks must NOT be blocked by token verification failures!
+      const isWebhook = isPaymentWebhookRoute(req.originalUrl);
+      if (!isWebhook && authError && req.headers.authorization) {
         return this.sendUnauthorized(res, req, authError.code, authError.message);
       }
     }
@@ -182,7 +196,7 @@ export class ServiceProxyMiddleware implements NestMiddleware {
           host,
           port,
           method: req.method,
-          path: req.originalUrl,
+          path: req.originalUrl.replace(/\/+/g, '/'),
           headers,
           timeout: this.timeoutMs,
         },
@@ -225,16 +239,15 @@ export class ServiceProxyMiddleware implements NestMiddleware {
         this.logger.warn(
           `Proxy ${req.method} ${req.originalUrl} to ${service} failed after ${attempt} attempt(s): ${error.message}`,
         );
-        res.status(statusCode).json({
-          status: 'error',
+        return this.sendGatewayError(
+          res,
+          req,
           statusCode,
-          code: 'SYSTEM_UNAVAILABLE',
-          message: timedOut
+          'SYSTEM_UNAVAILABLE',
+          timedOut
             ? `Service ${service} timed out`
             : `Service ${service} is unavailable`,
-          timestamp: new Date().toISOString(),
-          path: req.originalUrl,
-        });
+        );
       });
 
       if (body) {
@@ -251,26 +264,44 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     proxy(1);
   }
 
-  private sendUnauthorized(res: Response, req: Request, code: string, message: string) {
-    res.status(401).json({
+  private getOrCreateCorrelationId(req?: Request, res?: Response, headers?: IncomingHttpHeaders): string {
+    const reqHeaders = req?.headers || headers || {};
+    const correlationId =
+      (reqHeaders['x-correlation-id'] as string) ||
+      (reqHeaders['x-request-id'] as string) ||
+      (res && !res.headersSent ? (res.getHeader('x-correlation-id') as string) : null) ||
+      randomUUID();
+    return correlationId;
+  }
+
+  private sendGatewayError(
+    res: Response,
+    req: Request,
+    statusCode: number,
+    code: string,
+    message: string,
+  ) {
+    const correlationId = this.getOrCreateCorrelationId(req, res);
+    if (!res.headersSent) {
+      res.setHeader('x-correlation-id', correlationId);
+    }
+    return res.status(statusCode).json({
       status: 'error',
-      statusCode: 401,
+      statusCode,
       code,
       message,
-      timestamp: new Date().toISOString(),
       path: req.originalUrl,
+      requestId: correlationId,
+      timestamp: new Date().toISOString(),
     });
   }
 
+  private sendUnauthorized(res: Response, req: Request, code: string, message: string) {
+    return this.sendGatewayError(res, req, 401, code, message);
+  }
+
   private sendForbidden(res: Response, req: Request, code: string, message: string) {
-    res.status(403).json({
-      status: 'error',
-      statusCode: 403,
-      code,
-      message,
-      timestamp: new Date().toISOString(),
-      path: req.originalUrl,
-    });
+    return this.sendGatewayError(res, req, 403, code, message);
   }
 
   private scheduleRetry(
@@ -293,15 +324,16 @@ export class ServiceProxyMiddleware implements NestMiddleware {
       return 'community';
     }
 
-    // Match first segment
-    const match = path.match(/^\/(?:api\/v1\/)?([^/?]+)/);
+    const cleanPath = path.replace(/\/+/g, '/');
+    // Match first segment (case-insensitive)
+    const match = cleanPath.match(/^\/(?:api\/v1\/)?([^/?]+)/i);
     if (!match) return undefined;
 
-    const firstSegment = match[1];
+    const firstSegment = match[1].toLowerCase();
 
     // Check for nested paths: /{first}/{id}/{second} or /{first}/{second}
-    const nestedMatch = path.match(/^\/(?:api\/v1\/)?[^/]+\/[^/?]+\/([^/?]+)/);
-    const secondNestedSegment = nestedMatch ? nestedMatch[1] : null;
+    const nestedMatch = cleanPath.match(/^\/(?:api\/v1\/)?[^/]+\/[^/?]+\/([^/?]+)/i);
+    const secondNestedSegment = nestedMatch ? nestedMatch[1].toLowerCase() : null;
 
     // Route /books/:id/reviews → community
     if (secondNestedSegment === 'reviews') {
@@ -328,8 +360,6 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     if (firstSegment === 'reviews') {
       return 'community';
     }
-
-    // Route /seller/vouchers/* or /seller/discounts/* → promotion
 
     // Route /seller/feature-flags or /seller/features → business
     if (firstSegment === 'seller' && (path.includes('/seller/feature-flags') || path.includes('/seller/features'))) {
@@ -378,14 +408,15 @@ export class ServiceProxyMiddleware implements NestMiddleware {
       }
     }
 
-    // 1. Strip all incoming identity headers from untrusted client
+    // 1. Strip all incoming identity & internal service headers from untrusted client
     for (const key of Object.keys(forwarded)) {
       const lower = key.toLowerCase();
       if (
         lower.startsWith('x-user-') ||
+        lower.startsWith('x-internal-') ||
+        lower === 'x-internal-service' ||
         lower === 'x-business-id' ||
         lower === 'x-store-id' ||
-        lower === 'x-internal-service' ||
         lower === 'x-roles'
       ) {
         delete forwarded[key];
@@ -393,10 +424,7 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     }
 
     // 2. Propagate or generate correlation ID
-    const correlationId =
-      (headers['x-correlation-id'] as string) ||
-      (headers['x-request-id'] as string) ||
-      randomUUID();
+    const correlationId = this.getOrCreateCorrelationId(req, res, headers);
     forwarded['x-correlation-id'] = correlationId;
     if (res && !res.headersSent) {
       res.setHeader('x-correlation-id', correlationId);

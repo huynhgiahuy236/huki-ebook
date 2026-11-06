@@ -13,11 +13,50 @@ export const SELLER_ROLES = new Set([
 
 /**
  * Strips global prefix (/api/v1) and query strings to get a normalized path.
+ * Normalizes trailing slashes, duplicate slashes, and case-insensitivity.
  */
 export function normalizePath(originalUrl: string): string {
   const pathWithoutQuery = originalUrl.split('?')[0];
-  const stripped = pathWithoutQuery.replace(/^\/api\/v1/, '');
-  return stripped.startsWith('/') ? stripped : `/${stripped}`;
+  // 1. Collapse duplicate slashes first
+  const collapsed = pathWithoutQuery.replace(/\/+/g, '/');
+  // 2. Strip /api/v1 prefix (case-insensitive)
+  let stripped = collapsed.replace(/^\/api\/v1/i, '');
+  if (!stripped.startsWith('/')) stripped = '/' + stripped;
+  // 3. Strip trailing slash if longer than 1 character
+  if (stripped.length > 1 && stripped.endsWith('/')) {
+    stripped = stripped.slice(0, -1);
+  }
+  return stripped;
+}
+
+/**
+ * Detects whether a path targets an internal service-to-service endpoint.
+ */
+export function isInternalRoute(originalUrl: string): boolean {
+  const norm = normalizePath(originalUrl).toLowerCase();
+  return (
+    norm === '/internal' ||
+    norm.startsWith('/internal/') ||
+    norm.includes('/internal/') ||
+    norm.endsWith('/internal')
+  );
+}
+
+/**
+ * Detects whether a path is an external payment or logistics webhook endpoint.
+ */
+export function isPaymentWebhookRoute(originalUrl: string): boolean {
+  const norm = normalizePath(originalUrl).toLowerCase();
+  return (
+    norm === '/payments/webhook' ||
+    norm.startsWith('/payments/webhook') ||
+    norm === '/payments/webhooks' ||
+    norm.startsWith('/payments/webhooks/') ||
+    norm === '/callbacks' ||
+    norm.startsWith('/callbacks/') ||
+    norm === '/shipping/callbacks' ||
+    norm.startsWith('/shipping/callbacks/')
+  );
 }
 
 /**
@@ -84,9 +123,14 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
 
   // 3. Webhooks & Callbacks from external payment/logistics providers
   if (
+    normPath === '/callbacks' ||
     normPath.startsWith('/callbacks/') ||
+    normPath === '/shipping/callbacks' ||
     normPath.startsWith('/shipping/callbacks/') ||
-    normPath.startsWith('/payments/webhook')
+    normPath === '/payments/webhook' ||
+    normPath.startsWith('/payments/webhook') ||
+    normPath === '/payments/webhooks' ||
+    normPath.startsWith('/payments/webhooks/')
   ) {
     return 'PUBLIC';
   }
@@ -106,6 +150,7 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
     normPath.startsWith('/wallet/admin') ||
     normPath.startsWith('/payout/admin') ||
     normPath.startsWith('/sanctions') ||
+    ((normPath === '/broadcast-notifications' || normPath.startsWith('/broadcast-notifications')) && upperMethod !== 'GET') ||
     ((normPath.startsWith('/system/maintenance') || normPath.startsWith('/system-maintenance')) && upperMethod !== 'GET')
   ) {
     return 'ADMIN';
