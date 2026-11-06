@@ -1609,7 +1609,7 @@ export default function HomePage() {
                 </div>
 
                 <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between text-gray-500 text-[11px]">
-                  <span className="text-[10px] text-gray-400">
+                  <span className="text-[10px] text-gray-400" suppressHydrationWarning>
                     {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString('vi-VN') : 'Đánh giá đã xác thực'}
                   </span>
                   <Link

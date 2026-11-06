@@ -50,6 +50,20 @@ export async function apiClient<T = unknown>(
     // Handle 401 Unauthorized & Token Refresh
     const hadToken = Boolean(tokenStorage.getAccessToken());
     if (response.status === 401 && hadToken && !skipAuth && !endpoint.includes('/auth/refresh') && !endpoint.includes('/auth/login')) {
+      const tokenSent = headers['Authorization']?.replace('Bearer ', '');
+      const currentStoredToken = tokenStorage.getAccessToken();
+
+      // If another concurrent request has already refreshed the token in the background:
+      if (currentStoredToken && tokenSent && currentStoredToken !== tokenSent) {
+        headers['Authorization'] = `Bearer ${currentStoredToken}`;
+        const retryRes = await fetch(url, {
+          ...restOptions,
+          headers,
+          credentials: restOptions.credentials || 'include',
+        });
+        return await parseResponse<T>(retryRes);
+      }
+
       if (!refreshPromise) {
         refreshPromise = (async () => {
           try {

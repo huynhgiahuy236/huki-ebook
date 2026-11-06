@@ -659,6 +659,7 @@ QUY TẮC BẮT BUỘC KHI GỢI Ý VÀ TƯ VẤN:
           const res = await fetch(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            signal: AbortSignal.timeout(Number(process.env.GEMINI_TIMEOUT_MS || 8000)),
             body: JSON.stringify({
               contents,
               generationConfig: {
