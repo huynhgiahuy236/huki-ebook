@@ -148,6 +148,34 @@ jobs:
             docker exec -i huki-postgres psql -U postgres -d huki_uat_promotion < /root/huki/platform/apps/promotion-service/prisma/migrations/20261105000000_add_voucher_target_audience/migration.sql || true
             docker exec -i huki-postgres psql -U postgres -d huki_uat_promotion < /root/huki/platform/apps/promotion-service/prisma/migrations/20261106000000_add_outbox_audit_saved/migration.sql || true
 
+            echo "=== Resetting Admin lock & ensuring Shipper in huki_uat_identity ==="
+            docker exec huki-postgres psql -U postgres -d huki_uat_identity -c "UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE email = 'admin@huki.com';" || true
+            docker exec huki-postgres psql -U postgres -d huki_uat_identity -c "
+            INSERT INTO users (id, email, password_hash, full_name, role, status, email_verified_at, created_at, updated_at)
+            VALUES (
+              'ship-0000-4000-8000-000000000003',
+              'shipper@huki.com',
+              '\$2b\$10\$S.ESBqpa/9mKYqPOIjyb2.N97.0LEHQ634A1ENLEjYvXFd3pN2ieW',
+              'Nguyễn Văn Giao (Shipper HUKI)',
+              'DELIVERY_STAFF',
+              'ACTIVE',
+              NOW(),
+              NOW(),
+              NOW()
+            )
+            ON CONFLICT (email) DO UPDATE SET
+              password_hash = EXCLUDED.password_hash,
+              role = 'DELIVERY_STAFF',
+              status = 'ACTIVE',
+              failed_login_attempts = 0,
+              locked_until = NULL;
+            " || true
+            docker exec huki-postgres psql -U postgres -d huki_uat_shipping -c "
+            INSERT INTO delivery_staff (id, user_id, name, phone, email, status, current_area, created_at, updated_at)
+            VALUES ('staff-shipper-01', 'ship-0000-4000-8000-000000000003', 'Nguyễn Văn Giao (Shipper HUKI)', '0908889999', 'shipper@huki.com', 'ACTIVE', 'TP. Hồ Chí Minh', NOW(), NOW())
+            ON CONFLICT (user_id) DO UPDATE SET status = 'ACTIVE';
+            " || true
+
             echo "=== [3/5] Pulling latest pre-built images from Docker Hub ==="
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin || true
             docker pull "${{ secrets.DOCKERHUB_USERNAME }}/huki-platform:uat"
