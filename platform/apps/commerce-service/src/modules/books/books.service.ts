@@ -96,7 +96,7 @@ export const REAL_EBOOK_MAPPINGS: Record<string, string> = {
 };
 import { PrismaService } from '../../prisma/prisma.service';
 import { BookActor } from '../../common/book-auth.guard';
-import { getSellerScope } from '../../common/seller-scope.util';
+import { getSellerScope, resolveStoreAndBusinessIds } from '../../common/seller-scope.util';
 import { normalizeCatalogText, toCatalogSlug } from '../../common/catalog-text.util';
 import { paginate } from '../../common/pagination.util';
 import { CreateBookDto } from './dto/create-book.dto';
@@ -523,7 +523,10 @@ export class BooksService implements OnModuleInit {
         if (!isAuthorized) {
           throwForbidden(ErrorCode.AUTHZ_NOT_OWNER, 'Bạn không có quyền quản lý gian hàng này');
         }
-        conditions.push({ storeId: target });
+        const resolvedIds = await resolveStoreAndBusinessIds(target, actor);
+        const candidateIds = Array.from(new Set([target, ...resolvedIds]));
+        const allowed = candidateIds.filter(id => scope.storeIds.includes(id) || scope.businessIds.includes(id));
+        conditions.push({ storeId: { in: allowed.length > 0 ? allowed : [target] } });
       } else {
         const allowedStoreIds = Array.from(new Set([...scope.storeIds, ...scope.businessIds]));
         const ownerUserIds = Array.from(new Set([...scope.ownerUserIds, ...(actor.sub ? [actor.sub] : [])]));
@@ -543,7 +546,9 @@ export class BooksService implements OnModuleInit {
       }
     } else if (query.business || query.store) {
       const target = (query.business || query.store) as string;
-      conditions.push({ storeId: target });
+      const resolvedIds = await resolveStoreAndBusinessIds(target, actor);
+      const candidateIds = Array.from(new Set([target, ...resolvedIds]));
+      conditions.push({ storeId: { in: candidateIds } });
     }
 
     if (query.status && query.status !== 'ALL') conditions.push({ status: query.status });
