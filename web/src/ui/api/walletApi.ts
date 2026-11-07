@@ -168,12 +168,12 @@ export const walletApi = {
   },
 
   /**
-   * Task 75: Setup initial 6-digit withdrawal PIN
+   * Task 75: Setup initial 6-digit withdrawal PIN (Supports allowUpdate in setup onboarding)
    */
-  setupPin: async (storeId: string, pin: string): Promise<ApiResponse<{ message: string; hasPin: boolean }>> => {
+  setupPin: async (storeId: string, pin: string, allowUpdate?: boolean): Promise<ApiResponse<{ message: string; hasPin: boolean }>> => {
     return apiClient<{ message: string; hasPin: boolean }>(`/wallet/store/${encodeURIComponent(storeId)}/security/pin/setup`, {
       method: 'POST',
-      body: JSON.stringify({ storeId, pin }),
+      body: JSON.stringify({ storeId, pin, allowUpdate }),
     });
   },
 

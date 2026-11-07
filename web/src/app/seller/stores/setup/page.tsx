@@ -219,6 +219,12 @@ export default function SellerSetupStorePage() {
   };
 
   const validateStep3 = () => {
+    // Nếu gian hàng đã có PIN và để trống cả 2 ô -> xem như giữ nguyên PIN hiện tại
+    if (hasPinConfigured && !pinForm.pin && !pinForm.confirmPin) {
+      setPinErrors({});
+      return true;
+    }
+
     const errors: Record<string, string> = {};
     if (!pinForm.pin) {
       errors.pin = 'Vui lòng nhập Mã PIN rút tiền (6 chữ số).';
@@ -324,16 +330,25 @@ export default function SellerSetupStorePage() {
 
   // Step 3: Save PIN
   const handleSaveStep3 = async () => {
+    // Nếu gian hàng đã có mã PIN và người dùng không nhập mã PIN mới -> Giữ nguyên mã PIN và tiếp tục
+    if (hasPinConfigured && !pinForm.pin && !pinForm.confirmPin) {
+      showToast('Đã giữ nguyên Mã PIN bảo mật hiện tại!', 'success');
+      setCurrentStep(4);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     if (!validateStep3()) return;
 
     setSavingStep(true);
     try {
       const storeId = currentStore?.id || stores[0]?.id;
       if (storeId) {
-        const res = await walletApi.setupPin(storeId, pinForm.pin);
+        // Truyền allowUpdate: true để cho phép đổi/cập nhật đè mã PIN mới ngay tại giao diện thiết lập gian hàng
+        const res = await walletApi.setupPin(storeId, pinForm.pin, true);
         if (res.success || res.data) {
           setHasPinConfigured(true);
-          showToast('Thiết lập Mã PIN 6 số an toàn thành công!', 'success');
+          showToast(hasPinConfigured ? 'Cập nhật Mã PIN 6 số an toàn thành công!' : 'Thiết lập Mã PIN 6 số an toàn thành công!', 'success');
           setCurrentStep(4);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         } else {
@@ -982,7 +997,7 @@ export default function SellerSetupStorePage() {
                       <span>Đang lưu...</span>
                     </>
                   ) : (
-                    <span>{hasPinConfigured && !wantsToChangePin ? 'Giữ nguyên Mã PIN & Tiếp tục →' : hasPinConfigured ? 'Cập nhật Mã PIN & Tiếp tục →' : 'Lưu & Xem lại Tổng quan →'}</span>
+                    <span>{hasPinConfigured && !pinForm.pin ? 'Giữ nguyên Mã PIN & Tiếp tục →' : hasPinConfigured ? 'Cập nhật Mã PIN & Tiếp tục →' : 'Lưu & Xem lại Tổng quan →'}</span>
                   )}
                 </button>
               </div>

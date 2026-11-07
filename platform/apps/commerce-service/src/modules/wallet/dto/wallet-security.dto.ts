@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, Matches, IsEnum } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, Matches, IsEnum, IsBoolean } from 'class-validator';
 
 export enum Security2FAPurpose {
   WALLET_WITHDRAWAL = 'WALLET_WITHDRAWAL',
@@ -24,6 +24,14 @@ export class SetupPinDto {
   @IsNotEmpty()
   @Matches(/^\d{6}$/, { message: 'Mã PIN phải bao gồm chính xác 6 chữ số' })
   pin: string;
+
+  @ApiPropertyOptional({
+    description: 'Cho phép cập nhật đè mã PIN trong luồng hoàn tất thiết lập gian hàng (Onboarding)',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  allowUpdate?: boolean;
 }
 
 export class VerifyPinDto {

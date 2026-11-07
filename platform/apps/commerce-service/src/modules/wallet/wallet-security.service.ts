@@ -216,7 +216,7 @@ export class WalletSecurityService {
 
     const { wallet, security } = await this.getOrCreateWalletSecurity(dto.storeId);
 
-    if (security.pinHash) {
+    if (security.pinHash && !dto.allowUpdate) {
       throw new BadRequestException('Mã PIN đã được thiết lập. Vui lòng sử dụng chức năng đổi mã PIN hoặc đặt lại mã PIN.');
     }
 
@@ -228,7 +228,7 @@ export class WalletSecurityService {
         pinHash,
         failedAttempts: 0,
         lockedUntil: null,
-        pinSetAt: new Date(),
+        pinSetAt: security.pinSetAt || new Date(),
         pinUpdatedAt: new Date(),
       },
     });
@@ -236,13 +236,13 @@ export class WalletSecurityService {
     await this.recordAuditLog({
       storeId: dto.storeId,
       walletId: wallet.id,
-      eventType: 'PIN_SET',
+      eventType: security.pinHash ? 'PIN_RESET' : 'PIN_SET',
       actor,
       meta,
     });
 
     return {
-      message: 'Thiết lập mã PIN giao dịch thành công.',
+      message: security.pinHash ? 'Cập nhật mã PIN giao dịch thành công.' : 'Thiết lập mã PIN giao dịch thành công.',
       hasPin: true,
     };
   }
