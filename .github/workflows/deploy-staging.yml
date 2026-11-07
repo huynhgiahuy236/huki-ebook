@@ -148,115 +148,6 @@ jobs:
             docker exec -i huki-postgres psql -U postgres -d huki_uat_promotion < /root/huki/platform/apps/promotion-service/prisma/migrations/20261105000000_add_voucher_target_audience/migration.sql || true
             docker exec -i huki-postgres psql -U postgres -d huki_uat_promotion < /root/huki/platform/apps/promotion-service/prisma/migrations/20261106000000_add_outbox_audit_saved/migration.sql || true
 
-            echo "=== Ensuring All Personas (Admin, Buyer, Seller, Shipper, Affiliate) in UAT Databases ==="
-            # 1. Platform Admin
-            docker exec huki-postgres psql -U postgres -d huki_uat_identity -c "
-            UPDATE users SET
-              password_hash = '\$2b\$10\$3.001gBlBckzv1qwvJnYceUA0HR.bq4F8BitNqAgpQJn.18YdzHA2',
-              role = 'PLATFORM_ADMIN',
-              status = 'ACTIVE',
-              failed_login_attempts = 0,
-              locked_until = NULL
-            WHERE email = 'admin@huki.com';
-            " || true
-
-            # 2. Buyer (Customer)
-            docker exec huki-postgres psql -U postgres -d huki_uat_identity -c "
-            INSERT INTO users (id, email, password_hash, full_name, role, status, email_verified_at, created_at, updated_at)
-            VALUES (
-              'usr0-0000-4000-8000-000000000001',
-              'user@huki.com',
-              '\$2b\$10\$dCdBeQfdlNrBzY54SCvJlOnLb2nmgmjIhQ6VKY9BX9BVUhcywHKd.',
-              'Nguyễn Văn An (Test Buyer)',
-              'USER',
-              'ACTIVE',
-              NOW(),
-              NOW(),
-              NOW()
-            )
-            ON CONFLICT (email) DO UPDATE SET
-              password_hash = EXCLUDED.password_hash,
-              role = 'USER',
-              status = 'ACTIVE',
-              failed_login_attempts = 0,
-              locked_until = NULL;
-            " || true
-
-            # 3. Seller (Business Owner)
-            docker exec huki-postgres psql -U postgres -d huki_uat_identity -c "
-            INSERT INTO users (id, email, password_hash, full_name, role, status, email_verified_at, created_at, updated_at)
-            VALUES (
-              'biz0-0000-4000-8000-000000000002',
-              'business@huki.com',
-              '\$2b\$10\$NaWzVxF1mnKkhaswyxfNTe/UGi39vJb.iEStyGcGvy.vMAtlchb0u',
-              'Alpha Books Official (Test Business)',
-              'BUSINESS',
-              'ACTIVE',
-              NOW(),
-              NOW(),
-              NOW()
-            )
-            ON CONFLICT (email) DO UPDATE SET
-              password_hash = EXCLUDED.password_hash,
-              role = 'BUSINESS',
-              status = 'ACTIVE',
-              failed_login_attempts = 0,
-              locked_until = NULL;
-            " || true
-
-            # 4. Shipper (Delivery Staff)
-            docker exec huki-postgres psql -U postgres -d huki_uat_identity -c "
-            INSERT INTO users (id, email, password_hash, full_name, role, status, email_verified_at, created_at, updated_at)
-            VALUES (
-              'ship-0000-4000-8000-000000000003',
-              'shipper@huki.com',
-              '\$2b\$10\$Sa1J5hTAqN5.PX9PG75IR.ClAgV3VJnDgXOCTeNvoftZED8Vi18lG',
-              'Nguyễn Văn Giao (Shipper HUKI)',
-              'DELIVERY_STAFF',
-              'ACTIVE',
-              NOW(),
-              NOW(),
-              NOW()
-            )
-            ON CONFLICT (email) DO UPDATE SET
-              password_hash = EXCLUDED.password_hash,
-              role = 'DELIVERY_STAFF',
-              status = 'ACTIVE',
-              failed_login_attempts = 0,
-              locked_until = NULL;
-            " || true
-            docker exec huki-postgres psql -U postgres -d huki_uat_shipping -c "
-            INSERT INTO delivery_staff (id, user_id, name, phone, email, status, current_area, created_at, updated_at)
-            VALUES ('staff-shipper-01', 'ship-0000-4000-8000-000000000003', 'Nguyễn Văn Giao (Shipper HUKI)', '0908889999', 'shipper@huki.com', 'ACTIVE', 'TP. Hồ Chí Minh', NOW(), NOW())
-            ON CONFLICT (user_id) DO UPDATE SET status = 'ACTIVE';
-            " || true
-
-            # 5. Affiliate Partner (CTV)
-            docker exec huki-postgres psql -U postgres -d huki_uat_identity -c "
-            INSERT INTO users (id, email, password_hash, full_name, role, status, email_verified_at, created_at, updated_at)
-            VALUES (
-              'aff0-0000-4000-8000-000000000004',
-              'affiliate@huki.com',
-              '\$2b\$10\$L7/9PwmX0JVu/Oahi13CfuaVpsbEyjF6rmDFaKuT77/3pNMd42KBq',
-              'Trần Review Sách (Top KOC)',
-              'USER',
-              'ACTIVE',
-              NOW(),
-              NOW(),
-              NOW()
-            )
-            ON CONFLICT (email) DO UPDATE SET
-              password_hash = EXCLUDED.password_hash,
-              status = 'ACTIVE',
-              failed_login_attempts = 0,
-              locked_until = NULL;
-            " || true
-            docker exec huki-postgres psql -U postgres -d huki_uat_commerce -c "
-            INSERT INTO affiliate_profiles (id, user_id, affiliate_code, display_name, contact_email, applicant_type, promotion_description, status, version, created_at, updated_at)
-            VALUES ('aff-profile-01', 'aff0-0000-4000-8000-000000000004', 'HUKI_KOC_2026', 'Trần Review Sách (Top KOC)', 'affiliate@huki.com', 'INDIVIDUAL', 'Review sách và tạo link tiếp thị', 'ACTIVE', 1, NOW(), NOW())
-            ON CONFLICT (user_id) DO UPDATE SET status = 'ACTIVE';
-            " || true
-
             echo "=== [3/5] Pulling latest pre-built images from Docker Hub ==="
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin || true
             docker pull "${{ secrets.DOCKERHUB_USERNAME }}/huki-platform:uat"
@@ -304,6 +195,11 @@ jobs:
               -e DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/huki_uat_analytics?schema=public" \
               "${{ secrets.DOCKERHUB_USERNAME }}/huki-platform:uat" \
               npx prisma db push --schema=apps/analytics-service/prisma/schema.prisma --skip-generate --accept-data-loss || echo "Analytics prisma push completed"
+
+            echo "=== Bootstrapping All Personas (Admin, Buyer, Seller, Shipper, Affiliate) in UAT Databases ==="
+            docker exec -i huki-postgres psql -U postgres -d huki_uat_identity < /root/huki/platform/apps/identity-service/prisma/bootstrap-uat-personas.sql || true
+            docker exec -i huki-postgres psql -U postgres -d huki_uat_shipping < /root/huki/platform/apps/shipping-service/prisma/bootstrap-uat-shipping.sql || true
+            docker exec -i huki-postgres psql -U postgres -d huki_uat_commerce < /root/huki/platform/apps/commerce-service/prisma/bootstrap-uat-affiliate.sql || true
 
             echo "=== [4/5] Starting UAT services ==="
             docker compose -f docker-compose.uat.yml up -d --remove-orphans
