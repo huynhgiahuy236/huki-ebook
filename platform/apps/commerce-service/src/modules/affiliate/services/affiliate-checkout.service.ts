@@ -63,7 +63,7 @@ export class AffiliateCheckoutService {
     const cleanToken = tokenOrNonce.trim();
     const tokenHash = crypto.createHash('sha256').update(cleanToken).digest('hex');
 
-    const attribution = await client.affiliateAttribution.findFirst({
+    let attribution = await client.affiliateAttribution.findFirst({
       where: {
         OR: [
           { cookieTokenHash: tokenHash },
@@ -75,6 +75,89 @@ export class AffiliateCheckoutService {
         profile: true,
       },
     });
+
+    if (!attribution && client.affiliateLink?.findFirst) {
+      // 1. Fallback: match by shortCode (e.g. from huki_aff_code cookie or direct referral link)
+      const linkByShortCode = await client.affiliateLink.findFirst({
+        where: {
+          shortCode: cleanToken.toLowerCase(),
+          isActive: true,
+        },
+        include: { profile: true },
+      });
+
+      if (linkByShortCode) {
+        attribution = await client.affiliateAttribution.findFirst({
+          where: {
+            linkId: linkByShortCode.id,
+            expiresAt: { gte: new Date() },
+          },
+          orderBy: { createdAt: 'desc' },
+          include: {
+            link: true,
+            profile: true,
+          },
+        });
+
+        if (!attribution && client.affiliateAttribution?.create) {
+          const newNonce = crypto.randomUUID();
+          const dummyToken = crypto.randomBytes(32).toString('hex');
+          const dummyHash = crypto.createHash('sha256').update(dummyToken).digest('hex');
+          attribution = await client.affiliateAttribution.create({
+            data: {
+              linkId: linkByShortCode.id,
+              profileId: linkByShortCode.profileId,
+              sessionNonce: newNonce,
+              cookieTokenHash: dummyHash,
+              targetUrl: linkByShortCode.originalUrl,
+              expiresAt: new Date(Date.now() + 30 * 86400 * 1000),
+              buyerUserId: buyerUserId || null,
+            },
+            include: {
+              link: true,
+              profile: true,
+            },
+          });
+        }
+      } else if (client.affiliateProfile?.findFirst) {
+        // 2. Fallback: match by affiliateCode
+        const profileByCode = await client.affiliateProfile.findFirst({
+          where: {
+            affiliateCode: cleanToken.toUpperCase(),
+            status: 'ACTIVE',
+          },
+        });
+
+        if (profileByCode && client.affiliateLink?.findFirst) {
+          const anyLink = await client.affiliateLink.findFirst({
+            where: { profileId: profileByCode.id, isActive: true },
+            orderBy: { createdAt: 'desc' },
+            include: { profile: true },
+          });
+
+          if (anyLink && client.affiliateAttribution?.create) {
+            const newNonce = crypto.randomUUID();
+            const dummyToken = crypto.randomBytes(32).toString('hex');
+            const dummyHash = crypto.createHash('sha256').update(dummyToken).digest('hex');
+            attribution = await client.affiliateAttribution.create({
+              data: {
+                linkId: anyLink.id,
+                profileId: profileByCode.id,
+                sessionNonce: newNonce,
+                cookieTokenHash: dummyHash,
+                targetUrl: anyLink.originalUrl,
+                expiresAt: new Date(Date.now() + 30 * 86400 * 1000),
+                buyerUserId: buyerUserId || null,
+              },
+              include: {
+                link: true,
+                profile: true,
+              },
+            });
+          }
+        }
+      }
+    }
 
     if (!attribution) {
       return null;
@@ -139,7 +222,11 @@ export class AffiliateCheckoutService {
     for (const item of params.items) {
       // 1. Line-item attribution scope check
       if (link.targetType === 'BOOK' && link.targetBookId && link.targetBookId !== item.bookId) {
-        continue;
+        if (link.targetStoreId && link.targetStoreId === item.storeId) {
+          // Attributed via store scope when buying from same shop
+        } else {
+          continue;
+        }
       }
       if (link.targetType === 'STORE' && link.targetStoreId && link.targetStoreId !== item.storeId) {
         continue;

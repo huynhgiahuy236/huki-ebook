@@ -167,6 +167,7 @@ export const checkoutApi = {
       method: 'POST',
       headers: {
         'idempotency-key': key,
+        ...(affToken ? { 'x-affiliate-token': affToken } : {}),
       },
       body: JSON.stringify({
         ...payload,

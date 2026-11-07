@@ -4,7 +4,7 @@ import { ConfigService } from "@nestjs/config";
 import { randomBytes, randomUUID } from "crypto";
 import { PrismaService } from "../../prisma/prisma.service";
 import { BookActor } from "../../common/book-auth.guard";
-import { getSellerScope } from "../../common/seller-scope.util";
+import { getSellerScope, resolveStoreAndBusinessIds } from "../../common/seller-scope.util";
 import { CancelOrderDto, ShipOrderDto } from "./dto/checkout.dto";
 import {
   CreateDisputeDto,
@@ -112,26 +112,27 @@ export class OrdersService {
 
       const targetStore = query.store || (query as any).business;
       if (targetStore) {
-        if (
-          !scope.storeIds.includes(targetStore) &&
-          !scope.businessIds.includes(targetStore)
-        ) {
+        const resolvedIds = await resolveStoreAndBusinessIds(targetStore, actor);
+        const candidateIds = Array.from(new Set([targetStore, ...resolvedIds]));
+
+        const isAllowed = candidateIds.some(
+          (id) => scope.storeIds.includes(id) || scope.businessIds.includes(id)
+        );
+
+        if (!isAllowed) {
           return {
             data: [],
             items: [],
             pagination: this.pagination(query.page, query.limit, 0),
           };
         }
-        
-        // If targetStore is a businessId, match all child stores or owner's orders
-        if (scope.businessIds.includes(targetStore)) {
-          where.OR = [
-            { storeId: { in: scope.storeIds } },
-            { ownerUserId: { in: scope.ownerUserIds } },
-          ];
-        } else {
-          where.storeId = targetStore;
-        }
+
+        const matchedStoreIds = candidateIds.filter((id) => scope.storeIds.includes(id));
+
+        where.OR = [
+          { storeId: { in: matchedStoreIds.length > 0 ? matchedStoreIds : candidateIds } },
+          { ownerUserId: { in: scope.ownerUserIds } },
+        ];
       } else {
         where.OR = [
           { storeId: { in: scope.storeIds } },
@@ -140,13 +141,15 @@ export class OrdersService {
       }
     } else if (query.store || (query as any).business) {
       const targetStore = query.store || (query as any).business;
+      const resolvedIds = await resolveStoreAndBusinessIds(targetStore, actor);
+      const storeIds = Array.from(new Set([targetStore, ...resolvedIds]));
       if (scope.storeIds.length > 0) {
         where.OR = [
-          { storeId: targetStore },
+          { storeId: { in: storeIds } },
           { storeId: { in: scope.storeIds } },
         ];
       } else {
-        where.storeId = targetStore;
+        where.storeId = { in: storeIds };
       }
     }
 
