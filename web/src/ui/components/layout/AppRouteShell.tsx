@@ -15,11 +15,21 @@ export default function AppRouteShell({ children }: AppRouteShellProps) {
   const pathname = usePathname() || '';
   const router = useRouter();
   const { user, isLoggedIn, isLoading } = useAuth();
-  const [maintenanceState, setMaintenanceState] = useState(() => ({
-    isActive: maintenanceService.isMaintenanceActive(),
-    isDrain: maintenanceService.isUnderGracefulDrain(),
-    drainSec: maintenanceService.getRemainingDrainSeconds(),
-  }));
+  const [hasMounted, setHasMounted] = useState(false);
+  const [maintenanceState, setMaintenanceState] = useState({
+    isActive: false,
+    isDrain: false,
+    drainSec: 0,
+  });
+
+  useEffect(() => {
+    setHasMounted(true);
+    setMaintenanceState({
+      isActive: maintenanceService.isMaintenanceActive(),
+      isDrain: maintenanceService.isUnderGracefulDrain(),
+      drainSec: maintenanceService.getRemainingDrainSeconds(),
+    });
+  }, []);
 
   // Synchronize maintenance state
   useEffect(() => {
@@ -94,7 +104,7 @@ export default function AppRouteShell({ children }: AppRouteShellProps) {
   // --- ALL HOOKS ABOVE. CONDITIONAL RETURNS BELOW ---
 
   // 1. Full Maintenance Active screen
-  if (maintenanceState.isActive && !isMaintenanceRoute) {
+  if (hasMounted && maintenanceState.isActive && !isMaintenanceRoute) {
     if (!(isAdminRoute && hasAdminBypass)) {
       return (
         <div className="min-h-screen w-full bg-[#031510] text-emerald-100 flex flex-col items-center justify-center p-6 text-center select-none font-sans">
@@ -116,7 +126,7 @@ export default function AppRouteShell({ children }: AppRouteShellProps) {
   }
 
   // 3. Super Admin redirected away from /seller or /shipper
-  if (!isLoading && isLoggedIn && isAdminUser && isForbiddenPortalForAdmin) {
+  if (hasMounted && !isLoading && isLoggedIn && isAdminUser && isForbiddenPortalForAdmin) {
     return (
       <div className="min-h-screen w-full bg-[#003B2B] text-white flex flex-col items-center justify-center p-6 text-center select-none font-sans">
         <div className="w-16 h-16 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center mb-4 shadow-xl">
@@ -141,7 +151,7 @@ export default function AppRouteShell({ children }: AppRouteShellProps) {
   }
 
   // 4. Shipper redirected to /shipper
-  if (!isLoading && isLoggedIn && isShipperUser && !pathname.startsWith('/shipper')) {
+  if (hasMounted && !isLoading && isLoggedIn && isShipperUser && !pathname.startsWith('/shipper')) {
     return (
       <div className="min-h-screen w-full bg-[#003B2B] text-white flex flex-col items-center justify-center p-6 text-center select-none font-sans">
         <div className="w-16 h-16 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center mb-4 shadow-xl">
@@ -177,7 +187,7 @@ export default function AppRouteShell({ children }: AppRouteShellProps) {
   const isMessagesRoute = pathname.startsWith('/account/messages') || pathname.startsWith('/messages');
   const isOnboardingRoute = pathname.startsWith('/onboarding') || pathname.startsWith('/welcome');
 
-  const drainBanner = maintenanceState.isDrain && !isAdminRoute && (
+  const drainBanner = hasMounted && maintenanceState.isDrain && !isAdminRoute && (
     <div className="bg-amber-500 text-slate-950 font-sans px-4 py-2.5 flex items-center justify-between text-xs font-bold sticky top-0 z-[9999] shadow-lg border-b border-amber-600 animate-pulse">
       <div className="flex items-center gap-2">
         <span className="material-symbols-outlined text-base">timer</span>
