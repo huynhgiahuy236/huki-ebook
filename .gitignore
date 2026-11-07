@@ -216,3 +216,19 @@ private/
 # Local storage for Next.js mock route data
 web/.storage/
 .huki_*.json
+
+# ============================================
+# Dev / AI Notes, Reports & Scratchpads
+# ============================================
+/task/
+/tasks/
+/res/
+/reports/
+/.agent/
+
+# ============================================
+# Office Documents & Runtime Logs
+# ============================================
+/ebook/
+*.docx
+uat_runtime_logs.txt
