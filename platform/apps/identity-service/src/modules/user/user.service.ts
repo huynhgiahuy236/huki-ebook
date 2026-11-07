@@ -114,6 +114,7 @@ export class UserService {
     if (params.role && params.role !== 'ALL') {
       if (params.role === 'CUSTOMER') where.role = UserRole.USER;
       else if (params.role === 'SELLER_ADMIN' || params.role === 'SELLER_STAFF') where.role = UserRole.BUSINESS;
+      else if (params.role === 'DELIVERY_STAFF' || params.role === 'SHIPPER') where.role = UserRole.DELIVERY_STAFF;
       else if (params.role === 'PLATFORM_ADMIN') where.role = UserRole.PLATFORM_ADMIN;
     }
 
@@ -198,6 +199,9 @@ export class UserService {
           roleLabel = 'Admin Seller';
           storeName = storeMapByOwner[u.id] || (storeMapByMember[u.id]?.storeName) || 'Nhà Sách HUKI Official';
         }
+      } else if (u.role === UserRole.DELIVERY_STAFF) {
+        roleKey = 'DELIVERY_STAFF';
+        roleLabel = 'Bưu tá (Shipper)';
       } else {
         roleKey = 'CUSTOMER';
         roleLabel = 'Khách hàng';
@@ -299,6 +303,7 @@ export class UserService {
     if (dto.role && user.role !== UserRole.PLATFORM_ADMIN) {
       if (dto.role === 'CUSTOMER') updateData.role = UserRole.USER;
       else if (dto.role === 'SELLER_ADMIN' || dto.role === 'SELLER_STAFF') updateData.role = UserRole.BUSINESS;
+      else if (dto.role === 'DELIVERY_STAFF' || dto.role === 'SHIPPER') updateData.role = UserRole.DELIVERY_STAFF;
     }
 
     if (dto.status && user.role !== UserRole.PLATFORM_ADMIN) {

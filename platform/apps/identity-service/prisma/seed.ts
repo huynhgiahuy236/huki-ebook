@@ -31,6 +31,12 @@ async function main() {
       role: UserRole.BUSINESS,
       status: UserStatus.ACTIVE,
     },
+    {
+      email: process.env.SHIPPER_SEED_EMAIL || 'shipper@huki.com', password: process.env.SHIPPER_INITIAL_PASSWORD || 'Shipper123!',
+      fullName: 'Nguyễn Văn Giao (Shipper HUKI)',
+      role: UserRole.DELIVERY_STAFF,
+      status: UserStatus.ACTIVE,
+    },
   ];
 
   for (const userData of users) {

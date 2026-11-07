@@ -303,8 +303,9 @@ export function AdminAccountsView() {
     const customers = users.filter((u: any) => u.role === 'CUSTOMER').length;
     const sellers = users.filter((u: any) => u.role === 'SELLER_ADMIN').length;
     const staff = users.filter((u: any) => u.role === 'SELLER_STAFF').length;
+    const shippers = users.filter((u: any) => u.role === 'DELIVERY_STAFF' || u.role === 'SHIPPER').length;
     const locked = users.filter((u: any) => u.status === 'LOCKED' || u.status === 'BLOCKED').length;
-    return { total, customers, sellers, staff, locked };
+    return { total, customers, sellers, staff, shippers, locked };
   }, [users]);
 
   const validateNewCustomer = () => {
@@ -492,6 +493,7 @@ export function AdminAccountsView() {
             if (editForm.role === 'PLATFORM_ADMIN') updatedRoleLabel = 'Admin Sàn';
             else if (editForm.role === 'SELLER_ADMIN') updatedRoleLabel = 'Admin Seller';
             else if (editForm.role === 'SELLER_STAFF') updatedRoleLabel = 'Nhân viên';
+            else if (editForm.role === 'DELIVERY_STAFF' || editForm.role === 'SHIPPER') updatedRoleLabel = 'Bưu tá (Shipper)';
 
             return {
               ...u,
@@ -647,6 +649,17 @@ export function AdminAccountsView() {
           {store && (
             <span className="material-symbols-outlined text-[12px] text-blue-500">info</span>
           )}
+        </span>
+      );
+    }
+    if (role === 'DELIVERY_STAFF' || role === 'SHIPPER') {
+      return (
+        <span
+          title="Đội ngũ bưu tá vận chuyển HuKi Express"
+          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 cursor-help transition-all hover:bg-amber-100"
+        >
+          <span className="material-symbols-outlined text-[13px] text-amber-600">two_wheeler</span>
+          <span>Bưu tá (Shipper)</span>
         </span>
       );
     }
@@ -878,6 +891,7 @@ export function AdminAccountsView() {
           filterTabs={[
             { key: 'ALL', label: 'Tất Cả', count: stats.total },
             { key: 'CUSTOMER', label: 'Khách Hàng', count: stats.customers },
+            { key: 'DELIVERY_STAFF', label: 'Bưu Tá (Shipper)', count: stats.shippers },
             { key: 'SELLER_ADMIN', label: 'Admin Seller', count: stats.sellers },
             { key: 'SELLER_STAFF', label: 'Nhân Viên', count: stats.staff },
             { key: 'PLATFORM_ADMIN', label: 'Admin Sàn', count: users.filter(u => u.role === 'PLATFORM_ADMIN').length },
@@ -951,7 +965,7 @@ export function AdminAccountsView() {
                   <span className="text-gray-400">Vai trò:</span>
                   {renderRoleBadge(u)}
                 </div>
-                <div><span className="text-gray-400">Gian hàng liên kết:</span> <strong className="text-gray-800">{u.businessName || u.storeName || 'Không có (Khách mua lẻ)'}</strong></div>
+                <div><span className="text-gray-400">Gian hàng liên kết:</span> <strong className="text-gray-800">{u.role === 'DELIVERY_STAFF' || u.role === 'SHIPPER' ? 'Đội ngũ bưu tá HuKi Express' : (u.businessName || u.storeName || 'Không có (Khách mua lẻ)')}</strong></div>
                 <div><span className="text-gray-400">Trạng thái:</span> <span className={`font-semibold ${u.status === 'ACTIVE' ? 'text-emerald-700' : 'text-rose-700'}`}>{u.status === 'ACTIVE' ? 'Đang hoạt động bình thường' : 'Đang bị khóa truy cập'}</span></div>
                 <div><span className="text-gray-400">Ngày tạo:</span> <span>{u.createdAt ? new Date(u.createdAt).toLocaleString('vi-VN') : 'Mới tạo'}</span></div>
               </div>
@@ -1406,6 +1420,7 @@ export function AdminAccountsView() {
                   className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:border-[#00875A] focus:bg-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <option value="CUSTOMER">Khách hàng (CUSTOMER)</option>
+                  <option value="DELIVERY_STAFF">Bưu tá / Shipper (DELIVERY_STAFF)</option>
                   <option value="SELLER_ADMIN">Admin Seller (Chủ shop)</option>
                   <option value="SELLER_STAFF">Nhân viên gian hàng (SELLER_STAFF)</option>
                   {editingUser.role === 'PLATFORM_ADMIN' && <option value="PLATFORM_ADMIN">Admin Sàn</option>}
