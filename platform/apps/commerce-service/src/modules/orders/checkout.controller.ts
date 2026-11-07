@@ -68,9 +68,15 @@ export class CheckoutController {
       if (headerAffiliateToken) {
         dto.affiliateToken = headerAffiliateToken;
       } else if (rawCookies) {
-        const match = rawCookies.split('; ').find((row) => row.startsWith('huki_aff_click='));
-        if (match) {
-          dto.affiliateToken = match.split('=')[1];
+        const cookiePairs = rawCookies.split(';').map((c) => c.trim());
+        const clickMatch = cookiePairs.find((row) => row.startsWith('huki_aff_click='));
+        if (clickMatch) {
+          dto.affiliateToken = decodeURIComponent(clickMatch.substring('huki_aff_click='.length));
+        } else {
+          const codeMatch = cookiePairs.find((row) => row.startsWith('huki_aff_code='));
+          if (codeMatch) {
+            dto.affiliateToken = decodeURIComponent(codeMatch.substring('huki_aff_code='.length));
+          }
         }
       }
     }

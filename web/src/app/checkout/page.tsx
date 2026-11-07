@@ -1167,6 +1167,34 @@ export default function CheckoutPage() {
             ? crypto.randomUUID()
             : `idemp-${Date.now()}`;
         const isOnline = paymentMethod === "ONLINE_PAYMENT";
+
+        let affToken: string | undefined = undefined;
+        if (typeof window !== "undefined") {
+          try {
+            affToken =
+              localStorage.getItem("huki_aff_click") ||
+              localStorage.getItem("huki_aff_code") ||
+              undefined;
+          } catch {}
+          if (!affToken && typeof document !== "undefined") {
+            const match = document.cookie
+              .split(";")
+              .map((c) => c.trim())
+              .find((row) => row.startsWith("huki_aff_click="));
+            if (match) {
+              affToken = decodeURIComponent(match.substring("huki_aff_click=".length));
+            } else {
+              const codeMatch = document.cookie
+                .split(";")
+                .map((c) => c.trim())
+                .find((row) => row.startsWith("huki_aff_code="));
+              if (codeMatch) {
+                affToken = decodeURIComponent(codeMatch.substring("huki_aff_code=".length));
+              }
+            }
+          }
+        }
+
         const confirmRes = await checkoutApi.confirmCheckout(
           {
             sessionId: currentSessionId,
@@ -1177,6 +1205,7 @@ export default function CheckoutPage() {
             storeVoucherCodes:
               Object.keys(storeVoucherCodes).length > 0 ? storeVoucherCodes : undefined,
             shippingVoucherCode: appliedShippingVoucher?.code,
+            affiliateToken: affToken,
           },
           idempotencyKey
         );
