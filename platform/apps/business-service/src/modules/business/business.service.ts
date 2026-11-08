@@ -176,10 +176,12 @@ export class BusinessService {
       throwNotFound(ErrorCode.BUSINESS_NOT_FOUND);
     }
 
-    const latestApprovedRequest = await (this.prisma as any).businessUpdateRequest.findFirst({
-      where: { businessId: business.id, status: 'APPROVED' },
-      orderBy: { reviewedAt: 'desc' },
-    });
+    const latestApprovedRequest = (this.prisma as any).businessUpdateRequest?.findFirst
+      ? await (this.prisma as any).businessUpdateRequest.findFirst({
+          where: { businessId: business.id, status: 'APPROVED' },
+          orderBy: { reviewedAt: 'desc' },
+        })
+      : null;
     const extData = (latestApprovedRequest?.requestedData as Record<string, any>) || {};
 
     return {
@@ -202,10 +204,12 @@ export class BusinessService {
     });
 
     if (business) {
-      const latestApprovedRequest = await (this.prisma as any).businessUpdateRequest.findFirst({
-        where: { businessId: business.id, status: 'APPROVED' },
-        orderBy: { reviewedAt: 'desc' },
-      });
+      const latestApprovedRequest = (this.prisma as any).businessUpdateRequest?.findFirst
+        ? await (this.prisma as any).businessUpdateRequest.findFirst({
+            where: { businessId: business.id, status: 'APPROVED' },
+            orderBy: { reviewedAt: 'desc' },
+          })
+        : null;
       const extData = (latestApprovedRequest?.requestedData as Record<string, any>) || {};
 
       return {
