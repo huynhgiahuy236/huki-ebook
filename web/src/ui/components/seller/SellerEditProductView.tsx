@@ -257,6 +257,33 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
         book = KNOWN_BOOKS[bookId] || Object.values(KNOWN_BOOKS).find(b => b.id === bookId || (bookId && b.title.toLowerCase().includes(bookId.toLowerCase())));
       }
 
+      let currentCategories = categories;
+      let currentAuthors = authors;
+      let currentPublishers = publishers;
+
+      // Ensure master data is available before mapping book metadata
+      if (currentCategories.length === 0 || currentAuthors.length === 0 || currentPublishers.length === 0) {
+        try {
+          const [catRes, authRes, pubRes] = await Promise.all([
+            catalogApi.getCategories(),
+            catalogApi.getAuthors(),
+            catalogApi.getPublishers(),
+          ]);
+          if (catRes.success && Array.isArray(catRes.data)) {
+            currentCategories = catRes.data;
+            setCategories(catRes.data);
+          }
+          if (authRes.success && Array.isArray(authRes.data)) {
+            currentAuthors = authRes.data;
+            setAuthors(authRes.data);
+          }
+          if (pubRes.success && Array.isArray(pubRes.data)) {
+            currentPublishers = pubRes.data;
+            setPublishers(pubRes.data);
+          }
+        } catch {}
+      }
+
       if (book) {
         const fmt = (book.format as BookFormat) || 'PHYSICAL';
 
@@ -266,7 +293,7 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
         let authorIdVal = book.authorId || (typeof rawAuthor === 'object' ? rawAuthor?.id : '') || '';
 
         // Match in authors list
-        const matchedAuthor = authors.find(a => (authorIdVal && a.id === authorIdVal) || a.name.toLowerCase() === authorNameStr.toLowerCase());
+        const matchedAuthor = currentAuthors.find(a => (authorIdVal && a.id === authorIdVal) || a.name.toLowerCase() === authorNameStr.toLowerCase());
         if (matchedAuthor) {
           authorIdVal = matchedAuthor.id;
         } else if (authorNameStr) {
@@ -281,7 +308,7 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
         let categoryIdVal = book.categoryId || (typeof rawCategory === 'object' ? rawCategory?.id : '') || '';
 
         // Match in categories list
-        const matchedCategory = categories.find(c => (categoryIdVal && c.id === categoryIdVal) || c.name.toLowerCase() === categoryNameStr.toLowerCase());
+        const matchedCategory = currentCategories.find(c => (categoryIdVal && c.id === categoryIdVal) || c.name.toLowerCase() === categoryNameStr.toLowerCase());
         if (matchedCategory) {
           categoryIdVal = matchedCategory.id;
         } else if (categoryNameStr) {
@@ -295,7 +322,7 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
         const publisherNameStr = (typeof rawPublisher === 'string' ? rawPublisher : rawPublisher?.name || book.publisherName || '').trim() || (book.title?.includes('Đắc Nhân Tâm') ? 'NXB Tổng Hợp TP.HCM' : (currentBizName || 'HUKI EBOOK'));
         let publisherIdVal = book.publisherId || (typeof rawPublisher === 'object' ? rawPublisher?.id : '') || '';
 
-        const matchedPublisher = publishers.find(p => (publisherIdVal && p.id === publisherIdVal) || p.name.toLowerCase() === publisherNameStr.toLowerCase());
+        const matchedPublisher = currentPublishers.find(p => (publisherIdVal && p.id === publisherIdVal) || p.name.toLowerCase() === publisherNameStr.toLowerCase());
         if (matchedPublisher) {
           publisherIdVal = matchedPublisher.id;
           setPublisherMode('PARTNER');
@@ -320,9 +347,19 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
         const descVal = book.description || 'Đắc Nhân Tâm là cuốn sách đầu tiên và hay nhất của mọi thời đại về nghệ thuật đối nhân xử thế, đem lại thành công và hạnh phúc cho hàng triệu độc giả trên toàn thế giới.';
         const teaserVal = book.teaser || (descVal.length > 140 ? descVal.slice(0, 140) + '...' : descVal);
 
-        // 6. Tags
-        const tagsVal = Array.isArray(book.tags) && book.tags.length > 0 ? book.tags : ['DacNhanTam', 'KyNangSong', 'PhatTrienBanThan', 'SachKinhDien'];
-        setTags(tagsVal);
+        // 6. Tags: Extract from book if present, or generate sensible clean tags based on book title/category, never hardcode DacNhanTam
+        let tagsVal: string[] = [];
+        if (Array.isArray(book.tags) && book.tags.length > 0) {
+          tagsVal = book.tags;
+        } else if (book.title) {
+          tagsVal = book.title
+            .replace(/[^\p{L}\p{N}\s]/gu, '')
+            .split(/\s+/)
+            .filter((w: string) => w.length > 2)
+            .slice(0, 4)
+            .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1));
+        }
+        setTags(tagsVal.length > 0 ? tagsVal : ['SachHay', 'TriThuc']);
 
         // 7. Pricing
         const basePrice = book.price ? String(book.price) : '98000';

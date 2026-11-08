@@ -370,8 +370,7 @@ function MessengerContent() {
           !newMsg.senderId ||
           newMsg.senderId === user?.id ||
           newMsg.senderId === (user as any)?._id ||
-          newMsg.senderId === (user as any)?.sub ||
-          activeChannelData?.type === 'store'
+          newMsg.senderId === (user as any)?.sub
         );
 
       if (!isMe) {

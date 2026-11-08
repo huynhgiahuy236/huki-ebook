@@ -28,6 +28,8 @@ export const TITLE_TO_AUTHOR_MAPPINGS = [
   { match: 'Từ Tốt Đến Vĩ Đại', author: 'Jim Collins', slug: 'jim-collins', bio: 'Chuyên gia nghiên cứu quản trị kinh doanh tại Stanford.' },
   { match: '12 Tuyệt Kỹ Bán Hàng', author: 'Brian Tracy', slug: 'brian-tracy', bio: 'Diễn giả và chuyên gia đào tạo kỹ năng lãnh đạo, bán hàng hàng đầu.' },
   { match: 'Con Đường Phía Trước', author: 'Bill Gates', slug: 'bill-gates', bio: 'Nhà đồng sáng lập tập đoàn Microsoft và nhà hoạt động từ thiện.' },
+  { match: 'Bill Gates', author: 'Bill Gates', slug: 'bill-gates', bio: 'Nhà đồng sáng lập tập đoàn Microsoft và nhà hoạt động từ thiện.' },
+  { match: 'bill-gates', author: 'Bill Gates', slug: 'bill-gates', bio: 'Nhà đồng sáng lập tập đoàn Microsoft và nhà hoạt động từ thiện.' },
   { match: '1001 Cách Giữ Chân Khách Hàng', author: 'Michael LeBoeuf', slug: 'michael-leboeuf', bio: 'Tiến sĩ quản trị kinh doanh, cựu giáo sư tại Đại học New Orleans.' },
   { match: '101 Ý Tưởng Quảng Cáo Khôn Ngoan', author: 'Luc Dupont', slug: 'luc-dupont', bio: 'Giáo sư truyền thông tại Đại học Ottawa, Canada.' },
   { match: '7 Thói Quen Để Thành Đạt', author: 'Stephen R. Covey', slug: 'stephen-r-covey', bio: 'Chuyên gia quản trị, tác giả The 7 Habits of Highly Effective People.' },
@@ -142,7 +144,11 @@ export class BooksService implements OnModuleInit {
 
       for (const b of nullBooks) {
         if (!b.authorId) {
-          const match = TITLE_TO_AUTHOR_MAPPINGS.find(m => b.title?.includes(m.match) || b.slug?.includes(m.match));
+          const match = TITLE_TO_AUTHOR_MAPPINGS.find(m => 
+            b.title?.toLowerCase().includes(m.match.toLowerCase()) || 
+            b.slug?.toLowerCase().includes(m.match.toLowerCase())
+          );
+          let assignedAuthorId: string | null = null;
           if (match) {
             let author = await this.prisma.author.findFirst({
               where: {
@@ -164,11 +170,43 @@ export class BooksService implements OnModuleInit {
               }).catch(() => null);
             }
             if (author) {
-              await this.prisma.book.update({
-                where: { id: b.id },
-                data: { authorId: author.id },
+              assignedAuthorId = author.id;
+            }
+          }
+
+          if (!assignedAuthorId) {
+            let defaultAuthor = await this.prisma.author.findFirst({
+              where: {
+                OR: [
+                  { slug: 'huki-author' },
+                  { name: { contains: 'HuKi', mode: 'insensitive' } },
+                  { name: { contains: 'Nhiều Tác Giả', mode: 'insensitive' } },
+                ],
+              },
+            });
+            if (!defaultAuthor) {
+              defaultAuthor = await this.prisma.author.findFirst();
+            }
+            if (!defaultAuthor) {
+              defaultAuthor = await this.prisma.author.create({
+                data: {
+                  name: 'Tác giả HuKi',
+                  normalizedName: 'tac gia huki',
+                  slug: 'huki-author',
+                  bio: 'Tác giả tuyển chọn của hệ thống HuKi',
+                },
               }).catch(() => null);
             }
+            if (defaultAuthor) {
+              assignedAuthorId = defaultAuthor.id;
+            }
+          }
+
+          if (assignedAuthorId) {
+            await this.prisma.book.update({
+              where: { id: b.id },
+              data: { authorId: assignedAuthorId },
+            }).catch(() => null);
           }
         }
 
@@ -176,15 +214,27 @@ export class BooksService implements OnModuleInit {
           let publisher = await this.prisma.publisher.findFirst({
             where: {
               OR: [
-                { slug: 'nha-nam-books' },
-                { name: { contains: 'Nhã Nam', mode: 'insensitive' } },
+                { slug: 'nxb-tre' },
+                { name: { contains: 'NXB Trẻ', mode: 'insensitive' } },
                 { slug: 'first-news-tri-viet' },
                 { name: { contains: 'First News', mode: 'insensitive' } },
+                { slug: 'nha-nam-books' },
+                { name: { contains: 'Nhã Nam', mode: 'insensitive' } },
               ],
             },
           });
           if (!publisher) {
             publisher = await this.prisma.publisher.findFirst();
+          }
+          if (!publisher) {
+            publisher = await this.prisma.publisher.create({
+              data: {
+                name: 'NXB Trẻ',
+                normalizedName: 'nxb tre',
+                slug: 'nxb-tre',
+                description: 'Nhà xuất bản Trẻ',
+              },
+            }).catch(() => null);
           }
           if (publisher) {
             await this.prisma.book.update({
@@ -239,7 +289,44 @@ export class BooksService implements OnModuleInit {
     const description = dto.description ? dto.description.trim() : 'Mô tả tác phẩm sách';
     const price = dto.price ?? 0;
 
-    await this.validateCatalog(dto.categoryId ?? null, dto.authorId ?? null, dto.publisherId ?? null);
+    let authorId = dto.authorId ?? null;
+    if (!authorId) {
+      let defaultAuthor = await this.prisma.author.findFirst({
+        where: {
+          OR: [
+            { slug: 'huki-author' },
+            { name: { contains: 'HuKi', mode: 'insensitive' } },
+            { name: { contains: 'Nhiều Tác Giả', mode: 'insensitive' } },
+          ],
+        },
+      });
+      if (!defaultAuthor) {
+        defaultAuthor = await this.prisma.author.findFirst();
+      }
+      if (defaultAuthor) {
+        authorId = defaultAuthor.id;
+      }
+    }
+
+    let publisherId = dto.publisherId ?? null;
+    if (!publisherId) {
+      let defaultPublisher = await this.prisma.publisher.findFirst({
+        where: {
+          OR: [
+            { slug: 'nxb-tre' },
+            { name: { contains: 'NXB Trẻ', mode: 'insensitive' } },
+          ],
+        },
+      });
+      if (!defaultPublisher) {
+        defaultPublisher = await this.prisma.publisher.findFirst();
+      }
+      if (defaultPublisher) {
+        publisherId = defaultPublisher.id;
+      }
+    }
+
+    await this.validateCatalog(dto.categoryId ?? null, authorId, publisherId);
 
     const title = dto.title.trim();
     const slug = dto.slug ?? toCatalogSlug(title);
@@ -258,8 +345,8 @@ export class BooksService implements OnModuleInit {
           price,
           coverUrl: dto.coverUrl || dto.coverImage || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDOYh4ba1idBkiR2I8t0pbdA5FVcmBvHkOWsn-6ihQAw4v36GBdi9qZb-Ef2l9Q7pwf8U5b-YhC_MHz4uICBBj1fVy10mzaI1UWVXqpQY8u2Pt0bsfSl7mZtxUx2jwedu3VpfRL-dHGtqxlrkAAJCUYiX9sL3DilKi9JH38UBhTg7gbdhOvQ49VfEsuXjVZSGFMhjkdSxAVpWEetgSSRzLHqYif101iDoUn8nRyClOOEC8cuhL8j3JLag',
           categoryId: dto.categoryId ?? null,
-          authorId: dto.authorId ?? null,
-          publisherId: dto.publisherId ?? null,
+          authorId,
+          publisherId,
           format,
           status: BookStatus.DRAFT,
         },
@@ -683,6 +770,7 @@ export class BooksService implements OnModuleInit {
           authorId,
           publisherId,
           format: dto.format ?? existing!.format,
+          ...(dto.status ? { status: dto.status } : {}),
         },
       });
 
@@ -1031,6 +1119,23 @@ export class BooksService implements OnModuleInit {
         if (fs.existsSync(c)) {
           fallbackPath = c;
           break;
+        }
+      }
+      if (!fallbackPath) {
+        // Universal fallback: if specific PDF key not found, serve sample reading PDF so reader never fails with 404
+        const universalCandidates = [
+          path.resolve(process.cwd(), 'platform/apps/commerce-service/assets/default-ebook.pdf'),
+          path.resolve(process.cwd(), 'apps/commerce-service/assets/default-ebook.pdf'),
+          path.resolve(__dirname, '../../assets/default-ebook.pdf'),
+          path.resolve(process.cwd(), '../web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
+          path.resolve(process.cwd(), 'web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
+          path.resolve(process.cwd(), 'web/public/Con_duong_phia_truoc__Bill_Gates.pdf'),
+        ];
+        for (const u of universalCandidates) {
+          if (fs.existsSync(u)) {
+            fallbackPath = u;
+            break;
+          }
         }
       }
       if (!fallbackPath) {

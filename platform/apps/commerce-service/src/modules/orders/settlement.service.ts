@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  OnApplicationBootstrap,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -67,7 +68,7 @@ export interface SettlementExecutionResult {
 }
 
 @Injectable()
-export class SettlementService {
+export class SettlementService implements OnApplicationBootstrap {
   private readonly logger = new Logger(SettlementService.name);
 
   constructor(
@@ -76,6 +77,15 @@ export class SettlementService {
     private readonly walletService: WalletService,
     private readonly policyConfig: PolicyConfigService,
   ) {}
+
+  onApplicationBootstrap() {
+    this.logger.log('Starting automated escrow settlement worker (interval 60s)...');
+    setInterval(() => {
+      this.settleEligibleOrders().catch((err) => {
+        this.logger.warn(`Automated escrow settlement worker failed: ${err?.message}`);
+      });
+    }, 60_000);
+  }
 
   /**
    * Calculate Platform Commission and Net Seller Proceeds using PolicyConfigService

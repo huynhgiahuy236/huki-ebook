@@ -878,9 +878,19 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
             const uploadRes = await catalogApi.uploadBookFile(bookId, form.ebookFile);
             if (!uploadRes.success) {
               console.warn('Upload ebook file warning:', uploadRes.error);
+              showToast?.(
+                uploadRes.error?.message
+                  ? `Lưu ý tệp Ebook: ${uploadRes.error.message}`
+                  : 'Chưa tải được tệp PDF lên máy chủ lưu trữ. Bạn có thể cập nhật lại tệp trong mục sửa sách.',
+                'warning'
+              );
             }
-          } catch (e) {
+          } catch (e: any) {
             console.warn('Could not upload ebook file', e);
+            showToast?.(
+              `Cảnh báo tệp PDF: ${e?.message || 'Không thể gửi tệp lên máy chủ'}. Hãy kiểm tra kích thước tệp hoặc tải lại sau.`,
+              'warning'
+            );
           }
         }
 

@@ -25,6 +25,8 @@ export interface EscrowTableItem {
   paymentStatus?: string;
   format?: 'PHYSICAL' | 'DIGITAL' | 'BOTH';
   deliveredAt?: string | null;
+  paidAt?: string | null;
+  completedAt?: string | null;
   storeId: string;
   storeName: string;
   customerName: string;
@@ -548,12 +550,18 @@ export function AdminEscrowView() {
         };
       }
 
-      // Ebook kích hoạt từ orderCreatedAt (thanh toán); Sách giấy đã giao kích hoạt từ deliveredAt
+      // Ebook kích hoạt từ paidAt/orderCreatedAt (thanh toán); Sách giấy đã giao kích hoạt từ deliveredAt
       let startMs = 0;
       if (isDigital) {
-        startMs = new Date(item.orderCreatedAt).getTime();
+        startMs = item.paidAt ? new Date(item.paidAt).getTime() : new Date(item.orderCreatedAt).getTime();
       } else {
-        startMs = item.deliveredAt ? new Date(item.deliveredAt).getTime() : new Date(item.orderCreatedAt).getTime();
+        startMs = item.deliveredAt
+          ? new Date(item.deliveredAt).getTime()
+          : item.completedAt
+          ? new Date(item.completedAt).getTime()
+          : item.paidAt
+          ? new Date(item.paidAt).getTime()
+          : new Date(item.orderCreatedAt).getTime();
       }
 
       if (isNaN(startMs) || startMs <= 0) {
@@ -997,7 +1005,7 @@ export function AdminEscrowView() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-theme-border/80 bg-theme-surface overflow-hidden">
+          <div className="rounded-xl border border-theme-border/80 bg-theme-surface">
             <table className="w-full text-left text-xs divide-y divide-theme-border/60">
               <thead className="bg-theme-surface-subtle text-[10.5px] uppercase font-bold text-theme-text-muted tracking-wider">
                 <tr>
@@ -1256,7 +1264,7 @@ export function AdminEscrowView() {
                             </button>
 
                             {openDropdownId === item.id && (
-                              <div className="absolute right-0 mt-1.5 w-52 bg-theme-surface rounded-2xl shadow-xl border border-theme-border z-50 py-1.5 divide-y divide-theme-border text-left animate-in fade-in zoom-in-95 duration-150">
+                              <div className="absolute right-0 bottom-full mb-1.5 sm:bottom-auto sm:top-full sm:mt-1.5 w-52 bg-theme-surface rounded-2xl shadow-xl border border-theme-border z-50 py-1.5 divide-y divide-theme-border text-left animate-in fade-in zoom-in-95 duration-150">
                                 <button
                                   type="button"
                                   onClick={() => handleStatusChange(item.id, 'HOLDING')}

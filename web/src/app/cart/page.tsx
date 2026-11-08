@@ -212,8 +212,9 @@ export default function CartPage() {
             <h1 className="font-editorial text-xl sm:text-2xl font-extrabold text-[var(--theme-text,#1c1b1f)] tracking-tight">Giỏ Hàng</h1>
             <span className="text-xs text-[var(--theme-text-muted,#49454f)] font-medium">({availableItems.length} ấn phẩm · {checkedItemsCount} đã chọn)</span>
           </div>
-          <Link href="/books" className="text-xs font-bold text-[var(--theme-primary,#003B2B)] hover:underline flex items-center gap-1 self-start sm:self-auto group">
-            <span className="material-symbols-outlined text-[15px] transition-transform group-hover:-translate-x-0.5">arrow_back</span>Tiếp tục mua sách
+          <Link href="/books" className="text-xs font-bold text-[var(--theme-primary,#003B2B)] flex items-center gap-1 self-start sm:self-auto group">
+            <span className="material-symbols-outlined text-[15px] transition-transform group-hover:-translate-x-0.5">arrow_back</span>
+            <span className="group-hover:underline">Tiếp tục mua sách</span>
           </Link>
         </div>
 
@@ -276,7 +277,7 @@ export default function CartPage() {
                     </div>
                     <div className="flex items-center gap-2.5">
                       <span className="text-[10.5px] text-[var(--theme-text-muted,#49454f)] font-medium">{(store.items || []).length} món</span>
-                      <Link href={`/shop/${store.id}`} className="text-[10.5px] font-bold text-[var(--theme-primary,#003B2B)] hover:underline flex items-center gap-0.5"><span>Xem Shop</span><span className="material-symbols-outlined text-[13px]">chevron_right</span></Link>
+                      <Link href={`/shop/${store.id}`} className="group text-[10.5px] font-bold text-[var(--theme-primary,#003B2B)] flex items-center gap-0.5"><span className="group-hover:underline">Xem Shop</span><span className="material-symbols-outlined text-[13px]">chevron_right</span></Link>
                     </div>
                   </div>
 

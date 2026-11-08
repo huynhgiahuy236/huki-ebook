@@ -194,6 +194,8 @@ services:
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       DATABASE_NAME: huki_business
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_business?schema=public
+      IDENTITY_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_identity?schema=public
+      BUSINESS_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_business?schema=public
       JWT_SECRET: ${JWT_SECRET:-change-this-in-production-min-32-chars-key}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-in-production-refresh-token-key}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
@@ -370,6 +372,12 @@ services:
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       DATABASE_NAME: huki_promotion
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_promotion?schema=public
+      BUSINESS_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_business?schema=public
+      COMMERCE_SERVICE_URL: http://commerce-service:3003
+      COMMERCE_SERVICE_HOST: commerce-service
+      COMMERCE_SERVICE_PORT: 3003
+      BUSINESS_SERVICE_URL: http://business-service:3002
+      IDENTITY_SERVICE_URL: http://identity-service:3001
       JWT_SECRET: ${JWT_SECRET:-change-this-in-production-min-32-chars-key}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-in-production-refresh-token-key}
       REDIS_HOST: redis

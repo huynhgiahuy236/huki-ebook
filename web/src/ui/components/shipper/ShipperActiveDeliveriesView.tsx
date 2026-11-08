@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useShipper, ShipperOrder } from '@/ui/context/ShipperContext';
 import {
@@ -19,7 +20,9 @@ export default function ShipperActiveDeliveriesView() {
   const { activeDeliveries, confirmPickup, completeDelivery, failDelivery, offlineQueueCount, syncOfflineDeliveries } = useShipper();
 
   const [isNetworkOnline, setIsNetworkOnline] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
+    setIsMounted(true);
     if (typeof window === 'undefined') return;
     setIsNetworkOnline(navigator.onLine);
     const handleOnline = () => setIsNetworkOnline(true);
@@ -70,9 +73,36 @@ export default function ShipperActiveDeliveriesView() {
   const handlePodFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Use HTML5 Canvas to resize and compress image to <250KB, avoiding HTTP 413
     const reader = new FileReader();
-    reader.onload = () => {
-      setPodImagePreview(reader.result as string);
+    reader.onload = (readerEvent) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_DIM = 1200;
+        let width = img.width;
+        let height = img.height;
+        if (width > height && width > MAX_DIM) {
+          height = Math.round((height * MAX_DIM) / width);
+          width = MAX_DIM;
+        } else if (height > MAX_DIM) {
+          width = Math.round((width * MAX_DIM) / height);
+          height = MAX_DIM;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+          setPodImagePreview(compressedDataUrl);
+        } else {
+          setPodImagePreview(readerEvent.target?.result as string);
+        }
+      };
+      img.src = readerEvent.target?.result as string;
     };
     reader.readAsDataURL(file);
   };
@@ -924,7 +954,7 @@ export default function ShipperActiveDeliveriesView() {
       </div>
 
       {/* Modal Báo Giao Thất Bại */}
-      {selectedOrderToFail && (
+      {isMounted && selectedOrderToFail && createPortal(
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white dark:bg-neutral-900 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-neutral-800 space-y-4 animate-in zoom-in-95">
             <div className="flex items-center gap-3 text-rose-600">
@@ -986,7 +1016,8 @@ export default function ShipperActiveDeliveriesView() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Quick Dispatch Modal */}
@@ -1003,7 +1034,7 @@ export default function ShipperActiveDeliveriesView() {
         />
       )}
       {/* Modal Chụp Ảnh Xác Thực Giao Hàng (Proof of Delivery - POD - BUG-04-003) */}
-      {podModalOrder && (
+      {isMounted && podModalOrder && createPortal(
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white dark:bg-neutral-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-neutral-800 space-y-4 animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -1157,7 +1188,8 @@ export default function ShipperActiveDeliveriesView() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

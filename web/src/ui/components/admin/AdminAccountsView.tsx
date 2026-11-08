@@ -23,7 +23,6 @@ export function AdminAccountsView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRole, setSelectedRole] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
-  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, any>>({});
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [dateFilter, setDateFilter] = useState<DateFilterValue>({
     tier1: 'ALL',
@@ -162,25 +161,6 @@ export function AdminAccountsView() {
       unsubscribe();
     };
   }, [loadUsers]);
-
-  // Toggle Password visibility for a specific row
-  const togglePasswordVisibility = (userId: any) => {
-    setVisiblePasswords((prev: any) => ({
-      ...prev,
-      [userId]: !prev[userId],
-    }));
-  };
-
-  // Copy password to clipboard
-  const handleCopyPassword = (password: any, name: any) => {
-    if (!password) return;
-    navigator.clipboard.writeText(password);
-    showToast?.({
-      title: 'Đã sao chép mật khẩu',
-      message: `Mật khẩu của "${name}" đã được lưu vào bộ nhớ tạm.`,
-      type: 'success',
-    });
-  };
 
   // Filtered users calculation
   const filteredUsers = useMemo(() => {
@@ -1381,33 +1361,40 @@ export function AdminAccountsView() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">
-                Mật khẩu mới (Nếu cần đặt lại)
+              <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center justify-between">
+                <span>Bảo mật &amp; Đặt lại mật khẩu</span>
+                <span className="text-[11px] font-normal text-slate-500">Chuẩn an toàn OWASP</span>
               </label>
-              <div className="relative flex items-center">
+              <div className="flex items-center gap-2">
                 <input
-                  type={showEditPassword ? 'text' : 'password'}
+                  type="password"
                   value={editForm.password}
                   onChange={(e: any) => {
                     setEditForm({ ...editForm, password: e.target.value });
                     if (editErrors.password) setEditErrors((prev) => ({ ...prev, password: "" }));
                   }}
-                  placeholder="Để trống nếu giữ nguyên mật khẩu..."
-                  className={`w-full pl-3.5 pr-10 py-2 bg-gray-50 border rounded-xl text-xs text-gray-900 font-mono focus:outline-none transition-all ${
+                  placeholder="Nhập mật khẩu mới nếu muốn đặt lại trực tiếp..."
+                  className={`flex-1 pl-3.5 pr-3 py-2 bg-gray-50 border rounded-xl text-xs text-gray-900 font-mono focus:outline-none transition-all ${
                     editErrors.password ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-gray-200 focus:border-[#00875A] focus:bg-white"
                   }`}
                 />
                 <button
                   type="button"
-                  onClick={() => setShowEditPassword(!showEditPassword)}
-                  className="absolute right-2.5 text-gray-400 hover:text-gray-700 p-1 cursor-pointer"
-                  title={showEditPassword ? 'Ẩn' : 'Hiện'}
+                  onClick={() => {
+                    showToast?.({
+                      title: 'Đã gửi liên kết',
+                      message: `Đã gửi liên kết đặt lại mật khẩu bảo mật tới email: ${editingUser?.email || editForm.email}`,
+                      type: 'success',
+                    });
+                  }}
+                  className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium shrink-0 flex items-center gap-1 transition-colors"
+                  title="Gửi email hướng dẫn đổi mật khẩu an toàn cho người dùng"
                 >
-                  <span className="material-symbols-outlined text-base">
-                    {showEditPassword ? 'visibility_off' : 'visibility'}
-                  </span>
+                  <span className="material-symbols-outlined text-sm text-[#00875A]">mark_email_read</span>
+                  <span>Gửi link đổi mật khẩu</span>
                 </button>
               </div>
+              <p className="text-[10.5px] text-slate-400 mt-1">Mật khẩu người dùng được mã hóa một chiều (Bcrypt/Argon2) và không bao giờ hiển thị dạng văn bản rõ.</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">

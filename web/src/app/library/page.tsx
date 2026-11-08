@@ -25,9 +25,11 @@ export default function LibraryPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const loadWishlist = async () => {
+      let currentLocalIds: string[] = [];
       try {
         const saved = JSON.parse(localStorage.getItem('huki_wishlist_ids') || '[]');
         if (Array.isArray(saved)) {
+          currentLocalIds = saved;
           setWishlistIds(saved);
         }
       } catch {}
@@ -36,10 +38,20 @@ export default function LibraryPage() {
         try {
           const res = await userApi.getProfile();
           if (res.success && Array.isArray(res.data?.wishlist)) {
-            setWishlistIds(res.data.wishlist);
+            const serverIds: string[] = res.data.wishlist;
+            // SMART MERGE: Never wipe out local wishlist with empty or partial server data
+            const mergedIds = Array.from(new Set([...currentLocalIds, ...serverIds]));
+            setWishlistIds(mergedIds);
             try {
-              localStorage.setItem('huki_wishlist_ids', JSON.stringify(res.data.wishlist));
+              localStorage.setItem('huki_wishlist_ids', JSON.stringify(mergedIds));
             } catch {}
+
+            // If local storage had items that were not yet saved on server, sync merged list to server
+            if (mergedIds.length > serverIds.length) {
+              userApi.updateProfile({ wishlist: mergedIds }).catch((e) => {
+                console.warn('Could not sync merged wishlist to server:', e);
+              });
+            }
           }
         } catch (e) {
           console.warn('Could not fetch server wishlist:', e);
@@ -168,6 +180,11 @@ export default function LibraryPage() {
           detail: { bookId, wishlisted: willWishlist },
         })
       );
+
+      // Sync updated wishlist to server if logged in
+      if (user?.id) {
+        userApi.updateProfile({ wishlist: newIds }).catch(() => {});
+      }
     } catch (err) {
       console.warn('Lỗi cập nhật yêu thích:', err);
     }
@@ -437,9 +454,9 @@ export default function LibraryPage() {
             </h2>
             <Link
               href="/books"
-              className="text-xs font-bold text-[#00875A] hover:underline flex items-center gap-1"
+              className="group text-xs font-bold text-[#00875A] flex items-center gap-1"
             >
-              <span>Mua thêm sách số</span>
+              <span className="group-hover:underline">Mua thêm sách số</span>
               <span className="material-symbols-outlined text-sm">arrow_forward</span>
             </Link>
           </div>
@@ -517,6 +534,13 @@ export default function LibraryPage() {
                 const bookKey = book.bookId || book.id;
                 const isFav = wishlistIds.includes(bookKey);
                 const progress = Math.min(100, Math.max(0, book.readingProgress || 0));
+                const hasAudio = Boolean(
+                  (book as any).hasAudio ||
+                  (book as any).audiobookId ||
+                  (book as any).audioKey ||
+                  book.format === 'AUDIO' ||
+                  book.format === 'BOTH'
+                );
 
                 return (
                   <div
@@ -535,7 +559,7 @@ export default function LibraryPage() {
 
                         {/* Format Badge */}
                         <span className="absolute top-1.5 left-1.5 bg-[#003B2B] text-white text-[8.5px] font-bold px-1.5 py-0.5 rounded shadow-xs">
-                          {book.format === 'BOTH' ? 'Combo DRM' : 'Ebook DRM'}
+                          {book.format === 'BOTH' ? 'Combo DRM' : book.format === 'PHYSICAL' ? 'Sách Giấy' : 'Ebook DRM'}
                         </span>
 
                         {/* Nút Yêu Thích Trái Tim */}
@@ -556,13 +580,13 @@ export default function LibraryPage() {
 
                         {/* Hover Overlay Play Icon */}
                         <Link
-                          href={book.status === 'WISHLIST' ? `/book/${bookKey}` : `/reader?book=${bookKey}`}
+                          href={book.status === 'WISHLIST' || book.format === 'PHYSICAL' ? `/book/${bookKey}` : `/reader?book=${bookKey}`}
                           className="absolute inset-0 bg-black/35 opacity-0 group-hover/cover:opacity-100 transition-opacity flex items-center justify-center"
-                          title={book.status === 'WISHLIST' ? 'Bấm để xem chi tiết sách' : 'Bấm để đọc sách'}
+                          title={book.status === 'WISHLIST' || book.format === 'PHYSICAL' ? 'Bấm để xem chi tiết sách' : 'Bấm để đọc sách'}
                         >
                           <div className="w-10 h-10 rounded-full bg-[#00875A] text-white flex items-center justify-center shadow-lg transform scale-90 group-hover/cover:scale-100 transition-transform">
                             <span className="material-symbols-outlined text-2xl">
-                              {book.status === 'WISHLIST' ? 'visibility' : 'auto_stories'}
+                              {book.status === 'WISHLIST' || book.format === 'PHYSICAL' ? 'visibility' : 'auto_stories'}
                             </span>
                           </div>
                         </Link>
@@ -570,8 +594,8 @@ export default function LibraryPage() {
 
                       {/* Book Title */}
                       <Link
-                        href={book.status === 'WISHLIST' ? `/book/${bookKey}` : `/reader?book=${bookKey}`}
-                        className="font-bold text-xs text-slate-900 line-clamp-2 leading-snug hover:text-[#00875A] transition-colors block mb-1"
+                        href={book.status === 'WISHLIST' || book.format === 'PHYSICAL' ? `/book/${bookKey}` : `/reader?book=${bookKey}`}
+                        className="font-bold text-xs text-slate-900 line-clamp-2 leading-snug hover:text-[#00875A] transition-colors block mb-1 min-h-[2.25rem]"
                         title={book.title}
                       >
                         {book.title}
@@ -615,38 +639,41 @@ export default function LibraryPage() {
 
                     {/* Action Buttons */}
                     <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5">
-                      {book.status === 'WISHLIST' ? (
+                      {book.status === 'WISHLIST' || book.format === 'PHYSICAL' ? (
                         <Link
                           href={`/book/${bookKey}`}
-                          className="flex-1 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold transition-all text-center flex items-center justify-center gap-1 shadow-2xs"
+                          className="flex-1 min-w-0 py-1.5 px-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold transition-all text-center flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap"
                         >
-                          <span className="material-symbols-outlined text-[13px]">shopping_bag</span>
-                          <span>Xem &amp; Mua Sách</span>
+                          <span className="material-symbols-outlined text-[13px] shrink-0">
+                            {book.format === 'PHYSICAL' ? 'menu_book' : 'shopping_bag'}
+                          </span>
+                          <span className="truncate">{book.format === 'PHYSICAL' ? 'Xem Sách In' : 'Xem & Mua'}</span>
                         </Link>
                       ) : (
                         <Link
                           href={`/reader?book=${bookKey}`}
-                          className="flex-1 py-1.5 rounded-lg bg-[#00875A] hover:bg-[#00704A] text-white text-[11px] font-bold transition-all text-center flex items-center justify-center gap-1 shadow-2xs"
+                          className="flex-1 min-w-0 py-1.5 px-2 rounded-lg bg-[#00875A] hover:bg-[#00704A] text-white text-[11px] font-bold transition-all text-center flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap"
                         >
-                          <span className="material-symbols-outlined text-[13px]">auto_stories</span>
-                          <span>{progress > 0 ? 'Đọc Tiếp' : 'Đọc Sách'}</span>
+                          <span className="material-symbols-outlined text-[13px] shrink-0">auto_stories</span>
+                          <span className="truncate">{progress > 0 ? 'Đọc Tiếp' : 'Đọc Sách'}</span>
                         </Link>
                       )}
 
-                      <Link
-                        href={book.status === 'WISHLIST' ? `/book/${bookKey}` : `/reader?book=${bookKey}&autoplay=true`}
-                        className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#00875A] transition-colors flex items-center justify-center"
-                        title={book.status === 'WISHLIST' ? 'Xem chi tiết sách' : 'Nghe Giọng Đọc AI'}
-                      >
-                        <span className="material-symbols-outlined text-[15px]">
-                          {book.status === 'WISHLIST' ? 'visibility' : 'headphones'}
-                        </span>
-                      </Link>
+                      {/* Chỉ hiển thị nút nghe AI Audio khi sách thực sự có hỗ trợ âm thanh */}
+                      {hasAudio && (
+                        <Link
+                          href={`/reader?book=${bookKey}&autoplay=true`}
+                          className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#00875A] transition-colors flex items-center justify-center shrink-0"
+                          title="Nghe Giọng Đọc AI"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">headphones</span>
+                        </Link>
+                      )}
 
                       <button
                         type="button"
                         onClick={(e) => handleRemoveBook(bookKey, book.title, e)}
-                        className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors flex items-center justify-center cursor-pointer"
+                        className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors flex items-center justify-center shrink-0 cursor-pointer"
                         title="Bỏ khỏi tủ sách"
                       >
                         <span className="material-symbols-outlined text-[15px]">delete</span>

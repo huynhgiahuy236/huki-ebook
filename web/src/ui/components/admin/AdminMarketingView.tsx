@@ -19,7 +19,7 @@ export interface MarketingBanner {
 
 const DEFAULT_BANNERS: MarketingBanner[] = [
   {
-    id: "BAN-01",
+    id: "e0000001-0000-4000-8000-000000000001",
     title: "Tuần Lễ Văn Học Kinh Điển & Tinh Hoa Tri Thức 2026",
     subtitle: "Giảm đến 40% cho tất cả tuyệt tác văn chương thế giới",
     link: "/books?category=van-hoc",
@@ -30,7 +30,7 @@ const DEFAULT_BANNERS: MarketingBanner[] = [
     order: 1,
   },
   {
-    id: "BAN-02",
+    id: "e0000002-0000-4000-8000-000000000002",
     title: "Hội Sách Bản Quyền Alpha Books x HUKI",
     subtitle: "Tặng ngay Ebook DRM độc quyền khi đặt trước sách in",
     link: "/shop/alpha-books",
@@ -41,7 +41,7 @@ const DEFAULT_BANNERS: MarketingBanner[] = [
     order: 2,
   },
   {
-    id: "BAN-03",
+    id: "e0000003-0000-4000-8000-000000000003",
     title: "Kỷ Nguyên Sách Hybrid: Đọc Ngay Khi Chờ Giao",
     subtitle: "Trải nghiệm sách giấy liền tay, đọc số tức thì",
     link: "/books?format=hybrid",
@@ -173,10 +173,20 @@ export function AdminMarketingView() {
     return DEFAULT_BANNERS;
   });
 
-  // Tự động lưu bền vững vào LocalStorage
+  // Tự động lưu bền vững vào LocalStorage với cơ chế chống tràn QuotaExceededError
   useEffect(() => {
     if (typeof window !== "undefined") {
-      localStorage.setItem("huki_admin_marketing_banners", JSON.stringify(banners));
+      try {
+        const lightweight = banners.map((b) => ({
+          ...b,
+          bgImage: b.bgImage.startsWith("data:") && b.bgImage.length > 200_000
+            ? "/banners/hero-library.jpg"
+            : b.bgImage,
+        }));
+        localStorage.setItem("huki_admin_marketing_banners", JSON.stringify(lightweight));
+      } catch (err) {
+        console.warn("[AdminMarketing] LocalStorage quota exceeded, skipping offline cache:", err);
+      }
     }
   }, [banners]);
 
@@ -333,12 +343,15 @@ export function AdminMarketingView() {
 
     if (editingBannerId) {
       // CẬP NHẬT BANNER HIỆN TẠI
-      bannerApi.updateBanner(editingBannerId, {
-        title: bannerForm.title.trim(),
-        image: bannerForm.bgImage.trim() || "/banners/hero-library.jpg",
-        link: bannerForm.link.trim(),
-        position: Number(bannerForm.order),
-      }).catch(() => {});
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editingBannerId);
+      if (isUuid) {
+        bannerApi.updateBanner(editingBannerId, {
+          title: bannerForm.title.trim(),
+          image: bannerForm.bgImage.trim() || "/banners/hero-library.jpg",
+          link: bannerForm.link.trim(),
+          position: Number(bannerForm.order),
+        }).catch(() => {});
+      }
       setBanners((prev) =>
         prev.map((b) =>
           b.id === editingBannerId
@@ -359,8 +372,11 @@ export function AdminMarketingView() {
       setEditingBannerId(null);
     } else {
       // TẠO BANNER MỚI
+      const generatedId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `e0000000-0000-4000-8000-${Date.now().toString(16).padStart(12, '0')}`;
       const newBanner: MarketingBanner = {
-        id: `BAN-${String(banners.length + 1).padStart(2, "0")}`,
+        id: generatedId,
         title: bannerForm.title.trim(),
         subtitle: bannerForm.subtitle.trim(),
         badge: bannerForm.badge.trim(),

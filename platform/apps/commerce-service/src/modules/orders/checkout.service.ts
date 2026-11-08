@@ -758,11 +758,8 @@ export class CheckoutService {
             },
           });
 
-          // Grant digital book access for items in this group
-          const digitalItems = group.items.filter(
-            (item) => item.format === CartItemFormat.DIGITAL,
-          );
-          for (const item of digitalItems) {
+          // Grant purchased book access for all items in this group (Physical, Digital, Combo)
+          for (const item of group.items) {
             await tx.bookAccess.upsert({
               where: {
                 userId_bookId: { userId, bookId: item.bookId },
@@ -772,6 +769,7 @@ export class CheckoutService {
                 bookId: item.bookId,
                 orderId: order.id,
                 sellerOrderId: sellerOrder.id,
+                status: "ACTIVE",
               },
               update: {
                 status: "ACTIVE",

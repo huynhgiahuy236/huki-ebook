@@ -288,8 +288,8 @@ function SellerFollowersContent() {
               ) : (
                 filteredFollowers.map((item: FollowerItem) => {
                   const fullName = item.fullName || 'Khách Hàng';
-                  const isLongName = fullName.length > 10;
-                  const displayName = isLongName ? `${fullName.slice(0, 10)}...` : fullName;
+                  const displayName = fullName;
+                  const isLongName = fullName.length > 25;
                   const badgeInfo = getFollowerBadge(item.createdAt);
                   const followDate = new Date(item.createdAt);
                   const formattedDate = isNaN(followDate.getTime())

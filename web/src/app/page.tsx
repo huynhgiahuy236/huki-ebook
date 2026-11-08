@@ -1298,9 +1298,9 @@ export default function HomePage() {
 
             <Link
               href="/flash-sale"
-              className="text-[#003B2B] hover:underline font-bold text-xs flex items-center gap-0.5"
+              className="group text-[#003B2B] font-bold text-xs flex items-center gap-0.5"
             >
-              <span>Xem Tất Cả</span>
+              <span className="group-hover:underline">Xem Tất Cả</span>
               <span className="material-symbols-outlined text-sm">
                 chevron_right
               </span>
@@ -1389,9 +1389,9 @@ export default function HomePage() {
             </h2>
             <Link
               href="/stores"
-              className="text-[#003B2B] hover:underline font-bold text-xs flex items-center gap-0.5"
+              className="group text-[#003B2B] font-bold text-xs flex items-center gap-0.5"
             >
-              <span>Xem Tất Cả</span>
+              <span className="group-hover:underline">Xem Tất Cả</span>
               <span className="material-symbols-outlined text-sm">
                 chevron_right
               </span>
@@ -1463,9 +1463,9 @@ export default function HomePage() {
 
             <Link
               href={currentCategoryTabInfo.url}
-              className="text-[#003B2B] hover:underline font-bold text-xs flex items-center gap-0.5 self-end sm:self-auto"
+              className="group text-[#003B2B] font-bold text-xs flex items-center gap-0.5 self-end sm:self-auto"
             >
-              <span>Xem Tất Cả</span>
+              <span className="group-hover:underline">Xem Tất Cả</span>
               <span className="material-symbols-outlined text-sm">
                 chevron_right
               </span>
@@ -1679,9 +1679,9 @@ export default function HomePage() {
             </div>
             <Link
               href="/books"
-              className="text-[12.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
+              className="group text-[12.5px] text-[#003B2B] font-semibold flex items-center gap-0.5"
             >
-              <span>Xem sách đánh giá cao</span>
+              <span className="group-hover:underline">Xem sách đánh giá cao</span>
               <span className="material-symbols-outlined text-[16px]">
                 chevron_right
               </span>
@@ -1728,9 +1728,9 @@ export default function HomePage() {
                   </span>
                   <Link
                     href={rev.bookId ? `/books/${rev.bookId}` : "/books"}
-                    className="text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
+                    className="group text-[#003B2B] font-semibold flex items-center gap-0.5"
                   >
-                    <span>Xem sách</span>
+                    <span className="group-hover:underline">Xem sách</span>
                     <span className="material-symbols-outlined text-[12px]">
                       arrow_forward
                     </span>

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { Suspense, useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { orderApi } from '@/ui/api/orderApi';
@@ -131,7 +132,7 @@ function SellerOrdersContent() {
   const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
   const [bulkLoading, setBulkLoading] = useState(false);
 
-  // In-Page Action Box state (No-Popup architecture)
+  // Modal Action Box state (Portal architecture)
   const [activeActionBox, setActiveActionBox] = useState<{
     type: 'SHIP' | 'CANCEL';
     order: SellerOrder;
@@ -139,8 +140,13 @@ function SellerOrdersContent() {
   const [carrier, setCarrier] = useState('GHTK');
   const [trackingCode, setTrackingCode] = useState('');
   const [cancelReason, setCancelReason] = useState('');
-  const [actionLoading, setActionLoading] = useState(false);
+  const [actionLoadingOrderId, setActionLoadingOrderId] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
   const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const toggleExpandOrder = (id: string) => {
     setExpandedOrderIds((prev) => {
@@ -435,7 +441,7 @@ function SellerOrdersContent() {
   }, [filteredOrders, validPage, pageSize]);
 
   const handleConfirm = async (orderId: string) => {
-    setActionLoading(true);
+    setActionLoadingOrderId(orderId);
     try {
       const res = await orderApi.confirmOrder(orderId);
       if (res.success) {
@@ -449,12 +455,12 @@ function SellerOrdersContent() {
     } catch {
       showToast?.({ title: 'Lỗi kết nối', message: 'Không thể kết nối máy chủ khi xác nhận', type: 'error' });
     } finally {
-      setActionLoading(false);
+      setActionLoadingOrderId(null);
     }
   };
 
   const handlePrepare = async (orderId: string) => {
-    setActionLoading(true);
+    setActionLoadingOrderId(orderId);
     try {
       const res = await orderApi.prepareOrder(orderId);
       if (res.success) {
@@ -468,7 +474,7 @@ function SellerOrdersContent() {
     } catch {
       showToast?.({ title: 'Lỗi kết nối', message: 'Lỗi kết nối khi chuẩn bị đơn hàng', type: 'error' });
     } finally {
-      setActionLoading(false);
+      setActionLoadingOrderId(null);
     }
   };
 
@@ -481,7 +487,7 @@ function SellerOrdersContent() {
     }
 
     const orderIdToShip = activeActionBox.order.id;
-    setActionLoading(true);
+    setActionLoadingOrderId(orderIdToShip);
     try {
       const res = await orderApi.shipOrder(orderIdToShip, {
         carrier,
@@ -500,12 +506,12 @@ function SellerOrdersContent() {
     } catch {
       showToast?.({ title: 'Lỗi', message: 'Lỗi kết nối khi giao hàng', type: 'error' });
     } finally {
-      setActionLoading(false);
+      setActionLoadingOrderId(null);
     }
   };
 
   const handleDeliver = async (orderId: string) => {
-    setActionLoading(true);
+    setActionLoadingOrderId(orderId);
     try {
       const res = await orderApi.deliverOrder(orderId);
       if (res.success) {
@@ -517,7 +523,7 @@ function SellerOrdersContent() {
     } catch {
       showToast?.({ title: 'Lỗi', message: 'Lỗi kết nối khi hoàn tất đơn hàng', type: 'error' });
     } finally {
-      setActionLoading(false);
+      setActionLoadingOrderId(null);
     }
   };
 
@@ -529,9 +535,10 @@ function SellerOrdersContent() {
       return;
     }
 
-    setActionLoading(true);
+    const orderIdToCancel = activeActionBox.order.id;
+    setActionLoadingOrderId(orderIdToCancel);
     try {
-      const res = await orderApi.cancelSellerOrder(activeActionBox.order.id, {
+      const res = await orderApi.cancelSellerOrder(orderIdToCancel, {
         reason: cancelReason.trim(),
       });
       if (res.success) {
@@ -545,7 +552,7 @@ function SellerOrdersContent() {
     } catch {
       showToast?.({ title: 'Lỗi', message: 'Lỗi kết nối khi hủy đơn hàng', type: 'error' });
     } finally {
-      setActionLoading(false);
+      setActionLoadingOrderId(null);
     }
   };
 
@@ -867,7 +874,7 @@ function SellerOrdersContent() {
                   icon="check_circle"
                   size="sm"
                   onClick={() => handleConfirm(order.id)}
-                  loading={actionLoading}
+                  loading={actionLoadingOrderId === order.id}
                 />
               )}
 
@@ -885,7 +892,7 @@ function SellerOrdersContent() {
                   icon="local_shipping"
                   size="sm"
                   onClick={() => handlePrepare(order.id)}
-                  loading={actionLoading}
+                  loading={actionLoadingOrderId === order.id}
                 />
               )}
 
@@ -900,7 +907,7 @@ function SellerOrdersContent() {
         },
       },
     ],
-    [actionLoading]
+    [actionLoadingOrderId]
   );
 
   const renderExpandedOrderDetail = (order: SellerOrder) => {
@@ -1127,136 +1134,149 @@ function SellerOrdersContent() {
 
 
 
-      {/* 3. In-Page Collapsible Action Box (Bàn giao bưu tá hoặc Hủy đơn - Không dùng Popup) */}
-      {activeActionBox && (
-        <div className="bg-white rounded-2xl p-5 border-2 border-slate-300 shadow-sm animate-in fade-in slide-in-from-top-3 duration-200 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2.5">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${activeActionBox.type === 'SHIP' ? 'bg-purple-50 text-purple-700' : 'bg-rose-50 text-rose-700'}`}>
-                <span className="material-symbols-outlined text-[20px]">
-                  {activeActionBox.type === 'SHIP' ? 'local_shipping' : 'cancel'}
-                </span>
+      {/* 3. Modal Action Box (Bàn giao bưu tá hoặc Hủy đơn) - Portal architecture */}
+      {isMounted && activeActionBox && createPortal(
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !actionLoadingOrderId) {
+              setActiveActionBox(null);
+            }
+          }}
+        >
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xl max-w-lg w-full animate-in zoom-in-95 duration-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${activeActionBox.type === 'SHIP' ? 'bg-purple-50 text-purple-700' : 'bg-rose-50 text-rose-700'}`}>
+                  <span className="material-symbols-outlined text-[20px]">
+                    {activeActionBox.type === 'SHIP' ? 'local_shipping' : 'cancel'}
+                  </span>
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">
+                    {activeActionBox.type === 'SHIP' ? 'Bàn Giao Vận Chuyển Đơn Hàng' : 'Xác Nhận Hủy Đơn Hàng'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Mã đơn: <strong className="font-mono text-slate-800">#{activeActionBox.order.code || activeActionBox.order.id}</strong>
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-sm text-slate-900">
-                  {activeActionBox.type === 'SHIP' ? 'Bàn Giao Vận Chuyển Đơn Hàng' : 'Xác Nhận Hủy Đơn Hàng'}
-                </h3>
-                <p className="text-[11px] text-slate-500">
-                  Mã đơn: <strong className="font-mono text-slate-800">#{activeActionBox.order.code || activeActionBox.order.id}</strong>
-                </p>
-              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveActionBox(null)}
+                disabled={Boolean(actionLoadingOrderId)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setActiveActionBox(null)}
-              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-            </button>
-          </div>
+            {activeActionBox.type === 'SHIP' ? (
+              <form onSubmit={handleShipSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Đơn vị vận chuyển
+                    </label>
+                    <select
+                      value={carrier}
+                      onChange={(e) => setCarrier(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white"
+                    >
+                      <option value="GHTK">Giao Hàng Tiết Kiệm (GHTK)</option>
+                      <option value="ViettelPost">Viettel Post</option>
+                      <option value="VNPost">VNPost</option>
+                      <option value="Ahamove">Ahamove / Giao Siêu Tốc</option>
+                      <option value="TuGiao">Cửa Hàng Tự Vận Chuyển</option>
+                    </select>
+                  </div>
 
-          {activeActionBox.type === 'SHIP' ? (
-            <form onSubmit={handleShipSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Đơn vị vận chuyển
-                  </label>
-                  <select
-                    value={carrier}
-                    onChange={(e) => setCarrier(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white"
-                  >
-                    <option value="GHTK">Giao Hàng Tiết Kiệm (GHTK)</option>
-                    <option value="ViettelPost">Viettel Post</option>
-                    <option value="VNPost">VNPost</option>
-                    <option value="Ahamove">Ahamove / Giao Siêu Tốc</option>
-                    <option value="TuGiao">Cửa Hàng Tự Vận Chuyển</option>
-                  </select>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Mã vận đơn / Tracking Code
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={trackingCode}
+                      onChange={(e) => setTrackingCode(e.target.value)}
+                      placeholder="VD: GHTK88291024VN..."
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white font-mono"
+                    />
+                  </div>
                 </div>
 
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                  <SellerActionButton
+                    variant="neutral"
+                    label="Hủy bỏ"
+                    onClick={() => setActiveActionBox(null)}
+                    disabled={Boolean(actionLoadingOrderId)}
+                  />
+                  <button
+                    type="submit"
+                    disabled={Boolean(actionLoadingOrderId)}
+                    className="px-4 py-2 bg-[#00875A] hover:bg-[#00704A] disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-[0.96]"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">local_shipping</span>
+                    <span>{actionLoadingOrderId === activeActionBox.order.id ? 'Đang cập nhật...' : 'Xác nhận giao bưu tá'}</span>
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleCancelSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Mã vận đơn / Tracking Code
+                    Lý do hủy đơn hàng
                   </label>
-                  <input
-                    type="text"
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {['Hết hàng trong kho', 'Khách hàng yêu cầu hủy', 'Sai địa chỉ giao nhận', 'Không liên hệ được người mua'].map((reason) => (
+                      <button
+                        key={reason}
+                        type="button"
+                        onClick={() => setCancelReason(reason)}
+                        className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors ${
+                          cancelReason === reason
+                            ? 'bg-rose-100 text-rose-800 border border-rose-300 font-semibold'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200/80'
+                        }`}
+                      >
+                        {reason}
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
                     required
-                    value={trackingCode}
-                    onChange={(e) => setTrackingCode(e.target.value)}
-                    placeholder="VD: GHTK88291024VN..."
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white font-mono"
+                    rows={2}
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="Nhập chi tiết lý do hủy đơn..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-rose-500 focus:bg-white"
                   />
                 </div>
-              </div>
 
-              <div className="flex items-center justify-end gap-2.5 pt-2">
-                <SellerActionButton
-                  variant="neutral"
-                  label="Hủy bỏ"
-                  onClick={() => setActiveActionBox(null)}
-                />
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="px-4 py-2 bg-[#00875A] hover:bg-[#00704A] text-white rounded-xl text-xs font-semibold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-[0.96]"
-                >
-                  <span className="material-symbols-outlined text-[15px]">local_shipping</span>
-                  <span>{actionLoading ? 'Đang cập nhật...' : 'Xác nhận giao bưu tá'}</span>
-                </button>
-              </div>
-            </form>
-          ) : (
-            <form onSubmit={handleCancelSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Lý do hủy đơn hàng
-                </label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {['Hết hàng trong kho', 'Khách hàng yêu cầu hủy', 'Sai địa chỉ giao nhận', 'Không liên hệ được người mua'].map((reason) => (
-                    <button
-                      key={reason}
-                      type="button"
-                      onClick={() => setCancelReason(reason)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors ${
-                        cancelReason === reason
-                          ? 'bg-rose-100 text-rose-800 border border-rose-300 font-semibold'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200/80'
-                      }`}
-                    >
-                      {reason}
-                    </button>
-                  ))}
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                  <SellerActionButton
+                    variant="neutral"
+                    label="Đóng"
+                    onClick={() => setActiveActionBox(null)}
+                    disabled={Boolean(actionLoadingOrderId)}
+                  />
+                  <button
+                    type="submit"
+                    disabled={Boolean(actionLoadingOrderId)}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-[0.96]"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">cancel</span>
+                    <span>{actionLoadingOrderId === activeActionBox.order.id ? 'Đang xử lý...' : 'Xác nhận hủy đơn hàng'}</span>
+                  </button>
                 </div>
-                <textarea
-                  required
-                  rows={2}
-                  value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  placeholder="Nhập chi tiết lý do hủy đơn..."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-rose-500 focus:bg-white"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2.5 pt-2">
-                <SellerActionButton
-                  variant="neutral"
-                  label="Đóng"
-                  onClick={() => setActiveActionBox(null)}
-                />
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-[0.96]"
-                >
-                  <span className="material-symbols-outlined text-[15px]">cancel</span>
-                  <span>{actionLoading ? 'Đang xử lý...' : 'Xác nhận hủy đơn hàng'}</span>
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
+              </form>
+            )}
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* 4. Bộ Lọc Tabs Đa Tầng, Ngày Tháng Năm & Tìm Kiếm */}

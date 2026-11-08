@@ -448,7 +448,7 @@ export function DataTableFilterBar<TStatus extends string = string>(props: DataT
   };
 
   return (
-    <div className={`space-y-3 w-full min-w-0 max-w-full overflow-hidden ${className}`}>
+    <div className={`space-y-3 w-full min-w-0 max-w-full ${className}`}>
 
       {/* 1. Status Filter Tabs (if provided) */}
       {tabs && tabs.length > 0 && (
@@ -517,7 +517,7 @@ export function DataTableFilterBar<TStatus extends string = string>(props: DataT
             </button>
 
             {showQuickDateDropdown && (
-              <div className="absolute left-0 top-full mt-1.5 w-48 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl z-40 py-1.5 animate-in fade-in zoom-in-95 duration-100">
+              <div className="absolute left-0 top-full mt-1.5 w-48 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-100">
                 <div className="px-3 py-1 text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
                   Mốc thời gian nhanh
                 </div>
@@ -589,7 +589,7 @@ export function DataTableFilterBar<TStatus extends string = string>(props: DataT
 
             {/* Dropdown Menu for Specific Modes */}
             {showSpecificDateDropdown && (
-              <div className="absolute left-0 top-full mt-1.5 w-60 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl z-40 py-1.5 animate-in fade-in zoom-in-95 duration-100">
+              <div className="absolute left-0 top-full mt-1.5 w-60 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-100">
                 <div className="px-3 py-1 text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
                   Tùy chọn cụ thể
                 </div>
@@ -647,7 +647,7 @@ export function DataTableFilterBar<TStatus extends string = string>(props: DataT
             {showDatePickerPopover && (
               <div
                 ref={popoverRef}
-                className="absolute left-0 top-full mt-1.5 z-40 p-3.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-2xl shadow-2xl w-72 text-xs space-y-3 animate-in fade-in zoom-in-95 duration-150"
+                className="absolute left-0 top-full mt-1.5 z-50 p-3.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-2xl shadow-2xl w-72 text-xs space-y-3 animate-in fade-in zoom-in-95 duration-150"
               >
                 {dateFilter.mode === 'EXACT_DATE' && (
                   <div>

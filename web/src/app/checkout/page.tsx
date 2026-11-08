@@ -1793,6 +1793,8 @@ export default function CheckoutPage() {
                         ward={addressForm.ward}
                         address={addressForm.address}
                         minHeight="min-h-[240px]"
+                        collapsible={true}
+                        defaultExpanded={false}
                       />
                     </div>
                   </div>
@@ -1842,6 +1844,8 @@ export default function CheckoutPage() {
                         ward={activeAddress.ward}
                         address={activeAddress.address}
                         minHeight="min-h-[260px]"
+                        collapsible={true}
+                        defaultExpanded={false}
                       />
                     </div>
                   </div>

@@ -176,7 +176,16 @@ export class BusinessService {
       throwNotFound(ErrorCode.BUSINESS_NOT_FOUND);
     }
 
-    return business;
+    const latestApprovedRequest = await (this.prisma as any).businessUpdateRequest.findFirst({
+      where: { businessId: business.id, status: 'APPROVED' },
+      orderBy: { reviewedAt: 'desc' },
+    });
+    const extData = (latestApprovedRequest?.requestedData as Record<string, any>) || {};
+
+    return {
+      ...business,
+      ...extData,
+    };
   }
 
   async getBusinessByOwner(userId: string) {
@@ -193,8 +202,15 @@ export class BusinessService {
     });
 
     if (business) {
+      const latestApprovedRequest = await (this.prisma as any).businessUpdateRequest.findFirst({
+        where: { businessId: business.id, status: 'APPROVED' },
+        orderBy: { reviewedAt: 'desc' },
+      });
+      const extData = (latestApprovedRequest?.requestedData as Record<string, any>) || {};
+
       return {
         ...business,
+        ...extData,
         currentMember: {
           role: 'OWNER',
           permissions: ['*'],
@@ -623,10 +639,16 @@ export class BusinessService {
 
   private getIdentityDbClient() {
     const { Client } = require('pg');
-    const identityDbUrl =
-      process.env.IDENTITY_DATABASE_URL ||
-      process.env.DATABASE_URL?.replace(/\/[^\/]+$/, '/huki_identity') ||
-      'postgresql://postgres:postgres123@localhost:5432/huki_identity';
+    let defaultIdentityUrl = 'postgresql://postgres:postgres123@localhost:5432/huki_identity';
+    if (process.env.DATABASE_URL) {
+      defaultIdentityUrl = process.env.DATABASE_URL.replace(/\/[^\/\?]+(\?.*)?$/, (match, p1) => {
+        const query = p1 || '';
+        if (match.includes('_uat_')) return `/huki_uat_identity${query}`;
+        if (match.includes('_prod_')) return `/huki_prod_identity${query}`;
+        return `/huki_identity${query}`;
+      });
+    }
+    const identityDbUrl = process.env.IDENTITY_DATABASE_URL || defaultIdentityUrl;
     return new Client({ connectionString: identityDbUrl });
   }
 

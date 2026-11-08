@@ -1345,13 +1345,21 @@ export class FlashSalesService
     return released;
   }
 
+  private getCommerceBaseUrl(): string {
+    if (process.env.COMMERCE_SERVICE_URL) {
+      return process.env.COMMERCE_SERVICE_URL;
+    }
+    const host = process.env.COMMERCE_SERVICE_HOST ||
+      (process.env.NODE_ENV === 'staging' ? 'commerce-service-uat' : 'localhost');
+    const port = process.env.COMMERCE_SERVICE_PORT || 3003;
+    return `http://${host}:${port}`;
+  }
+
   private async getCommerceBook(bookId: string) {
     try {
-      const baseUrl =
-        process.env.COMMERCE_SERVICE_URL ||
-        `http://localhost:${process.env.COMMERCE_SERVICE_PORT || 3003}`;
+      const baseUrl = this.getCommerceBaseUrl();
       const response = await fetch(`${baseUrl}/api/v1/books/${bookId}`, {
-        signal: AbortSignal.timeout(5_000),
+        signal: AbortSignal.timeout(3_000),
       });
       if (!response.ok) return null;
       const body = (await response.json()) as any;
@@ -1366,11 +1374,9 @@ export class FlashSalesService
 
   private async getCommerceBooks() {
     try {
-      const baseUrl =
-        process.env.COMMERCE_SERVICE_URL ||
-        `http://localhost:${process.env.COMMERCE_SERVICE_PORT || 3003}`;
+      const baseUrl = this.getCommerceBaseUrl();
       const response = await fetch(`${baseUrl}/api/v1/books?limit=20`, {
-        signal: AbortSignal.timeout(5_000),
+        signal: AbortSignal.timeout(3_000),
       });
       if (!response.ok) return [];
       const body = (await response.json()) as any;

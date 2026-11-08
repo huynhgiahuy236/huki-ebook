@@ -133,8 +133,12 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
 
   const isValidConversationId = (id?: string): boolean => {
     if (!id || typeof id !== 'string') return false;
-    if (id.startsWith('temp-')) return false;
-    return /^[0-9a-fA-F]{24}$/.test(id);
+    const trimmed = id.trim();
+    if (!trimmed || trimmed.startsWith('temp-')) return false;
+    // Support 24-char Mongo ObjectId, standard UUID, or alphanumeric prefixed channel ID (e.g., store_xxx, order_xxx)
+    return /^[0-9a-fA-F]{24}$/.test(trimmed) ||
+           /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/i.test(trimmed) ||
+           /^[a-zA-Z0-9_\-:]{3,64}$/.test(trimmed);
   };
 
   // Join vào room hội thoại cụ thể

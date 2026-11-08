@@ -11,6 +11,7 @@ import {
   Min,
   Max,
   MaxLength,
+  ValidateIf,
 } from "class-validator";
 import { Type } from "class-transformer";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
@@ -39,8 +40,9 @@ export class CreateFlashSaleDto {
   description?: string;
 
   @ApiPropertyOptional({ description: "Marketing banner URL" })
-  @IsUrl({ require_tld: false })
   @IsOptional()
+  @ValidateIf((o) => typeof o.bannerUrl === 'string' && o.bannerUrl.trim().length > 0 && !o.bannerUrl.startsWith('data:'))
+  @IsUrl({ require_tld: false })
   bannerUrl?: string;
 
   @ApiPropertyOptional({ enum: FlashSaleScope, default: FlashSaleScope.PLATFORM })

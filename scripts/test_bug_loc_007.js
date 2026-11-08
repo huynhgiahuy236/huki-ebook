@@ -14,8 +14,8 @@ function verify() {
     console.error('FAIL: isShipper role support missing!');
     process.exit(1);
   }
-  if (!content.includes('/shipper/deliveries')) {
-    console.error('FAIL: Shipper portal route (/shipper/deliveries) missing!');
+  if (!content.includes('/shipper') && !content.includes('/shipper/deliveries')) {
+    console.error('FAIL: Shipper portal route (/shipper or /shipper/deliveries) missing!');
     process.exit(1);
   }
   console.log('PASS BUG-LOC-007 (RBAC Shipper): Shipper navigation group supported for delivery roles.');

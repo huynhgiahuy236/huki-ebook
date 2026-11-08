@@ -64,8 +64,15 @@ export class BookUploadsService {
 
     this.validatePdf(file);
 
-    const details = await this.prisma.digitalBookDetails.findUnique({ where: { bookId } });
-    if (!details) throw new ConflictException('Digital book details not found');
+    let details = await this.prisma.digitalBookDetails.findUnique({ where: { bookId } });
+    if (!details) {
+      details = await this.prisma.digitalBookDetails.create({
+        data: {
+          bookId,
+          digitalEnabled: true,
+        },
+      });
+    }
 
     const part = kind === PdfFileKind.SOURCE ? 'pdf' : 'preview';
     const key = `stores/${book.storeId}/books/${book.id}/${part}-${randomUUID()}.pdf`;

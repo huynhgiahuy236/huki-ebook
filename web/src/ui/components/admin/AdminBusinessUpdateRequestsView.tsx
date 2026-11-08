@@ -726,7 +726,7 @@ export function AdminBusinessUpdateRequestsView() {
                   <div>
                     <span className="text-gray-500 font-medium">Tên mới:</span>
                     <p className="font-bold text-[#003b2b] mt-0.5 text-sm bg-white p-1.5 rounded-md border border-amber-200">
-                      {selectedRequest.requestedData?.name || selectedRequest.business?.name}
+                      {selectedRequest.requestedData?.name ? selectedRequest.requestedData.name : <span className="text-gray-400 italic font-normal">— (Giữ nguyên)</span>}
                     </p>
                   </div>
 
@@ -747,16 +747,20 @@ export function AdminBusinessUpdateRequestsView() {
                   <div>
                     <span className="text-gray-500 font-medium">Mã số thuế:</span>
                     <p className="font-mono font-bold text-gray-900 mt-0.5">
-                      {selectedRequest.requestedData?.taxCode || selectedRequest.business?.taxCode}
+                      {selectedRequest.requestedData?.taxCode ? selectedRequest.requestedData.taxCode : <span className="text-gray-400 italic font-normal">— (Giữ nguyên)</span>}
                     </p>
                   </div>
 
                   <div>
                     <span className="text-gray-500 font-medium">Loại hình mới:</span>
                     <p className="font-semibold text-gray-900 mt-0.5">
-                      {selectedRequest.requestedData?.businessType === 'INDIVIDUAL' 
-                        ? 'Hộ Kinh Doanh Cá Thể' 
-                        : `Doanh Nghiệp (${selectedRequest.requestedData?.businessType || selectedRequest.business?.businessType})`}
+                      {selectedRequest.requestedData?.businessType ? (
+                        selectedRequest.requestedData.businessType === 'INDIVIDUAL' 
+                          ? 'Hộ Kinh Doanh Cá Thể' 
+                          : `Doanh Nghiệp (${selectedRequest.requestedData.businessType})`
+                      ) : (
+                        <span className="text-gray-400 italic font-normal">— (Giữ nguyên)</span>
+                      )}
                     </p>
                   </div>
 

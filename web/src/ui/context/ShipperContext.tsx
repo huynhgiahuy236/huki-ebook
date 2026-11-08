@@ -876,12 +876,16 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } else {
       try {
         await orderApi.shipperDeliver(orderId, { note, podImageUrl });
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error delivering order in DB, queuing offline:', err);
         const q = getOfflinePodQueue().filter((x) => x.orderId !== orderId);
         q.push({ orderId, note, podImageUrl, timestamp: Date.now() });
         saveOfflinePodQueue(q);
         setOfflineQueueCount(q.length);
+        const msg = err?.message?.includes('413')
+          ? 'Ảnh chụp vượt quá dung lượng. Hệ thống đã tự động nén và lưu tạm để đồng bộ lại.'
+          : 'Không thể kết nối máy chủ lúc này. Đơn đã được chuyển vào hàng đợi ngoại tuyến để tự động đồng bộ.';
+        showToast({ title: 'Lưu tạm biên bản giao', message: msg }, 'warning');
       }
     }
 

@@ -1003,9 +1003,16 @@ export class VouchersService {
     if (!inputIds.length) return [];
     try {
       const { Client } = require('pg');
-      const bizDbUrl =
-        process.env.BUSINESS_DATABASE_URL ||
-        'postgresql://postgres:postgres123@localhost:5432/huki_business';
+      let defaultBizUrl = 'postgresql://postgres:postgres123@localhost:5432/huki_business';
+      if (process.env.DATABASE_URL) {
+        defaultBizUrl = process.env.DATABASE_URL.replace(/\/[^\/\?]+(\?.*)?$/, (match: string, p1?: string) => {
+          const query = p1 || '';
+          if (match.includes('_uat_')) return `/huki_uat_business${query}`;
+          if (match.includes('_prod_')) return `/huki_prod_business${query}`;
+          return `/huki_business${query}`;
+        });
+      }
+      const bizDbUrl = process.env.BUSINESS_DATABASE_URL || defaultBizUrl;
       const pgClient = new Client({ connectionString: bizDbUrl });
       await pgClient.connect();
       const res = await pgClient.query(
@@ -1035,9 +1042,16 @@ export class VouchersService {
     try {
       const relatedIds = await this.getRelatedStoreAndBusinessIds(storeId);
       const { Client } = require('pg');
-      const bizDbUrl =
-        process.env.BUSINESS_DATABASE_URL ||
-        'postgresql://postgres:postgres123@localhost:5432/huki_business';
+      let defaultBizUrl = 'postgresql://postgres:postgres123@localhost:5432/huki_business';
+      if (process.env.DATABASE_URL) {
+        defaultBizUrl = process.env.DATABASE_URL.replace(/\/[^\/\?]+(\?.*)?$/, (match: string, p1?: string) => {
+          const query = p1 || '';
+          if (match.includes('_uat_')) return `/huki_uat_business${query}`;
+          if (match.includes('_prod_')) return `/huki_prod_business${query}`;
+          return `/huki_business${query}`;
+        });
+      }
+      const bizDbUrl = process.env.BUSINESS_DATABASE_URL || defaultBizUrl;
       const pgClient = new Client({ connectionString: bizDbUrl });
       await pgClient.connect();
       const res = await pgClient.query(
@@ -1162,9 +1176,16 @@ export class VouchersService {
     if (!storeIds || !storeIds.length) return map;
     try {
       const { Client } = require('pg');
-      const bizDbUrl =
-        process.env.BUSINESS_DATABASE_URL ||
-        'postgresql://postgres:postgres123@localhost:5432/huki_business';
+      let defaultBizUrl = 'postgresql://postgres:postgres123@localhost:5432/huki_business';
+      if (process.env.DATABASE_URL) {
+        defaultBizUrl = process.env.DATABASE_URL.replace(/\/[^\/\?]+(\?.*)?$/, (match: string, p1?: string) => {
+          const query = p1 || '';
+          if (match.includes('_uat_')) return `/huki_uat_business${query}`;
+          if (match.includes('_prod_')) return `/huki_prod_business${query}`;
+          return `/huki_business${query}`;
+        });
+      }
+      const bizDbUrl = process.env.BUSINESS_DATABASE_URL || defaultBizUrl;
       const pgClient = new Client({ connectionString: bizDbUrl });
       await pgClient.connect();
       const res = await pgClient.query(
@@ -1197,9 +1218,16 @@ export class VouchersService {
     if (!userId || userId === 'anonymous') return [];
     try {
       const { Client } = require('pg');
-      const bizDbUrl =
-        process.env.BUSINESS_DATABASE_URL ||
-        'postgresql://postgres:postgres123@localhost:5432/huki_business';
+      let defaultBizUrl = 'postgresql://postgres:postgres123@localhost:5432/huki_business';
+      if (process.env.DATABASE_URL) {
+        defaultBizUrl = process.env.DATABASE_URL.replace(/\/[^\/\?]+(\?.*)?$/, (match: string, p1?: string) => {
+          const query = p1 || '';
+          if (match.includes('_uat_')) return `/huki_uat_business${query}`;
+          if (match.includes('_prod_')) return `/huki_prod_business${query}`;
+          return `/huki_business${query}`;
+        });
+      }
+      const bizDbUrl = process.env.BUSINESS_DATABASE_URL || defaultBizUrl;
       const pgClient = new Client({ connectionString: bizDbUrl });
       await pgClient.connect();
       const res = await pgClient.query(

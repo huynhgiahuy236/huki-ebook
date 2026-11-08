@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useId } from 'react';
+import React, { useState, useId, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { playNotificationChime } from '@/ui/utils/soundEffects';
@@ -161,8 +162,13 @@ export default function QuickDispatchNotificationModal({
   const [message, setMessage] = useState(presets[0]?.message || '');
   const [priority, setPriority] = useState<'NORMAL' | 'HIGH'>(presets[0]?.priority || 'NORMAL');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isOpen || !isMounted) return null;
 
   const handleApplyPreset = (p: PresetOption) => {
     setTitle(p.title);
@@ -258,7 +264,7 @@ export default function QuickDispatchNotificationModal({
     }
   };
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
       onClick={onClose}
@@ -427,6 +433,7 @@ export default function QuickDispatchNotificationModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

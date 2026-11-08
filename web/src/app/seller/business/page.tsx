@@ -172,17 +172,17 @@ export default function SellerBusinessProfilePage() {
             : (parsedHq.length > 0 ? parsedHq : prev.headquarters),
 
           // Company fields
-          internationalName: latestReqData?.internationalName || prev.internationalName || (bIsHousehold ? '' : 'VIET INTELLECTUAL PUBLISHING CO., LTD'),
-          shortName: latestReqData?.shortName || prev.shortName || (bIsHousehold ? '' : 'VIP BOOKS'),
-          businessLicenseNumber: latestReqData?.businessLicenseNumber || latestReqData?.registryNumber || b.registryNumber || prev.businessLicenseNumber,
-          issueDate: latestReqData?.issueDate || prev.issueDate,
-          issuePlace: latestReqData?.issuePlace || (bIsHousehold ? 'Ủy ban nhân dân Quận 1, TP. Hồ Chí Minh' : prev.issuePlace),
-          ecommerceIndustryCodes: latestReqData?.ecommerceIndustryCodes || prev.ecommerceIndustryCodes,
-          website: latestReqData?.website || prev.website,
+          internationalName: latestReqData?.internationalName || (b as any).internationalName || prev.internationalName || '',
+          shortName: latestReqData?.shortName || (b as any).shortName || prev.shortName || '',
+          businessLicenseNumber: latestReqData?.businessLicenseNumber || latestReqData?.registryNumber || b.registryNumber || (b as any).businessLicenseNumber || prev.businessLicenseNumber,
+          issueDate: latestReqData?.issueDate || (b as any).issueDate || prev.issueDate,
+          issuePlace: latestReqData?.issuePlace || (b as any).issuePlace || prev.issuePlace || (bIsHousehold ? 'Ủy ban nhân dân' : ''),
+          ecommerceIndustryCodes: latestReqData?.ecommerceIndustryCodes || (b as any).ecommerceIndustryCodes || prev.ecommerceIndustryCodes,
+          website: latestReqData?.website || (b as any).website || prev.website,
 
           // Rep & Operator
-          repName: latestReqData?.repName || prev.repName || user?.fullName || user?.name || 'Trần Minh Hoàng',
-          repPosition: bIsHousehold ? 'Chủ hộ kinh doanh' : (latestReqData?.repPosition || prev.repPosition || 'Tổng Giám Đốc'),
+          repName: latestReqData?.repName || (b as any).repName || prev.repName || user?.fullName || user?.name || '',
+          repPosition: bIsHousehold ? 'Chủ hộ kinh doanh' : (latestReqData?.repPosition || (b as any).repPosition || prev.repPosition || 'Người đại diện'),
           repIdCardNumber: latestReqData?.repIdCardNumber || prev.repIdCardNumber,
           repIdCardIssueDate: latestReqData?.repIdCardIssueDate || prev.repIdCardIssueDate,
           repIdCardIssuePlace: latestReqData?.repIdCardIssuePlace || prev.repIdCardIssuePlace,

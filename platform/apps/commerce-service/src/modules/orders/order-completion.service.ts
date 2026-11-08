@@ -273,6 +273,33 @@ export class OrderCompletionService {
         ...(codPaid ? { paymentStatus: 'SUCCEEDED' } : {}),
       },
     });
+
+    // Ensure bookAccess is granted and active for all purchased books in completed order
+    if (order.userId && order.sellerOrders) {
+      for (const so of order.sellerOrders) {
+        for (const item of (so.items || [])) {
+          if (item.bookId) {
+            await tx.bookAccess.upsert({
+              where: {
+                userId_bookId: { userId: order.userId, bookId: item.bookId },
+              },
+              create: {
+                userId: order.userId,
+                bookId: item.bookId,
+                orderId: order.id,
+                sellerOrderId: so.id,
+                status: 'ACTIVE',
+              },
+              update: {
+                status: 'ACTIVE',
+                orderId: order.id,
+                sellerOrderId: so.id,
+              },
+            }).catch(() => null);
+          }
+        }
+      }
+    }
     if (this.affiliateLifecycleService) {
       await this.affiliateLifecycleService.handleOrderDelivered(
         orderId,
@@ -346,6 +373,12 @@ export class OrderCompletionService {
         await this.settlementService.ingestPaymentEscrow(orderId);
       } catch (err: any) {
         // safe log
+      }
+    }
+
+    if (this.settlementService) {
+      for (const so of order.sellerOrders) {
+        this.settlementService.settleSellerOrder(so.id).catch(() => {});
       }
     }
 

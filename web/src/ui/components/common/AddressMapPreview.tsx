@@ -614,6 +614,8 @@ export interface AddressMapPreviewProps {
   address?: string;
   className?: string;
   minHeight?: string;
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
 }
 
 /**
@@ -627,11 +629,14 @@ export default function AddressMapPreview({
   address = '',
   className = '',
   minHeight = 'min-h-[420px]',
+  collapsible = false,
+  defaultExpanded = false,
 }: AddressMapPreviewProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markerInstanceRef = useRef<any>(null);
 
+  const [isExpanded, setIsExpanded] = useState(!collapsible || defaultExpanded);
   const [zoomLevel, setZoomLevel] = useState(13); // Zoom 13 is ideal district/ward level
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isLeafletReady, setIsLeafletReady] = useState(false);
@@ -683,11 +688,12 @@ export default function AddressMapPreview({
   const activeLng = exactCoords ? exactCoords.lng : locationInfo.lng;
   const activeZoom = exactCoords ? (isManualPinned ? 17 : 16) : (locationInfo.zoom || zoomLevel);
 
-  // Initialize Leaflet Map once container is mounted
+  // Initialize Leaflet Map once container is mounted and expanded
   useEffect(() => {
     let isMounted = true;
 
     async function initMap() {
+      if (!isExpanded && !isFullscreen) return;
       if (!mapContainerRef.current || mapInstanceRef.current) return;
 
       const L = (await import('leaflet')).default;
@@ -753,10 +759,26 @@ export default function AddressMapPreview({
       }, 500);
     }
 
-    initMap();
+    if (isExpanded || isFullscreen) {
+      if (mapInstanceRef.current) {
+        setTimeout(() => {
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.invalidateSize();
+          }
+        }, 150);
+      } else {
+        initMap();
+      }
+    }
 
     return () => {
       isMounted = false;
+    };
+  }, [isExpanded, isFullscreen]);
+
+  // Clean up Leaflet map instance on full unmount
+  useEffect(() => {
+    return () => {
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -789,6 +811,41 @@ export default function AddressMapPreview({
   };
 
   const googleMapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddressText || `${locationInfo.lat},${locationInfo.lng}`)}`;
+
+  // Compact collapsed bar when collapsible mode is active
+  if (collapsible && !isExpanded && !isFullscreen) {
+    return (
+      <div className={`w-full rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] p-3 text-xs flex items-center justify-between gap-3 shadow-2xs ${className}`}>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="w-8 h-8 rounded-lg bg-[var(--theme-primary,#003B2B)]/10 text-[var(--theme-primary,#003B2B)] flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-[18px]">map</span>
+          </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-800 dark:text-neutral-200 truncate">
+                Xem lộ trình giao dự kiến trên bản đồ
+              </span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold shrink-0">
+                {locationInfo.eta}
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-500 truncate block">
+              Bưu cục xử lý: {locationInfo.hub}
+            </span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsExpanded(true)}
+          className="px-3 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 dark:border-neutral-700 hover:bg-slate-50 dark:hover:bg-neutral-800 text-xs font-semibold text-slate-700 dark:text-neutral-200 flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
+        >
+          <span>Mở bản đồ</span>
+          <span className="material-symbols-outlined text-[16px]">expand_more</span>
+        </button>
+      </div>
+    );
+  }
 
   const containerContent = (
     <div className={`w-full ${minHeight} rounded-none border-0 border-none bg-[var(--theme-surface,#ffffff)] overflow-hidden flex flex-col relative group transition-all duration-300 shadow-none ${className}`}>
@@ -852,6 +909,19 @@ export default function AddressMapPreview({
               {isFullscreen ? 'fullscreen_exit' : 'fullscreen'}
             </span>
           </button>
+
+          {/* Collapse Button if collapsible */}
+          {collapsible && (
+            <button
+              type="button"
+              title="Thu gọn bản đồ"
+              onClick={() => setIsExpanded(false)}
+              className="h-8 px-2.5 rounded-none bg-neutral-100 dark:bg-neutral-800 text-[var(--theme-text,#1c1b1f)] hover:bg-neutral-200 dark:hover:bg-neutral-700 flex items-center gap-1 text-xs font-semibold transition-all cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">expand_less</span>
+              <span>Thu gọn</span>
+            </button>
+          )}
         </div>
       </div>
 
