@@ -4,8 +4,11 @@ import {
   Logger,
   OnApplicationBootstrap,
   OnModuleDestroy,
+  Optional,
 } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import Redis from "ioredis";
+import { RabbitMqEventBus } from "@huki/shared";
 import { PrismaService } from "../../prisma/prisma.service";
 import {
   CreateFlashSaleDto,
@@ -35,6 +38,7 @@ export class FlashSalesService
   constructor(
     private readonly prisma: PrismaService,
     @Inject("FLASH_SALE_REDIS") private readonly redis: Redis,
+    @Optional() private readonly eventBus?: RabbitMqEventBus,
   ) {}
 
   async onApplicationBootstrap() {
@@ -1075,11 +1079,12 @@ export class FlashSalesService
       );
     }
 
+    let updated: any;
     if (status === FlashSaleStatus.PAUSED) {
       if (pauseMode === PauseMode.GRACE_2_MINUTES) {
         // Schedule pause in 2 minutes: keep active during grace period
         const pauseEffectiveAt = new Date(now.getTime() + 2 * 60 * 1000);
-        return this.prisma.flashSale.update({
+        updated = await this.prisma.flashSale.update({
           where: { id },
           data: {
             status: FlashSaleStatus.ACTIVE,
@@ -1088,7 +1093,7 @@ export class FlashSalesService
         });
       } else {
         // Immediate pause
-        return this.prisma.flashSale.update({
+        updated = await this.prisma.flashSale.update({
           where: { id },
           data: {
             status: FlashSaleStatus.PAUSED,
@@ -1096,15 +1101,60 @@ export class FlashSalesService
           },
         });
       }
+    } else {
+      updated = await this.prisma.flashSale.update({
+        where: { id },
+        data: {
+          status,
+          pauseEffectiveAt: null,
+        },
+      });
     }
 
-    return this.prisma.flashSale.update({
-      where: { id },
-      data: {
-        status,
-        pauseEffectiveAt: null,
-      },
-    });
+    // Broadcast domain event to RabbitMQ for sellers & admin notifications
+    await this.publishFlashSaleStatusEvent(updated, status, pauseMode);
+
+    return updated;
+  }
+
+  private async publishFlashSaleStatusEvent(
+    flashSale: any,
+    status: FlashSaleStatus,
+    pauseMode?: PauseMode,
+  ) {
+    if (!this.eventBus) return;
+    try {
+      const storeIds = await this.getParticipatingStoreIds(flashSale.id);
+      const isGrace = status === FlashSaleStatus.PAUSED && pauseMode === PauseMode.GRACE_2_MINUTES;
+      const isPaused = status === FlashSaleStatus.PAUSED && !isGrace;
+      const eventType = isGrace
+        ? 'flash_sale.grace_started'
+        : isPaused
+        ? 'flash_sale.paused'
+        : status === FlashSaleStatus.ACTIVE
+        ? 'flash_sale.resumed'
+        : 'flash_sale.status_changed';
+
+      await this.eventBus.publish({
+        eventId: randomUUID(),
+        eventType,
+        occurredAt: new Date().toISOString(),
+        producer: 'promotion-service',
+        version: 1,
+        aggregateId: flashSale.id,
+        payload: {
+          flashSaleId: flashSale.id,
+          flashSaleName: flashSale.name,
+          status: flashSale.status,
+          pauseEffectiveAt: flashSale.pauseEffectiveAt,
+          pauseMode,
+          participatingStoreIds: storeIds,
+        },
+      });
+      this.logger.log(`Published ${eventType} for Flash Sale "${flashSale.name}" to ${storeIds.length} stores`);
+    } catch (err: any) {
+      this.logger.warn(`Failed to publish flash sale status event: ${err.message}`);
+    }
   }
 
   async updateItemStock(id: string, stock: number) {
@@ -1227,16 +1277,32 @@ export class FlashSalesService
     const now = new Date();
 
     // 0. Auto-transition from Grace Period to PAUSED when pauseEffectiveAt is reached:
-    await this.prisma.flashSale.updateMany({
+    const expiredGraceSales = await this.prisma.flashSale.findMany({
       where: {
         pauseEffectiveAt: { lte: now },
         status: { notIn: [FlashSaleStatus.PAUSED, FlashSaleStatus.ENDED, FlashSaleStatus.CANCELLED] },
       },
-      data: {
-        status: FlashSaleStatus.PAUSED,
-        pauseEffectiveAt: null,
-      },
     });
+
+    if (expiredGraceSales.length > 0) {
+      await this.prisma.flashSale.updateMany({
+        where: {
+          id: { in: expiredGraceSales.map((s) => s.id) },
+        },
+        data: {
+          status: FlashSaleStatus.PAUSED,
+          pauseEffectiveAt: null,
+        },
+      });
+
+      for (const s of expiredGraceSales) {
+        await this.publishFlashSaleStatusEvent(
+          { ...s, status: FlashSaleStatus.PAUSED, pauseEffectiveAt: null },
+          FlashSaleStatus.PAUSED,
+          PauseMode.IMMEDIATE,
+        );
+      }
+    }
 
     // 1. Auto-cancel Platform Flash Sales that reached registrationEndsAt with fewer distinct stores than minStores
     const pendingPlatformSales = await this.prisma.flashSale.findMany({

@@ -34,6 +34,10 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
     "review.replied",
     "penalty.added",
     "penalty.appeal_reviewed",
+    "flash_sale.paused",
+    "flash_sale.grace_started",
+    "flash_sale.resumed",
+    "flash_sale.status_changed",
   ];
 
   constructor(
@@ -251,6 +255,67 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
           });
         }
         break;
+      case "flash_sale.paused":
+      case "flash_sale.grace_started":
+      case "flash_sale.resumed":
+      case "flash_sale.status_changed": {
+        const slotName = payload.flashSaleName || payload.name || "Khung Giờ Flash Sale";
+        const isGrace = event.eventType === "flash_sale.grace_started";
+        const isPaused = event.eventType === "flash_sale.paused";
+        const isResumed = event.eventType === "flash_sale.resumed";
+
+        const title = isGrace
+          ? `⚡ Flash Sale "${slotName}" sắp tạm dừng sau 2 phút`
+          : isPaused
+          ? `⏸️ Flash Sale "${slotName}" đã tạm dừng`
+          : isResumed
+          ? `⚡ Flash Sale "${slotName}" đã mở bán lại (Live)`
+          : `⚡ Trạng thái Flash Sale "${slotName}" đã thay đổi`;
+
+        const message = isGrace
+          ? `Sàn HUKI đã lên lịch tạm dừng khung giờ Flash Sale "${slotName}" sau 2 phút. Khách hàng đang ở giỏ hàng có 2 phút để hoàn tất đơn hàng.`
+          : isPaused
+          ? `Sàn HUKI đã tạm dừng khung giờ Flash Sale "${slotName}". Các sản phẩm tham gia của Shop tạm thời quay về giá gốc niêm yết.`
+          : isResumed
+          ? `Sàn HUKI đã kích hoạt mở bán lại khung giờ Flash Sale "${slotName}". Sách tham gia của Shop đã áp dụng lại giá ưu đãi Flash Sale.`
+          : `Khung giờ Flash Sale "${slotName}" đã chuyển sang trạng thái ${payload.status}.`;
+
+        const actionUrl = `/seller/promotions`;
+
+        const storeIds: string[] = payload.participatingStoreIds || [];
+        if (storeIds.length > 0) {
+          for (const storeId of storeIds) {
+            targets.push({
+              recipientId: storeId,
+              recipientType: "BUSINESS",
+              type: "PROMOTION" as any,
+              title,
+              message,
+              actionUrl,
+            });
+          }
+        }
+        // Broadcast to seller_channel so all online sellers receive the realtime pop-up
+        targets.push({
+          recipientId: "seller_channel",
+          recipientType: "BUSINESS",
+          type: "PROMOTION" as any,
+          title,
+          message,
+          actionUrl,
+        });
+
+        // Also notify admin_channel
+        targets.push({
+          recipientId: "admin_channel",
+          recipientType: "ADMIN",
+          type: "PROMOTION" as any,
+          title,
+          message,
+          actionUrl: "/admin/flash-sales",
+        });
+        break;
+      }
     }
     return targets.filter(
       (target, index, all) =>

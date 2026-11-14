@@ -114,6 +114,13 @@ export function AdminFlashSaleView() {
     }
   };
 
+  // 1-second dynamic ticker for real-time live countdowns and badge updates
+  const [nowTick, setNowTick] = useState<number>(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   useEffect(() => {
     fetchFlashSales();
     fetchCatalog();
@@ -128,10 +135,28 @@ export function AdminFlashSaleView() {
       if (msg.type === 'SELLER_PENALTY_UPDATED') {
         refreshAppealsCount();
       }
+      if (
+        msg.type === 'NOTIFICATIONS_UPDATED' ||
+        (msg.type as any) === 'FLASH_SALE_UPDATED'
+      ) {
+        fetchFlashSales();
+      }
     });
 
     return () => unsubscribePenalty();
   }, []);
+
+  // Realtime auto-refresh when any slot's grace period ends
+  useEffect(() => {
+    const hasExpiringGrace = flashSales.some((s) => {
+      if (!s.pauseEffectiveAt) return false;
+      const rem = new Date(s.pauseEffectiveAt).getTime() - nowTick;
+      return rem <= 0 && rem > -2000;
+    });
+    if (hasExpiringGrace) {
+      fetchFlashSales();
+    }
+  }, [nowTick, flashSales]);
 
   // Top KPI Metrics
   const stats = useMemo(() => {
@@ -559,7 +584,22 @@ export function AdminFlashSaleView() {
 
   const handleOpenPauseModal = (slot: FlashSaleSlot) => {
     setPauseModalSlot(slot);
-    setPauseMode("GRACE_2_MINUTES");
+    setPauseMode("IMMEDIATE");
+  };
+
+  const handleImmediatePause = async (slot: FlashSaleSlot) => {
+    try {
+      const res = await flashSaleApi.updateStatus(slot.id, "PAUSED", "IMMEDIATE");
+      if (res.success) {
+        showToast?.(`Đã tạm dừng đợt Flash Sale "${slot.name}" ngay lập tức!`, "success");
+        realtimeSyncBus.publish('NOTIFICATIONS_UPDATED' as any, { flashSaleId: slot.id });
+        fetchFlashSales();
+      } else {
+        showToast?.(res.error?.message || "Lỗi tạm dừng Flash Sale", "error");
+      }
+    } catch {
+      showToast?.("Lỗi kết nối khi tạm dừng Flash Sale", "error");
+    }
   };
 
   const handleConfirmPause = async () => {
@@ -574,6 +614,7 @@ export function AdminFlashSaleView() {
             : "Đã tạm dừng đợt Flash Sale ngay lập tức!",
           "success",
         );
+        realtimeSyncBus.publish('NOTIFICATIONS_UPDATED' as any, { flashSaleId: pauseModalSlot.id });
         setPauseModalSlot(null);
         fetchFlashSales();
       } else {
@@ -591,6 +632,7 @@ export function AdminFlashSaleView() {
       const res = await flashSaleApi.updateStatus(slot.id, "ACTIVE");
       if (res.success) {
         showToast?.(`Đã kích hoạt lại đợt Flash Sale "${slot.name}" thành công!`, "success");
+        realtimeSyncBus.publish('NOTIFICATIONS_UPDATED' as any, { flashSaleId: slot.id });
         fetchFlashSales();
       } else {
         showToast?.(res.error?.message || "Lỗi kích hoạt Flash Sale", "error");
@@ -1150,11 +1192,14 @@ export function AdminFlashSaleView() {
               {/* Sessions in this group */}
               <div className="grid grid-cols-1 gap-5">
                 {group.sessions.map((slot) => {
-                  const isLive = slot.status === "ACTIVE";
+                  const graceRemaining = slot.pauseEffectiveAt
+                    ? Math.max(0, Math.floor((new Date(slot.pauseEffectiveAt).getTime() - nowTick) / 1000))
+                    : 0;
+                  const isGracePeriod = graceRemaining > 0;
+                  const isLive = slot.status === "ACTIVE" && !isGracePeriod;
                   const isScheduled = slot.status === "SCHEDULED";
-                  const isPaused = slot.status === "PAUSED";
+                  const isPaused = slot.status === "PAUSED" || (slot.pauseEffectiveAt && graceRemaining === 0 && slot.status === "ACTIVE");
                   const isCancelled = slot.status === "CANCELLED";
-                  const isGracePeriod = !!(slot.pauseEffectiveAt && new Date(slot.pauseEffectiveAt) > new Date());
                   const isStudioOpen = studioSlotId === slot.id;
 
                   return (
@@ -1184,7 +1229,7 @@ export function AdminFlashSaleView() {
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-extrabold text-gray-900 text-sm">{slot.name}</h3>
                               {isGracePeriod ? (
-                                <AdminStatusBadge status="warning" label={`TẠM DỪNG SAU ${slot.pauseRemainingSeconds || 120}s`} icon="hourglass_top" />
+                                <AdminStatusBadge status="warning" label={`TẠM DỪNG SAU ${graceRemaining}s`} icon="hourglass_top" />
                               ) : isLive ? (
                                 <AdminStatusBadge status="danger" label="ĐANG DIỄN RA" icon="bolt" />
                               ) : isPaused ? (
@@ -1228,13 +1273,32 @@ export function AdminFlashSaleView() {
                             </span>
                             <span>{isStudioOpen ? "Đóng Studio Sách" : `Studio Gán Sách (${slot.items?.length || 0})`}</span>
                           </button>
-                          {isLive || isGracePeriod ? (
+                          {isGracePeriod ? (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => handleImmediatePause(slot)}
+                                className="px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer border transition-colors bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 flex items-center gap-1"
+                                title="Dừng phiên mở bán ngay tức thì, không đợi hết 2 phút"
+                              >
+                                <span className="material-symbols-outlined text-[15px]">stop_circle</span>
+                                <span>Dừng Ngay</span>
+                              </button>
+                              <button
+                                onClick={() => handleResumeSlot(slot)}
+                                className="px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer border transition-colors bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 flex items-center gap-1"
+                                title="Hủy lịch đếm ngược và tiếp tục mở bán trực tiếp"
+                              >
+                                <span className="material-symbols-outlined text-[15px]">play_arrow</span>
+                                <span>Hủy Dừng (Giữ Live)</span>
+                              </button>
+                            </div>
+                          ) : isLive ? (
                             <button
                               onClick={() => handleOpenPauseModal(slot)}
                               className="px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer border transition-colors bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 flex items-center gap-1"
                             >
                               <span className="material-symbols-outlined text-[15px]">pause_circle</span>
-                              <span>{isGracePeriod ? "Dừng Ngay" : "Tạm Dừng"}</span>
+                              <span>Tạm Dừng</span>
                             </button>
                           ) : isPaused ? (
                             <button
