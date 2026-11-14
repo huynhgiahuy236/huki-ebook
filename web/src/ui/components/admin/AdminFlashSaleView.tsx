@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useToast } from "../../context/ToastContext";
 import { flashSaleApi, type FlashSaleSlot } from "../../api/flashSaleApi";
 import { catalogApi, type BookData } from "../../api/catalogApi";
@@ -146,14 +146,22 @@ export function AdminFlashSaleView() {
     return () => unsubscribePenalty();
   }, []);
 
-  // Realtime auto-refresh when any slot's grace period ends
+  // Realtime auto-refresh when any slot's grace period ends (debounced / triggered once per slot)
+  const triggeredGraceRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    const hasExpiringGrace = flashSales.some((s) => {
-      if (!s.pauseEffectiveAt) return false;
+    let shouldFetch = false;
+    flashSales.forEach((s) => {
+      if (!s.pauseEffectiveAt) {
+        triggeredGraceRef.current.delete(s.id);
+        return;
+      }
       const rem = new Date(s.pauseEffectiveAt).getTime() - nowTick;
-      return rem <= 0 && rem > -2000;
+      if (rem <= 0 && !triggeredGraceRef.current.has(s.id)) {
+        triggeredGraceRef.current.add(s.id);
+        shouldFetch = true;
+      }
     });
-    if (hasExpiringGrace) {
+    if (shouldFetch) {
       fetchFlashSales();
     }
   }, [nowTick, flashSales]);
