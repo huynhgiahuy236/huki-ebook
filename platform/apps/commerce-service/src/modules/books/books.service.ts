@@ -1107,6 +1107,7 @@ export class BooksService implements OnModuleInit {
         path.resolve(process.cwd(), '../web/public/ebooks', relativeKey),
         path.resolve(process.cwd(), 'web/public/ebooks', relativeKey),
         path.resolve(__dirname, '../../assets', relativeKey),
+        path.resolve(__dirname, '../../assets', pdfKey),
       ];
       if (isBillGatesBook) {
         candidates.push(

@@ -9,6 +9,7 @@ import { useAuth } from "@/ui/context/AuthContext";
 import { catalogApi, type BookData, type CatalogEntity, type CategoryData } from "@/ui/api/catalogApi";
 import { flashSaleApi, type FlashSaleSlot, type FlashSaleItem } from "@/ui/api/flashSaleApi";
 import { voucherApi } from "@/ui/api/voucherApi";
+import { bannerApi } from "@/ui/api/bannerApi";
 import { tokenStorage } from "@/ui/api/tokenStorage";
 import { reviewApi } from "@/ui/api/reviewApi";
 import BookCard from "@/ui/components/common/BookCard";
@@ -310,9 +311,29 @@ export default function HomePage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Load Custom Banners from Admin Marketing Hub (LocalStorage or Default Campaigns)
+  // Load Custom Banners from Admin Marketing Hub (API Backend with LocalStorage & Default fallback)
   useEffect(() => {
-    const loadAdminBanners = () => {
+    const loadAdminBanners = async () => {
+      try {
+        const res = await bannerApi.getActiveBanners('HOMEPAGE');
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          const mapped = res.data.map((b: any, idx: number) => ({
+            id: b.id,
+            title: b.title,
+            subtitle: b.subtitle || 'Khám phá bộ sưu tập sách bản quyền đặc sắc tại HuKi',
+            bgImage: b.image || '/banners/hero-library.jpg',
+            badge: b.badge || 'NỔI BẬT',
+            link: b.link || '/catalog',
+            status: 'active',
+            order: b.position || idx + 1,
+          }));
+          setCustomBanners(mapped);
+          return;
+        }
+      } catch (err) {
+        // Fallback to local storage or defaults
+      }
+
       try {
         const saved = localStorage.getItem("huki_admin_marketing_banners");
         if (saved) {

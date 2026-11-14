@@ -9,6 +9,7 @@ import {
   isPaymentWebhookRoute,
   ADMIN_ROLES,
   SELLER_ROLES,
+  SHIPPER_ROLES,
 } from './route-classification';
 
 type ServiceName = 'identity' | 'business' | 'commerce' | 'shipping' | 'community' | 'promotion' | 'analytics';
@@ -170,6 +171,16 @@ export class ServiceProxyMiddleware implements NestMiddleware {
       }
       if (!SELLER_ROLES.has(user.role)) {
         return this.sendForbidden(res, req, 'AUTHZ_ROLE_INSUFFICIENT', 'Access denied. Seller or administrator role required.');
+      }
+    } else if (tier === 'SHIPPER') {
+      if (authError) {
+        return this.sendUnauthorized(res, req, authError.code, authError.message);
+      }
+      if (!user) {
+        return this.sendUnauthorized(res, req, 'AUTH_TOKEN_MISSING', 'Authentication token is required');
+      }
+      if (!SHIPPER_ROLES.has(user.role)) {
+        return this.sendForbidden(res, req, 'AUTHZ_ROLE_INSUFFICIENT', 'Access denied. Shipper or administrator role required.');
       }
     } else if (tier === 'AUTHENTICATED') {
       if (authError) {

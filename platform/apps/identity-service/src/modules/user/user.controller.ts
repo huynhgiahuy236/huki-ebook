@@ -164,7 +164,7 @@ export class UserController {
   @ApiOperation({ summary: 'Admin update user' })
   async updateUserByAdmin(
     @Param('id') id: string,
-    @Body() dto: { fullName?: string; email?: string; phone?: string; password?: string; role?: string; status?: string; storeName?: string },
+    @Body() dto: { fullName?: string; email?: string; phone?: string; role?: string; status?: string; storeName?: string },
   ) {
     return this.userService.updateUserByAdmin(id, dto);
   }

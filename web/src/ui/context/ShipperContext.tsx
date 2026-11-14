@@ -259,10 +259,13 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
     let syncedCount = 0;
     for (const item of queue) {
       try {
-        await orderApi.shipperDeliver(item.orderId, {
+        const res = await orderApi.shipperDeliver(item.orderId, {
           note: item.note,
           podImageUrl: item.podImageUrl,
         });
+        if (!res?.success) {
+          throw new Error(res?.error?.message || 'Sync failed');
+        }
         syncedCount++;
       } catch (err) {
         console.warn('Failed to sync offline POD for ' + item.orderId + ':', err);
@@ -875,7 +878,10 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
       );
     } else {
       try {
-        await orderApi.shipperDeliver(orderId, { note, podImageUrl });
+        const res = await orderApi.shipperDeliver(orderId, { note, podImageUrl });
+        if (!res?.success) {
+          throw new Error(res?.error?.message || 'Không thể cập nhật trạng thái đơn hàng trên máy chủ');
+        }
       } catch (err: any) {
         console.error('Error delivering order in DB, queuing offline:', err);
         const q = getOfflinePodQueue().filter((x) => x.orderId !== orderId);

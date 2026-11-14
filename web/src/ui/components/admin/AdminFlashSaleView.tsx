@@ -17,6 +17,16 @@ interface ConfiguredBookItem {
   maxPerUser: number;
 }
 
+function toLocalDatetimeString(date: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  return year + '-' + month + '-' + day + 'T' + hours + ':' + minutes;
+}
+
 export function AdminFlashSaleView() {
   const { showToast } = useToast();
 
@@ -37,10 +47,10 @@ export function AdminFlashSaleView() {
     name: "",
     description: "",
     bannerUrl: "",
-    registrationStartsAt: new Date().toISOString().slice(0, 16),
-    registrationEndsAt: new Date(Date.now() + 3600000 * 2).toISOString().slice(0, 16),
-    startsAt: new Date(Date.now() + 3600000 * 2 + 120000).toISOString().slice(0, 16),
-    endsAt: new Date(Date.now() + 3600000 * 6).toISOString().slice(0, 16),
+    registrationStartsAt: toLocalDatetimeString(),
+    registrationEndsAt: toLocalDatetimeString(new Date(Date.now() + 3600000 * 2)),
+    startsAt: toLocalDatetimeString(new Date(Date.now() + 3600000 * 2 + 120000)),
+    endsAt: toLocalDatetimeString(new Date(Date.now() + 3600000 * 6)),
     minStores: 1,
     maxStores: 10,
     discountPercent: 30,
@@ -488,7 +498,7 @@ export function AdminFlashSaleView() {
         startsAt: new Date(createForm.startsAt).toISOString(),
         endsAt: new Date(createForm.endsAt).toISOString(),
         minStores: Number(createForm.minStores),
-        maxStores: Number(createForm.maxStores),
+        maxStores: Math.min(10, Math.max(1, Number(createForm.maxStores) || 10)),
         discountPercent: Number(createForm.discountPercent),
         maxPerUser: Number(createForm.maxPerUser),
       });
@@ -501,10 +511,10 @@ export function AdminFlashSaleView() {
           name: "",
           description: "",
           bannerUrl: "",
-          registrationStartsAt: new Date().toISOString().slice(0, 16),
-          registrationEndsAt: new Date(Date.now() + 3600000 * 2).toISOString().slice(0, 16),
-          startsAt: new Date(Date.now() + 3600000 * 2 + 120000).toISOString().slice(0, 16),
-          endsAt: new Date(Date.now() + 3600000 * 6).toISOString().slice(0, 16),
+          registrationStartsAt: toLocalDatetimeString(),
+          registrationEndsAt: toLocalDatetimeString(new Date(Date.now() + 3600000 * 2)),
+          startsAt: toLocalDatetimeString(new Date(Date.now() + 3600000 * 2 + 120000)),
+          endsAt: toLocalDatetimeString(new Date(Date.now() + 3600000 * 6)),
           minStores: 1,
           maxStores: 10,
           discountPercent: 30,

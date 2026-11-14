@@ -1,4 +1,4 @@
-export type RouteTier = 'PUBLIC' | 'AUTHENTICATED' | 'SELLER' | 'ADMIN';
+export type RouteTier = 'PUBLIC' | 'AUTHENTICATED' | 'SELLER' | 'ADMIN' | 'SHIPPER';
 
 export const ADMIN_ROLES = new Set(['PLATFORM_ADMIN', 'ADMIN', 'SUPER_ADMIN']);
 export const SELLER_ROLES = new Set([
@@ -6,6 +6,13 @@ export const SELLER_ROLES = new Set([
   'BUSINESS',
   'BUSINESS_OWNER',
   'BUSINESS_STAFF',
+  'PLATFORM_ADMIN',
+  'ADMIN',
+  'SUPER_ADMIN',
+]);
+export const SHIPPER_ROLES = new Set([
+  'DELIVERY_STAFF',
+  'SHIPPER',
   'PLATFORM_ADMIN',
   'ADMIN',
   'SUPER_ADMIN',
@@ -164,6 +171,15 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
     normPath.startsWith('/discounts/seller')
   ) {
     return 'SELLER';
+  }
+
+  // 5b. SHIPPER Routes: Dedicated delivery and shipper operations
+  if (
+    normPath.startsWith('/orders/shipper') ||
+    normPath.startsWith('/delivery-staff') ||
+    normPath.startsWith('/shipments/delivery')
+  ) {
+    return 'SHIPPER';
   }
 
   // Mutations to book reviews require standard customer authentication (not SELLER)

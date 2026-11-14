@@ -153,7 +153,13 @@ export class OrdersService {
       }
     }
 
-    if (query.status) where.status = query.status;
+    if (query.status) {
+      if (query.status === 'COMPLETED') {
+        where.status = { in: [SellerOrderStatus.COMPLETED, SellerOrderStatus.DELIVERED] };
+      } else {
+        where.status = query.status;
+      }
+    }
     if (query.search?.trim()) {
       const term = query.search.trim();
       where.AND = [

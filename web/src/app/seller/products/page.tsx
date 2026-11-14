@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { catalogApi, BookFormat } from '@/ui/api/catalogApi';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 import { businessApi } from '@/ui/api/businessApi';
@@ -78,6 +79,7 @@ interface CategoryOption {
 export default function SellerProductsPage() {
   const { user, activeBusinessId, setActiveBusinessId } = useAuth();
   const { showToast } = useToast();
+  const router = useRouter();
 
   const [books, setBooks] = useState<SellerBookItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -722,15 +724,14 @@ export default function SellerProductsPage() {
 
               {canUpdateProduct && (
                 <>
-                  <Link href={`/seller/product/${book.id}/edit`}>
-                    <SellerActionButton
-                      variant="primary"
-                      size="sm"
-                      label="Sửa"
-                      icon="edit"
-                      disabled={isBusy}
-                    />
-                  </Link>
+                  <SellerActionButton
+                    variant="primary"
+                    size="sm"
+                    label="Sửa"
+                    icon="edit"
+                    disabled={isBusy}
+                    onClick={() => router.push(`/seller/product/${book.id}/edit`)}
+                  />
 
                   <SellerActionButton
                     variant="neutral"

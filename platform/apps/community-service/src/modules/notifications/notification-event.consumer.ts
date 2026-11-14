@@ -31,6 +31,9 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
     SHIPPING_EVENTS.STAFF_ASSIGNED,
     "chat.message.sent",
     "review.created",
+    "review.replied",
+    "penalty.added",
+    "penalty.appeal_reviewed",
   ];
 
   constructor(
@@ -198,6 +201,53 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
             title: "Có đánh giá mới",
             message: `Khách hàng vừa gửi đánh giá ${payload.rating} sao.`,
             actionUrl: `/seller/reviews?reviewId=${payload.reviewId}`,
+          });
+        }
+        if (payload.authorId) {
+          targets.push({
+            recipientId: payload.authorId,
+            recipientType: "USER",
+            type: "NEW_REVIEW",
+            title: "Đánh giá của bạn đã được ghi nhận",
+            message: `Cảm ơn bạn đã gửi đánh giá ${payload.rating} sao. Ý kiến của bạn giúp cộng đồng độc giả chọn sách tốt hơn!`,
+            actionUrl: payload.targetType === 'BOOK' ? `/books/${payload.targetId}` : `/orders`,
+          });
+        }
+        break;
+      case "review.replied":
+        if (payload.userId) {
+          targets.push({
+            recipientId: payload.userId,
+            recipientType: "USER",
+            type: "NEW_REVIEW",
+            title: `${payload.storeName || 'Người bán'} đã phản hồi đánh giá của bạn`,
+            message: this.preview(payload.content),
+            actionUrl: payload.bookId ? `/books/${payload.bookId}` : `/orders`,
+          });
+        }
+        break;
+      case "penalty.added":
+        if (payload.sellerOwnerUserId || payload.storeOwnerId) {
+          targets.push({
+            recipientId: payload.sellerOwnerUserId || payload.storeOwnerId,
+            recipientType: "BUSINESS",
+            type: "STORE_PENALTY" as any,
+            title: `Cảnh báo: Bạn bị cộng ${payload.points} điểm phạt`,
+            message: `Lý do: ${payload.reason || 'Vi phạm chính sách vận hành sàn'}. Vui lòng kiểm tra mục Sao quả tạ.`,
+            actionUrl: `/seller/penalties`,
+          });
+        }
+        break;
+      case "penalty.appeal_reviewed":
+        if (payload.sellerOwnerUserId || payload.storeOwnerId) {
+          const isApproved = payload.decision === 'APPROVED';
+          targets.push({
+            recipientId: payload.sellerOwnerUserId || payload.storeOwnerId,
+            recipientType: "BUSINESS",
+            type: "STORE_PENALTY" as any,
+            title: isApproved ? "Kháng nghị điểm phạt được chấp thuận" : "Kháng nghị điểm phạt bị từ chối",
+            message: payload.adminNote || (isApproved ? "Điểm phạt đã được thu hồi." : "Quyết định xử phạt được giữ nguyên."),
+            actionUrl: `/seller/penalties`,
           });
         }
         break;

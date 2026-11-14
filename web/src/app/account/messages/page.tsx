@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useToast } from '@/ui/context/ToastContext';
 import { useCart } from '@/ui/context/CartContext';
 import { useAuth } from '@/ui/context/AuthContext';
@@ -71,8 +71,15 @@ interface MessageItem {
 function MessengerContent() {
   const { showToast } = useToast();
   const { addToCart } = useCart();
-  const { user } = useAuth();
+  const { user, isLoggedIn, isLoading } = useAuth();
+  const router = useRouter();
   const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (!isLoading && !isLoggedIn) {
+      router.replace('/auth/login?redirect=' + encodeURIComponent('/account/messages'));
+    }
+  }, [isLoading, isLoggedIn, router]);
 
   const targetShopId = searchParams.get('shop') || searchParams.get('storeId') || searchParams.get('contact') || '';
   const targetStoreName = searchParams.get('storeName') || searchParams.get('shopName') || '';
@@ -827,6 +834,14 @@ function MessengerContent() {
     if (activeTabFilter === 'support') return matchesSearch && c.type === 'support';
     return matchesSearch;
   });
+
+  if (isLoading || !isLoggedIn) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-white text-slate-500">
+        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen w-full flex flex-col overflow-hidden bg-white select-none font-sans">
