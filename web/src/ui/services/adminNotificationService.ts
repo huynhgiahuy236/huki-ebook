@@ -178,7 +178,7 @@ class AdminNotificationService {
       const token = tokenStorage.getAccessToken() || '';
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch('/api/admin/broadcast-notifications', { headers, cache: 'no-store' });
+      const res = await fetch('/api/v1/broadcast-notifications', { headers, cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
@@ -422,7 +422,7 @@ class AdminNotificationService {
     this.save(updated);
 
     if (typeof window !== 'undefined') {
-      fetch('/api/admin/broadcast-notifications', {
+      fetch('/api/v1/broadcast-notifications', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'MARK_READ', id: notificationId, businessId: effectiveBiz }),
@@ -444,7 +444,7 @@ class AdminNotificationService {
     this.save(updated);
 
     if (typeof window !== 'undefined') {
-      fetch('/api/admin/broadcast-notifications', {
+      fetch('/api/v1/broadcast-notifications', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'MARK_ALL_READ', businessId: effectiveBiz }),
@@ -469,7 +469,7 @@ class AdminNotificationService {
     this.save(updated);
 
     if (typeof window !== 'undefined') {
-      fetch('/api/admin/broadcast-notifications', {
+      fetch('/api/v1/broadcast-notifications', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'DISMISS', id: notificationId, businessId: effectiveBiz }),
@@ -505,7 +505,7 @@ class AdminNotificationService {
 
     if (typeof window !== 'undefined') {
       const token = tokenStorage.getAccessToken() || '';
-      fetch('/api/admin/broadcast-notifications', {
+      fetch('/api/v1/broadcast-notifications', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -591,7 +591,7 @@ class AdminNotificationService {
     this.save(updated);
 
     if (typeof window !== 'undefined') {
-      fetch('/api/admin/broadcast-notifications', {
+      fetch('/api/v1/broadcast-notifications', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'TOGGLE_PIN', id }),
@@ -607,7 +607,7 @@ class AdminNotificationService {
     this.save(list);
 
     if (typeof window !== 'undefined') {
-      fetch(`/api/admin/broadcast-notifications?id=${encodeURIComponent(id)}`, {
+      fetch(`/api/v1/broadcast-notifications?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
       }).catch(() => {});
     }

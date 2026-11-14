@@ -256,6 +256,28 @@ const BUSINESS_ERROR_TRANSLATIONS: Record<string, { title: string; message: stri
     message: 'Mật khẩu mới không được trùng với mật khẩu hiện tại của bạn.',
   },
 
+  // Promotions & Flash Sales
+  FLASH_SALE_USER_LIMIT_REACHED: {
+    title: 'Giới hạn chiến dịch Flash Sale',
+    message: 'Đã có chiến dịch Flash Sale của Sàn đang diễn ra hoặc đã đạt giới hạn tạo chiến dịch. Vui lòng kết thúc chiến dịch cũ trước khi tạo mới.',
+  },
+  FLASH_SALE_TIME_OVERLAP: {
+    title: 'Khung giờ Flash Sale bị trùng',
+    message: 'Khung giờ bạn chọn bị trùng với một chiến dịch Flash Sale khác đã được lên lịch.',
+  },
+  FLASH_SALE_NOT_FOUND: {
+    title: 'Không tìm thấy chiến dịch Flash Sale',
+    message: 'Chiến dịch Flash Sale yêu cầu không tồn tại hoặc đã bị hủy.',
+  },
+  VOUCHER_NOT_FOUND: {
+    title: 'Mã giảm giá không tồn tại',
+    message: 'Mã ưu đãi bạn nhập không tồn tại hoặc đã hết hạn áp dụng.',
+  },
+  VOUCHER_USAGE_LIMIT: {
+    title: 'Mã giảm giá đã hết lượt',
+    message: 'Mã ưu đãi này đã đạt giới hạn số lần sử dụng tối đa.',
+  },
+
   // Business & Stores
   BUSINESS_ALREADY_EXISTS: {
     title: 'Doanh nghiệp đã tồn tại',
@@ -371,6 +393,9 @@ function translateValidationRule(msg: string): string {
   if (/email.*email/i.test(trimmed)) return 'Email không đúng định dạng';
   if (/phone/i.test(trimmed)) return 'Số điện thoại không hợp lệ';
   if (/tax.*code/i.test(trimmed)) return 'Mã số thuế không hợp lệ';
+  if (/maxStores.*greater than 10/i.test(trimmed)) return 'Số lượng gian hàng tham gia tối đa không được vượt quá 10';
+  if (/maxItemsPerStore/i.test(trimmed)) return 'Số lượng sản phẩm mỗi gian hàng không hợp lệ';
+  if (/registrationStartsAt.*before/i.test(trimmed)) return 'Thời gian bắt đầu đăng ký phải trước thời gian kết thúc';
   
   return trimmed;
 }

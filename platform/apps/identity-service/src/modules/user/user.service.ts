@@ -283,7 +283,7 @@ export class UserService {
     };
   }
 
-  async updateUserByAdmin(id: string, dto: { fullName?: string; email?: string; phone?: string; password?: string; role?: string; status?: string; storeName?: string }) {
+  async updateUserByAdmin(id: string, dto: { fullName?: string; email?: string; phone?: string; role?: string; status?: string; storeName?: string }) {
     const user = await this.findById(id);
 
     const updateData: Prisma.UserUpdateInput = {};
@@ -296,13 +296,9 @@ export class UserService {
       updateData.email = email;
     }
 
-    if (dto.password && dto.password.trim()) {
-      updateData.passwordHash = await bcrypt.hash(dto.password.trim(), 12);
-    }
-
     if (dto.role && user.role !== UserRole.PLATFORM_ADMIN) {
-      if (dto.role === 'CUSTOMER') updateData.role = UserRole.USER;
-      else if (dto.role === 'SELLER_ADMIN' || dto.role === 'SELLER_STAFF') updateData.role = UserRole.BUSINESS;
+      if (dto.role === 'CUSTOMER' || dto.role === 'USER') updateData.role = UserRole.USER;
+      else if (dto.role === 'SELLER_ADMIN' || dto.role === 'BUSINESS') updateData.role = UserRole.BUSINESS;
       else if (dto.role === 'DELIVERY_STAFF' || dto.role === 'SHIPPER') updateData.role = UserRole.DELIVERY_STAFF;
     }
 

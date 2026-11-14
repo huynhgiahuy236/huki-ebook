@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import Redis from "ioredis";
+import { EventsModule as SharedEventsModule } from "@huki/shared";
 import { FlashSalesController } from "./flash-sales.controller";
 import { SellerFlashSalesController } from "./seller-flash-sales.controller";
 import { FlashSalesService } from "./flash-sales.service";
@@ -8,6 +9,7 @@ import { FlashSalesService } from "./flash-sales.service";
 export const FLASH_SALE_REDIS = "FLASH_SALE_REDIS";
 
 @Module({
+  imports: [SharedEventsModule],
   controllers: [FlashSalesController, SellerFlashSalesController],
   providers: [
     {

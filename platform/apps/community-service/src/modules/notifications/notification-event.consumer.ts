@@ -31,6 +31,15 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
     SHIPPING_EVENTS.STAFF_ASSIGNED,
     "chat.message.sent",
     "review.created",
+    "review.replied",
+    "penalty.added",
+    "penalty.appeal_reviewed",
+    "flash_sale.early_ending_scheduled",
+    "flash_sale.cancelled",
+    "flash_sale.paused",
+    "flash_sale.grace_started",
+    "flash_sale.resumed",
+    "flash_sale.status_changed",
   ];
 
   constructor(
@@ -200,7 +209,183 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
             actionUrl: `/seller/reviews?reviewId=${payload.reviewId}`,
           });
         }
+        if (payload.authorId) {
+          targets.push({
+            recipientId: payload.authorId,
+            recipientType: "USER",
+            type: "NEW_REVIEW",
+            title: "Đánh giá của bạn đã được ghi nhận",
+            message: `Cảm ơn bạn đã gửi đánh giá ${payload.rating} sao. Ý kiến của bạn giúp cộng đồng độc giả chọn sách tốt hơn!`,
+            actionUrl: payload.targetType === 'BOOK' ? `/books/${payload.targetId}` : `/orders`,
+          });
+        }
         break;
+      case "review.replied":
+        if (payload.userId) {
+          targets.push({
+            recipientId: payload.userId,
+            recipientType: "USER",
+            type: "NEW_REVIEW",
+            title: `${payload.storeName || 'Người bán'} đã phản hồi đánh giá của bạn`,
+            message: this.preview(payload.content),
+            actionUrl: payload.bookId ? `/books/${payload.bookId}` : `/orders`,
+          });
+        }
+        break;
+      case "penalty.added":
+        if (payload.sellerOwnerUserId || payload.storeOwnerId) {
+          targets.push({
+            recipientId: payload.sellerOwnerUserId || payload.storeOwnerId,
+            recipientType: "BUSINESS",
+            type: "STORE_PENALTY" as any,
+            title: `Cảnh báo: Bạn bị cộng ${payload.points} điểm phạt`,
+            message: `Lý do: ${payload.reason || 'Vi phạm chính sách vận hành sàn'}. Vui lòng kiểm tra mục Sao quả tạ.`,
+            actionUrl: `/seller/penalties`,
+          });
+        }
+        break;
+      case "penalty.appeal_reviewed":
+        if (payload.sellerOwnerUserId || payload.storeOwnerId) {
+          const isApproved = payload.decision === 'APPROVED';
+          targets.push({
+            recipientId: payload.sellerOwnerUserId || payload.storeOwnerId,
+            recipientType: "BUSINESS",
+            type: "STORE_PENALTY" as any,
+            title: isApproved ? "Kháng nghị điểm phạt được chấp thuận" : "Kháng nghị điểm phạt bị từ chối",
+            message: payload.adminNote || (isApproved ? "Điểm phạt đã được thu hồi." : "Quyết định xử phạt được giữ nguyên."),
+            actionUrl: `/seller/penalties`,
+          });
+        }
+        break;
+      case "flash_sale.early_ending_scheduled": {
+        const slotName = payload.flashSaleName || payload.name || "Khung Giờ Flash Sale";
+        const title = `⚡ Flash Sale "${slotName}" sẽ kết thúc sớm sau 5 phút!`;
+        const sellerMsg = `Sàn HUKI đã lên lịch kết thúc sớm khung giờ Flash Sale "${slotName}" sau 5 phút. Quý Shop có sản phẩm tham gia vui lòng theo dõi và xử lý các đơn hàng phát sinh trước khi giá ưu đãi đóng lại.`;
+        const buyerMsg = `Khung giờ Flash Sale "${slotName}" sẽ kết thúc trong 5 phút nữa. Hãy nhanh tay hoàn tất thanh toán trước khi giá ưu đãi đóng lại!`;
+
+        // 1. ONLY notify participating stores (do NOT broadcast to unrelated sellers)
+        const storeIds: string[] = payload.participatingStoreIds || [];
+        for (const storeId of storeIds) {
+          targets.push({
+            recipientId: storeId,
+            recipientType: "BUSINESS",
+            type: "PROMOTION" as any,
+            title,
+            message: sellerMsg,
+            actionUrl: "/seller/promotions",
+          });
+        }
+
+        // 2. Broadcast to Buyer/Public channel so all shoppers see the 5-minute countdown alert
+        targets.push({
+          recipientId: "public_broadcast",
+          recipientType: "USER",
+          type: "PROMOTION" as any,
+          title,
+          message: buyerMsg,
+          actionUrl: "/flash-sale",
+        });
+
+        // 3. Notify admin channel
+        targets.push({
+          recipientId: "admin_channel",
+          recipientType: "ADMIN",
+          type: "PROMOTION" as any,
+          title: `🛑 Flash Sale "${slotName}" đã kích hoạt kết thúc sớm (5 phút)`,
+          message: `Quản trị viên đã kích hoạt kết thúc sớm khung giờ "${slotName}". Phiên sẽ tự động đóng vào lúc ${new Date(payload.endsAt).toLocaleTimeString("vi-VN")}.`,
+          actionUrl: "/admin/flash-sales",
+        });
+        break;
+      }
+      case "flash_sale.cancelled": {
+        const slotName = payload.flashSaleName || payload.name || "Khung Giờ Flash Sale";
+        const title = `❌ Flash Sale "${slotName}" đã được hủy`;
+        const message = `Khung giờ Flash Sale "${slotName}" đã được hủy bởi Ban quản trị sàn HUKI.`;
+
+        // ONLY notify participating stores
+        const storeIds: string[] = payload.participatingStoreIds || [];
+        for (const storeId of storeIds) {
+          targets.push({
+            recipientId: storeId,
+            recipientType: "BUSINESS",
+            type: "PROMOTION" as any,
+            title,
+            message,
+            actionUrl: "/seller/promotions",
+          });
+        }
+
+        targets.push({
+          recipientId: "admin_channel",
+          recipientType: "ADMIN",
+          type: "PROMOTION" as any,
+          title,
+          message,
+          actionUrl: "/admin/flash-sales",
+        });
+        break;
+      }
+      case "flash_sale.paused":
+      case "flash_sale.grace_started":
+      case "flash_sale.resumed":
+      case "flash_sale.status_changed": {
+        const slotName = payload.flashSaleName || payload.name || "Khung Giờ Flash Sale";
+        const isGrace = event.eventType === "flash_sale.grace_started";
+        const isPaused = event.eventType === "flash_sale.paused";
+        const isResumed = event.eventType === "flash_sale.resumed";
+
+        const title = isGrace
+          ? `⚡ Flash Sale "${slotName}" sắp tạm dừng sau 2 phút`
+          : isPaused
+          ? `⏸️ Flash Sale "${slotName}" đã tạm dừng`
+          : isResumed
+          ? `⚡ Flash Sale "${slotName}" đã mở bán lại (Live)`
+          : `⚡ Trạng thái Flash Sale "${slotName}" đã thay đổi`;
+
+        const message = isGrace
+          ? `Sàn HUKI đã lên lịch tạm dừng khung giờ Flash Sale "${slotName}" sau 2 phút. Khách hàng đang ở giỏ hàng có 2 phút để hoàn tất đơn hàng.`
+          : isPaused
+          ? `Sàn HUKI đã tạm dừng khung giờ Flash Sale "${slotName}". Các sản phẩm tham gia của Shop tạm thời quay về giá gốc niêm yết.`
+          : isResumed
+          ? `Sàn HUKI đã kích hoạt mở bán lại khung giờ Flash Sale "${slotName}". Sách tham gia của Shop đã áp dụng lại giá ưu đãi Flash Sale.`
+          : `Khung giờ Flash Sale "${slotName}" đã chuyển sang trạng thái ${payload.status}.`;
+
+        const actionUrl = `/seller/promotions`;
+
+        const storeIds: string[] = payload.participatingStoreIds || [];
+        if (storeIds.length > 0) {
+          for (const storeId of storeIds) {
+            targets.push({
+              recipientId: storeId,
+              recipientType: "BUSINESS",
+              type: "PROMOTION" as any,
+              title,
+              message,
+              actionUrl,
+            });
+          }
+        }
+        // Broadcast to seller_channel so all online sellers receive the realtime pop-up
+        targets.push({
+          recipientId: "seller_channel",
+          recipientType: "BUSINESS",
+          type: "PROMOTION" as any,
+          title,
+          message,
+          actionUrl,
+        });
+
+        // Also notify admin_channel
+        targets.push({
+          recipientId: "admin_channel",
+          recipientType: "ADMIN",
+          type: "PROMOTION" as any,
+          title,
+          message,
+          actionUrl: "/admin/flash-sales",
+        });
+        break;
+      }
     }
     return targets.filter(
       (target, index, all) =>

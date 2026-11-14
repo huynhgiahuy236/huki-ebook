@@ -51,7 +51,9 @@ export interface FlashSaleSlot {
   isRegistrationOpen?: boolean;
   registrationRemainingSeconds?: number;
   startsInSeconds?: number;
-  status: "SCHEDULED" | "ACTIVE" | "ENDED" | "CANCELLED";
+  status: "SCHEDULED" | "ACTIVE" | "PAUSED" | "ENDED" | "CANCELLED";
+  pauseEffectiveAt?: string | null;
+  pauseRemainingSeconds?: number;
   remainingSeconds: number;
   totalItems: number;
   items: FlashSaleItem[];
@@ -217,11 +219,24 @@ export const flashSaleApi = {
 
   updateStatus: async (
     id: string,
-    status: "SCHEDULED" | "ACTIVE" | "ENDED",
+    status: "SCHEDULED" | "ACTIVE" | "PAUSED" | "ENDED" | "CANCELLED",
+    pauseMode?: "IMMEDIATE" | "GRACE_2_MINUTES",
   ): Promise<ApiResponse<FlashSaleSlot>> => {
     return apiClient<FlashSaleSlot>(`/flash-sales/${id}/status`, {
       method: "PATCH",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, pauseMode }),
+    });
+  },
+
+  endEarly: async (id: string): Promise<ApiResponse<FlashSaleSlot>> => {
+    return apiClient<FlashSaleSlot>(`/flash-sales/${id}/end-early`, {
+      method: "PATCH",
+    });
+  },
+
+  cancelFlashSale: async (id: string): Promise<ApiResponse<FlashSaleSlot>> => {
+    return apiClient<FlashSaleSlot>(`/flash-sales/${id}/cancel`, {
+      method: "PATCH",
     });
   },
 

@@ -14,6 +14,7 @@ import {
 } from "@/ui/api/flashSaleApi";
 import { catalogApi, type BookData } from "@/ui/api/catalogApi";
 import { businessApi, type BusinessData } from "@/ui/api/businessApi";
+import { realtimeSyncBus } from "@/ui/services/realtimeSyncBus";
 
 interface DisplayFlashItem extends FlashSaleItem {
   title: string;
@@ -59,7 +60,20 @@ export default function FlashSalePage() {
 
   useEffect(() => {
     const poller = setInterval(() => fetchSlots(false), 10_000);
-    return () => clearInterval(poller);
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      if (
+        msg.type === 'FLASH_SALE_UPDATED' ||
+        msg.type === 'NOTIFICATIONS_UPDATED' ||
+        msg.type === 'ADMIN_NOTIFICATIONS_UPDATED'
+      ) {
+        fetchSlots(false);
+      }
+    });
+
+    return () => {
+      clearInterval(poller);
+      unsubscribe();
+    };
   }, []);
 
   const fetchSlots = async (showLoading = true) => {
@@ -90,9 +104,10 @@ export default function FlashSalePage() {
           const regEnd = s.registrationEndsAt
             ? new Date(s.registrationEndsAt).getTime()
             : new Date(s.startsAt).getTime();
+          const isEnded = s.status === 'ENDED' || now > end;
           const isCancelled = s.status === 'CANCELLED';
           const isRegistrationStage = s.status !== 'ACTIVE' && now < regEnd;
-          return now <= end && !isCancelled && !isRegistrationStage && (s.items?.length ?? 0) > 0;
+          return !isEnded && !isCancelled && !isRegistrationStage && (s.items?.length ?? 0) > 0;
         });
 
         setPlatformSlots(activePlatformSlots);
@@ -111,7 +126,9 @@ export default function FlashSalePage() {
             ...group,
             campaigns: group.campaigns.filter((c) => {
               const end = new Date(c.endsAt).getTime();
-              return now <= end && (c.items?.length ?? 0) > 0;
+              const isEnded = c.status === 'ENDED' || now > end;
+              const isCancelled = c.status === 'CANCELLED';
+              return !isEnded && !isCancelled && (c.items?.length ?? 0) > 0;
             }),
           }))
           .filter((group) => group.campaigns.length > 0);
@@ -175,10 +192,23 @@ export default function FlashSalePage() {
         };
       });
 
+      let shouldRefetch = false;
+      allTimerSlots.forEach((slot) => {
+        const prevMode = previousModes.current[slot.id];
+        const currentMode = updated[slot.id]?.mode;
+        if (prevMode && prevMode !== currentMode) {
+          shouldRefetch = true;
+        }
+      });
+
       setTimeRemaining(updated);
       previousModes.current = Object.fromEntries(
         Object.entries(updated).map(([id, timer]) => [id, timer.mode]),
       );
+
+      if (shouldRefetch) {
+        fetchSlots(false);
+      }
     };
     tick();
     const timer = setInterval(tick, 1000);
@@ -685,7 +715,46 @@ export default function FlashSalePage() {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-3.5">
+              <>
+                {timeRemaining[currentPlatformSlot?.id || ""]?.mode === "active" &&
+                  (timeRemaining[currentPlatformSlot?.id || ""]?.diff ?? 9999) <= 300 && (
+                    <div className="mb-5 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 border-2 border-amber-300 animate-pulse">
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/30">
+                          <span className="material-symbols-outlined text-2xl text-yellow-300">
+                            alarm_on
+                          </span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-black text-sm uppercase tracking-wider text-yellow-200">
+                              ⚡ Đợt Flash Sale đang bước vào 5 phút đếm ngược cuối cùng!
+                            </span>
+                            <span className="bg-red-800 text-yellow-200 text-[10px] font-black px-2 py-0.5 rounded-full border border-yellow-300/40">
+                              KẾT THÚC SỚM
+                            </span>
+                          </div>
+                          <p className="text-xs text-red-100 mt-1">
+                            Hệ thống sẽ đóng cổng thanh toán trợ giá khi hết giờ. Hãy hoàn tất giỏ hàng và tiến hành đặt mua ngay để không bỏ lỡ deal hời!
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 bg-slate-950/70 backdrop-blur-md px-4 py-2 rounded-xl border border-white/25 shrink-0 font-mono">
+                        <span className="text-xs text-slate-300 font-bold uppercase tracking-wider mr-1">
+                          Còn lại:
+                        </span>
+                        <span className="text-lg font-black text-yellow-300">
+                          {timeRemaining[currentPlatformSlot?.id || ""]?.m || "00"}
+                        </span>
+                        <span className="text-white/60 font-bold">:</span>
+                        <span className="text-lg font-black text-yellow-300">
+                          {timeRemaining[currentPlatformSlot?.id || ""]?.s || "00"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-3.5">
                 {platformDisplayItems.map((item) => {
                   const isSlotActive =
                     timeRemaining[currentPlatformSlot?.id || ""]?.mode === "active";
@@ -862,7 +931,8 @@ export default function FlashSalePage() {
                   );
                 })}
               </div>
-            )}
+            </>
+          )}
           </div>
         )}
 

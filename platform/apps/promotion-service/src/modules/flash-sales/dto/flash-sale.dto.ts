@@ -19,8 +19,14 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 export enum FlashSaleStatus {
   SCHEDULED = "SCHEDULED",
   ACTIVE = "ACTIVE",
+  PAUSED = "PAUSED",
   ENDED = "ENDED",
   CANCELLED = "CANCELLED",
+}
+
+export enum PauseMode {
+  IMMEDIATE = "IMMEDIATE",
+  GRACE_2_MINUTES = "GRACE_2_MINUTES",
 }
 
 export enum FlashSaleScope {
@@ -241,6 +247,11 @@ export class UpdateFlashSaleStatusDto {
   @ApiProperty({ enum: FlashSaleStatus })
   @IsEnum(FlashSaleStatus)
   status: FlashSaleStatus;
+
+  @ApiPropertyOptional({ enum: PauseMode })
+  @IsOptional()
+  @IsEnum(PauseMode)
+  pauseMode?: PauseMode;
 }
 
 export class SellerRegisterFlashSaleItemDto {

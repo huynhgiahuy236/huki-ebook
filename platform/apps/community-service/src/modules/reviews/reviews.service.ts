@@ -348,6 +348,27 @@ export class ReviewsService {
         businessName: business.storeName,
         content: dto.content.trim(),
       });
+
+      if (review?.authorId) {
+        this.eventBus.publish({
+          eventId: randomUUID(),
+          eventType: 'review.replied',
+          occurredAt: new Date().toISOString(),
+          producer: 'community-service',
+          version: 1,
+          aggregateId: String(review._id),
+          payload: {
+            reviewId: String(review._id),
+            userId: review.authorId,
+            storeName: business.storeName,
+            content: dto.content.trim(),
+            bookId: review.targetType === 'BOOK' ? review.targetId : undefined,
+          },
+        }).catch((err) => {
+          this.logger.warn(`Failed to publish review.replied event: ${err?.message || err}`);
+        });
+      }
+
       return {
         message: "Reply added",
         data: this.replyView(reply),

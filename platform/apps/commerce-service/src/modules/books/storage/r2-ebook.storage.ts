@@ -39,26 +39,28 @@ export class R2EbookStorage implements EbookStorage {
     }
 
     // Save a local disk backup in assets
-    try {
-      const candidatesDirs = [
-        path.resolve(process.cwd(), 'platform/apps/commerce-service/assets', path.dirname(key)),
-        path.resolve(process.cwd(), 'apps/commerce-service/assets', path.dirname(key)),
-      ];
-      for (const d of candidatesDirs) {
+    const candidatesDirs = [
+      path.resolve(process.cwd(), 'apps/commerce-service/assets', path.dirname(key)),
+      path.resolve(process.cwd(), 'platform/apps/commerce-service/assets', path.dirname(key)),
+      path.resolve(__dirname, '../../assets', path.dirname(key)),
+    ];
+    for (const d of candidatesDirs) {
+      try {
         if (!fs.existsSync(d)) {
           fs.mkdirSync(d, { recursive: true });
         }
         const filePath = path.resolve(d, path.basename(key));
         fs.writeFileSync(filePath, buffer);
+      } catch (fsErr) {
+        // Continue to next candidate directory
       }
-    } catch (fsErr) {
-      console.warn(`[R2EbookStorage] Local asset backup write failed: ${fsErr}`);
     }
 
     if (!r2Success) {
       const localCandidates = [
-        path.resolve(process.cwd(), 'platform/apps/commerce-service/assets', key),
         path.resolve(process.cwd(), 'apps/commerce-service/assets', key),
+        path.resolve(process.cwd(), 'platform/apps/commerce-service/assets', key),
+        path.resolve(__dirname, '../../assets', key),
       ];
       const hasLocalCopy = localCandidates.some((c) => fs.existsSync(c));
       if (!hasLocalCopy) {

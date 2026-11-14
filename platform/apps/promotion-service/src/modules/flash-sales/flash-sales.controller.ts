@@ -157,6 +157,24 @@ export class FlashSalesController {
     return this.flashSales.addItem({ ...dto, flashSaleId: id });
   }
 
+  @Patch(":id/end-early")
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles("PLATFORM_ADMIN")
+  @ApiOperation({ summary: "End flash sale early in 5 minutes with platform-wide broadcast" })
+  endEarly(@Param("id") id: string) {
+    return this.flashSales.endEarly(id);
+  }
+
+  @Patch(":id/cancel")
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles("PLATFORM_ADMIN")
+  @ApiOperation({ summary: "Cancel a scheduled flash sale slot" })
+  cancel(@Param("id") id: string) {
+    return this.flashSales.cancel(id);
+  }
+
   @Patch(":id/status")
   @ApiBearerAuth()
   @UseGuards(RolesGuard)
@@ -166,7 +184,7 @@ export class FlashSalesController {
     @Param("id") id: string,
     @Body() dto: UpdateFlashSaleStatusDto,
   ) {
-    return this.flashSales.updateStatus(id, dto.status);
+    return this.flashSales.updateStatus(id, dto.status, dto.pauseMode);
   }
 
   @Patch("items/:itemId/stock")

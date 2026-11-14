@@ -4,8 +4,11 @@ import {
   Logger,
   OnApplicationBootstrap,
   OnModuleDestroy,
+  Optional,
 } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import Redis from "ioredis";
+import { RabbitMqEventBus } from "@huki/shared";
 import { PrismaService } from "../../prisma/prisma.service";
 import {
   CreateFlashSaleDto,
@@ -20,6 +23,7 @@ import {
   SellerRegisterFlashSaleItemDto,
   SellerBatchRegisterFlashSaleItemsDto,
   SellerUpdateFlashSaleItemDto,
+  PauseMode,
 } from "./dto/flash-sale.dto";
 import { throwNotFound, throwBadRequest, throwForbidden } from "@huki/shared/errors";
 import { ErrorCode } from "@huki/shared/errors";
@@ -34,6 +38,7 @@ export class FlashSalesService
   constructor(
     private readonly prisma: PrismaService,
     @Inject("FLASH_SALE_REDIS") private readonly redis: Redis,
+    @Optional() private readonly eventBus?: RabbitMqEventBus,
   ) {}
 
   async onApplicationBootstrap() {
@@ -74,19 +79,20 @@ export class FlashSalesService
     let maxPerUser = 1;
 
     if (scope === FlashSaleScope.PLATFORM) {
-      // 1. Platform singleton constraint: only 1 active or upcoming/registering Flash Sale at any time
-      const existingPlatformSlot = await this.prisma.flashSale.findFirst({
+      // 1. Platform time overlap validation: no 2 platform flash sales can have overlapping selling windows
+      const overlappingSlot = await this.prisma.flashSale.findFirst({
         where: {
           scope: FlashSaleScope.PLATFORM,
           status: { notIn: [FlashSaleStatus.ENDED, FlashSaleStatus.CANCELLED] },
-          endsAt: { gt: now },
+          startsAt: { lt: endsAt },
+          endsAt: { gt: startsAt },
         },
       });
 
-      if (existingPlatformSlot) {
+      if (overlappingSlot) {
         throwBadRequest(
-          ErrorCode.FLASH_SALE_USER_LIMIT_REACHED,
-          `Sàn hiện đã có 1 chương trình Flash Sale chưa kết thúc ("${existingPlatformSlot.name}"). Mỗi thời điểm chỉ được phép có tối đa 1 chương trình Flash Sale toàn sàn.`,
+          ErrorCode.FLASH_SALE_TIME_OVERLAP,
+          `Khung giờ mở bán Flash Sale bị trùng lặp với đợt "${overlappingSlot.name}" (${new Date(overlappingSlot.startsAt).toLocaleString("vi-VN")} - ${new Date(overlappingSlot.endsAt).toLocaleString("vi-VN")}). Vui lòng chọn khung giờ khác.`,
         );
       }
 
@@ -248,9 +254,17 @@ export class FlashSalesService
           }),
         );
 
+        const effectiveStatus = this.calculateStatus(fs.startsAt, fs.endsAt, fs.status, fs.pauseEffectiveAt);
+        const nowTime = new Date();
+        const pauseRemainingSeconds = fs.pauseEffectiveAt && new Date(fs.pauseEffectiveAt) > nowTime
+          ? Math.max(0, Math.floor((new Date(fs.pauseEffectiveAt).getTime() - nowTime.getTime()) / 1000))
+          : 0;
+
         return {
           ...fs,
-          status: fs.status,
+          status: effectiveStatus,
+          pauseEffectiveAt: fs.pauseEffectiveAt,
+          pauseRemainingSeconds,
           participatingStoresCount: participatingStoreIds.length,
           totalItems: fs.items.length,
           totalStock: fs.items.reduce((sum, item) => sum + item.stock, 0),
@@ -447,7 +461,7 @@ export class FlashSalesService
 
     const enriched = await Promise.all(
       campaigns.map(async (c) => {
-        const status = this.calculateStatus(c.startsAt, c.endsAt, c.status);
+        const status = this.calculateStatus(c.startsAt, c.endsAt, c.status, c.pauseEffectiveAt);
         const participatingStoreIds = await this.getParticipatingStoreIds(c.id, c.items);
         const participatingStoresCount = participatingStoreIds.length;
         const regEnd = c.registrationEndsAt ? new Date(c.registrationEndsAt) : c.startsAt;
@@ -519,7 +533,7 @@ export class FlashSalesService
 
     const enriched = await Promise.all(
       campaigns.map(async (c) => {
-        const status = this.calculateStatus(c.startsAt, c.endsAt, c.status);
+        const status = this.calculateStatus(c.startsAt, c.endsAt, c.status, c.pauseEffectiveAt);
         const participatingStoreIds = await this.getParticipatingStoreIds(c.id, c.items);
         const participatingStoresCount = participatingStoreIds.length;
         const regEnd = c.registrationEndsAt ? new Date(c.registrationEndsAt) : c.startsAt;
@@ -653,6 +667,8 @@ export class FlashSalesService
           startsAt: c.startsAt,
           endsAt: c.endsAt,
           status,
+          pauseEffectiveAt: null,
+          pauseRemainingSeconds: 0,
           remainingSeconds,
           totalItems: c.items.length,
           items: itemsWithBooks,
@@ -673,8 +689,9 @@ export class FlashSalesService
     return publicVisible.sort((a, b) => {
       const order: Record<string, number> = {
         ACTIVE: 1,
-        SCHEDULED: 2,
-        ENDED: 3,
+        PAUSED: 2,
+        SCHEDULED: 3,
+        ENDED: 4,
       };
       const diff = (order[a.status] || 99) - (order[b.status] || 99);
       if (diff !== 0) return diff;
@@ -1047,7 +1064,7 @@ export class FlashSalesService
     };
   }
 
-  async updateStatus(id: string, status: FlashSaleStatus) {
+  async updateStatus(id: string, status: FlashSaleStatus, pauseMode?: PauseMode) {
     const flashSale = await this.prisma.flashSale.findUnique({ where: { id } });
     if (!flashSale) throwNotFound(ErrorCode.FLASH_SALE_NOT_FOUND);
     const campaign = flashSale!;
@@ -1061,10 +1078,66 @@ export class FlashSalesService
         "Chỉ có thể kích hoạt chiến dịch trong khung giờ đã cấu hình",
       );
     }
-    return this.prisma.flashSale.update({
+
+    if (status === FlashSaleStatus.PAUSED) {
+      throwBadRequest(
+        ErrorCode.FLASH_SALE_NOT_ACTIVE,
+        "Tính năng Tạm Dừng đã được gỡ bỏ. Vui lòng sử dụng tính năng Kết Thúc Sớm (5 phút) cho phiên đang diễn ra hoặc Hủy Lịch cho phiên đã lên lịch.",
+      );
+    }
+
+    const updated = await this.prisma.flashSale.update({
       where: { id },
-      data: { status },
+      data: {
+        status,
+        pauseEffectiveAt: null,
+      },
     });
+
+    // Broadcast domain event to RabbitMQ for sellers & admin notifications
+    await this.publishFlashSaleStatusEvent(updated, status, pauseMode);
+
+    return updated;
+  }
+
+  private async publishFlashSaleStatusEvent(
+    flashSale: any,
+    status: FlashSaleStatus,
+    pauseMode?: PauseMode,
+  ) {
+    if (!this.eventBus) return;
+    try {
+      const storeIds = await this.getParticipatingStoreIds(flashSale.id);
+      const isGrace = status === FlashSaleStatus.PAUSED && pauseMode === PauseMode.GRACE_2_MINUTES;
+      const isPaused = status === FlashSaleStatus.PAUSED && !isGrace;
+      const eventType = isGrace
+        ? 'flash_sale.grace_started'
+        : isPaused
+        ? 'flash_sale.paused'
+        : status === FlashSaleStatus.ACTIVE
+        ? 'flash_sale.resumed'
+        : 'flash_sale.status_changed';
+
+      await this.eventBus.publish({
+        eventId: randomUUID(),
+        eventType,
+        occurredAt: new Date().toISOString(),
+        producer: 'promotion-service',
+        version: 1,
+        aggregateId: flashSale.id,
+        payload: {
+          flashSaleId: flashSale.id,
+          flashSaleName: flashSale.name,
+          status: flashSale.status,
+          pauseEffectiveAt: flashSale.pauseEffectiveAt,
+          pauseMode,
+          participatingStoreIds: storeIds,
+        },
+      });
+      this.logger.log(`Published ${eventType} for Flash Sale "${flashSale.name}" to ${storeIds.length} stores`);
+    } catch (err: any) {
+      this.logger.warn(`Failed to publish flash sale status event: ${err.message}`);
+    }
   }
 
   async updateItemStock(id: string, stock: number) {
@@ -1090,6 +1163,109 @@ export class FlashSalesService
       data: { stock },
     });
     await this.syncItemStock(id, stock, true);
+    return updated;
+  }
+
+  async endEarly(id: string) {
+    const flashSale = await this.prisma.flashSale.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+    if (!flashSale) throwNotFound(ErrorCode.FLASH_SALE_NOT_FOUND);
+
+    const now = new Date();
+    if (
+      flashSale.status === FlashSaleStatus.ENDED ||
+      flashSale.status === FlashSaleStatus.CANCELLED ||
+      now > flashSale.endsAt
+    ) {
+      throwBadRequest(
+        ErrorCode.FLASH_SALE_NOT_ACTIVE,
+        "Đợt Flash Sale này đã kết thúc hoặc đã bị hủy",
+      );
+    }
+
+    // Set endsAt to exactly 5 minutes from now
+    const newEndsAt = new Date(now.getTime() + 5 * 60 * 1000);
+
+    const updated = await this.prisma.flashSale.update({
+      where: { id },
+      data: {
+        endsAt: newEndsAt,
+        status: FlashSaleStatus.ACTIVE,
+        pauseEffectiveAt: null,
+      },
+    });
+
+    if (this.eventBus) {
+      const storeIds = await this.getParticipatingStoreIds(id, flashSale.items);
+      try {
+        await this.eventBus.publish({
+          eventId: randomUUID(),
+          eventType: "flash_sale.early_ending_scheduled",
+          occurredAt: new Date().toISOString(),
+          producer: "promotion-service",
+          version: 1,
+          aggregateId: id,
+          payload: {
+            flashSaleId: id,
+            flashSaleName: flashSale.name,
+            endsAt: newEndsAt.toISOString(),
+            remainingSeconds: 300,
+            participatingStoreIds: storeIds, // only stores participating in this slot!
+          },
+        });
+        this.logger.log(
+          `Published flash_sale.early_ending_scheduled for "${flashSale.name}" (endsAt: ${newEndsAt.toISOString()}) to ${storeIds.length} stores`,
+        );
+      } catch (err: any) {
+        this.logger.warn(`Failed to publish early ending event: ${err.message}`);
+      }
+    }
+
+    return updated;
+  }
+
+  async cancel(id: string) {
+    const flashSale = await this.prisma.flashSale.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+    if (!flashSale) throwNotFound(ErrorCode.FLASH_SALE_NOT_FOUND);
+
+    const updated = await this.prisma.flashSale.update({
+      where: { id },
+      data: {
+        status: FlashSaleStatus.CANCELLED,
+        pauseEffectiveAt: null,
+      },
+    });
+
+    if (this.eventBus) {
+      const storeIds = await this.getParticipatingStoreIds(id, flashSale.items);
+      try {
+        await this.eventBus.publish({
+          eventId: randomUUID(),
+          eventType: "flash_sale.cancelled",
+          occurredAt: new Date().toISOString(),
+          producer: "promotion-service",
+          version: 1,
+          aggregateId: id,
+          payload: {
+            flashSaleId: id,
+            flashSaleName: flashSale.name,
+            status: FlashSaleStatus.CANCELLED,
+            participatingStoreIds: storeIds,
+          },
+        });
+        this.logger.log(
+          `Published flash_sale.cancelled for "${flashSale.name}" to ${storeIds.length} stores`,
+        );
+      } catch (err: any) {
+        this.logger.warn(`Failed to publish cancel event: ${err.message}`);
+      }
+    }
+
     return updated;
   }
 
@@ -1157,6 +1333,7 @@ export class FlashSalesService
     startsAt: Date,
     endsAt: Date,
     currentStatus?: FlashSaleStatus | string,
+    pauseEffectiveAt?: Date | null,
   ): FlashSaleStatus {
     if (
       currentStatus === FlashSaleStatus.CANCELLED ||
@@ -1165,13 +1342,30 @@ export class FlashSalesService
       return FlashSaleStatus.CANCELLED;
     }
     const now = new Date();
-    if (now < startsAt) return FlashSaleStatus.SCHEDULED;
     if (now > endsAt) return FlashSaleStatus.ENDED;
+    if (now < startsAt) return FlashSaleStatus.SCHEDULED;
     return FlashSaleStatus.ACTIVE;
   }
 
   private async syncStatuses() {
     const now = new Date();
+
+    // 0. Auto-heal any legacy PAUSED campaigns to ACTIVE or ENDED to ensure no campaigns remain stuck:
+    const legacyPausedSales = await this.prisma.flashSale.findMany({
+      where: {
+        status: FlashSaleStatus.PAUSED,
+      },
+    });
+
+    if (legacyPausedSales.length > 0) {
+      for (const s of legacyPausedSales) {
+        const targetStatus = now > s.endsAt ? FlashSaleStatus.ENDED : now >= s.startsAt ? FlashSaleStatus.ACTIVE : FlashSaleStatus.SCHEDULED;
+        await this.prisma.flashSale.update({
+          where: { id: s.id },
+          data: { status: targetStatus, pauseEffectiveAt: null },
+        });
+      }
+    }
 
     // 1. Auto-cancel Platform Flash Sales that reached registrationEndsAt with fewer distinct stores than minStores
     const pendingPlatformSales = await this.prisma.flashSale.findMany({
@@ -1209,7 +1403,7 @@ export class FlashSalesService
       }),
       this.prisma.flashSale.updateMany({
         where: {
-          status: { in: [FlashSaleStatus.SCHEDULED, FlashSaleStatus.ACTIVE] },
+          status: { in: [FlashSaleStatus.SCHEDULED, FlashSaleStatus.ACTIVE, FlashSaleStatus.PAUSED] },
           endsAt: { lt: now },
         },
         data: { status: FlashSaleStatus.ENDED },
@@ -1226,7 +1420,11 @@ export class FlashSalesService
         flashSale: {
           startsAt: { lte: now },
           endsAt: { gte: now },
-          status: { notIn: [FlashSaleStatus.ENDED, FlashSaleStatus.CANCELLED] },
+          status: { notIn: [FlashSaleStatus.ENDED, FlashSaleStatus.CANCELLED, FlashSaleStatus.PAUSED] },
+          OR: [
+            { pauseEffectiveAt: null },
+            { pauseEffectiveAt: { gt: now } },
+          ],
         },
         stock: { gt: 0 },
       },

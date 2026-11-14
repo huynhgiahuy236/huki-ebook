@@ -3,7 +3,7 @@
 import React, { ReactNode, useMemo } from 'react';
 import { useAffiliateGuard } from '@/lib/affiliate/useAffiliateGuard';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/ui/context/AuthContext';
 import UserAvatar from '@/ui/components/common/UserAvatar';
 
@@ -13,7 +13,14 @@ interface AccountLayoutProps {
 
 export default function AccountLayout({ children }: AccountLayoutProps) {
   const pathname = usePathname() || '';
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, isLoggedIn, isLoading } = useAuth();
+
+  React.useEffect(() => {
+    if (!isLoading && !isLoggedIn) {
+      router.replace('/auth/login?redirect=' + encodeURIComponent(pathname));
+    }
+  }, [isLoading, isLoggedIn, pathname, router]);
 
   const displayName =
     user?.fullName ||
@@ -169,6 +176,14 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
           ],
     },
   ];
+
+  if (isLoading || !isLoggedIn) {
+    return (
+      <div className="w-full min-h-[500px] flex items-center justify-center p-6 text-slate-500">
+        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full min-h-[calc(100vh-140px)] bg-[#f4f7f6] py-5 font-sans">

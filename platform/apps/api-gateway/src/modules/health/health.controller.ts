@@ -44,9 +44,9 @@ export class HealthController {
   @Get('health/services')
   @ApiOperation({ summary: 'Check all local backend services' })
   async services() {
-    const names = ['identity', 'business', 'commerce', 'shipping', 'community', 'promotion'] as const;
+    const names = ['identity', 'business', 'commerce', 'shipping', 'community', 'promotion', 'analytics'] as const;
     const checks = await Promise.all(names.map(async (name) => {
-      const host = this.config.get<string>(`services.${name}.host`);
+      const host = this.config.get<string>(`services.${name}.host`) || 'localhost';
       const port = this.config.get<number>(`services.${name}.port`);
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 3_000);
@@ -60,9 +60,7 @@ export class HealthController {
       }
     }));
 
-    if (checks.some((check) => check.status !== 'ok')) {
-      throw new ServiceUnavailableException({ code: 'SYSTEM_UNAVAILABLE', message: 'One or more services are unavailable', details: checks });
-    }
-    return { status: 'ok', services: checks };
+    const isAllOk = checks.every((check) => check.status === 'ok');
+    return { status: isAllOk ? 'ok' : 'degraded', services: checks };
   }
 }

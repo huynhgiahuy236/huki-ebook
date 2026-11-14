@@ -489,7 +489,7 @@ export const adminApi = {
   /**
    * Cập nhật thông tin người dùng trong database
    */
-  async updateUser(id: string, dto: { fullName?: string; email?: string; phone?: string; password?: string; role?: string; status?: string; storeName?: string }): Promise<ApiResponse<any>> {
+  async updateUser(id: string, dto: { fullName?: string; email?: string; phone?: string; role?: string; status?: string; storeName?: string }): Promise<ApiResponse<any>> {
     const res = await apiClient<any>(`/users/admin/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(dto),

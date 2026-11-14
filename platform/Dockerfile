@@ -61,6 +61,10 @@ COPY --from=builder /app/libs ./libs
 COPY --from=builder /app/scripts ./scripts
 RUN mkdir -p node_modules/@huki && ln -sfn ../../dist/libs/shared node_modules/@huki/shared
 
+# Ensure assets directory exists and is owned by node (avoids EACCES when saving local fallback assets)
+RUN mkdir -p /app/apps/commerce-service/assets /app/apps/commerce-service/assets/ebooks && \
+    chown -R node:node /app/apps/commerce-service/assets
+
 # Create non-root user
 USER node
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useToast } from "../../context/ToastContext";
 import { flashSaleApi, type FlashSaleSlot } from "../../api/flashSaleApi";
 import { catalogApi, type BookData } from "../../api/catalogApi";
@@ -15,6 +15,16 @@ interface ConfiguredBookItem {
   salePrice: number;
   stock: number;
   maxPerUser: number;
+}
+
+function toLocalDatetimeString(date: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  return year + '-' + month + '-' + day + 'T' + hours + ':' + minutes;
 }
 
 export function AdminFlashSaleView() {
@@ -33,14 +43,17 @@ export function AdminFlashSaleView() {
 
   // In-Page Expandable Create Slot Form (100% In-Page, Zero Modal)
   const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
+  // End Early 5 Minutes Modal states
+  const [endEarlyModalSlot, setEndEarlyModalSlot] = useState<FlashSaleSlot | null>(null);
+  const [submittingEndEarly, setSubmittingEndEarly] = useState(false);
   const [createForm, setCreateForm] = useState({
     name: "",
     description: "",
     bannerUrl: "",
-    registrationStartsAt: new Date().toISOString().slice(0, 16),
-    registrationEndsAt: new Date(Date.now() + 3600000 * 2).toISOString().slice(0, 16),
-    startsAt: new Date(Date.now() + 3600000 * 2 + 120000).toISOString().slice(0, 16),
-    endsAt: new Date(Date.now() + 3600000 * 6).toISOString().slice(0, 16),
+    registrationStartsAt: toLocalDatetimeString(),
+    registrationEndsAt: toLocalDatetimeString(new Date(Date.now() + 3600000 * 2)),
+    startsAt: toLocalDatetimeString(new Date(Date.now() + 3600000 * 2 + 120000)),
+    endsAt: toLocalDatetimeString(new Date(Date.now() + 3600000 * 6)),
     minStores: 1,
     maxStores: 10,
     discountPercent: 30,
@@ -80,7 +93,21 @@ export function AdminFlashSaleView() {
           : Array.isArray((res.data as any)?.items)
           ? (res.data as any).items
           : [];
-        setFlashSales(list.filter((s: FlashSaleSlot) => (s.scope === 'PLATFORM' || !s.storeId)));
+        const normalized = list
+          .filter((s: FlashSaleSlot) => (s.scope === 'PLATFORM' || !s.storeId))
+          .map((s: FlashSaleSlot) => {
+            if ((s.status as string) === 'PAUSED') {
+              const now = Date.now();
+              const end = new Date(s.endsAt).getTime();
+              const start = new Date(s.startsAt).getTime();
+              return {
+                ...s,
+                status: (now >= start && now <= end ? 'ACTIVE' : now < start ? 'SCHEDULED' : 'ENDED') as any,
+              };
+            }
+            return s;
+          });
+        setFlashSales(normalized);
       }
     } catch (err) {
       console.error("Failed to load flash sales:", err);
@@ -100,6 +127,13 @@ export function AdminFlashSaleView() {
     }
   };
 
+  // 1-second dynamic ticker for real-time live countdowns and badge updates
+  const [nowTick, setNowTick] = useState<number>(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   useEffect(() => {
     fetchFlashSales();
     fetchCatalog();
@@ -114,10 +148,36 @@ export function AdminFlashSaleView() {
       if (msg.type === 'SELLER_PENALTY_UPDATED') {
         refreshAppealsCount();
       }
+      if (
+        msg.type === 'NOTIFICATIONS_UPDATED' ||
+        (msg.type as any) === 'FLASH_SALE_UPDATED'
+      ) {
+        fetchFlashSales();
+      }
     });
 
     return () => unsubscribePenalty();
   }, []);
+
+  // Realtime auto-refresh when any slot's grace period ends (debounced / triggered once per slot)
+  const triggeredGraceRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    let shouldFetch = false;
+    flashSales.forEach((s) => {
+      if (!s.pauseEffectiveAt) {
+        triggeredGraceRef.current.delete(s.id);
+        return;
+      }
+      const rem = new Date(s.pauseEffectiveAt).getTime() - nowTick;
+      if (rem <= 0 && !triggeredGraceRef.current.has(s.id)) {
+        triggeredGraceRef.current.add(s.id);
+        shouldFetch = true;
+      }
+    });
+    if (shouldFetch) {
+      fetchFlashSales();
+    }
+  }, [nowTick, flashSales]);
 
   // Top KPI Metrics
   const stats = useMemo(() => {
@@ -186,7 +246,7 @@ export function AdminFlashSaleView() {
     if (live.length > 0 || activeTab === 'ACTIVE') {
       result.push({
         groupKey: 'ACTIVE',
-        title: ' Phiên Flash Sale Đang Diễn Ra (Live)',
+        title: '🔥 Phiên Flash Sale Đang Diễn Ra (Live)',
         badgeColor: 'bg-rose-50 text-rose-700 border-rose-200',
         icon: 'local_fire_department',
         sessions: live,
@@ -440,6 +500,18 @@ export function AdminFlashSaleView() {
       const e = new Date(createForm.endsAt).getTime();
       if (e <= s) {
         errs.endsAt = "Thời gian kết thúc phải diễn ra sau thời gian bắt đầu áp dụng.";
+      } else {
+        // Validate time overlap with existing platform slots (exclude ENDED & CANCELLED)
+        const overlap = flashSales.find((slot) => {
+          if (slot.scope && slot.scope !== "PLATFORM") return false;
+          if (slot.status === "ENDED" || slot.status === "CANCELLED") return false;
+          const slotS = new Date(slot.startsAt).getTime();
+          const slotE = new Date(slot.endsAt).getTime();
+          return s < slotE && e > slotS;
+        });
+        if (overlap) {
+          errs.startsAt = `Khung giờ mở bán bị trùng lặp với đợt "${overlap.name}" (${new Date(overlap.startsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${new Date(overlap.startsAt).toLocaleDateString()} - ${new Date(overlap.endsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${new Date(overlap.endsAt).toLocaleDateString()}). Vui lòng chọn khung giờ khác.`;
+        }
       }
     }
 
@@ -488,7 +560,7 @@ export function AdminFlashSaleView() {
         startsAt: new Date(createForm.startsAt).toISOString(),
         endsAt: new Date(createForm.endsAt).toISOString(),
         minStores: Number(createForm.minStores),
-        maxStores: Number(createForm.maxStores),
+        maxStores: Math.min(10, Math.max(1, Number(createForm.maxStores) || 10)),
         discountPercent: Number(createForm.discountPercent),
         maxPerUser: Number(createForm.maxPerUser),
       });
@@ -501,10 +573,10 @@ export function AdminFlashSaleView() {
           name: "",
           description: "",
           bannerUrl: "",
-          registrationStartsAt: new Date().toISOString().slice(0, 16),
-          registrationEndsAt: new Date(Date.now() + 3600000 * 2).toISOString().slice(0, 16),
-          startsAt: new Date(Date.now() + 3600000 * 2 + 120000).toISOString().slice(0, 16),
-          endsAt: new Date(Date.now() + 3600000 * 6).toISOString().slice(0, 16),
+          registrationStartsAt: toLocalDatetimeString(),
+          registrationEndsAt: toLocalDatetimeString(new Date(Date.now() + 3600000 * 2)),
+          startsAt: toLocalDatetimeString(new Date(Date.now() + 3600000 * 2 + 120000)),
+          endsAt: toLocalDatetimeString(new Date(Date.now() + 3600000 * 6)),
           minStores: 1,
           maxStores: 10,
           discountPercent: 30,
@@ -521,32 +593,39 @@ export function AdminFlashSaleView() {
     }
   };
 
-  const handleToggleStatus = async (slot: FlashSaleSlot) => {
-    const nextStatus = slot.status === "ACTIVE" ? "SCHEDULED" : "ACTIVE";
+  const handleConfirmEndEarly = async () => {
+    if (!endEarlyModalSlot) return;
+    setSubmittingEndEarly(true);
     try {
-      const res = await flashSaleApi.updateStatus(slot.id, nextStatus);
+      const res = await flashSaleApi.endEarly(endEarlyModalSlot.id);
       if (res.success) {
-        showToast?.(
-          `Đã chuyển trạng thái khung giờ sang: ${nextStatus === "ACTIVE" ? "ĐANG DIỄN RA" : "TẠM DỪNG"}`,
-          "success",
-        );
+        showToast?.(`Đã kích hoạt kết thúc sớm 5 phút cho đợt "${endEarlyModalSlot.name}"! Toàn sàn đã nhận thông báo.`, "success");
+        realtimeSyncBus.publish('FLASH_SALE_UPDATED' as any, { flashSaleId: endEarlyModalSlot.id });
+        setEndEarlyModalSlot(null);
         fetchFlashSales();
+      } else {
+        showToast?.(res.error?.message || "Lỗi khi kích hoạt kết thúc sớm", "error");
       }
     } catch {
-      showToast?.("Lỗi cập nhật trạng thái Flash Sale", "error");
+      showToast?.("Lỗi kết nối khi kích hoạt kết thúc sớm", "error");
+    } finally {
+      setSubmittingEndEarly(false);
     }
   };
 
-  const handleDeleteSlot = async (id: string, name: string) => {
-    if (!window.confirm(`Bạn có chắc muốn xóa khung giờ Flash Sale "${name}"?`)) return;
+  const handleCancelSlot = async (slot: FlashSaleSlot) => {
+    if (!window.confirm(`Xác nhận hủy lịch mở bán khung giờ "${slot.name}"? Đợt sẽ chuyển sang trạng thái ĐÃ HỦY và lưu vết lịch sử.`)) return;
     try {
-      const res = await flashSaleApi.deleteFlashSale(id);
+      const res = await flashSaleApi.cancelFlashSale(slot.id);
       if (res.success) {
-        showToast?.(`Đã xóa khung giờ "${name}"`, "success");
+        showToast?.(`Đã hủy lịch khung giờ "${slot.name}" thành công!`, "success");
+        realtimeSyncBus.publish('FLASH_SALE_UPDATED' as any, { flashSaleId: slot.id });
         fetchFlashSales();
+      } else {
+        showToast?.(res.error?.message || "Lỗi khi hủy khung giờ", "error");
       }
     } catch {
-      showToast?.("Không thể xóa khung giờ", "error");
+      showToast?.("Lỗi kết nối khi hủy khung giờ", "error");
     }
   };
 
@@ -582,32 +661,22 @@ export function AdminFlashSaleView() {
 
         <div className="flex flex-col items-end gap-1 shrink-0">
           <button
-            disabled={!!activePlatformSlot}
             onClick={() => setIsCreateFormOpen(!isCreateFormOpen)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-xs shrink-0 ${
-              activePlatformSlot
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-300"
-                : isCreateFormOpen
-                ? "bg-gray-800 text-white hover:bg-gray-700 cursor-pointer"
-                : "bg-[#00875A] hover:bg-[#00734c] text-white cursor-pointer"
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-xs shrink-0 cursor-pointer ${
+              isCreateFormOpen
+                ? "bg-gray-800 text-white hover:bg-gray-700"
+                : "bg-[#00875A] hover:bg-[#00734c] text-white"
             }`}
           >
             <span className="material-symbols-outlined text-[17px]">
-              {activePlatformSlot ? "lock" : isCreateFormOpen ? "expand_less" : "add_circle"}
+              {isCreateFormOpen ? "expand_less" : "add_circle"}
             </span>
             <span>
-              {activePlatformSlot
-                ? "Đang Có Đợt Sàn Hoạt Động (Đã Khóa)"
-                : isCreateFormOpen
+              {isCreateFormOpen
                 ? "Đóng Form Khung Giờ"
                 : "+ Thiết Lập Khung Giờ Mới Toàn Sàn"}
             </span>
           </button>
-          {activePlatformSlot && (
-            <p className="text-[11px] text-red-500 font-semibold text-right max-w-md">
-              Sàn hiện đang có 1 chương trình Flash Sale chưa kết thúc ("{activePlatformSlot.name}"). Không thể tạo thêm chương trình mới.
-            </p>
-          )}
         </div>
       </div>
 
@@ -1096,8 +1165,11 @@ export function AdminFlashSaleView() {
               {/* Sessions in this group */}
               <div className="grid grid-cols-1 gap-5">
                 {group.sessions.map((slot) => {
-                  const isLive = slot.status === "ACTIVE";
+                  const remainingSeconds = Math.max(0, Math.floor((new Date(slot.endsAt).getTime() - nowTick) / 1000));
+                  const isEndingEarly = slot.status === "ACTIVE" && remainingSeconds <= 300 && remainingSeconds > 0;
+                  const isLive = slot.status === "ACTIVE" && !isEndingEarly;
                   const isScheduled = slot.status === "SCHEDULED";
+                  const isEnded = slot.status === "ENDED" || (slot.status === "ACTIVE" && remainingSeconds === 0);
                   const isCancelled = slot.status === "CANCELLED";
                   const isStudioOpen = studioSlotId === slot.id;
 
@@ -1113,7 +1185,7 @@ export function AdminFlashSaleView() {
                         <div className="flex items-center gap-3">
                           <div
                             className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 ${
-                              isLive
+                              isLive || isEndingEarly
                                 ? "bg-rose-50 text-rose-600 border border-rose-200"
                                 : isCancelled
                                 ? "bg-red-50 text-red-600 border border-red-200"
@@ -1127,12 +1199,18 @@ export function AdminFlashSaleView() {
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-extrabold text-gray-900 text-sm">{slot.name}</h3>
-                              {isLive ? (
+                              {isEndingEarly ? (
+                                <AdminStatusBadge
+                                  status="warning"
+                                  label={`KẾT THÚC SAU ${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, "0")}`}
+                                  icon="alarm"
+                                />
+                              ) : isLive ? (
                                 <AdminStatusBadge status="danger" label="ĐANG DIỄN RA" icon="bolt" />
                               ) : isScheduled ? (
                                 <AdminStatusBadge status="warning" label="ĐÃ LÊN LỊCH" icon="schedule" />
                               ) : isCancelled ? (
-                                <AdminStatusBadge status="danger" label="ĐÃ HỦY (KHÔNG ĐỦ SHOP)" icon="cancel" />
+                                <AdminStatusBadge status="danger" label="ĐÃ HỦY" icon="cancel" />
                               ) : (
                                 <AdminStatusBadge status="neutral" label="ĐÃ KẾT THÚC" />
                               )}
@@ -1168,24 +1246,34 @@ export function AdminFlashSaleView() {
                             </span>
                             <span>{isStudioOpen ? "Đóng Studio Sách" : `Studio Gán Sách (${slot.items?.length || 0})`}</span>
                           </button>
-                          <button
-                            onClick={() => handleToggleStatus(slot)}
-                            className={`px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer border transition-colors ${
-                              isLive
-                                ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
-                                : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                            }`}
-                          >
-                            {isLive ? "Tạm Dừng" : "Kích Hoạt Live"}
-                          </button>
-                          <button
-                            onClick={() => handleDeleteSlot(slot.id, slot.name)}
-                            className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
-                            title="Xóa đợt Flash Sale này"
-                          >
-                            <span className="material-symbols-outlined text-sm">delete</span>
-                            <span className="hidden sm:inline">Xóa đợt</span>
-                          </button>
+                          {isEndingEarly ? (
+                            <button
+                              disabled
+                              className="px-3 py-1.5 rounded-xl font-bold text-xs border border-amber-300 bg-amber-50 text-amber-800 flex items-center gap-1.5 cursor-not-allowed shadow-2xs"
+                              title="Khung giờ này đã được kích hoạt kết thúc sớm sau 5 phút"
+                            >
+                              <span className="material-symbols-outlined text-[15px] animate-spin text-amber-600">progress_activity</span>
+                              <span>Đang kết thúc ({Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, "0")})</span>
+                            </button>
+                          ) : isLive ? (
+                            <button
+                              onClick={() => setEndEarlyModalSlot(slot)}
+                              className="px-3.5 py-1.5 rounded-xl font-bold text-xs cursor-pointer border transition-colors bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 flex items-center gap-1.5 shadow-2xs"
+                              title="Lên lịch kết thúc đợt sau 5 phút và bắn thông báo toàn sàn để người mua kịp thanh toán giỏ hàng"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">alarm_off</span>
+                              <span>Kết Thúc Sớm (5 phút)</span>
+                            </button>
+                          ) : isScheduled ? (
+                            <button
+                              onClick={() => handleCancelSlot(slot)}
+                              className="px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer border transition-colors bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100 flex items-center gap-1 shadow-2xs"
+                              title="Hủy lịch mở bán khung giờ này"
+                            >
+                              <span className="material-symbols-outlined text-[15px]">event_busy</span>
+                              <span>Hủy Lịch</span>
+                            </button>
+                          ) : null}
                         </div>
                       </div>
 
@@ -1566,6 +1654,75 @@ export function AdminFlashSaleView() {
       )}
     </>
   )}
-</div>
-);
+      {/* MODAL XÁC NHẬN KẾT THÚC SỚM (5 PHÚT) */}
+      {endEarlyModalSlot && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-xl">alarm_off</span>
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-gray-900">Kết Thúc Sớm Flash Sale (5 Phút)</h3>
+                  <p className="text-[11px] text-gray-500 font-medium truncate max-w-[240px]">{endEarlyModalSlot.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEndEarlyModalSlot(null)}
+                className="text-gray-400 hover:text-gray-600 rounded-lg p-1 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            <div className="my-4 space-y-3">
+              <p className="text-xs text-gray-700 leading-relaxed">
+                Bạn có chắc chắn muốn kích hoạt <strong>kết thúc sớm sau 5 phút</strong> cho khung giờ Flash Sale này không?
+              </p>
+              <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-1.5">
+                <div className="flex items-center gap-1.5 font-bold text-xs text-emerald-800">
+                  <span className="material-symbols-outlined text-sm">notifications_active</span>
+                  <span>Quy trình đóng phiên an toàn (Chuẩn TMĐT)</span>
+                </div>
+                <p className="text-[11px] text-gray-600 leading-relaxed">
+                  • <strong>Người mua</strong>: Nhận thông báo đếm ngược 5 phút để hoàn tất thanh toán giỏ hàng.<br/>
+                  • <strong>Shop tham gia</strong>: Nhận thông báo phiên sắp đóng để chốt các đơn hàng phát sinh.<br/>
+                  • <strong>Sau 5 phút</strong>: Khung giờ tự động kết thúc vĩnh viễn (ĐÃ KẾT THÚC), giá sách quay về niêm yết.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-4 mt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setEndEarlyModalSlot(null)}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 text-xs font-bold hover:bg-gray-50 cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={submittingEndEarly}
+                onClick={handleConfirmEndEarly}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+              >
+                {submittingEndEarly ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Đang kích hoạt...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[15px]">alarm_off</span>
+                    <span>Xác Nhận Đóng Sau 5 Phút</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

@@ -17,12 +17,19 @@ export interface AdminLayoutProps {
 export function AdminLayout({ children }: AdminLayoutProps) {
   const pathname = usePathname() || '';
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, isLoggedIn, isLoading, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    if (!isLoading) {
+      if (!isLoggedIn || user?.role !== 'PLATFORM_ADMIN') {
+        router.replace('/auth/login?redirect=' + encodeURIComponent(pathname));
+      }
+    }
+  }, [isLoading, isLoggedIn, user, pathname, router]);
 
   useEffect(() => {
     setIsMuted(soundEffects.getIsMuted());
@@ -300,6 +307,17 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     await logout();
     router.push('/auth/login');
   };
+
+  if (isLoading || !isLoggedIn || user?.role !== 'PLATFORM_ADMIN') {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-3 text-slate-400">
+          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs">Đang kiểm tra quyền quản trị...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="admin-portal h-screen w-full bg-white text-[#1E293B] flex flex-col font-sans antialiased overflow-hidden selection:bg-[#00875A] selection:text-white">

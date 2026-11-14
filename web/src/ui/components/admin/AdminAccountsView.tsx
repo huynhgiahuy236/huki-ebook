@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { adminApi } from '../../api/adminApi';
+import { authApi } from '../../api/authApi';
 import { useSmartFormCollapse } from '../../utils/formHooks';
 import { AdminStatusBadge, AdminPagination, AdminTableContainer, AdminActionButton } from './AdminUI';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
@@ -14,6 +15,36 @@ export function AdminAccountsView() {
 
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sendingResetEmail, setSendingResetEmail] = useState(false);
+
+  const handleSendResetPasswordLink = async (targetEmail: string) => {
+    if (!targetEmail) return;
+    setSendingResetEmail(true);
+    try {
+      const res = await authApi.forgotPassword(targetEmail);
+      if (res.success) {
+        showToast?.({
+          title: 'Đã gửi liên kết',
+          message: 'Đã gửi liên kết đặt lại mật khẩu an toàn tới email: ' + targetEmail,
+          type: 'success',
+        });
+      } else {
+        showToast?.({
+          title: 'Không thể gửi email',
+          message: res.error?.message || 'Có lỗi khi gửi liên kết đặt lại mật khẩu',
+          type: 'error',
+        });
+      }
+    } catch (err: any) {
+      showToast?.({
+        title: 'Lỗi',
+        message: err?.message || 'Không thể gửi liên kết đặt lại mật khẩu',
+        type: 'error',
+      });
+    } finally {
+      setSendingResetEmail(false);
+    }
+  };
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -460,8 +491,7 @@ export function AdminAccountsView() {
         fullName: editForm.fullName.trim(),
         email: editForm.email.trim(),
         phone: editForm.phone.trim(),
-        password: editForm.password.trim() || undefined,
-        role: editForm.role,
+                role: editForm.role,
         status: editForm.status,
         storeName: editForm.storeName.trim(),
       });
@@ -1363,38 +1393,29 @@ export function AdminAccountsView() {
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center justify-between">
                 <span>Bảo mật &amp; Đặt lại mật khẩu</span>
-                <span className="text-[11px] font-normal text-slate-500">Chuẩn an toàn OWASP</span>
+                <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Chuẩn an toàn OWASP</span>
               </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="password"
-                  value={editForm.password}
-                  onChange={(e: any) => {
-                    setEditForm({ ...editForm, password: e.target.value });
-                    if (editErrors.password) setEditErrors((prev) => ({ ...prev, password: "" }));
-                  }}
-                  placeholder="Nhập mật khẩu mới nếu muốn đặt lại trực tiếp..."
-                  className={`flex-1 pl-3.5 pr-3 py-2 bg-gray-50 border rounded-xl text-xs text-gray-900 font-mono focus:outline-none transition-all ${
-                    editErrors.password ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-gray-200 focus:border-[#00875A] focus:bg-white"
-                  }`}
-                />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1 text-slate-800 text-xs font-semibold">
+                    <span className="material-symbols-outlined text-[15px] text-[#00875A]">lock</span>
+                    <span>Mật khẩu được mã hóa một chiều (Bcrypt)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Theo tiêu chuẩn OWASP, Quản trị viên không được phép can thiệp mật khẩu trực tiếp. Vui lòng gửi email liên kết để người dùng tự xác thực và thiết lập mật khẩu mới.
+                  </p>
+                </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    showToast?.({
-                      title: 'Đã gửi liên kết',
-                      message: `Đã gửi liên kết đặt lại mật khẩu bảo mật tới email: ${editingUser?.email || editForm.email}`,
-                      type: 'success',
-                    });
-                  }}
-                  className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium shrink-0 flex items-center gap-1 transition-colors"
+                  disabled={sendingResetEmail}
+                  onClick={() => handleSendResetPasswordLink(editingUser?.email || editForm.email)}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-colors shadow-2xs disabled:opacity-50 cursor-pointer self-start sm:self-auto"
                   title="Gửi email hướng dẫn đổi mật khẩu an toàn cho người dùng"
                 >
-                  <span className="material-symbols-outlined text-sm text-[#00875A]">mark_email_read</span>
-                  <span>Gửi link đổi mật khẩu</span>
+                  <span className="material-symbols-outlined text-sm">mark_email_read</span>
+                  <span>{sendingResetEmail ? 'Đang gửi...' : 'Gửi link đổi mật khẩu'}</span>
                 </button>
               </div>
-              <p className="text-[10.5px] text-slate-400 mt-1">Mật khẩu người dùng được mã hóa một chiều (Bcrypt/Argon2) và không bao giờ hiển thị dạng văn bản rõ.</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">

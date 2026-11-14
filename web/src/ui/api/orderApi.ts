@@ -12,8 +12,7 @@ export type SellerOrderStatus =
   | 'SHIPPED'
   | 'DELIVERED'
   | 'COMPLETED'
-  | 'CANCELLED'
-  | 'REFUNDED';
+  | 'CANCELLED';
 
 export interface OrderItem {
   id: string;

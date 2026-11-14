@@ -1,10 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { BusinessOutboxService } from '../outbox/outbox.service';
 import { PenaltyActionDto } from './penalty.dto';
 
 @Injectable()
 export class PenaltyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly outbox?: BusinessOutboxService,
+  ) {}
 
   private calculateTier(points: number) {
     if (points >= 18) {
@@ -185,6 +189,23 @@ export class PenaltyService {
             },
           });
         }
+
+        if (this.outbox) {
+          const store = await this.prisma.store.findUnique({
+            where: { id: storeId },
+            include: { business: true },
+          }).catch(() => null);
+          const ownerUserId = store?.business?.ownerId;
+
+          await this.outbox.addToOutbox('penalty.appeal_reviewed', profile.id, {
+            storeId,
+            storeOwnerId: ownerUserId,
+            sellerOwnerUserId: ownerUserId,
+            decision: dto.decision,
+            adminNote: dto.adminNote,
+            recordId: dto.recordId,
+          }).catch(() => {});
+        }
       }
     } else if (dto.action === 'ADD_POINTS' && (dto.points || 0) > 0) {
       const pointsToAdd = dto.points || 1;
@@ -219,6 +240,23 @@ export class PenaltyService {
           activeSanctionMessage: tierInfo.activeSanctionMessage,
         },
       });
+
+      if (this.outbox) {
+        const store = await this.prisma.store.findUnique({
+          where: { id: storeId },
+          include: { business: true },
+        }).catch(() => null);
+        const ownerUserId = store?.business?.ownerId;
+
+        await this.outbox.addToOutbox('penalty.added', profile.id, {
+          storeId,
+          storeOwnerId: ownerUserId,
+          sellerOwnerUserId: ownerUserId,
+          points: pointsToAdd,
+          reason: dto.reason || 'Vi phạm do Ban Quản Trị ghi nhận',
+          violationType: dto.violationType || 'MANUAL_PENALTY',
+        }).catch(() => {});
+      }
     }
 
     return this.getProfile(storeId);

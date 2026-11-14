@@ -100,7 +100,8 @@ export type SyncEventType =
   | 'AFFILIATE_CLICK_RECORDED'
   | 'AFFILIATE_COMMISSION_CREATED'
   | 'SYSTEM_MAINTENANCE_CHANGED'
-  | 'WISHLIST_UPDATED';
+  | 'WISHLIST_UPDATED'
+  | 'FLASH_SALE_UPDATED';
 
 export interface DisputeArbitratedPayload {
   returnRequestId?: string;

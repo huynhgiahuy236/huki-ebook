@@ -76,7 +76,8 @@ export class OrderCompletionService {
         if (
           status &&
           sellerOrder.status !== SellerOrderStatus.CANCELLED &&
-          sellerOrder.status !== SellerOrderStatus.COMPLETED
+          sellerOrder.status !== SellerOrderStatus.COMPLETED &&
+          sellerOrder.status !== SellerOrderStatus.DELIVERED
         ) {
           await tx.sellerOrder.update({
             where: { id: sellerOrder.id },
@@ -88,7 +89,8 @@ export class OrderCompletionService {
                   ? new Date(event.occurredAt)
                   : undefined,
               completedAt:
-                status === SellerOrderStatus.COMPLETED
+                status === SellerOrderStatus.COMPLETED ||
+                status === SellerOrderStatus.DELIVERED
                   ? new Date(event.occurredAt)
                   : undefined,
             },
@@ -100,7 +102,8 @@ export class OrderCompletionService {
               fromStatus: sellerOrder.status,
               toStatus: status,
               title:
-                status === SellerOrderStatus.COMPLETED
+                status === SellerOrderStatus.COMPLETED ||
+                status === SellerOrderStatus.DELIVERED
                   ? 'Order delivered'
                   : 'Shipment status updated',
               description: `Shipping event: ${event.eventType}`,
@@ -120,7 +123,10 @@ export class OrderCompletionService {
               data: { status: 'SHIPPING' },
             });
           }
-          if (status === SellerOrderStatus.COMPLETED) {
+          if (
+            status === SellerOrderStatus.COMPLETED ||
+            status === SellerOrderStatus.DELIVERED
+          ) {
             if (this.affiliateLifecycleService) {
               await this.affiliateLifecycleService.handleOrderDelivered(
                 sellerOrder.orderId,
@@ -178,7 +184,11 @@ export class OrderCompletionService {
       where: {
         orderId,
         status: {
-          notIn: [SellerOrderStatus.COMPLETED, SellerOrderStatus.CANCELLED],
+          notIn: [
+            SellerOrderStatus.DELIVERED,
+            SellerOrderStatus.COMPLETED,
+            SellerOrderStatus.CANCELLED,
+          ],
         },
       },
     });
@@ -396,7 +406,7 @@ export class OrderCompletionService {
       return SellerOrderStatus.SHIPPED;
     }
     return eventType === SHIPPING_EVENTS.DELIVERED
-      ? SellerOrderStatus.COMPLETED
+      ? SellerOrderStatus.DELIVERED
       : null;
   }
 }

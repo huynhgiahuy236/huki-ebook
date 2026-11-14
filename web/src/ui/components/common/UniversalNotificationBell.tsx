@@ -16,7 +16,7 @@ import { adminNotificationService, AdminBroadcastNotification } from '@/ui/servi
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 export interface UniversalNotificationBellProps {
-  variant?: 'user' | 'seller' | 'shipper' | 'admin';
+  variant?: 'user' | 'seller' | 'shipper' | 'admin' | 'affiliate';
   fullPageRoute?: string;
   className?: string;
 }
@@ -124,6 +124,7 @@ export default function UniversalNotificationBell({
   const isSeller = variant === 'seller';
   const isAdmin = variant === 'admin';
   const isShipper = variant === 'shipper';
+  const isAffiliate = variant === 'affiliate';
 
   // Cache thông tin đơn hàng đầy đủ từ backend
   const [orderCache, setOrderCache] = useState<Map<string, SellerOrder>>(new Map());
@@ -220,6 +221,8 @@ export default function UniversalNotificationBell({
         return 'DELIVERY' as const;
       case 'admin':
         return 'ADMIN' as const;
+      case 'affiliate':
+        return 'USER' as const;
       case 'user':
       default:
         return 'USER' as const;
@@ -243,12 +246,15 @@ export default function UniversalNotificationBell({
   });
 
   const effectiveUnreadCount = useMemo(() => {
+    if (!isSeller && !isAdmin) {
+      return unreadCount;
+    }
     const currentBiz = user?.business?.id || 'default_seller';
     const unreadAdminCount = adminNotifs.filter(
       (an) => !an.readByBusinessIds?.includes(currentBiz)
     ).length;
     return unreadCount + unreadAdminCount;
-  }, [unreadCount, adminNotifs, user]);
+  }, [unreadCount, adminNotifs, user, isSeller, isAdmin]);
 
   const handleMarkAllAsReadUnified = useCallback(() => {
     markAllAsRead();
@@ -647,25 +653,27 @@ export default function UniversalNotificationBell({
       });
     });
 
-    // 1.5 Bổ sung các thông báo hệ thống / bảo trì / mở lại từ Ban Quản Trị Hệ Thống
-    const currentBiz = user?.business?.id || 'default_seller';
-    adminNotifs.forEach((an) => {
-      const isRead = Boolean(an.readByBusinessIds?.includes(currentBiz));
-      list.push({
-        id: an.id,
-        notifId: an.id,
-        category: 'SYSTEM',
-        title: an.title,
-        message: an.summary || an.content,
-        content: an.content || an.summary,
-        actionUrl: an.actionUrl || undefined,
-        actionLabel: an.actionLabel || undefined,
-        authorName: an.authorName || 'Ban Quản Trị HUKI',
-        severity: an.severity,
-        createdAt: an.createdAt,
-        isRead,
+    // 1.5 Bổ sung các thông báo hệ thống / bảo trì / mở lại từ Ban Quản Trị Hệ Thống (chỉ cho Seller hoặc Admin)
+    if (isSeller || isAdmin) {
+      const currentBiz = user?.business?.id || 'default_seller';
+      adminNotifs.forEach((an) => {
+        const isRead = Boolean(an.readByBusinessIds?.includes(currentBiz));
+        list.push({
+          id: an.id,
+          notifId: an.id,
+          category: 'SYSTEM',
+          title: an.title,
+          message: an.summary || an.content,
+          content: an.content || an.summary,
+          actionUrl: an.actionUrl || undefined,
+          actionLabel: an.actionLabel || undefined,
+          authorName: an.authorName || 'Ban Quản Trị HUKI',
+          severity: an.severity,
+          createdAt: an.createdAt,
+          isRead,
+        });
       });
-    });
+    }
 
     // 2. Bổ sung các đơn hàng Chờ xác nhận trong orderCache nếu chưa có thông báo tương ứng (Chỉ dành cho SELLER)
     if (isSeller) {
@@ -1103,6 +1111,12 @@ export default function UniversalNotificationBell({
         <button
           type="button"
           onClick={() => {
+            if (!user) {
+              if (typeof window !== 'undefined') {
+                router.push('/auth/login?redirect=' + encodeURIComponent(window.location.pathname));
+              }
+              return;
+            }
             setIsDrawerOpen(true);
             refresh();
           }}
