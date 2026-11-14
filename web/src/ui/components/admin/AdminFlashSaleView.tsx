@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useToast } from "../../context/ToastContext";
-import { flashSaleApi, type FlashSaleSlot } from "../../api/flashSaleApi";
+import { flashSaleApi, invalidateFlashSaleCache, type FlashSaleSlot } from "../../api/flashSaleApi";
 import { catalogApi, type BookData } from "../../api/catalogApi";
 import { AdminStatusBadge, AdminPagination } from './AdminUI';
 import { AdminPenaltyArbitrationView } from './AdminPenaltyArbitrationView';
@@ -150,13 +150,42 @@ export function AdminFlashSaleView() {
       }
       if (
         msg.type === 'NOTIFICATIONS_UPDATED' ||
+        msg.type === 'ADMIN_NOTIFICATIONS_UPDATED' ||
         (msg.type as any) === 'FLASH_SALE_UPDATED'
       ) {
+        invalidateFlashSaleCache();
         fetchFlashSales();
       }
     });
 
-    return () => unsubscribePenalty();
+    const handleDomUpdate = () => {
+      invalidateFlashSaleCache();
+      fetchFlashSales();
+    };
+    window.addEventListener('huki_flash_sale_updated', handleDomUpdate);
+
+    const handleFocusSync = () => {
+      if (document.visibilityState === 'visible') {
+        fetchFlashSales();
+      }
+    };
+    document.addEventListener('visibilitychange', handleFocusSync);
+    window.addEventListener('focus', handleFocusSync);
+
+    // Heartbeat auto-sync every 6s when tab is visible
+    const heartbeat = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchFlashSales();
+      }
+    }, 6000);
+
+    return () => {
+      unsubscribePenalty();
+      window.removeEventListener('huki_flash_sale_updated', handleDomUpdate);
+      document.removeEventListener('visibilitychange', handleFocusSync);
+      window.removeEventListener('focus', handleFocusSync);
+      clearInterval(heartbeat);
+    };
   }, []);
 
   // Realtime auto-refresh when any slot's grace period ends (debounced / triggered once per slot)
@@ -645,6 +674,24 @@ export function AdminFlashSaleView() {
       }
     } catch {
       showToast?.("Không thể cập nhật sách khuyến mãi", "error");
+    }
+  };
+
+  // Remove item from slot and return to original state
+  const handleRemoveItem = async (itemId: string, bookTitle?: string) => {
+    if (!window.confirm(`Xác nhận xóa cuốn sách "${bookTitle || 'này'}" khỏi khung giờ Flash Sale? Sách sẽ được trả về trạng thái nguyên bản ngay lập tức.`)) return;
+    try {
+      const res = await flashSaleApi.sellerCancelItem(itemId);
+      if (res.success) {
+        showToast?.("Đã xóa sách khỏi Flash Sale thành công! Sách đã trả về nguyên bản.", "success");
+        realtimeSyncBus.publish('FLASH_SALE_UPDATED', { itemId });
+        invalidateFlashSaleCache();
+        fetchFlashSales();
+      } else {
+        showToast?.(res.error?.message || (res as any)?.message || "Không thể xóa sách khỏi đợt Flash Sale", "error");
+      }
+    } catch {
+      showToast?.("Lỗi kết nối khi xóa sách", "error");
     }
   };
 
@@ -1613,19 +1660,29 @@ export function AdminFlashSaleView() {
                                           </button>
                                         </div>
                                       ) : (
-                                        <button
-                                          onClick={() => {
-                                            setEditingRowId(item.id);
-                                            setEditingRowData({
-                                              salePrice: item.salePrice,
-                                              stock: item.stock,
-                                              maxPerUser: item.maxPerUser,
-                                            });
-                                          }}
-                                          className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold cursor-pointer"
-                                        >
-                                          Sửa Tồn
-                                        </button>
+                                        <div className="flex items-center justify-end gap-1.5">
+                                          <button
+                                            onClick={() => {
+                                              setEditingRowId(item.id);
+                                              setEditingRowData({
+                                                salePrice: item.salePrice,
+                                                stock: item.stock,
+                                                maxPerUser: item.maxPerUser,
+                                              });
+                                            }}
+                                            className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold cursor-pointer"
+                                          >
+                                            Sửa Tồn
+                                          </button>
+                                          <button
+                                            onClick={() => handleRemoveItem(item.id, item.bookTitle)}
+                                            title="Xóa sách này khỏi khung giờ Flash Sale (Trả về nguyên bản)"
+                                            className="px-2 py-1 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold cursor-pointer transition-colors inline-flex items-center gap-0.5"
+                                          >
+                                            <span className="material-symbols-outlined text-[13px]">delete</span>
+                                            <span>Xóa</span>
+                                          </button>
+                                        </div>
                                       )}
                                     </td>
                                   </tr>

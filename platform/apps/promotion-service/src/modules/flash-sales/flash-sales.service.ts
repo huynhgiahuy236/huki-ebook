@@ -1236,6 +1236,11 @@ export class FlashSalesService
       },
     });
 
+    if (flashSale.items && flashSale.items.length > 0) {
+      const keys = flashSale.items.map((it) => this.stockKey(it.id));
+      await this.redis.del(...keys);
+    }
+
     if (this.eventBus) {
       const storeIds = await this.getParticipatingStoreIds(id, flashSale.items);
       try {
@@ -1298,12 +1303,27 @@ export class FlashSalesService
         : 0;
     const isSoldOut = item.stock <= 0;
 
+    const fs = flashSale || item.flashSale;
+    const slotStatus = fs?.status ?? FlashSaleStatus.SCHEDULED;
+
     return {
       id: item.id,
       flashSaleId: item.flashSaleId,
-      flashSaleName: flashSale?.name ?? "Flash Sale Giờ Vàng",
-      scope: flashSale?.scope ?? FlashSaleScope.PLATFORM,
-      storeId: flashSale?.storeId ?? null,
+      flashSaleName: fs?.name ?? "Flash Sale Giờ Vàng",
+      scope: fs?.scope ?? FlashSaleScope.PLATFORM,
+      storeId: item.storeId ?? fs?.storeId ?? null,
+      status: slotStatus,
+      flashSale: fs
+        ? {
+            id: fs.id,
+            name: fs.name,
+            status: fs.status,
+            scope: fs.scope,
+            startsAt: fs.startsAt,
+            endsAt: fs.endsAt,
+            storeId: fs.storeId,
+          }
+        : undefined,
       bookId: item.bookId,
       bookTitle: item.bookTitle ?? null,
       bookSlug: item.bookSlug ?? null,
@@ -1319,8 +1339,8 @@ export class FlashSalesService
       soldPercent,
       isSoldOut,
       maxPerUser: item.maxPerUser ?? 1,
-      startsAt: flashSale?.startsAt,
-      endsAt: flashSale?.endsAt,
+      startsAt: fs?.startsAt ?? item.startsAt,
+      endsAt: fs?.endsAt ?? item.endsAt,
     };
   }
 
@@ -1958,6 +1978,28 @@ export class FlashSalesService
       );
     }
 
+    if (this.eventBus && results.length > 0) {
+      try {
+        await this.eventBus.publish({
+          eventId: randomUUID(),
+          eventType: "flash_sale.registered",
+          occurredAt: new Date().toISOString(),
+          producer: "promotion-service",
+          version: 1,
+          aggregateId: dto.flashSaleId,
+          payload: {
+            flashSaleId: dto.flashSaleId,
+            storeId: businessId,
+            registeredCount: results.length,
+            flashSaleName: flashSale.name,
+          },
+        });
+        this.logger.log(`Published flash_sale.registered for "${flashSale.name}": ${results.length} items from store ${businessId}`);
+      } catch (err: any) {
+        this.logger.warn(`Failed to publish flash_sale.registered event: ${err.message}`);
+      }
+    }
+
     return {
       success: true,
       registeredCount: results.length,
@@ -1971,6 +2013,11 @@ export class FlashSalesService
     await this.syncStatuses();
 
     const allItems = await this.prisma.flashSaleItem.findMany({
+      where: {
+        flashSale: {
+          status: { not: FlashSaleStatus.CANCELLED },
+        },
+      },
       include: { flashSale: true },
       orderBy: { createdAt: "desc" },
     });
@@ -2041,7 +2088,13 @@ export class FlashSalesService
 
     const book = await this.getCommerceBook(item.bookId);
     const bookBizId = book?.businessId || book?.business?.id;
-    if (bookBizId && bookBizId !== businessId) {
+    const isAllowed =
+      !businessId ||
+      businessId === "ADMIN" ||
+      businessId === "PLATFORM_ADMIN" ||
+      (bookBizId && bookBizId === businessId) ||
+      (item.storeId && item.storeId === businessId);
+    if (!isAllowed) {
       throwForbidden(
         ErrorCode.AUTHZ_FORBIDDEN,
         "Bạn không có quyền xóa sản phẩm này",
@@ -2060,6 +2113,29 @@ export class FlashSalesService
     });
 
     await this.redis.del(this.stockKey(itemId));
+
+    if (this.eventBus) {
+      try {
+        await this.eventBus.publish({
+          eventId: randomUUID(),
+          eventType: "flash_sale.item_cancelled",
+          occurredAt: new Date().toISOString(),
+          producer: "promotion-service",
+          version: 1,
+          aggregateId: item.flashSaleId,
+          payload: {
+            flashSaleId: item.flashSaleId,
+            itemId: item.id,
+            bookId: item.bookId,
+            storeId: item.storeId || businessId,
+            flashSaleName: item.flashSale.name,
+          },
+        });
+        this.logger.log(`Published flash_sale.item_cancelled for item ${item.id} (book: ${item.bookId}) in "${item.flashSale.name}"`);
+      } catch (err: any) {
+        this.logger.warn(`Failed to publish item_cancelled event: ${err.message}`);
+      }
+    }
 
     return {
       success: true,

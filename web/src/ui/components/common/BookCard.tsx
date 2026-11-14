@@ -95,14 +95,25 @@ export default function BookCard({
     preloadActiveFlashSales().then((map) => {
       if (isMounted) {
         const found = map.get(book.id);
-        if (found) {
-          setFlashSale(found);
-        }
+        setFlashSale(found || null);
       }
     });
 
+    const handleFlashSaleUpdate = () => {
+      if (book?.id) {
+        preloadActiveFlashSales().then((map) => {
+          if (isMounted) {
+            const found = map.get(book.id);
+            setFlashSale(found || null);
+          }
+        });
+      }
+    };
+    window.addEventListener('huki_flash_sale_updated', handleFlashSaleUpdate);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('huki_flash_sale_updated', handleFlashSaleUpdate);
     };
   }, [book?.id, book?.flashSaleInfo, isMock]);
 

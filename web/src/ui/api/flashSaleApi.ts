@@ -116,6 +116,17 @@ let activeItemsCache: Map<string, FlashSaleItem> = new Map();
 let cacheTimestamp = 0;
 const CACHE_TTL_MS = 15_000;
 
+export function invalidateFlashSaleCache(): void {
+  activeItemsCache.clear();
+  cacheTimestamp = 0;
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('huki_flash_sale_updated', () => {
+    invalidateFlashSaleCache();
+  });
+}
+
 export async function preloadActiveFlashSales(): Promise<Map<string, FlashSaleItem>> {
   const now = Date.now();
   if (activeItemsCache.size > 0 && now - cacheTimestamp < CACHE_TTL_MS) {

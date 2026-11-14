@@ -10,7 +10,7 @@ import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { catalogApi, type BookData } from '@/ui/api/catalogApi';
 import { businessApi } from '@/ui/api/businessApi';
-import { flashSaleApi, type FlashSaleSlot } from '@/ui/api/flashSaleApi';
+import { flashSaleApi, invalidateFlashSaleCache, type FlashSaleSlot } from '@/ui/api/flashSaleApi';
 import {
   SellerFilterTabs,
   SellerPagination,
@@ -203,6 +203,11 @@ export function SellerFlashSaleView() {
       const status = fs.status || item.status || 'SCHEDULED';
       if (status === 'ENDED' || status === 'CANCELLED') return;
 
+      const matchedSlot = slots.find((s) => s.id === fsId);
+      if (matchedSlot && (matchedSlot.status === 'ENDED' || matchedSlot.status === 'CANCELLED')) {
+        return;
+      }
+
       const fsStart = new Date(fs.startsAt || item.startsAt || 0).getTime();
       const fsEnd = new Date(fs.endsAt || item.endsAt || 0).getTime();
 
@@ -282,7 +287,10 @@ export function SellerFlashSaleView() {
   const platformRegisteredMyItems = useMemo(() => {
     if (!platformSlot) return [];
     return myItems.filter(
-      (it) => it.flashSaleId === platformSlot.id || it.flashSale?.id === platformSlot.id,
+      (it) =>
+        (it.flashSaleId === platformSlot.id || it.flashSale?.id === platformSlot.id) &&
+        it.status !== 'CANCELLED' &&
+        it.flashSale?.status !== 'CANCELLED',
     );
   }, [myItems, platformSlot]);
 
@@ -466,6 +474,45 @@ export function SellerFlashSaleView() {
 
   useEffect(() => {
     loadData();
+
+    const unsub = realtimeSyncBus.subscribe((msg) => {
+      if (
+        msg.type === 'FLASH_SALE_UPDATED' ||
+        msg.type === 'NOTIFICATIONS_UPDATED' ||
+        msg.type === 'ADMIN_NOTIFICATIONS_UPDATED'
+      ) {
+        invalidateFlashSaleCache();
+        loadData();
+      }
+    });
+
+    const handleDomUpdate = () => {
+      invalidateFlashSaleCache();
+      loadData();
+    };
+    window.addEventListener('huki_flash_sale_updated', handleDomUpdate);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        loadData();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
+
+    const heartbeat = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        loadData();
+      }
+    }, 6000);
+
+    return () => {
+      unsub();
+      window.removeEventListener('huki_flash_sale_updated', handleDomUpdate);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
+      clearInterval(heartbeat);
+    };
   }, [loadData]);
 
   // Categories list extracted from books
@@ -956,8 +1003,10 @@ export function SellerFlashSaleView() {
       setCancellingId(itemId);
       const res = await flashSaleApi.sellerCancelItem(itemId);
       if (res.success) {
-        showToast('Đã hủy đăng ký Flash Sale thành công', 'success');
+        showToast('Đã hủy đăng ký Flash Sale thành công! Sách đã trở về trạng thái nguyên bản.', 'success');
         setCancelCountdownState(null);
+        realtimeSyncBus.publish('FLASH_SALE_UPDATED', { itemId });
+        invalidateFlashSaleCache();
         await loadData();
       } else {
         showToast((res as any)?.message || 'Không thể hủy đăng ký', 'error');
@@ -984,6 +1033,8 @@ export function SellerFlashSaleView() {
       const res = await flashSaleApi.sellerDeleteSlot(slotId);
       if (res.success) {
         showToast('Đã xóa đợt Flash Sale thành công! ', 'success');
+        realtimeSyncBus.publish('FLASH_SALE_UPDATED', { slotId });
+        invalidateFlashSaleCache();
         await loadData();
       } else {
         showToast((res as any)?.message || 'Không thể xóa đợt Flash Sale', 'error');

@@ -321,6 +321,7 @@ class RealtimeSyncBus {
           'huki_drm_sync_event',
           'huki_latest_payout_event',
           'huki_latest_wallet_event',
+          'huki_latest_flash_sale_event',
         ];
 
         if (jsonKeys.includes(e.key || '') && e.newValue) {
@@ -471,6 +472,12 @@ class RealtimeSyncBus {
           window.dispatchEvent(new CustomEvent('huki_wallet_event', { detail: { type: eventType, payload: eventPayload } }));
         } catch {}
       }
+      if (eventType === 'FLASH_SALE_UPDATED') {
+        try {
+          localStorage.setItem('huki_latest_flash_sale_event', storagePayload);
+          window.dispatchEvent(new CustomEvent('huki_flash_sale_updated', { detail: eventPayload }));
+        } catch {}
+      }
     }
   }
 
@@ -497,6 +504,9 @@ class RealtimeSyncBus {
       }
       if (message.type === 'INVENTORY_UPDATED') {
         window.dispatchEvent(new CustomEvent('huki_inventory_updated', { detail: message.payload }));
+      }
+      if (message.type === 'FLASH_SALE_UPDATED') {
+        window.dispatchEvent(new CustomEvent('huki_flash_sale_updated', { detail: message.payload }));
       }
     }
 

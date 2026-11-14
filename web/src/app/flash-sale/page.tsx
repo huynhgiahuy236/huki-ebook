@@ -8,6 +8,7 @@ import { useToast } from "@/ui/context/ToastContext";
 import { useAuth } from "@/ui/context/AuthContext";
 import {
   flashSaleApi,
+  invalidateFlashSaleCache,
   type FlashSaleSlot,
   type FlashSaleItem,
   type ShopFlashSaleGroup,
@@ -59,20 +60,38 @@ export default function FlashSalePage() {
   }, []);
 
   useEffect(() => {
-    const poller = setInterval(() => fetchSlots(false), 10_000);
+    const poller = setInterval(() => fetchSlots(false), 8_000);
     const unsubscribe = realtimeSyncBus.subscribe((msg) => {
       if (
         msg.type === 'FLASH_SALE_UPDATED' ||
         msg.type === 'NOTIFICATIONS_UPDATED' ||
         msg.type === 'ADMIN_NOTIFICATIONS_UPDATED'
       ) {
+        invalidateFlashSaleCache();
         fetchSlots(false);
       }
     });
 
+    const handleDomUpdate = () => {
+      invalidateFlashSaleCache();
+      fetchSlots(false);
+    };
+    window.addEventListener('huki_flash_sale_updated', handleDomUpdate);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchSlots(false);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
+
     return () => {
       clearInterval(poller);
       unsubscribe();
+      window.removeEventListener('huki_flash_sale_updated', handleDomUpdate);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
     };
   }, []);
 

@@ -36,6 +36,8 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
     "penalty.appeal_reviewed",
     "flash_sale.early_ending_scheduled",
     "flash_sale.cancelled",
+    "flash_sale.registered",
+    "flash_sale.item_cancelled",
     "flash_sale.paused",
     "flash_sale.grace_started",
     "flash_sale.resumed",
@@ -323,6 +325,41 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
           message,
           actionUrl: "/admin/flash-sales",
         });
+        break;
+      }
+      case "flash_sale.registered": {
+        const slotName = payload.flashSaleName || "Khung Giờ Flash Sale";
+        const count = payload.registeredCount || 1;
+        targets.push({
+          recipientId: "admin_channel",
+          recipientType: "ADMIN",
+          type: "PROMOTION" as any,
+          title: `⚡ Gian hàng vừa đăng ký ${count} sách vào Flash Sale`,
+          message: `Gian hàng đã đăng ký tham gia thành công ${count} cuốn sách vào đợt Flash Sale "${slotName}".`,
+          actionUrl: "/admin/flash-sales",
+        });
+        break;
+      }
+      case "flash_sale.item_cancelled": {
+        const slotName = payload.flashSaleName || "Khung Giờ Flash Sale";
+        targets.push({
+          recipientId: "admin_channel",
+          recipientType: "ADMIN",
+          type: "PROMOTION" as any,
+          title: `⚡ Sản phẩm đã được rút khỏi Flash Sale`,
+          message: `Một sản phẩm đã được hủy đăng ký khỏi khung giờ "${slotName}".`,
+          actionUrl: "/admin/flash-sales",
+        });
+        if (payload.storeId) {
+          targets.push({
+            recipientId: payload.storeId,
+            recipientType: "BUSINESS",
+            type: "PROMOTION" as any,
+            title: `Đã hủy sách khỏi Flash Sale`,
+            message: `Sách của bạn đã được rút khỏi khung giờ "${slotName}" và trở về trạng thái nguyên bản thành công.`,
+            actionUrl: "/seller/promotions/flash-sale",
+          });
+        }
         break;
       }
       case "flash_sale.paused":
