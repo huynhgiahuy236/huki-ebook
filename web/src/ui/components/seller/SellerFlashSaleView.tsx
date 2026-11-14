@@ -852,7 +852,7 @@ export function SellerFlashSaleView() {
       }
 
       // 30-Day Anti-Fake-Discount & Pricing Guard
-      const lowest30d = (item.book as any).lowestPrice30Days || Math.round(orig * 0.95);
+      const lowest30d = (item.book as any).lowestPrice30Days || orig;
       const validation = sellerPenaltyService.validateBookForFlashSale(
         orig,
         item.salePrice,
@@ -914,6 +914,7 @@ export function SellerFlashSaleView() {
           });
           return reset;
         });
+        realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: targetSlotId });
         await loadData();
       } else {
         if (slotMode === 'CUSTOM' && targetSlotId) {
@@ -2149,7 +2150,7 @@ export function SellerFlashSaleView() {
                         const isConflicted = Boolean(conflictInfo?.hasConflict);
 
                         // 30-Day Anti-Fake-Discount & Pricing Guard
-                        const lowest30d = (book as any).lowestPrice30Days || Math.round(orig * 0.95);
+                        const lowest30d = (book as any).lowestPrice30Days || orig;
                         const antiFakeValidation = sellerPenaltyService.validateBookForFlashSale(
                           orig,
                           sale,

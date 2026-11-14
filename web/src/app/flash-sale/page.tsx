@@ -101,13 +101,9 @@ export default function FlashSalePage() {
       if (platformRes.success && Array.isArray(platformRes.data)) {
         const activePlatformSlots = platformRes.data.filter((s) => {
           const end = new Date(s.endsAt).getTime();
-          const regEnd = s.registrationEndsAt
-            ? new Date(s.registrationEndsAt).getTime()
-            : new Date(s.startsAt).getTime();
           const isEnded = s.status === 'ENDED' || now > end;
           const isCancelled = s.status === 'CANCELLED';
-          const isRegistrationStage = s.status !== 'ACTIVE' && now < regEnd;
-          return !isEnded && !isCancelled && !isRegistrationStage && (s.items?.length ?? 0) > 0;
+          return !isEnded && !isCancelled;
         });
 
         setPlatformSlots(activePlatformSlots);
@@ -128,7 +124,7 @@ export default function FlashSalePage() {
               const end = new Date(c.endsAt).getTime();
               const isEnded = c.status === 'ENDED' || now > end;
               const isCancelled = c.status === 'CANCELLED';
-              return !isEnded && !isCancelled && (c.items?.length ?? 0) > 0;
+              return !isEnded && !isCancelled;
             }),
           }))
           .filter((group) => group.campaigns.length > 0);

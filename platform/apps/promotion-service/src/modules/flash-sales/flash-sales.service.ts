@@ -677,12 +677,7 @@ export class FlashSalesService
     );
 
     const publicVisible = mapped.filter((c) => {
-      if (c.status === FlashSaleStatus.CANCELLED) return false;
-      // For platform scope: hide from public customer time slots if registration is ongoing and not ACTIVE
-      if (c.scope === FlashSaleScope.PLATFORM && c.status !== FlashSaleStatus.ACTIVE) {
-        const regEnd = c.registrationEndsAt ? new Date(c.registrationEndsAt) : new Date(c.startsAt);
-        if (now < regEnd) return false;
-      }
+      if (c.status === FlashSaleStatus.CANCELLED || c.status === FlashSaleStatus.ENDED) return false;
       return true;
     });
 
@@ -1379,8 +1374,8 @@ export class FlashSalesService
 
     for (const fs of pendingPlatformSales || []) {
       const storeIds = await this.getParticipatingStoreIds(fs.id, fs.items);
-      const minStores = fs.minStores ?? 3;
-      if (storeIds.length < minStores) {
+      const minStores = fs.minStores ?? 1;
+      if (minStores > 1 && storeIds.length < minStores) {
         await this.prisma.flashSale.update({
           where: { id: fs.id },
           data: { status: FlashSaleStatus.CANCELLED },

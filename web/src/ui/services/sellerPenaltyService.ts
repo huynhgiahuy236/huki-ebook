@@ -461,13 +461,18 @@ export function validateBookForFlashSale(
     return { isValid: false, reason: 'Giá Flash Sale phải thấp hơn giá niêm yết', maxAllowedSalePrice: originalPrice - 1 };
   }
 
-  const baseline = lowestPrice30Days && lowestPrice30Days > 0 ? lowestPrice30Days : originalPrice;
-  const maxAllowed = Math.round(baseline * (1 - requiredDiscountPercent / 100));
+  // 1. Giá trần tính theo tỷ lệ giảm giá yêu cầu từ giá gốc (ví dụ: giảm tối thiểu 30% thì salePrice <= orig * 0.7)
+  const maxByOriginal = Math.round(originalPrice * (1 - requiredDiscountPercent / 100));
+
+  // 2. Chống giá ảo (Anti-Fake Discount): Giá Flash Sale không được cao hơn giá bán thấp nhất trong 30 ngày qua (nếu có khuyến mãi trước đó)
+  const maxAllowed = lowestPrice30Days && lowestPrice30Days > 0 && lowestPrice30Days < originalPrice
+    ? Math.min(maxByOriginal, lowestPrice30Days)
+    : maxByOriginal;
 
   if (salePrice > maxAllowed) {
     return {
       isValid: false,
-      reason: `Chống giá ảo (Quy chế 30 ngày): Giá Flash Sale (${salePrice.toLocaleString('vi-VN')} đ) phải thấp hơn ít nhất ${requiredDiscountPercent}% so với giá thấp nhất 30 ngày qua (${baseline.toLocaleString('vi-VN')} đ, tối đa ${maxAllowed.toLocaleString('vi-VN')} đ)`,
+      reason: `Chống giá ảo (Quy chế 30 ngày): Giá Flash Sale (${salePrice.toLocaleString('vi-VN')} đ) phải thấp hơn hoặc bằng ${maxAllowed.toLocaleString('vi-VN')} đ (đảm bảo giảm ít nhất ${requiredDiscountPercent}% so với giá gốc ${originalPrice.toLocaleString('vi-VN')} đ)`,
       maxAllowedSalePrice: maxAllowed,
     };
   }

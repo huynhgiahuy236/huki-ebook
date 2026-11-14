@@ -423,6 +423,7 @@ export function AdminFlashSaleView() {
 
       showToast?.(` Đã gán thành công ${successCount}/${selectedConfigs.length} sách vào khung giờ Flash Sale!`, "success");
       setStudioSlotId(null);
+      realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: activeStudioSlot.id });
       fetchFlashSales();
     } catch {
       showToast?.("Có lỗi xảy ra khi gán sách hàng loạt", "error");
@@ -582,6 +583,7 @@ export function AdminFlashSaleView() {
           discountPercent: 30,
           maxPerUser: 1,
         });
+        realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: res.data?.id });
         fetchFlashSales();
       } else {
         showToast?.(res.error?.message || "Không thể tạo khung giờ Flash Sale", "error");
@@ -600,7 +602,7 @@ export function AdminFlashSaleView() {
       const res = await flashSaleApi.endEarly(endEarlyModalSlot.id);
       if (res.success) {
         showToast?.(`Đã kích hoạt kết thúc sớm 5 phút cho đợt "${endEarlyModalSlot.name}"! Toàn sàn đã nhận thông báo.`, "success");
-        realtimeSyncBus.publish('FLASH_SALE_UPDATED' as any, { flashSaleId: endEarlyModalSlot.id });
+        realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: endEarlyModalSlot.id });
         setEndEarlyModalSlot(null);
         fetchFlashSales();
       } else {
@@ -619,7 +621,7 @@ export function AdminFlashSaleView() {
       const res = await flashSaleApi.cancelFlashSale(slot.id);
       if (res.success) {
         showToast?.(`Đã hủy lịch khung giờ "${slot.name}" thành công!`, "success");
-        realtimeSyncBus.publish('FLASH_SALE_UPDATED' as any, { flashSaleId: slot.id });
+        realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: slot.id });
         fetchFlashSales();
       } else {
         showToast?.(res.error?.message || "Lỗi khi hủy khung giờ", "error");
@@ -638,6 +640,7 @@ export function AdminFlashSaleView() {
         showToast?.("Đã cập nhật tồn kho khuyến mãi thành công!", "success");
         setEditingRowId(null);
         setEditingRowData(null);
+        realtimeSyncBus.publish('FLASH_SALE_UPDATED', { itemId });
         fetchFlashSales();
       }
     } catch {
