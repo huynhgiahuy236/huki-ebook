@@ -70,6 +70,14 @@ const SERVICES_METADATA: ServiceMeta[] = [
     endpoint: 'http://localhost:3007/api/v1/health',
     docUrl: 'http://localhost:3007/api/docs',
   },
+  {
+    key: 'analytics',
+    name: 'Analytics Service',
+    port: ':3008',
+    description: 'Thống kê, Báo cáo doanh thu, Phân tích dữ liệu & Rollup',
+    endpoint: 'http://localhost:3008/api/v1/health',
+    docUrl: 'http://localhost:3008/api/docs',
+  },
 ];
 
 export default function AdminHealthView() {
@@ -87,11 +95,11 @@ export default function AdminHealthView() {
         setHealthData(res.data);
       } else {
         setHealthData({
-          status: 'ok',
+          status: 'unavailable',
           services: SERVICES_METADATA.map((s) => ({
             service: s.key,
-            status: 'ok',
-            statusCode: 200,
+            status: s.key === 'gateway' ? 'ok' : 'unavailable',
+            statusCode: s.key === 'gateway' ? 200 : 503,
           })),
         });
       }
@@ -219,7 +227,7 @@ export default function AdminHealthView() {
         </div>
       </div>
 
-      {/* 3. MICROSERVICES GRID (7 SERVICES) */}
+      {/* 3. MICROSERVICES GRID (8 SERVICES) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {serviceResults.map((svc) => {
           const isUp = svc.status === 'ok';
