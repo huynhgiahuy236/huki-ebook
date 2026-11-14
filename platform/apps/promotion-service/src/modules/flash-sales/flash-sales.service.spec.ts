@@ -54,7 +54,10 @@ describe("FlashSalesService", () => {
     keys: jest.fn(),
     disconnect: jest.fn(),
   };
-  const service = new FlashSalesService(prisma, redis);
+  const eventBus: any = {
+    publish: jest.fn().mockResolvedValue(undefined),
+  };
+  const service = new FlashSalesService(prisma, redis, eventBus);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -189,66 +192,87 @@ describe("FlashSalesService", () => {
     expect(prisma.flashSale.create).toHaveBeenCalled();
   });
 
-  it("pauses immediately when pauseMode is IMMEDIATE", async () => {
+  it("rejects updating status to PAUSED as pause feature has been removed", async () => {
     prisma.flashSale.findUnique.mockResolvedValueOnce({
       ...campaign,
       status: "ACTIVE",
     });
-    prisma.flashSale.update.mockResolvedValueOnce({
-      ...campaign,
-      status: "PAUSED",
-      pauseEffectiveAt: null,
-    });
 
-    await service.updateStatus(campaign.id, "PAUSED" as any, "IMMEDIATE" as any);
-
-    expect(prisma.flashSale.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { status: "PAUSED", pauseEffectiveAt: null },
-      }),
-    );
+    await expect(
+      service.updateStatus(campaign.id, "PAUSED" as any, "IMMEDIATE" as any),
+    ).rejects.toThrow("Tính năng Tạm Dừng đã được gỡ bỏ");
   });
 
-  it("sets pauseEffectiveAt when pauseMode is GRACE_2_MINUTES", async () => {
+  it("schedules graceful early ending in 5 minutes via endEarly", async () => {
     prisma.flashSale.findUnique.mockResolvedValueOnce({
       ...campaign,
       status: "ACTIVE",
+      startsAt: new Date(Date.now() - 3600000),
+      endsAt: new Date(Date.now() + 3600000),
+      items: [
+        {
+          id: "item-1",
+          bookId: "book-1",
+          storeId: "store-1",
+        },
+      ],
     });
     prisma.flashSale.update.mockResolvedValueOnce({
       ...campaign,
       status: "ACTIVE",
-      pauseEffectiveAt: new Date(Date.now() + 120_000),
+      endsAt: new Date(Date.now() + 300000),
     });
 
-    await service.updateStatus(campaign.id, "PAUSED" as any, "GRACE_2_MINUTES" as any);
-
+    const result = await service.endEarly(campaign.id);
     expect(prisma.flashSale.update).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: { id: campaign.id },
         data: expect.objectContaining({
-          status: "ACTIVE",
-          pauseEffectiveAt: expect.any(Date),
+          endsAt: expect.any(Date),
+          pauseEffectiveAt: null,
+        }),
+      }),
+    );
+    expect(eventBus.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "flash_sale.early_ending_scheduled",
+        payload: expect.objectContaining({
+          flashSaleId: campaign.id,
+          participatingStoreIds: expect.arrayContaining(["store-1"]),
         }),
       }),
     );
   });
 
-  it("resumes a paused campaign to ACTIVE and clears pauseEffectiveAt", async () => {
+  it("cancels a scheduled or active campaign via cancel", async () => {
     prisma.flashSale.findUnique.mockResolvedValueOnce({
       ...campaign,
-      status: "PAUSED",
-      pauseEffectiveAt: new Date(),
+      status: "SCHEDULED",
+      items: [],
     });
     prisma.flashSale.update.mockResolvedValueOnce({
       ...campaign,
-      status: "ACTIVE",
+      status: "CANCELLED",
       pauseEffectiveAt: null,
     });
 
-    await service.updateStatus(campaign.id, "ACTIVE" as any);
+    await service.cancel(campaign.id);
 
     expect(prisma.flashSale.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { status: "ACTIVE", pauseEffectiveAt: null },
+        where: { id: campaign.id },
+        data: expect.objectContaining({
+          status: "CANCELLED",
+          pauseEffectiveAt: null,
+        }),
+      }),
+    );
+    expect(eventBus.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "flash_sale.cancelled",
+        payload: expect.objectContaining({
+          flashSaleId: campaign.id,
+        }),
       }),
     );
   });

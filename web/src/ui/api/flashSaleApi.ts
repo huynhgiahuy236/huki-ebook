@@ -228,6 +228,18 @@ export const flashSaleApi = {
     });
   },
 
+  endEarly: async (id: string): Promise<ApiResponse<FlashSaleSlot>> => {
+    return apiClient<FlashSaleSlot>(`/flash-sales/${id}/end-early`, {
+      method: "PATCH",
+    });
+  },
+
+  cancelFlashSale: async (id: string): Promise<ApiResponse<FlashSaleSlot>> => {
+    return apiClient<FlashSaleSlot>(`/flash-sales/${id}/cancel`, {
+      method: "PATCH",
+    });
+  },
+
   updateItemStock: async (
     itemId: string,
     stock: number,

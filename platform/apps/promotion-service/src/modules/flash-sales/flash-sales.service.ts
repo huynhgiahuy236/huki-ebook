@@ -667,8 +667,8 @@ export class FlashSalesService
           startsAt: c.startsAt,
           endsAt: c.endsAt,
           status,
-          pauseEffectiveAt: c.pauseEffectiveAt,
-          pauseRemainingSeconds: c.pauseEffectiveAt && new Date(c.pauseEffectiveAt) > now ? Math.max(0, Math.floor((new Date(c.pauseEffectiveAt).getTime() - now.getTime()) / 1000)) : 0,
+          pauseEffectiveAt: null,
+          pauseRemainingSeconds: 0,
           remainingSeconds,
           totalItems: c.items.length,
           items: itemsWithBooks,
@@ -1079,37 +1079,20 @@ export class FlashSalesService
       );
     }
 
-    let updated: any;
     if (status === FlashSaleStatus.PAUSED) {
-      if (pauseMode === PauseMode.GRACE_2_MINUTES) {
-        // Schedule pause in 2 minutes: keep active during grace period
-        const pauseEffectiveAt = new Date(now.getTime() + 2 * 60 * 1000);
-        updated = await this.prisma.flashSale.update({
-          where: { id },
-          data: {
-            status: FlashSaleStatus.ACTIVE,
-            pauseEffectiveAt,
-          },
-        });
-      } else {
-        // Immediate pause
-        updated = await this.prisma.flashSale.update({
-          where: { id },
-          data: {
-            status: FlashSaleStatus.PAUSED,
-            pauseEffectiveAt: null,
-          },
-        });
-      }
-    } else {
-      updated = await this.prisma.flashSale.update({
-        where: { id },
-        data: {
-          status,
-          pauseEffectiveAt: null,
-        },
-      });
+      throwBadRequest(
+        ErrorCode.FLASH_SALE_NOT_ACTIVE,
+        "Tính năng Tạm Dừng đã được gỡ bỏ. Vui lòng sử dụng tính năng Kết Thúc Sớm (5 phút) cho phiên đang diễn ra hoặc Hủy Lịch cho phiên đã lên lịch.",
+      );
     }
+
+    const updated = await this.prisma.flashSale.update({
+      where: { id },
+      data: {
+        status,
+        pauseEffectiveAt: null,
+      },
+    });
 
     // Broadcast domain event to RabbitMQ for sellers & admin notifications
     await this.publishFlashSaleStatusEvent(updated, status, pauseMode);
@@ -1180,6 +1163,109 @@ export class FlashSalesService
       data: { stock },
     });
     await this.syncItemStock(id, stock, true);
+    return updated;
+  }
+
+  async endEarly(id: string) {
+    const flashSale = await this.prisma.flashSale.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+    if (!flashSale) throwNotFound(ErrorCode.FLASH_SALE_NOT_FOUND);
+
+    const now = new Date();
+    if (
+      flashSale.status === FlashSaleStatus.ENDED ||
+      flashSale.status === FlashSaleStatus.CANCELLED ||
+      now > flashSale.endsAt
+    ) {
+      throwBadRequest(
+        ErrorCode.FLASH_SALE_NOT_ACTIVE,
+        "Đợt Flash Sale này đã kết thúc hoặc đã bị hủy",
+      );
+    }
+
+    // Set endsAt to exactly 5 minutes from now
+    const newEndsAt = new Date(now.getTime() + 5 * 60 * 1000);
+
+    const updated = await this.prisma.flashSale.update({
+      where: { id },
+      data: {
+        endsAt: newEndsAt,
+        status: FlashSaleStatus.ACTIVE,
+        pauseEffectiveAt: null,
+      },
+    });
+
+    if (this.eventBus) {
+      const storeIds = await this.getParticipatingStoreIds(id, flashSale.items);
+      try {
+        await this.eventBus.publish({
+          eventId: randomUUID(),
+          eventType: "flash_sale.early_ending_scheduled",
+          occurredAt: new Date().toISOString(),
+          producer: "promotion-service",
+          version: 1,
+          aggregateId: id,
+          payload: {
+            flashSaleId: id,
+            flashSaleName: flashSale.name,
+            endsAt: newEndsAt.toISOString(),
+            remainingSeconds: 300,
+            participatingStoreIds: storeIds, // only stores participating in this slot!
+          },
+        });
+        this.logger.log(
+          `Published flash_sale.early_ending_scheduled for "${flashSale.name}" (endsAt: ${newEndsAt.toISOString()}) to ${storeIds.length} stores`,
+        );
+      } catch (err: any) {
+        this.logger.warn(`Failed to publish early ending event: ${err.message}`);
+      }
+    }
+
+    return updated;
+  }
+
+  async cancel(id: string) {
+    const flashSale = await this.prisma.flashSale.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+    if (!flashSale) throwNotFound(ErrorCode.FLASH_SALE_NOT_FOUND);
+
+    const updated = await this.prisma.flashSale.update({
+      where: { id },
+      data: {
+        status: FlashSaleStatus.CANCELLED,
+        pauseEffectiveAt: null,
+      },
+    });
+
+    if (this.eventBus) {
+      const storeIds = await this.getParticipatingStoreIds(id, flashSale.items);
+      try {
+        await this.eventBus.publish({
+          eventId: randomUUID(),
+          eventType: "flash_sale.cancelled",
+          occurredAt: new Date().toISOString(),
+          producer: "promotion-service",
+          version: 1,
+          aggregateId: id,
+          payload: {
+            flashSaleId: id,
+            flashSaleName: flashSale.name,
+            status: FlashSaleStatus.CANCELLED,
+            participatingStoreIds: storeIds,
+          },
+        });
+        this.logger.log(
+          `Published flash_sale.cancelled for "${flashSale.name}" to ${storeIds.length} stores`,
+        );
+      } catch (err: any) {
+        this.logger.warn(`Failed to publish cancel event: ${err.message}`);
+      }
+    }
+
     return updated;
   }
 
@@ -1257,18 +1343,6 @@ export class FlashSalesService
     }
     const now = new Date();
     if (now > endsAt) return FlashSaleStatus.ENDED;
-
-    if (pauseEffectiveAt && now >= new Date(pauseEffectiveAt)) {
-      return FlashSaleStatus.PAUSED;
-    }
-
-    if (
-      currentStatus === FlashSaleStatus.PAUSED ||
-      currentStatus === "PAUSED"
-    ) {
-      return FlashSaleStatus.PAUSED;
-    }
-
     if (now < startsAt) return FlashSaleStatus.SCHEDULED;
     return FlashSaleStatus.ACTIVE;
   }
@@ -1276,31 +1350,20 @@ export class FlashSalesService
   private async syncStatuses() {
     const now = new Date();
 
-    // 0. Auto-transition from Grace Period to PAUSED when pauseEffectiveAt is reached:
-    const expiredGraceSales = await this.prisma.flashSale.findMany({
+    // 0. Auto-heal any legacy PAUSED campaigns to ACTIVE or ENDED to ensure no campaigns remain stuck:
+    const legacyPausedSales = await this.prisma.flashSale.findMany({
       where: {
-        pauseEffectiveAt: { lte: now },
-        status: { notIn: [FlashSaleStatus.PAUSED, FlashSaleStatus.ENDED, FlashSaleStatus.CANCELLED] },
+        status: FlashSaleStatus.PAUSED,
       },
     });
 
-    if (expiredGraceSales.length > 0) {
-      await this.prisma.flashSale.updateMany({
-        where: {
-          id: { in: expiredGraceSales.map((s) => s.id) },
-        },
-        data: {
-          status: FlashSaleStatus.PAUSED,
-          pauseEffectiveAt: null,
-        },
-      });
-
-      for (const s of expiredGraceSales) {
-        await this.publishFlashSaleStatusEvent(
-          { ...s, status: FlashSaleStatus.PAUSED, pauseEffectiveAt: null },
-          FlashSaleStatus.PAUSED,
-          PauseMode.IMMEDIATE,
-        );
+    if (legacyPausedSales.length > 0) {
+      for (const s of legacyPausedSales) {
+        const targetStatus = now > s.endsAt ? FlashSaleStatus.ENDED : now >= s.startsAt ? FlashSaleStatus.ACTIVE : FlashSaleStatus.SCHEDULED;
+        await this.prisma.flashSale.update({
+          where: { id: s.id },
+          data: { status: targetStatus, pauseEffectiveAt: null },
+        });
       }
     }
 

@@ -34,6 +34,8 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
     "review.replied",
     "penalty.added",
     "penalty.appeal_reviewed",
+    "flash_sale.early_ending_scheduled",
+    "flash_sale.cancelled",
     "flash_sale.paused",
     "flash_sale.grace_started",
     "flash_sale.resumed",
@@ -255,6 +257,74 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
           });
         }
         break;
+      case "flash_sale.early_ending_scheduled": {
+        const slotName = payload.flashSaleName || payload.name || "Khung Giờ Flash Sale";
+        const title = `⚡ Flash Sale "${slotName}" sẽ kết thúc sớm sau 5 phút!`;
+        const sellerMsg = `Sàn HUKI đã lên lịch kết thúc sớm khung giờ Flash Sale "${slotName}" sau 5 phút. Quý Shop có sản phẩm tham gia vui lòng theo dõi và xử lý các đơn hàng phát sinh trước khi giá ưu đãi đóng lại.`;
+        const buyerMsg = `Khung giờ Flash Sale "${slotName}" sẽ kết thúc trong 5 phút nữa. Hãy nhanh tay hoàn tất thanh toán trước khi giá ưu đãi đóng lại!`;
+
+        // 1. ONLY notify participating stores (do NOT broadcast to unrelated sellers)
+        const storeIds: string[] = payload.participatingStoreIds || [];
+        for (const storeId of storeIds) {
+          targets.push({
+            recipientId: storeId,
+            recipientType: "BUSINESS",
+            type: "PROMOTION" as any,
+            title,
+            message: sellerMsg,
+            actionUrl: "/seller/promotions",
+          });
+        }
+
+        // 2. Broadcast to Buyer/Public channel so all shoppers see the 5-minute countdown alert
+        targets.push({
+          recipientId: "public_broadcast",
+          recipientType: "USER",
+          type: "PROMOTION" as any,
+          title,
+          message: buyerMsg,
+          actionUrl: "/flash-sale",
+        });
+
+        // 3. Notify admin channel
+        targets.push({
+          recipientId: "admin_channel",
+          recipientType: "ADMIN",
+          type: "PROMOTION" as any,
+          title: `🛑 Flash Sale "${slotName}" đã kích hoạt kết thúc sớm (5 phút)`,
+          message: `Quản trị viên đã kích hoạt kết thúc sớm khung giờ "${slotName}". Phiên sẽ tự động đóng vào lúc ${new Date(payload.endsAt).toLocaleTimeString("vi-VN")}.`,
+          actionUrl: "/admin/flash-sales",
+        });
+        break;
+      }
+      case "flash_sale.cancelled": {
+        const slotName = payload.flashSaleName || payload.name || "Khung Giờ Flash Sale";
+        const title = `❌ Flash Sale "${slotName}" đã được hủy`;
+        const message = `Khung giờ Flash Sale "${slotName}" đã được hủy bởi Ban quản trị sàn HUKI.`;
+
+        // ONLY notify participating stores
+        const storeIds: string[] = payload.participatingStoreIds || [];
+        for (const storeId of storeIds) {
+          targets.push({
+            recipientId: storeId,
+            recipientType: "BUSINESS",
+            type: "PROMOTION" as any,
+            title,
+            message,
+            actionUrl: "/seller/promotions",
+          });
+        }
+
+        targets.push({
+          recipientId: "admin_channel",
+          recipientType: "ADMIN",
+          type: "PROMOTION" as any,
+          title,
+          message,
+          actionUrl: "/admin/flash-sales",
+        });
+        break;
+      }
       case "flash_sale.paused":
       case "flash_sale.grace_started":
       case "flash_sale.resumed":
