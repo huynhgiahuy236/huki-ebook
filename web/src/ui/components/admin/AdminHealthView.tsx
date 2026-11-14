@@ -153,11 +153,11 @@ export default function AdminHealthView() {
     const check = healthData?.services?.find(
       (s: any) => s.service?.toLowerCase() === meta.key.toLowerCase()
     );
-    const isUnavailable = check?.status === 'unavailable' || check?.statusCode === 503;
+    const isHealthy = check && (check.status === 'ok' || check.statusCode === 200);
     return {
       ...meta,
-      status: isUnavailable ? 'unavailable' : (check?.status || 'ok'),
-      statusCode: check?.statusCode || 200,
+      status: isHealthy ? 'ok' : 'unavailable',
+      statusCode: check?.statusCode || (isHealthy ? 200 : 503),
     };
   });
 
