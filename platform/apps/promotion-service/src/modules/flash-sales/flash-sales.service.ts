@@ -20,6 +20,7 @@ import {
   SellerRegisterFlashSaleItemDto,
   SellerBatchRegisterFlashSaleItemsDto,
   SellerUpdateFlashSaleItemDto,
+  PauseMode,
 } from "./dto/flash-sale.dto";
 import { throwNotFound, throwBadRequest, throwForbidden } from "@huki/shared/errors";
 import { ErrorCode } from "@huki/shared/errors";
@@ -74,19 +75,20 @@ export class FlashSalesService
     let maxPerUser = 1;
 
     if (scope === FlashSaleScope.PLATFORM) {
-      // 1. Platform singleton constraint: only 1 active or upcoming/registering Flash Sale at any time
-      const existingPlatformSlot = await this.prisma.flashSale.findFirst({
+      // 1. Platform time overlap validation: no 2 platform flash sales can have overlapping selling windows
+      const overlappingSlot = await this.prisma.flashSale.findFirst({
         where: {
           scope: FlashSaleScope.PLATFORM,
           status: { notIn: [FlashSaleStatus.ENDED, FlashSaleStatus.CANCELLED] },
-          endsAt: { gt: now },
+          startsAt: { lt: endsAt },
+          endsAt: { gt: startsAt },
         },
       });
 
-      if (existingPlatformSlot) {
+      if (overlappingSlot) {
         throwBadRequest(
-          ErrorCode.FLASH_SALE_USER_LIMIT_REACHED,
-          `Sàn hiện đã có 1 chương trình Flash Sale chưa kết thúc ("${existingPlatformSlot.name}"). Mỗi thời điểm chỉ được phép có tối đa 1 chương trình Flash Sale toàn sàn.`,
+          ErrorCode.FLASH_SALE_TIME_OVERLAP,
+          `Khung giờ mở bán Flash Sale bị trùng lặp với đợt "${overlappingSlot.name}" (${new Date(overlappingSlot.startsAt).toLocaleString("vi-VN")} - ${new Date(overlappingSlot.endsAt).toLocaleString("vi-VN")}). Vui lòng chọn khung giờ khác.`,
         );
       }
 
@@ -248,9 +250,17 @@ export class FlashSalesService
           }),
         );
 
+        const effectiveStatus = this.calculateStatus(fs.startsAt, fs.endsAt, fs.status, fs.pauseEffectiveAt);
+        const nowTime = new Date();
+        const pauseRemainingSeconds = fs.pauseEffectiveAt && new Date(fs.pauseEffectiveAt) > nowTime
+          ? Math.max(0, Math.floor((new Date(fs.pauseEffectiveAt).getTime() - nowTime.getTime()) / 1000))
+          : 0;
+
         return {
           ...fs,
-          status: fs.status,
+          status: effectiveStatus,
+          pauseEffectiveAt: fs.pauseEffectiveAt,
+          pauseRemainingSeconds,
           participatingStoresCount: participatingStoreIds.length,
           totalItems: fs.items.length,
           totalStock: fs.items.reduce((sum, item) => sum + item.stock, 0),
@@ -447,7 +457,7 @@ export class FlashSalesService
 
     const enriched = await Promise.all(
       campaigns.map(async (c) => {
-        const status = this.calculateStatus(c.startsAt, c.endsAt, c.status);
+        const status = this.calculateStatus(c.startsAt, c.endsAt, c.status, c.pauseEffectiveAt);
         const participatingStoreIds = await this.getParticipatingStoreIds(c.id, c.items);
         const participatingStoresCount = participatingStoreIds.length;
         const regEnd = c.registrationEndsAt ? new Date(c.registrationEndsAt) : c.startsAt;
@@ -519,7 +529,7 @@ export class FlashSalesService
 
     const enriched = await Promise.all(
       campaigns.map(async (c) => {
-        const status = this.calculateStatus(c.startsAt, c.endsAt, c.status);
+        const status = this.calculateStatus(c.startsAt, c.endsAt, c.status, c.pauseEffectiveAt);
         const participatingStoreIds = await this.getParticipatingStoreIds(c.id, c.items);
         const participatingStoresCount = participatingStoreIds.length;
         const regEnd = c.registrationEndsAt ? new Date(c.registrationEndsAt) : c.startsAt;
@@ -653,6 +663,8 @@ export class FlashSalesService
           startsAt: c.startsAt,
           endsAt: c.endsAt,
           status,
+          pauseEffectiveAt: c.pauseEffectiveAt,
+          pauseRemainingSeconds: c.pauseEffectiveAt && new Date(c.pauseEffectiveAt) > now ? Math.max(0, Math.floor((new Date(c.pauseEffectiveAt).getTime() - now.getTime()) / 1000)) : 0,
           remainingSeconds,
           totalItems: c.items.length,
           items: itemsWithBooks,
@@ -673,8 +685,9 @@ export class FlashSalesService
     return publicVisible.sort((a, b) => {
       const order: Record<string, number> = {
         ACTIVE: 1,
-        SCHEDULED: 2,
-        ENDED: 3,
+        PAUSED: 2,
+        SCHEDULED: 3,
+        ENDED: 4,
       };
       const diff = (order[a.status] || 99) - (order[b.status] || 99);
       if (diff !== 0) return diff;
@@ -1047,7 +1060,7 @@ export class FlashSalesService
     };
   }
 
-  async updateStatus(id: string, status: FlashSaleStatus) {
+  async updateStatus(id: string, status: FlashSaleStatus, pauseMode?: PauseMode) {
     const flashSale = await this.prisma.flashSale.findUnique({ where: { id } });
     if (!flashSale) throwNotFound(ErrorCode.FLASH_SALE_NOT_FOUND);
     const campaign = flashSale!;
@@ -1061,9 +1074,36 @@ export class FlashSalesService
         "Chỉ có thể kích hoạt chiến dịch trong khung giờ đã cấu hình",
       );
     }
+
+    if (status === FlashSaleStatus.PAUSED) {
+      if (pauseMode === PauseMode.GRACE_2_MINUTES) {
+        // Schedule pause in 2 minutes: keep active during grace period
+        const pauseEffectiveAt = new Date(now.getTime() + 2 * 60 * 1000);
+        return this.prisma.flashSale.update({
+          where: { id },
+          data: {
+            status: FlashSaleStatus.ACTIVE,
+            pauseEffectiveAt,
+          },
+        });
+      } else {
+        // Immediate pause
+        return this.prisma.flashSale.update({
+          where: { id },
+          data: {
+            status: FlashSaleStatus.PAUSED,
+            pauseEffectiveAt: null,
+          },
+        });
+      }
+    }
+
     return this.prisma.flashSale.update({
       where: { id },
-      data: { status },
+      data: {
+        status,
+        pauseEffectiveAt: null,
+      },
     });
   }
 
@@ -1157,6 +1197,7 @@ export class FlashSalesService
     startsAt: Date,
     endsAt: Date,
     currentStatus?: FlashSaleStatus | string,
+    pauseEffectiveAt?: Date | null,
   ): FlashSaleStatus {
     if (
       currentStatus === FlashSaleStatus.CANCELLED ||
@@ -1165,13 +1206,37 @@ export class FlashSalesService
       return FlashSaleStatus.CANCELLED;
     }
     const now = new Date();
-    if (now < startsAt) return FlashSaleStatus.SCHEDULED;
     if (now > endsAt) return FlashSaleStatus.ENDED;
+
+    if (pauseEffectiveAt && now >= new Date(pauseEffectiveAt)) {
+      return FlashSaleStatus.PAUSED;
+    }
+
+    if (
+      currentStatus === FlashSaleStatus.PAUSED ||
+      currentStatus === "PAUSED"
+    ) {
+      return FlashSaleStatus.PAUSED;
+    }
+
+    if (now < startsAt) return FlashSaleStatus.SCHEDULED;
     return FlashSaleStatus.ACTIVE;
   }
 
   private async syncStatuses() {
     const now = new Date();
+
+    // 0. Auto-transition from Grace Period to PAUSED when pauseEffectiveAt is reached:
+    await this.prisma.flashSale.updateMany({
+      where: {
+        pauseEffectiveAt: { lte: now },
+        status: { notIn: [FlashSaleStatus.PAUSED, FlashSaleStatus.ENDED, FlashSaleStatus.CANCELLED] },
+      },
+      data: {
+        status: FlashSaleStatus.PAUSED,
+        pauseEffectiveAt: null,
+      },
+    });
 
     // 1. Auto-cancel Platform Flash Sales that reached registrationEndsAt with fewer distinct stores than minStores
     const pendingPlatformSales = await this.prisma.flashSale.findMany({
@@ -1209,7 +1274,7 @@ export class FlashSalesService
       }),
       this.prisma.flashSale.updateMany({
         where: {
-          status: { in: [FlashSaleStatus.SCHEDULED, FlashSaleStatus.ACTIVE] },
+          status: { in: [FlashSaleStatus.SCHEDULED, FlashSaleStatus.ACTIVE, FlashSaleStatus.PAUSED] },
           endsAt: { lt: now },
         },
         data: { status: FlashSaleStatus.ENDED },
@@ -1226,7 +1291,11 @@ export class FlashSalesService
         flashSale: {
           startsAt: { lte: now },
           endsAt: { gte: now },
-          status: { notIn: [FlashSaleStatus.ENDED, FlashSaleStatus.CANCELLED] },
+          status: { notIn: [FlashSaleStatus.ENDED, FlashSaleStatus.CANCELLED, FlashSaleStatus.PAUSED] },
+          OR: [
+            { pauseEffectiveAt: null },
+            { pauseEffectiveAt: { gt: now } },
+          ],
         },
         stock: { gt: 0 },
       },

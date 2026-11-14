@@ -24,6 +24,7 @@ describe("FlashSalesService", () => {
     flashSale: {
       create: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       count: jest.fn(),
       update: jest.fn(),
@@ -145,6 +146,109 @@ describe("FlashSalesService", () => {
     expect(prisma.flashSaleItem.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: { stock: { increment: 1 }, sold: { decrement: 1 } },
+      }),
+    );
+  });
+
+  it("rejects creating a campaign that overlaps with an existing platform flash sale", async () => {
+    prisma.flashSale.findFirst.mockResolvedValueOnce({
+      id: "existing-fs-id",
+      name: "Chiến dịch đang chạy",
+      startsAt: new Date(Date.now() + 3_600_000),
+      endsAt: new Date(Date.now() + 7_200_000),
+    });
+
+    await expect(
+      service.create({
+        name: "Chiến dịch mới trùng giờ",
+        registrationStartsAt: new Date(Date.now() + 600_000).toISOString(),
+        registrationEndsAt: new Date(Date.now() + 1_800_000).toISOString(),
+        startsAt: new Date(Date.now() + 4_000_000).toISOString(),
+        endsAt: new Date(Date.now() + 8_000_000).toISOString(),
+      }),
+    ).rejects.toThrow("trùng lặp");
+  });
+
+  it("allows creating a platform campaign when selling windows do not overlap", async () => {
+    prisma.flashSale.findFirst.mockResolvedValueOnce(null); // No overlap
+    prisma.flashSale.create.mockResolvedValueOnce({
+      id: "new-non-overlapping-id",
+      name: "Chiến dịch tuần sau",
+      status: "SCHEDULED",
+    });
+
+    const created = await service.create({
+      name: "Chiến dịch tuần sau",
+      registrationStartsAt: new Date(Date.now() + 86_400_000).toISOString(),
+      registrationEndsAt: new Date(Date.now() + 90_000_000).toISOString(),
+      startsAt: new Date(Date.now() + 93_600_000).toISOString(),
+      endsAt: new Date(Date.now() + 100_000_000).toISOString(),
+    });
+
+    expect(created.name).toBe("Chiến dịch tuần sau");
+    expect(prisma.flashSale.create).toHaveBeenCalled();
+  });
+
+  it("pauses immediately when pauseMode is IMMEDIATE", async () => {
+    prisma.flashSale.findUnique.mockResolvedValueOnce({
+      ...campaign,
+      status: "ACTIVE",
+    });
+    prisma.flashSale.update.mockResolvedValueOnce({
+      ...campaign,
+      status: "PAUSED",
+      pauseEffectiveAt: null,
+    });
+
+    await service.updateStatus(campaign.id, "PAUSED" as any, "IMMEDIATE" as any);
+
+    expect(prisma.flashSale.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { status: "PAUSED", pauseEffectiveAt: null },
+      }),
+    );
+  });
+
+  it("sets pauseEffectiveAt when pauseMode is GRACE_2_MINUTES", async () => {
+    prisma.flashSale.findUnique.mockResolvedValueOnce({
+      ...campaign,
+      status: "ACTIVE",
+    });
+    prisma.flashSale.update.mockResolvedValueOnce({
+      ...campaign,
+      status: "ACTIVE",
+      pauseEffectiveAt: new Date(Date.now() + 120_000),
+    });
+
+    await service.updateStatus(campaign.id, "PAUSED" as any, "GRACE_2_MINUTES" as any);
+
+    expect(prisma.flashSale.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "ACTIVE",
+          pauseEffectiveAt: expect.any(Date),
+        }),
+      }),
+    );
+  });
+
+  it("resumes a paused campaign to ACTIVE and clears pauseEffectiveAt", async () => {
+    prisma.flashSale.findUnique.mockResolvedValueOnce({
+      ...campaign,
+      status: "PAUSED",
+      pauseEffectiveAt: new Date(),
+    });
+    prisma.flashSale.update.mockResolvedValueOnce({
+      ...campaign,
+      status: "ACTIVE",
+      pauseEffectiveAt: null,
+    });
+
+    await service.updateStatus(campaign.id, "ACTIVE" as any);
+
+    expect(prisma.flashSale.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { status: "ACTIVE", pauseEffectiveAt: null },
       }),
     );
   });

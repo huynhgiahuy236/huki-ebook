@@ -166,7 +166,7 @@ export class FlashSalesController {
     @Param("id") id: string,
     @Body() dto: UpdateFlashSaleStatusDto,
   ) {
-    return this.flashSales.updateStatus(id, dto.status);
+    return this.flashSales.updateStatus(id, dto.status, dto.pauseMode);
   }
 
   @Patch("items/:itemId/stock")
