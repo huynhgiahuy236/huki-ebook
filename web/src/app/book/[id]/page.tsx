@@ -270,38 +270,52 @@ export default function BookDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    const targetBusinessId = realBook?.businessId || realBook?.storeId || realBook?.business?.id;
-    if (targetBusinessId) {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetBusinessId);
-      const fetchPromise = isUuid ? businessApi.getBusinessById(targetBusinessId) : businessApi.getBusinessBySlug(targetBusinessId);
-      fetchPromise
+    const targetStoreId = realBook?.storeId || realBook?.businessId || realBook?.business?.id;
+    if (targetStoreId) {
+      // First attempt: resolve via store API (by ID or Slug)
+      businessApi.getStoreById(targetStoreId)
         .then((res) => {
           if (res?.success && res.data) {
             setStoreInfo(res.data);
           } else {
-            const fallback = isUuid ? businessApi.getBusinessBySlug(targetBusinessId) : businessApi.getBusinessById(targetBusinessId);
-            fallback
-              .then((fallbackRes) => {
-                if (fallbackRes?.success && fallbackRes.data) setStoreInfo(fallbackRes.data);
-              })
-              .catch(() => { });
+            return businessApi.getStoreBySlug(targetStoreId);
           }
         })
-        .catch(() => {
-          const fallback = isUuid ? businessApi.getBusinessBySlug(targetBusinessId) : businessApi.getBusinessById(targetBusinessId);
-          fallback
-            .then((fallbackRes) => {
-              if (fallbackRes?.success && fallbackRes.data) setStoreInfo(fallbackRes.data);
-            })
-            .catch(() => { });
-        });
+        .then((res) => {
+          if (res && res.success && res.data) {
+            setStoreInfo(res.data);
+          } else if (!storeInfo) {
+            // Fallback: try business API
+            return businessApi.getBusinessById(targetStoreId);
+          }
+        })
+        .then((res) => {
+          if (res && res.success && res.data) {
+            setStoreInfo(res.data);
+          } else if (!storeInfo) {
+            return businessApi.getBusinessBySlug(targetStoreId);
+          }
+        })
+        .then((res) => {
+          if (res && res.success && res.data) {
+            setStoreInfo(res.data);
+          }
+        })
+        .catch(() => { });
     } else if (realBook?.publisher) {
       const pubName = typeof realBook.publisher === 'object' ? (realBook.publisher.slug || realBook.publisher.name) : realBook.publisher;
       if (pubName) {
         businessApi
-          .getBusinessBySlug(pubName)
+          .getStoreBySlug(pubName)
           .then((res) => {
-            if (res?.success && res.data) setStoreInfo(res.data);
+            if (res?.success && res.data) {
+              setStoreInfo(res.data);
+            } else {
+              return businessApi.getBusinessBySlug(pubName);
+            }
+          })
+          .then((res) => {
+            if (res && res.success && res.data) setStoreInfo(res.data);
           })
           .catch(() => { });
       }
@@ -962,6 +976,7 @@ export default function BookDetailPage() {
   // Shopee Policy: Chặn người bán tự mua sách từ gian hàng của chính mình
   const isOwnerOfBook = Boolean(
     user && (
+      (user.id && (user.id === realBook?.ownerUserId || user.id === (book as any)?.ownerUserId)) ||
       (user.business?.id && (user.business.id === realBook?.businessId || user.business.id === realBook?.storeId || user.business.id === (book as any)?.businessId)) ||
       (user.id && (user.id === realBook?.sellerId || user.id === (book as any)?.sellerId || user.id === realBook?.business?.ownerId))
     )

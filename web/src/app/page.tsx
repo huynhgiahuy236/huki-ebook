@@ -691,6 +691,7 @@ export default function HomePage() {
         followers: bookCount > 0 ? `${bookCount} đầu sách chính hãng` : 'Đối tác chính hãng',
         verified: true,
         slug: pub.slug,
+        logo: pub.logo || null,
       };
     });
   }, [realPublishers, realBooks]);
@@ -1429,9 +1430,20 @@ export default function HomePage() {
                 >
                   <Link
                     href={`/books?publisher=${encodeURIComponent(store.slug || store.name || '')}`}
-                    className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shadow-xs mb-1.5 group-hover:scale-105 transition-transform overflow-hidden bg-[#003B2B] text-white"
+                    className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shadow-xs mb-1.5 group-hover:scale-105 transition-transform overflow-hidden bg-white border border-gray-100 text-[#003B2B]"
                   >
-                    <span>{store.code}</span>
+                    {store.logo ? (
+                      <img
+                        src={store.logo}
+                        alt={store.name}
+                        className="w-full h-full object-cover rounded-xl"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <span className="w-full h-full flex items-center justify-center bg-[#003B2B] text-white rounded-xl">
+                        {store.code}
+                      </span>
+                    )}
                   </Link>
 
                   <Link

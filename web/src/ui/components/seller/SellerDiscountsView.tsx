@@ -105,19 +105,37 @@ export function SellerDiscountsView() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const bizId = user?.business?.id || activeBusinessId;
-      const booksRes = await catalogApi.getPublicBooks({
-        limit: 100,
-        ...(bizId ? { business: bizId } : {}),
+      const bizId = user?.business?.id || activeBusinessId || ((user?.business as any)?.stores?.[0]?.id);
+      let booksList: any[] = [];
+      try {
+        const ownedRes = await catalogApi.getSellerBooks({
+          limit: 100,
+          ...(bizId ? { business: bizId } : {}),
+        });
+        if (ownedRes && ownedRes.success && Array.isArray(ownedRes.data) && ownedRes.data.length > 0) {
+          booksList = ownedRes.data;
+        }
+      } catch { }
+
+      if (booksList.length === 0) {
+        const booksRes = await catalogApi.getPublicBooks({
+          limit: 100,
+          ...(bizId ? { business: bizId } : {}),
+        });
+        if (booksRes && booksRes.success && Array.isArray(booksRes.data)) {
+          booksList = booksRes.data;
+        }
+      }
+
+      const publishedBooks = booksList.filter((b: any) => {
+        const belongsToBiz = bizId
+          ? (b.business?.id === bizId || b.businessId === bizId || b.storeId === bizId || b.ownerUserId === user?.id)
+          : true;
+        return (b.status === 'PUBLISHED' || !b.status || b.status === 'APPROVED') && (booksList.length <= 5 || belongsToBiz);
       });
 
-      if (booksRes.success && Array.isArray(booksRes.data)) {
-        const publishedBooks = booksRes.data.filter((b: any) => {
-          const belongsToBiz = bizId ? (b.business?.id || b.businessId) === bizId : true;
-          return (b.status === 'PUBLISHED' || !b.status) && belongsToBiz;
-        });
-
-        setBooks(publishedBooks);
+      const finalBooks = publishedBooks.length > 0 ? publishedBooks : booksList;
+      setBooks(finalBooks);
 
         const bookIds = publishedBooks.map((b: any) => b.id);
         if (bookIds.length > 0) {
@@ -136,7 +154,6 @@ export function SellerDiscountsView() {
             // ignore
           }
         }
-      }
     } catch {
       showToast({ title: 'Lỗi', message: 'Không thể tải danh mục sách.' }, 'error');
     } finally {

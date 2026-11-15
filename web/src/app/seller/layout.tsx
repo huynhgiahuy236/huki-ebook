@@ -62,8 +62,7 @@ function SellerRouteLayoutContent({ children }: { children: React.ReactNode }) {
       ))
     );
 
-    // THỨ TỰ BẮT BUỘC: 1. Regis -> 2. Pending -> 3. Ngân Hàng (Setup) -> 4. Seller Dashboard
-
+    // THỨ TỰ: 1. Regis -> 2. Pending -> 3. Seller Dashboard
     // 1. CHƯA ĐĂNG KÝ HỒ SƠ:
     if (!isApprovedSeller && !user?.business && user?.role !== 'PLATFORM_ADMIN') {
       if (pathname !== '/seller' && !pathname.startsWith('/seller/register')) {
@@ -80,27 +79,10 @@ function SellerRouteLayoutContent({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // 3. ĐÃ ĐƯỢC DUYỆT (APPROVED), NHƯNG CHƯA HOÀN TẤT THIẾT LẬP NGÂN HÀNG & GIAN HÀNG:
-    // Bắt buộc phải qua step ngân hàng (/seller/stores/setup), không được nhảy cóc vào dashboard
-    if (isApprovedSeller && !isSetupCompleted) {
-      if (pathname !== '/seller' && !pathname.startsWith('/seller/stores/setup')) {
-        const loopGuard = typeof window !== 'undefined' ? sessionStorage.getItem('huki_setup_loop_guard') : null;
-        if (loopGuard && Date.now() - Number(loopGuard) < 3000) {
-          console.warn('[SellerLayout] Prevented rapid onboarding redirect loop');
-          return;
-        }
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('huki_setup_loop_guard', String(Date.now()));
-        }
-        router.replace('/seller/stores/setup');
-        return;
-      }
-    }
-
-    // 4. ĐÃ DUYỆT VÀ ĐÃ HOÀN TẤT NGÂN HÀNG (SELLER CHÍNH THỨC):
-    // Không cho quay lại các step trước (register, pending) -> về dashboard
-    if (isApprovedSeller && isSetupCompleted) {
-      if (pathname.startsWith('/seller/register') || pathname.startsWith('/seller/pending')) {
+    // 3. ĐÃ ĐƯỢC DUYỆT (APPROVED):
+    // Cho phép truy cập Seller Dashboard bình thường (Shopee/Lazada standard)
+    if (isApprovedSeller) {
+      if (pathname === '/seller' || pathname.startsWith('/seller/register') || pathname.startsWith('/seller/pending')) {
         router.replace('/seller/dashboard');
         return;
       }

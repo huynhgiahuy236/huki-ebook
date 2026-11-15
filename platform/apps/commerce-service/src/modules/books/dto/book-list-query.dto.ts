@@ -76,14 +76,14 @@ export class BookListQueryDto {
   @IsString()
   publisher?: string;
 
-  @ApiPropertyOptional({ format: 'uuid' })
+  @ApiPropertyOptional({ description: 'Store UUID or identifier slug' })
   @IsOptional()
-  @IsUUID()
+  @IsString()
   store?: string;
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'Business storefront owner' })
+  @ApiPropertyOptional({ description: 'Business storefront owner UUID or slug' })
   @IsOptional()
-  @IsUUID()
+  @IsString()
   business?: string;
 
   @ApiPropertyOptional({ description: 'Filter books by status (PUBLISHED, DRAFT, SUSPENDED, ARCHIVED, ALL)' })

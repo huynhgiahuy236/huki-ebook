@@ -995,6 +995,7 @@ export class BooksService implements OnModuleInit {
       id: book.id,
       storeId: book.storeId,
       businessId: book.storeId,
+      ownerUserId: book.ownerUserId,
       title: book.title,
       slug: book.slug,
       isbn: book.isbn,

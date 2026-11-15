@@ -256,8 +256,8 @@ export default function ShopPage() {
         }
       } catch { }
 
-      // 2. Try finding store by ID directly if UUID
-      if (!businessData && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier)) {
+      // 2. Try finding store by ID directly (UUID or custom store ID)
+      if (!businessData) {
         try {
           const storeByIdRes = await businessApi.getStoreById(identifier);
           if (storeByIdRes.success && storeByIdRes.data) {

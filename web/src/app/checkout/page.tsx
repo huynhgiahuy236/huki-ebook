@@ -38,6 +38,12 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState<string>("COD");
   const [shippingMethod, setShippingMethod] = useState<string>("standard");
   const [useVatInvoice, setUseVatInvoice] = useState<boolean>(false);
+  const [vatInvoiceData, setVatInvoiceData] = useState({
+    companyName: "",
+    taxCode: "",
+    companyAddress: "",
+    invoiceEmail: "",
+  });
   const [note, setNote] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isLoadingSession, setIsLoadingSession] = useState<boolean>(false);
@@ -1075,11 +1081,32 @@ export default function CheckoutPage() {
         }
 
         // 2. Generate or refresh checkout session
+        const vatSummary = useVatInvoice
+          ? `[HĐĐT MISA: ${vatInvoiceData.companyName || 'DN'} - MST: ${vatInvoiceData.taxCode || 'N/A'} - Email: ${vatInvoiceData.invoiceEmail || 'N/A'}]`
+          : '';
         const finalNote = useVatInvoice
           ? note.trim()
-            ? `${note.trim()} [VAT: Yêu cầu xuất hóa đơn điện tử]`
-            : "[VAT: Yêu cầu xuất hóa đơn điện tử]"
+            ? `${note.trim()} ${vatSummary}`
+            : vatSummary
           : note.trim() || undefined;
+
+        if (useVatInvoice && typeof window !== "undefined") {
+          try {
+            localStorage.setItem(
+              "huki_pending_vat_invoice",
+              JSON.stringify({
+                requested: true,
+                companyName: vatInvoiceData.companyName.trim(),
+                taxCode: vatInvoiceData.taxCode.trim(),
+                companyAddress: vatInvoiceData.companyAddress.trim(),
+                invoiceEmail: vatInvoiceData.invoiceEmail.trim(),
+                provider: "MISA_MEINVOICE",
+                status: "PENDING",
+                requestedAt: new Date().toISOString(),
+              })
+            );
+          } catch { }
+        }
 
         const storeVoucherCodes: Record<string, string> = {};
         storeGroups.forEach((g) => {
@@ -1988,6 +2015,68 @@ export default function CheckoutPage() {
                   Gửi qua Email
                 </span>
               </div>
+
+              {useVatInvoice && (
+                <div className="pt-3 border-t border-[var(--theme-border,#e8e5df)]/60 space-y-2.5 animate-in fade-in duration-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[var(--theme-text,#1c1b1f)] mb-1">
+                        Tên công ty / Đơn vị mua hàng <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ví dụ: CÔNG TY CỔ PHẦN CÔNG NGHỆ..."
+                        value={vatInvoiceData.companyName}
+                        onChange={(e) => setVatInvoiceData({ ...vatInvoiceData, companyName: e.target.value })}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[var(--theme-border,#e8e5df)] bg-white text-xs text-[var(--theme-text,#1c1b1f)] focus:outline-none focus:border-[var(--theme-primary,#003B2B)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[var(--theme-text,#1c1b1f)] mb-1">
+                        Mã số thuế (MST) <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ví dụ: 0101234567 hoặc 0312345678-001"
+                        value={vatInvoiceData.taxCode}
+                        onChange={(e) => setVatInvoiceData({ ...vatInvoiceData, taxCode: e.target.value.replace(/[^0-9-]/g, '') })}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[var(--theme-border,#e8e5df)] bg-white text-xs text-[var(--theme-text,#1c1b1f)] focus:outline-none focus:border-[var(--theme-primary,#003B2B)] font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[var(--theme-text,#1c1b1f)] mb-1">
+                      Địa chỉ doanh nghiệp <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Địa chỉ trụ sở chính ghi trên Giấy phép ĐKKD"
+                      value={vatInvoiceData.companyAddress}
+                      onChange={(e) => setVatInvoiceData({ ...vatInvoiceData, companyAddress: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-[var(--theme-border,#e8e5df)] bg-white text-xs text-[var(--theme-text,#1c1b1f)] focus:outline-none focus:border-[var(--theme-primary,#003B2B)]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[var(--theme-text,#1c1b1f)] mb-1">
+                      Email nhận hóa đơn điện tử (e-Invoice) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="ketoan@congty.com (nhận file .xml và link tra cứu MISA)"
+                      value={vatInvoiceData.invoiceEmail}
+                      onChange={(e) => setVatInvoiceData({ ...vatInvoiceData, invoiceEmail: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-[var(--theme-border,#e8e5df)] bg-white text-xs text-[var(--theme-text,#1c1b1f)] focus:outline-none focus:border-[var(--theme-primary,#003B2B)]"
+                    />
+                  </div>
+
+                  <p className="text-[10.5px] text-emerald-800 bg-emerald-50/80 p-2 rounded-lg border border-emerald-200/60 leading-relaxed flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[15px] shrink-0 text-emerald-600">verified</span>
+                    <span>Hóa đơn điện tử VAT hợp lệ (áp dụng cho cả Sách in &amp; Ebook DRM) sẽ được tự động xuất qua hệ sinh thái <strong>MISA meInvoice</strong> và gửi về email sau khi đơn hàng giao thành công.</span>
+                  </p>
+                </div>
+              )}
             </section>
           </div>
 

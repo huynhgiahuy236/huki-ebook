@@ -98,6 +98,35 @@ export default function HierarchicalSidebar({
 
   // Clean, focused, segregated single-level Navigation Schema
   const allNavGroups: NavGroup[] = [
+    ...(isAdmin ? [{
+      id: 'admin',
+      title: 'HỆ THỐNG QUẢN TRỊ',
+      items: [{
+        id: 'admin-portal',
+        title: 'Bảng Điều Hành Admin',
+        to: '/admin',
+        icon: 'admin_panel_settings',
+        badge: 'ADMIN',
+        badgeColor: 'bg-amber-400 text-zinc-950 font-black',
+      }],
+    }] : isSeller ? [{
+      id: 'business',
+      title: 'DOANH NGHIỆP',
+      items: [{
+        id: 'seller-portal',
+        title: sellerTargetTitle,
+        to: sellerTargetUrl,
+        icon: !isSetupCompleted ? 'account_balance' : 'storefront',
+        badge: 'SELLER',
+        badgeColor: 'bg-emerald-500 text-white font-bold',
+      }, {
+        id: 'seller-chat',
+        title: 'Chat Kênh Bán',
+        to: '/seller/chat',
+        icon: 'forum',
+        targetBlank: true,
+      }],
+    }] : []),
     {
       id: 'shopping',
       title: 'MUA SẮM',
@@ -165,14 +194,14 @@ export default function HierarchicalSidebar({
           icon: 'chat',
           targetBlank: true,
         },
-        {
+        ...(!isAdmin && !isSeller ? [{
           id: 'cart',
           title: 'Giỏ Hàng',
           to: '/cart',
           icon: 'shopping_cart',
           badge: totalItemsCount > 0 ? totalItemsCount : null,
           badgeColor: 'bg-[#003b2b] text-white',
-        },
+        }] : []),
         {
           id: 'orders',
           title: 'Đơn Hàng',
@@ -181,48 +210,7 @@ export default function HierarchicalSidebar({
         },
       ],
     },
-    ...(isAdmin
-      ? [
-          {
-            id: 'admin',
-            title: 'HỆ THỐNG QUẢN TRỊ',
-            items: [
-              {
-                id: 'admin-portal',
-                title: 'Bảng Điều Hành Admin',
-                to: '/admin',
-                icon: 'admin_panel_settings',
-                badge: 'ADMIN',
-                badgeColor: 'bg-amber-400 text-zinc-950 font-black',
-              },
-            ],
-          },
-        ]
-      : isSeller
-      ? [
-          {
-            id: 'business',
-            title: 'DOANH NGHIỆP',
-            items: [
-              {
-                id: 'seller-portal',
-                title: sellerTargetTitle,
-                to: sellerTargetUrl,
-                icon: !isSetupCompleted ? 'account_balance' : 'storefront',
-                badge: 'SELLER',
-                badgeColor: 'bg-emerald-500 text-white font-bold',
-              },
-              {
-                id: 'seller-chat',
-                title: 'Chat Kênh Bán',
-                to: '/seller/chat',
-                icon: 'forum',
-                targetBlank: true,
-              },
-            ],
-          },
-        ]
-      : isShipper
+    ...(isShipper
       ? [
           {
             id: 'shipper',

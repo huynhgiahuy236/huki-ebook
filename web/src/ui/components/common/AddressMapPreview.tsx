@@ -706,12 +706,22 @@ export default function AddressMapPreview({
         attributionControl: false,
       });
 
-      // High Performance CartoDB Voyager tiles (100% Reliable in VN, Fast Singapore CDN, Crisp Vietnamese Labels)
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19,
-        subdomains: ['a', 'b', 'c', 'd'],
-        attribution: '© OpenStreetMap contributors © CARTO',
-      }).addTo(map);
+      // Google Maps Roadmap Tiles (Direct Official Google Maps Layer, 100% Reliable in VN, Zero Watermark)
+      const googleTileLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        attribution: '© Google Maps',
+      });
+
+      // Fallback to ArcGIS World Street Map if Google network is blocked
+      googleTileLayer.on('tileerror', () => {
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+          maxZoom: 19,
+          attribution: '© Esri',
+        }).addTo(map);
+      });
+
+      googleTileLayer.addTo(map);
 
       // Custom Center Marker
       const customIcon = L.divIcon({

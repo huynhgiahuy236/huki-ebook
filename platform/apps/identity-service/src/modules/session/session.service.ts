@@ -120,9 +120,9 @@ export class SessionService {
     let location = 'Việt Nam';
     const cleanIp = ipAddress ? ipAddress.replace(/^::ffff:/, '') : '';
     if (cleanIp === '127.0.0.1' || cleanIp === '::1' || cleanIp === 'localhost') {
-      location = 'Hà Nội, Việt Nam (Thiết bị cục bộ)';
+      location = 'Thiết bị nội bộ (Localhost)';
     } else if (cleanIp) {
-      location = `Hà Nội, Việt Nam (IP: ${cleanIp})`;
+      location = `Việt Nam (IP: ${cleanIp})`;
     }
 
     return { deviceName, deviceType, icon, location };

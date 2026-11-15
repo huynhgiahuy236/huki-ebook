@@ -20,6 +20,7 @@ import {
   throwBadRequest,
   throwNotFound,
   throwConflict,
+  throwForbidden,
 } from "@huki/shared/errors";
 import { ErrorCode } from "@huki/shared/errors";
 import { FlashSaleClientService } from "./flash-sale-client.service";
@@ -134,6 +135,11 @@ export class CheckoutService {
         throwConflict(ErrorCode.BOOK_NOT_FOUND);
       }
 
+      // Shopee Anti-Fraud: Chặn người bán tự mua sách của chính mình
+      if (book.ownerUserId && book.ownerUserId === userId) {
+        throwForbidden(ErrorCode.SELF_PURCHASE_FORBIDDEN, 'Bạn không thể mua sản phẩm từ gian hàng của chính mình (chính sách chống tự mua hàng)');
+      }
+
       if (dto.directItem.format === CartItemFormat.PHYSICAL) {
         if (
           (book.format !== BookFormat.PHYSICAL && book.format !== BookFormat.BOTH) ||
@@ -216,6 +222,11 @@ export class CheckoutService {
           const book = item.book as any;
           if (book.status !== BookStatus.PUBLISHED) {
             throwConflict(ErrorCode.BOOK_NOT_FOUND);
+          }
+
+          // Shopee Anti-Fraud: Chặn đơn hàng chứa sản phẩm của gian hàng mình
+          if (book.ownerUserId && book.ownerUserId === userId) {
+            throwForbidden(ErrorCode.SELF_PURCHASE_FORBIDDEN, 'Đơn hàng chứa sản phẩm từ gian hàng của chính bạn. Người bán không được phép tự mua hàng của mình.');
           }
 
           if (item.format === CartItemFormat.PHYSICAL) {

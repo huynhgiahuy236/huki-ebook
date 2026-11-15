@@ -375,8 +375,29 @@ export class DrmVaultService {
 
     const { userId, deviceId, deviceName, ipAddress } = payload;
 
-    // Đăng ký thiết bị nếu có userId và deviceId
+    // Đăng ký và kiểm tra giới hạn 5 thiết bị đọc sách DRM (POL-04)
     if (userId && deviceId) {
+      const existingDevice = await this.prisma.drmDevice.findUnique({
+        where: {
+          userId_deviceId: { userId, deviceId },
+        },
+      });
+
+      if (!existingDevice || existingDevice.isRevoked) {
+        const activeDeviceCount = await this.prisma.drmDevice.count({
+          where: { userId, isRevoked: false },
+        });
+
+        if (activeDeviceCount >= 5) {
+          return {
+            success: false,
+            code: 'DRM_DEVICE_LIMIT_EXCEEDED',
+            licenseCode: license.licenseCode,
+            message: 'Tài khoản đã đạt giới hạn tối đa 5 thiết bị đọc sách DRM. Vui lòng thu hồi bớt thiết bị cũ trong Cài đặt tài khoản > Thiết bị.',
+          };
+        }
+      }
+
       await this.prisma.drmDevice.upsert({
         where: {
           userId_deviceId: { userId, deviceId },
@@ -385,6 +406,7 @@ export class DrmVaultService {
           lastActiveAt: new Date(),
           deviceName: deviceName || 'Web Browser',
           ipAddress: ipAddress || '127.0.0.1',
+          isRevoked: false,
         },
         create: {
           userId,

@@ -1005,7 +1005,7 @@ export function AdminEscrowView() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-theme-border/80 bg-theme-surface">
+          <div className="rounded-xl border border-theme-border/80 bg-theme-surface overflow-visible">
             <table className="w-full text-left text-xs divide-y divide-theme-border/60">
               <thead className="bg-theme-surface-subtle text-[10.5px] uppercase font-bold text-theme-text-muted tracking-wider">
                 <tr>
@@ -1227,7 +1227,7 @@ export function AdminEscrowView() {
                       </td>
 
                       {/* 7. Thao Tác Chi Tiết */}
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap relative escrow-dropdown-container">
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap relative escrow-dropdown-container z-20">
                         {isReleased ? (
                           <span className="text-[11.5px] text-theme-text-muted font-medium italic">
                             Đã bàn giao
@@ -1264,7 +1264,7 @@ export function AdminEscrowView() {
                             </button>
 
                             {openDropdownId === item.id && (
-                              <div className="absolute right-0 bottom-full mb-1.5 sm:bottom-auto sm:top-full sm:mt-1.5 w-52 bg-theme-surface rounded-2xl shadow-xl border border-theme-border z-50 py-1.5 divide-y divide-theme-border text-left animate-in fade-in zoom-in-95 duration-150">
+                              <div className="absolute right-0 bottom-full mb-1.5 sm:bottom-auto sm:top-full sm:mt-1.5 w-52 bg-theme-surface rounded-2xl shadow-xl border border-theme-border z-[100] py-1.5 divide-y divide-theme-border text-left animate-in fade-in zoom-in-95 duration-150">
                                 <button
                                   type="button"
                                   onClick={() => handleStatusChange(item.id, 'HOLDING')}

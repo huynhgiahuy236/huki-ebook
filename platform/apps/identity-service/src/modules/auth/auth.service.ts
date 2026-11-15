@@ -60,6 +60,25 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const email = dto.email.trim().toLowerCase();
 
+    // Check if phone number is already registered to another active user
+    if (dto.phone) {
+      const cleanPhone = dto.phone.trim();
+      const existingPhoneUser = await this.prisma.user.findFirst({
+        where: {
+          phone: cleanPhone,
+          deletedAt: null,
+          status: { not: UserStatus.DELETED },
+          email: { not: email },
+        },
+      });
+      if (existingPhoneUser) {
+        throwConflict(
+          ErrorCode.USER_PHONE_EXISTS,
+          'Số điện thoại này đã được đăng ký cho một tài khoản khác. Vui lòng sử dụng số điện thoại khác.',
+        );
+      }
+    }
+
     // Check if email exists
     const existingUser = await this.prisma.user.findUnique({ where: { email } });
     if (existingUser) {

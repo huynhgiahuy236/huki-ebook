@@ -211,17 +211,24 @@ function StoresContent() {
   // Hợp nhất danh sách NXB từ Doanh nghiệp & Gian hàng thực tế 100% từ Database
   const combinedAllPublishers = useMemo<PublisherItem[]>(() => {
     const combined: PublisherItem[] = [];
+    const seenIds = new Set<string>();
 
     realBusinesses.forEach(biz => {
       if (biz.stores && biz.stores.length > 0) {
         biz.stores.forEach(st => {
+          if ((st as any).isActive === false) return;
+          const storeKey = st.slug || st.id;
+          if (seenIds.has(storeKey) || seenIds.has(st.id)) return;
+          seenIds.add(storeKey);
+          seenIds.add(st.id);
+
           const storeBooks = catalogBooks.filter(b => {
             const sId = b.storeId || (b as any).store_id;
             const pId = b.publisherId || (b as any).publisher_id;
             const bId = b.businessId || (b as any).business_id;
             return sId === st.id || pId === st.id || bId === biz.id || sId === biz.id;
           });
-          const totalBooks = storeBooks.length;
+          const totalBooks = Math.max((st as any).totalProducts || 0, storeBooks.length);
 
           combined.push({
             id: st.id,
@@ -242,6 +249,10 @@ function StoresContent() {
           });
         });
       } else {
+        if (seenIds.has(biz.slug || biz.id) || seenIds.has(biz.id)) return;
+        seenIds.add(biz.slug || biz.id);
+        seenIds.add(biz.id);
+
         const storeBooks = catalogBooks.filter(b => {
           const sId = b.storeId || (b as any).store_id;
           const pId = b.publisherId || (b as any).publisher_id;

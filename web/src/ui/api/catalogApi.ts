@@ -19,6 +19,8 @@ export interface CatalogEntity {
   name: string;
   slug?: string;
   isbn?: string | null;
+  logo?: string | null;
+  description?: string | null;
 }
 
 export interface PhysicalDetails {

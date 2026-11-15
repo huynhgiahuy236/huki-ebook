@@ -168,6 +168,11 @@ export class CartService {
         throwNotFound(ErrorCode.BOOK_NOT_FOUND);
       }
 
+      // Shopee Anti-Fraud: Chặn người bán tự thêm sản phẩm của gian hàng mình vào giỏ hàng
+      if (book.ownerUserId && book.ownerUserId === userId) {
+        throwBadRequest(ErrorCode.SELF_PURCHASE_FORBIDDEN, 'Bạn không thể thêm sản phẩm từ gian hàng của chính mình vào giỏ hàng');
+      }
+
       this.validateAvailability(book, dto.format, dto.quantity);
 
       // Check existing item

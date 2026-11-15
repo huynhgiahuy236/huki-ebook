@@ -66,6 +66,11 @@ export default function StoreHeader({
     ? (isSeller ? '/seller/chat' : '/account/messages')
     : '/auth/login?redirect=/account/messages';
 
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const [isSetupCompleted, setIsSetupCompleted] = useState(false);
   useEffect(() => {
     if (typeof window !== 'undefined' && user?.business?.id) {
@@ -75,7 +80,7 @@ export default function StoreHeader({
     }
   }, [user]);
 
-  const sellerDestinationUrl = !isLoggedIn
+  const sellerDestinationUrl = (!isMounted || !isLoggedIn)
     ? '/seller'
     : user?.business?.status === 'PENDING_APPROVAL'
     ? '/seller/pending'
@@ -682,12 +687,12 @@ export default function StoreHeader({
           </Link>
 
           {/* Universal Notification Bell */}
-          {isLoggedIn && (
+          {isMounted && isLoggedIn && (
             <UniversalNotificationBell variant="user" />
           )}
 
           {/* Chat / Tin Nhắn - Standard 38x38 Form Factor (Opens in New Tab) */}
-          {isLoggedIn && (
+          {isMounted && isLoggedIn && (
             <Link
               href={chatUrl}
               prefetch={false}
@@ -709,7 +714,9 @@ export default function StoreHeader({
           )}
 
           {/* User Account / Auth Buttons - Standardized Profile Button */}
-          {isLoggedIn ? (
+          {!isMounted || isLoading ? (
+            <div className="h-9 w-9 sm:w-24 bg-slate-100 dark:bg-zinc-800/60 animate-pulse rounded-xl shrink-0" />
+          ) : isLoggedIn ? (
             <div ref={userMenuRef} className="relative shrink-0">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
@@ -934,8 +941,6 @@ export default function StoreHeader({
                 </div>
               )}
             </div>
-          ) : isLoading ? (
-            <div className="h-9 w-9 sm:w-24 bg-slate-100 dark:bg-zinc-800/60 animate-pulse rounded-xl shrink-0" />
           ) : (
             <div className="flex items-center gap-2">
               <Link

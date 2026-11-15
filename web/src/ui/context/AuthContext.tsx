@@ -35,36 +35,10 @@ export interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<UserSession | null>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const token = tokenStorage.getAccessToken();
-        const cached = tokenStorage.getUserSession();
-        if (token && cached) {
-          return cached;
-        }
-      } catch {
-        // ignore parse error
-      }
-    }
-    return null;
-  });
-  const [isLoading, setIsLoading] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const token = tokenStorage.getAccessToken();
-      const cached = tokenStorage.getUserSession();
-      if (token && cached) {
-        return false;
-      }
-    }
-    return true;
-  });
-  const [activeBusinessId, setActiveBusinessId] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('huki_active_business_id') || null;
-    }
-    return null;
-  });
+  // SSR/CSR Identical Initial State: Always initialize as null / loading to prevent Hydration Mismatch
+  const [user, setUser] = useState<UserSession | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
 
   const isLoggedIn = Boolean(user);
@@ -173,6 +147,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         if (isMounted) setIsLoading(false);
         return;
+      }
+
+      // Đọc cached session ngay lập tức khi Client đã mount (hoàn toàn an toàn khỏi Hydration Mismatch)
+      try {
+        const cachedUser = tokenStorage.getUserSession();
+        if (cachedUser && isMounted) {
+          setUser(cachedUser);
+          setIsLoading(false);
+        }
+        if (typeof window !== 'undefined') {
+          const cachedBiz = localStorage.getItem('huki_active_business_id');
+          if (cachedBiz && isMounted) {
+            setActiveBusinessId(cachedBiz);
+          }
+        }
+      } catch {
+        // ignore
       }
 
       try {

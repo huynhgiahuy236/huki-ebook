@@ -178,7 +178,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         fetchBadges();
       }
-    }, 4000);
+    }, 30000);
 
     return () => {
       cancelled = true;
@@ -214,7 +214,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           badgeColor: 'bg-rose-500',
         },
         { 
-          to: `/shop/${user?.business?.slug || user?.business?.id || activeBusinessId || 'alpha-books'}`, 
+          to: `/shop/${user?.business?.slug || (user?.business as any)?.stores?.[0]?.slug || user?.business?.id || activeBusinessId || ''}`, 
           icon: 'storefront', 
           label: 'Xem Gian Hàng', 
           permission: PERMISSIONS.STORE_VIEW,

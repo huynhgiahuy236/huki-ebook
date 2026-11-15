@@ -149,6 +149,16 @@ export default function RegisterPage() {
       }
     } else {
       const vietnameseError = formatAuthError(regRes.error);
+      if (
+        regRes.error?.includes('PHONE') ||
+        regRes.error?.includes('điện thoại') ||
+        (regRes as any).code === 'USER_PHONE_EXISTS'
+      ) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          phone: 'Số điện thoại này đã được đăng ký. Vui lòng sử dụng số khác hoặc đăng nhập.',
+        }));
+      }
       showToast({
         title: 'Đăng ký thất bại',
         message: vietnameseError,
