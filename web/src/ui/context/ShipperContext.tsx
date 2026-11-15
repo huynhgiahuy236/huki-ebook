@@ -609,13 +609,30 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
     refreshOrders();
   }, [refreshOrders]);
 
-  // Silent Background Auto-Polling (3.5s - Chuẩn Shopee Zero-F5)
+  // Gentle Background Polling (30s heartbeat with visibility guard)
   useEffect(() => {
     if (!isOnline) return;
     const pollTimer = setInterval(() => {
-      refreshOrders(true);
-    }, 3500);
-    return () => clearInterval(pollTimer);
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        refreshOrders(true);
+      }
+    }, 30000);
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        refreshOrders(true);
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    return () => {
+      clearInterval(pollTimer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+    };
   }, [isOnline, refreshOrders]);
 
   // RealtimeSyncBus: Instant cross-tab & cross-device event processing

@@ -259,10 +259,20 @@ export default function SellerBusinessProfilePage() {
     const currentBiz = user?.business?.id || activeBusinessId;
     if (!currentBiz) return;
 
-    // Silent polling every 3.5 seconds
+    // Gentle fallback polling every 30 seconds with visibility guard
     const pollTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       loadData(false);
-    }, 3500);
+    }, 30000);
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadData(false);
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
 
     const unsubscribe = realtimeSyncBus.subscribe((msg) => {
       const payload = msg.payload as any;
@@ -280,6 +290,9 @@ export default function SellerBusinessProfilePage() {
 
     return () => {
       clearInterval(pollTimer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
       unsubscribe();
     };
   }, [user, activeBusinessId, loadData, showToast]);

@@ -180,11 +180,13 @@ export function AdminFinanceView() {
     fetchLivePayoutRequests();
   }, [fetchLivePayoutRequests]);
 
-  // Silent Background Polling (3.5s) & Lắng nghe sự kiện rút tiền thời gian thực
+  // Gentle Fallback Polling (30s) & Lắng nghe sự kiện rút tiền thời gian thực
   useEffect(() => {
     const pollTimer = setInterval(() => {
-      fetchLivePayoutRequests(true);
-    }, 3500);
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchLivePayoutRequests(true);
+      }
+    }, 30000);
 
     const unsubscribe = realtimeSyncBus.subscribe((msg) => {
       if (msg.type === 'PAYOUT_REQUESTED') {

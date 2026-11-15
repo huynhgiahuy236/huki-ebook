@@ -101,7 +101,7 @@ export default function OrdersPage() {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         fetchOrders(true);
       }
-    }, 4000);
+    }, 30000);
 
     return () => {
       unsubscribe();

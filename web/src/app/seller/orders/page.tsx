@@ -307,15 +307,29 @@ function SellerOrdersContent() {
     loadData();
   }, [loadData]);
 
-  // Periodic heartbeat polling every 4 seconds to guarantee realtime across devices/sessions
+  // Periodic heartbeat polling every 30 seconds to guarantee realtime across devices/sessions
   useEffect(() => {
     const timer = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         loadData(true);
       }
-    }, 4000);
+    }, 30000);
 
-    return () => clearInterval(timer);
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadData(true);
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    return () => {
+      clearInterval(timer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+    };
   }, [loadData]);
 
   // Instant cross-tab sync via BroadcastChannel / LocalStorage

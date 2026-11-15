@@ -125,12 +125,12 @@ export default function SellerPendingPage() {
   useEffect(() => {
     loadBusiness();
 
-    // 1. Silent Background Auto-Polling (3s)
+    // 1. Gentle Background Auto-Polling (30s)
     pollTimerRef.current = setInterval(() => {
-      if (!isRedirectingRef.current) {
+      if (!isRedirectingRef.current && typeof document !== 'undefined' && document.visibilityState === 'visible') {
         loadBusiness(true);
       }
-    }, 3000);
+    }, 30000);
 
     // 2. Realtime Bus Subscriber
     const unsub = realtimeSyncBus.subscribe((msg: any) => {

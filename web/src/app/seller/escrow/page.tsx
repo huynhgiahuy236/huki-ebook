@@ -106,11 +106,21 @@ export default function SellerEscrowPage() {
     fetchEscrowItems();
   }, [fetchEscrowItems]);
 
-  // Silent Background Auto-Polling (3.5s - Chuẩn Shopee Zero-F5) & RealtimeSyncBus
+  // Gentle Fallback Polling (30s heartbeat with visibility guard) & RealtimeSyncBus
   useEffect(() => {
     const pollTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       fetchEscrowItems(true);
-    }, 3500);
+    }, 30000);
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchEscrowItems(true);
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
 
     const unsubscribe = realtimeSyncBus.subscribe((msg) => {
       const payload = msg.payload as any;
@@ -127,6 +137,9 @@ export default function SellerEscrowPage() {
 
     return () => {
       clearInterval(pollTimer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
       unsubscribe();
     };
   }, [storeId, fetchEscrowItems, showToast]);

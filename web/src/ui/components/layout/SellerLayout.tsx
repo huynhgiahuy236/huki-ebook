@@ -167,7 +167,11 @@ export default function SellerLayout({ children }: SellerLayoutProps = {}) {
     // Run first check
     checkGlobalOrders();
 
-    const timer = setInterval(checkGlobalOrders, 5000);
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        checkGlobalOrders();
+      }
+    }, 30000);
     return () => {
       isCancelled = true;
       clearInterval(timer);

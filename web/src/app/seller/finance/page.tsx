@@ -265,15 +265,26 @@ export default function SellerFinancePage() {
     handleRefreshAll();
   }, [handleRefreshAll]);
 
-  // Silent Background Auto-Polling (3.5s - Chuẩn Shopee Zero-F5) & Lắng nghe RealtimeSyncBus
+  // Gentle Fallback Polling (30s heartbeat with visibility guard) & RealtimeSyncBus
   useEffect(() => {
     if (!storeId) return;
 
     const pollTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       fetchWallet(true);
       fetchEscrowItems();
       fetchPayoutRequests(payoutPage, true);
-    }, 3500);
+    }, 30000);
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchWallet(true);
+        fetchEscrowItems();
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
 
     const unsubscribe = realtimeSyncBus.subscribe((msg) => {
       const payload = msg.payload as any;
@@ -312,6 +323,9 @@ export default function SellerFinancePage() {
 
     return () => {
       clearInterval(pollTimer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
       unsubscribe();
     };
   }, [storeId, payoutPage, fetchWallet, fetchEscrowItems, fetchPayoutRequests, fetchRecentTransactions, fetchBiz, showToast]);

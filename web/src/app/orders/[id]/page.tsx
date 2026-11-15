@@ -130,8 +130,10 @@ export default function OrderDetailPage() {
   useEffect(() => {
     fetchOrderDetail();
     const timer = setInterval(() => {
-      fetchOrderDetail(true);
-    }, 3500);
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchOrderDetail(true);
+      }
+    }, 30000);
     return () => clearInterval(timer);
   }, [fetchOrderDetail]);
 

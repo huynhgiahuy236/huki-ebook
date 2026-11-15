@@ -320,10 +320,12 @@ export function AdminEscrowView() {
   useEffect(() => {
     fetchEscrowItems();
 
-    // Silent background auto-polling every 3.5s for zero-F5 live sync
+    // Gentle fallback background auto-polling every 30s with visibility guard
     const pollTimer = setInterval(() => {
-      fetchEscrowItems(true);
-    }, 3500);
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchEscrowItems(true);
+      }
+    }, 30000);
 
     // Realtime event subscription
     const unsubscribe = realtimeSyncBus.subscribe((msg: SyncMessage<any>) => {

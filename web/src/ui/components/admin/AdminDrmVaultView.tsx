@@ -139,12 +139,14 @@ export function AdminDrmVaultView() {
     fetchLicenses();
   }, [fetchLicenses]);
 
-  // Silent Background Auto-Polling (3.5s - Cơ chế Shopee Realtime) & Lắng nghe RealtimeSyncBus
+  // Gentle Background Auto-Polling (30s) & Lắng nghe RealtimeSyncBus
   useEffect(() => {
     const pollTimer = setInterval(() => {
-      fetchOverview();
-      fetchLicenses(true);
-    }, 3500);
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchOverview();
+        fetchLicenses(true);
+      }
+    }, 30000);
 
     const unsubscribe = realtimeSyncBus.subscribe((msg) => {
       if (

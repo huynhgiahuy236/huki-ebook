@@ -281,8 +281,10 @@ export function SellerVouchersView() {
   // Realtime Sync Bus & Background Auto-Polling (Zero-F5)
   useEffect(() => {
     const pollTimer = setInterval(() => {
-      loadData();
-    }, 5000);
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadData();
+      }
+    }, 30000);
 
     const unsubscribe = realtimeSyncBus.subscribe((msg) => {
       if (

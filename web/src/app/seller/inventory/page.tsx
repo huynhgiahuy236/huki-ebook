@@ -240,15 +240,29 @@ export default function SellerInventoryPage() {
     fetchInventory();
   }, [fetchInventory]);
 
-  // Shopee-style: Tự động quét tồn kho server ngầm mỗi 3.5 giây để đồng bộ liên thiết bị
+  // Shopee-style: Tự động quét tồn kho server ngầm mỗi 30 giây để đồng bộ liên thiết bị
   useEffect(() => {
     const pollTimer = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         fetchInventory(true);
       }
-    }, 3500);
+    }, 30000);
 
-    return () => clearInterval(pollTimer);
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchInventory(true);
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    return () => {
+      clearInterval(pollTimer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+    };
   }, [fetchInventory]);
 
   // Listen to order lifecycle changes to keep inventory synced with backend

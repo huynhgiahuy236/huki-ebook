@@ -92,11 +92,21 @@ export default function SellerFinancialReportsPage() {
     fetchData();
   }, [fetchData]);
 
-  // Silent Background Auto-Polling (3.5s - Chuẩn Shopee Zero-F5) & RealtimeSyncBus
+  // Gentle Fallback Polling (45s heartbeat with visibility guard) & RealtimeSyncBus
   useEffect(() => {
     const pollTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       fetchData(true);
-    }, 3500);
+    }, 45000);
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchData(true);
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
 
     const unsubscribe = realtimeSyncBus.subscribe((msg) => {
       const payload = msg.payload as any;
@@ -122,6 +132,9 @@ export default function SellerFinancialReportsPage() {
 
     return () => {
       clearInterval(pollTimer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
       unsubscribe();
     };
   }, [storeId, fetchData, showToast]);

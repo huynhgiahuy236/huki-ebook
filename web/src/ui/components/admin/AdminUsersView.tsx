@@ -349,7 +349,7 @@ export default function AdminUsersView() {
           });
         }
       }).catch(() => {});
-    }, 3000);
+    }, 30000);
 
     return () => {
       unsubscribe();
