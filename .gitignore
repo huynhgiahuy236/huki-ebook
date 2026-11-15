@@ -11,6 +11,21 @@ yarn.lock
 pnpm-lock.yaml
 
 # ============================================
+# Local Docs, Flows, Plans, Policies, Scripts & Tests
+# ============================================
+docs/
+err/
+flow/
+plan/
+policies/
+screenshots/
+screenhots/
+scripts/
+scriptstest/
+skill/
+test/
+
+# ============================================
 # API Documentation
 # ============================================
 /api/
