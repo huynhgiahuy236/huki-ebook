@@ -166,18 +166,22 @@ class AdminNotificationService {
 
       this.syncFromServer();
       window.addEventListener('focus', () => this.syncFromServer());
-      setInterval(() => this.syncFromServer(), 15000);
+      // Throttled background fallback sync (every 60s, tab must be visible)
+      setInterval(() => {
+        if (typeof document !== 'undefined' && document.hidden) return;
+        this.syncFromServer();
+      }, 60000);
     }
   }
 
   public async syncFromServer(): Promise<AdminBroadcastNotification[]> {
     if (typeof window === 'undefined' || this.isSyncing) return this.getStored();
     if (typeof document !== 'undefined' && document.hidden) return this.getStored();
+    const token = tokenStorage.getAccessToken() || '';
+    if (!token) return this.getStored(); // Guest: do not spam server
     this.isSyncing = true;
     try {
-      const token = tokenStorage.getAccessToken() || '';
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
       const res = await fetch('/api/v1/broadcast-notifications', { headers, cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();

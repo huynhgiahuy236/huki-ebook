@@ -27,8 +27,9 @@ class OrderSlaWatchdogService {
   constructor() {
     this.loadPenalizedFromStorage();
     if (typeof window !== 'undefined') {
-      // Run background scan every 30 seconds
+      // Run background scan every 30 seconds (visible tab only)
       this.intervalId = setInterval(() => {
+        if (typeof document !== 'undefined' && document.hidden) return;
         this.runScan();
       }, 30000);
 

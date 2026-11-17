@@ -100,10 +100,11 @@ class MaintenanceService {
       }
     });
 
-    // Background interval check for scheduled auto-maintenance (every 1 second)
+    // Background interval check for scheduled auto-maintenance (every 10s, visible tab only)
     setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       this.checkScheduledMaintenance();
-    }, 1000);
+    }, 10000);
   }
 
   public async syncFromServer(): Promise<SystemMaintenanceConfig> {

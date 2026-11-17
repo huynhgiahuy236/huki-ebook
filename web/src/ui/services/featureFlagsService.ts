@@ -309,10 +309,11 @@ class FeatureFlagsService {
         }
       });
 
-      // 3. Background interval checking scheduled disable & enable timers (every 1 second)
+      // 3. Background interval checking scheduled disable & enable timers (every 10s, visible tab only)
       setInterval(() => {
+        if (typeof document !== 'undefined' && document.hidden) return;
         this.checkScheduledTimers();
-      }, 1000);
+      }, 10000);
 
       // Initial async sync from server
       this.syncFromServer();
