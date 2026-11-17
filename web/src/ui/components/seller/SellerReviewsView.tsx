@@ -252,12 +252,12 @@ export function SellerReviewsView() {
     };
     window.addEventListener('storage', handleStorage);
 
-    // Auto-polling when active tab (silent background update without re-triggering spinner)
+    // Auto-polling when active tab (silent background update every 30s without re-triggering spinner)
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         loadData(true);
       }
-    }, 10000);
+    }, 30000);
 
     return () => {
       window.removeEventListener('huki_review_created', handleSync);

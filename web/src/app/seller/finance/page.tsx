@@ -392,11 +392,10 @@ export default function SellerFinancePage() {
             onClick={() => setIsWithdrawalModalOpen(true)}
             disabled={metrics.availableBalance <= 0 || !withdrawalCheck.accessible}
             title={!withdrawalCheck.accessible ? (withdrawalCheck.reason || 'Tính năng rút tiền đang tạm bảo trì') : undefined}
-            className={`px-4 py-2.5 rounded-xl text-white text-xs font-bold shadow-2xs transition-all flex items-center justify-center gap-2 ${
-              !withdrawalCheck.accessible
-                ? 'bg-amber-600/80 cursor-not-allowed opacity-75'
-                : 'bg-[#00875A] hover:bg-[#003B2B] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed'
-            }`}
+            className={`px-4 py-2.5 rounded-xl text-white text-xs font-bold shadow-2xs transition-all flex items-center justify-center gap-2 ${!withdrawalCheck.accessible
+              ? 'bg-amber-600/80 cursor-not-allowed opacity-75'
+              : 'bg-[#00875A] hover:bg-[#003B2B] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed'
+              }`}
           >
             <span className="material-symbols-outlined text-base">
               {!withdrawalCheck.accessible ? 'construction' : 'payments'}
@@ -461,9 +460,8 @@ export default function SellerFinancePage() {
       {/* 2. HEADER: 3 THẺ TINH GỌN CHUẨN SHOPEE (KHÔNG TRÙNG LẶP) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {/* THẺ 1: SỐ DƯ KHẢ DỤNG (TÂM ĐIỂM) */}
-        <div className={`p-6 rounded-3xl bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-white dark:to-slate-800 border-2 border-emerald-500/40 shadow-sm flex flex-col justify-between transition-all ${
-          hasBalancePulse ? 'ring-4 ring-emerald-400/50 scale-[1.01]' : ''
-        }`}>
+        <div className={`p-6 rounded-3xl bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-white dark:to-slate-800 border-2 border-emerald-500/40 shadow-sm flex flex-col justify-between transition-all ${hasBalancePulse ? 'ring-4 ring-emerald-400/50 scale-[1.01]' : ''
+          }`}>
           <div>
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
@@ -600,13 +598,12 @@ export default function SellerFinancePage() {
             <div className="space-y-0.5">
               <div className="flex items-center gap-1.5">
                 <span className="text-slate-500 font-medium">Mã PIN:</span>
-                <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${
-                  securityStatus?.isPinExpired
-                    ? 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
-                    : (securityStatus?.pinDaysRemaining ?? 90) <= 15
+                <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${securityStatus?.isPinExpired
+                  ? 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
+                  : (securityStatus?.pinDaysRemaining ?? 90) <= 15
                     ? 'bg-amber-100 text-amber-800 border border-amber-300'
                     : 'bg-emerald-100 text-emerald-800'
-                }`}>
+                  }`}>
                   {securityStatus?.isPinExpired
                     ? 'Hết hạn (Quá 90 ngày)'
                     : `An toàn (Còn ${securityStatus?.pinDaysRemaining ?? 90} ngày)`}
@@ -643,11 +640,10 @@ export default function SellerFinancePage() {
                 setActiveTab('ESCROW');
                 setEscrowPage(1);
               }}
-              className={`pb-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'ESCROW'
-                  ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400'
-                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
+              className={`pb-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${activeTab === 'ESCROW'
+                ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
             >
               <span className="material-symbols-outlined text-base">receipt_long</span>
               <span>Đơn Hàng Chờ Quyết Toán</span>
@@ -662,11 +658,10 @@ export default function SellerFinancePage() {
                 setActiveTab('PAYOUTS');
                 fetchPayoutRequests(1);
               }}
-              className={`pb-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'PAYOUTS'
-                  ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400'
-                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
+              className={`pb-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${activeTab === 'PAYOUTS'
+                ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
             >
               <span className="material-symbols-outlined text-base">payments</span>
               <span>Lịch Sử Rút Tiền Về STK</span>
@@ -681,11 +676,10 @@ export default function SellerFinancePage() {
                 setActiveTab('TRANSACTIONS');
                 setTxPage(1);
               }}
-              className={`pb-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'TRANSACTIONS'
-                  ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400'
-                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
+              className={`pb-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${activeTab === 'TRANSACTIONS'
+                ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
             >
               <span className="material-symbols-outlined text-base">history</span>
               <span>Nhật Ký Biến Động Ví</span>
@@ -712,7 +706,7 @@ export default function SellerFinancePage() {
               loading={isWalletLoading}
               onAutoReleaseItem={handleAutoReleaseItem}
               title="Bảng Kê Chi Tiết Đơn Hàng & Ký Quỹ Escrow"
-              subtitle={`Tự động phân bổ doanh thu 95% sau ${ESCROW_CONFIG.DURATION_LABEL} hoặc khi đối soát COD bưu tá hoàn tất`}
+              subtitle="Tự động phân bổ doanh thu 95% sau 7 ngày hoặc khi đối soát COD bưu tá hoàn tất"
             />
           </div>
         )}
@@ -749,9 +743,8 @@ export default function SellerFinancePage() {
                     return (
                       <div key={tx.id} className="py-3.5 flex items-center justify-between gap-4 text-xs">
                         <div className="flex items-center gap-3.5">
-                          <span className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${
-                            isCredit ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
-                          }`}>
+                          <span className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${isCredit ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                            }`}>
                             <span className="material-symbols-outlined text-lg">
                               {isCredit ? 'add_circle' : 'remove_circle'}
                             </span>
@@ -766,9 +759,8 @@ export default function SellerFinancePage() {
                           </div>
                         </div>
 
-                        <div className={`font-mono font-bold text-sm whitespace-nowrap text-right ${
-                          isCredit ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'
-                        }`}>
+                        <div className={`font-mono font-bold text-sm whitespace-nowrap text-right ${isCredit ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'
+                          }`}>
                           {isCredit ? `+${formatVND(tx.amount)}` : `-${formatVND(tx.amount)}`}
                         </div>
                       </div>

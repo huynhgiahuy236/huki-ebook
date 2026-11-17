@@ -7,7 +7,7 @@ import { useAuth } from "@/ui/context/AuthContext";
 export default function ReviewRedirectPage() {
   const params = useParams();
   const router = useRouter();
-  const { user, isLoggedIn } = useAuth();
+  const { user } = useAuth();
   const reviewId = typeof params?.id === "string" ? params.id : Array.isArray(params?.id) ? params.id[0] : "";
 
   useEffect(() => {

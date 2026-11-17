@@ -87,17 +87,22 @@ export const reviewApi = {
 
     const qs = params.toString() ? `?${params.toString()}` : '';
     try {
-      const res = await apiClient<any>(`/books/${encodeURIComponent(bookId)}/reviews${qs}`, {
+      const res = await apiClient<
+        ReviewListResponse | ReviewItemData[] | { data?: ReviewItemData[]; pagination?: ReviewListResponse['pagination']; summary?: ReviewSummaryData }
+      >(`/books/${encodeURIComponent(bookId)}/reviews${qs}`, {
         skipAuth: false,
       });
 
-      const items: ReviewItemData[] = Array.isArray(res?.data)
-        ? res.data
-        : Array.isArray((res?.data as any)?.data)
-        ? (res?.data as any).data
+      const rawData = res?.data;
+      const items: ReviewItemData[] = Array.isArray(rawData)
+        ? rawData
+        : Array.isArray((rawData as { data?: ReviewItemData[] })?.data)
+        ? (rawData as { data?: ReviewItemData[] }).data || []
         : [];
 
-      const rawPagination = (res as any)?.pagination || (res?.data as any)?.pagination;
+      const rawPagination =
+        (res as { pagination?: ReviewListResponse['pagination'] })?.pagination ||
+        (rawData as { pagination?: ReviewListResponse['pagination'] })?.pagination;
       const pagination = rawPagination || {
         page: query.page || 1,
         limit: query.limit || 10,
@@ -105,7 +110,9 @@ export const reviewApi = {
         totalPages: 1,
       };
 
-      const rawSummary = (res as any)?.summary || (res?.data as any)?.summary;
+      const rawSummary =
+        (res as { summary?: ReviewSummaryData })?.summary ||
+        (rawData as { summary?: ReviewSummaryData })?.summary;
       const summary: ReviewSummaryData = rawSummary || (() => {
         const total = pagination.total || items.length;
         const dist: Record<string, number> = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
@@ -162,17 +169,22 @@ export const reviewApi = {
 
     const qs = params.toString() ? `?${params.toString()}` : '';
     try {
-      const res = await apiClient<any>(`/stores/${encodeURIComponent(storeId)}/reviews${qs}`, {
+      const res = await apiClient<
+        ReviewListResponse | ReviewItemData[] | { data?: ReviewItemData[]; pagination?: ReviewListResponse['pagination']; summary?: ReviewSummaryData }
+      >(`/stores/${encodeURIComponent(storeId)}/reviews${qs}`, {
         skipAuth: false,
       });
 
-      const items: ReviewItemData[] = Array.isArray(res?.data)
-        ? res.data
-        : Array.isArray((res?.data as any)?.data)
-        ? (res?.data as any).data
+      const rawData = res?.data;
+      const items: ReviewItemData[] = Array.isArray(rawData)
+        ? rawData
+        : Array.isArray((rawData as { data?: ReviewItemData[] })?.data)
+        ? (rawData as { data?: ReviewItemData[] }).data || []
         : [];
 
-      const rawPagination = (res as any)?.pagination || (res?.data as any)?.pagination;
+      const rawPagination =
+        (res as { pagination?: ReviewListResponse['pagination'] })?.pagination ||
+        (rawData as { pagination?: ReviewListResponse['pagination'] })?.pagination;
       const pagination = rawPagination || {
         page: query.page || 1,
         limit: query.limit || 10,
@@ -180,7 +192,9 @@ export const reviewApi = {
         totalPages: 1,
       };
 
-      const rawSummary = (res as any)?.summary || (res?.data as any)?.summary;
+      const rawSummary =
+        (res as { summary?: ReviewSummaryData })?.summary ||
+        (rawData as { summary?: ReviewSummaryData })?.summary;
       const summary: ReviewSummaryData = rawSummary || {
         totalReviews: pagination.total || items.length,
         averageRating: 5.0,
@@ -357,14 +371,15 @@ export const reviewApi = {
 
     const qs = params.toString() ? `?${params.toString()}` : '';
     try {
-      const res = await apiClient<any>(`/reviews/me${qs}`, {
+      const res = await apiClient<ReviewItemData[] | { data?: ReviewItemData[] }>(`/reviews/me${qs}`, {
         skipAuth: false,
       });
 
-      const items: ReviewItemData[] = Array.isArray(res?.data)
-        ? res.data
-        : Array.isArray((res?.data as any)?.data)
-        ? (res?.data as any).data
+      const rawData = res?.data;
+      const items: ReviewItemData[] = Array.isArray(rawData)
+        ? rawData
+        : Array.isArray((rawData as { data?: ReviewItemData[] })?.data)
+        ? (rawData as { data?: ReviewItemData[] }).data || []
         : [];
 
       return {

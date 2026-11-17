@@ -88,13 +88,33 @@ function CommunityFeedContent() {
   const [posts, setPosts] = useState<CommunityPost[]>(INITIAL_POSTS);
   const [activeTab, setActiveTab] = useState<'ALL' | 'ORDERS' | 'REVIEWS'>('ALL');
 
+  // Pre-calculate initial shared book/post from query params (React 19 friendly - zero cascading renders)
+  const initialAction = searchParams.get('action');
+  const initialBookTitle = searchParams.get('bookTitle');
+  const initialBookId = searchParams.get('bookId');
+  const initialCover = searchParams.get('cover');
+  const isInitialShare = initialAction === 'share_order' || Boolean(initialBookTitle);
+  const cleanInitialTitle = initialBookTitle || 'Ấn phẩm sách mới';
+
   // Post composer state
-  const [postContent, setPostContent] = useState('');
+  const [postContent, setPostContent] = useState<string>(() =>
+    isInitialShare
+      ? `Mình vừa sở hữu thành công ấn phẩm "${cleanInitialTitle}" trên HuKi Ebook, háo hức bắt đầu đọc và chia sẻ cảm nhận cùng cộng đồng! 📚🎉`
+      : ''
+  );
   const [attachedBook, setAttachedBook] = useState<{
     id: string;
     title: string;
     coverUrl?: string;
-  } | null>(null);
+  } | null>(() =>
+    isInitialShare && (initialBookId || initialBookTitle)
+      ? {
+          id: initialBookId || 'shared-book',
+          title: cleanInitialTitle,
+          coverUrl: initialCover || undefined,
+        }
+      : null
+  );
 
   // Comments state per post: { [postId]: string }
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
@@ -121,7 +141,7 @@ function CommunityFeedContent() {
 
   const handleReportPost = (postId: string) => {
     setActiveMenuPostId(null);
-    showToast('Cảm ơn bạn đã phản hồi. Ban quản trị HuKi sẽ kiểm duyệt bài viết này trong thời gian sớm nhất.', 'info');
+    showToast(`Đã tiếp nhận báo cáo bài viết #${postId.slice(-6)}. Ban quản trị HuKi sẽ kiểm duyệt trong thời gian sớm nhất.`, 'info');
   };
 
   const handleDeletePost = (postId: string) => {
@@ -130,28 +150,12 @@ function CommunityFeedContent() {
     showToast('Đã xóa bài viết thành công.', 'success');
   };
 
-  // CA-003: Auto-prepopulate post from order-success
+  // CA-003: Notify user on initial shared order post
   useEffect(() => {
-    const action = searchParams.get('action');
-    const bookTitle = searchParams.get('bookTitle');
-    const bookId = searchParams.get('bookId');
-    const cover = searchParams.get('cover');
-
-    if (action === 'share_order' || bookTitle) {
-      const cleanTitle = bookTitle || 'Ấn phẩm sách mới';
-      setPostContent(
-        `Mình vừa sở hữu thành công ấn phẩm "${cleanTitle}" trên HuKi Ebook, háo hức bắt đầu đọc và chia sẻ cảm nhận cùng cộng đồng! 📚🎉`
-      );
-      if (bookId || bookTitle) {
-        setAttachedBook({
-          id: bookId || 'shared-book',
-          title: cleanTitle,
-          coverUrl: cover || undefined,
-        });
-      }
+    if (isInitialShare) {
       showToast('Đã tạo bài viết chia sẻ đơn hàng mới của bạn!', 'info');
     }
-  }, [searchParams, showToast]);
+  }, [isInitialShare, showToast]);
 
   const handleCreatePost = (e: React.FormEvent) => {
     e.preventDefault();
@@ -351,7 +355,7 @@ function CommunityFeedContent() {
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as 'ALL' | 'ORDERS' | 'REVIEWS')}
                 className={`px-3.5 py-1.5 rounded-xl transition-colors cursor-pointer ${
                   activeTab === tab.id
                     ? 'bg-emerald-700 text-white shadow-2xs font-bold'
@@ -414,7 +418,7 @@ function CommunityFeedContent() {
                           <span className="material-symbols-outlined text-[16px] text-amber-500">flag</span>
                           <span>Báo cáo bài viết</span>
                         </button>
-                        {(post.authorName === (user?.fullName || user?.name) || (user as any)?.role === 'ADMIN') && (
+                        {(post.authorName === (user?.fullName || user?.name) || (user as { role?: string })?.role === 'ADMIN') && (
                           <button
                             type="button"
                             onClick={() => handleDeletePost(post.id)}

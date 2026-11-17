@@ -344,15 +344,17 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
       setUnreadCount(0);
     });
 
-    // Gentle fallback polling every 15s when offline or socket disconnected
+    // Gentle fallback polling only when offline or socket is disconnected (prevents redundant background reqs)
     const fallbackPoll = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        fetchUnreadCount();
-        if (autoFetch) {
-          fetchNotifications(1, false, isReadFilter);
+        if (!socketRef.current?.connected) {
+          fetchUnreadCount();
+          if (autoFetch) {
+            fetchNotifications(1, false, isReadFilter);
+          }
         }
       }
-    }, 15000);
+    }, 30000);
 
     return () => {
       clearInterval(fallbackPoll);
