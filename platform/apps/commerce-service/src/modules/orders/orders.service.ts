@@ -979,12 +979,15 @@ export class OrdersService {
         data: {
           eventId: randomBytes(16).toString("hex"),
           type:
-            newStatus === SellerOrderStatus.CONFIRMED ||
-            newStatus === SellerOrderStatus.COMPLETED
+            newStatus === SellerOrderStatus.CONFIRMED
               ? ORDER_EVENTS.SELLER_CONFIRMED
-              : newStatus === SellerOrderStatus.SHIPPED
-                ? ORDER_EVENTS.SELLER_SHIPPED
-                : "SELLER_ORDER_STATUS_CHANGED",
+              : newStatus === SellerOrderStatus.PREPARING
+                ? ORDER_EVENTS.SELLER_PREPARING
+                : newStatus === SellerOrderStatus.SHIPPED
+                  ? ORDER_EVENTS.SELLER_SHIPPED
+                  : newStatus === SellerOrderStatus.COMPLETED
+                    ? ORDER_EVENTS.COMPLETED
+                    : "SELLER_ORDER_STATUS_CHANGED",
           aggregateId: sOrder.orderId,
           payload: {
             orderId: sOrder.orderId,
@@ -3950,14 +3953,14 @@ export class OrdersService {
         shipperStatus = 'DELIVERED';
       } else if (so.status === SellerOrderStatus.CANCELLED) {
         shipperStatus = 'FAILED';
-      } else if ((so.deliveryStaffId || so.carrier === 'HUKI_EXPRESS') && (so.status === SellerOrderStatus.CONFIRMED || so.status === SellerOrderStatus.PREPARING)) {
-        // Đã có bưu tá nhận đơn -> Đang chuẩn bị đến lấy hàng
+      } else if (so.deliveryStaffId && (so.status === SellerOrderStatus.CONFIRMED || so.status === SellerOrderStatus.PREPARING)) {
+        // Đã có bưu tá nhận đơn -> Đang chuẩn bị đến lấy hàng tại shop
         shipperStatus = 'PICKING_UP';
-      } else if (so.status === SellerOrderStatus.CONFIRMED || so.status === SellerOrderStatus.PREPARING) {
-        // Đơn đã được người bán xác nhận hoặc đang chuẩn bị hàng -> Shipper mới có thể thấy và nhận đơn
+      } else if (so.status === SellerOrderStatus.PREPARING && !so.deliveryStaffId) {
+        // Shop đã đóng gói xong sách và bấm 'Giao bưu tá' -> Sẵn sàng trên sàn để Shipper nhận đơn
         shipperStatus = 'AVAILABLE';
       } else {
-        // PENDING_CONFIRMATION -> Người bán chưa duyệt đơn -> Shipper chưa thể thấy
+        // CONFIRMED (shop đang đóng gói) hoặc PENDING_CONFIRMATION (chưa xác nhận) -> Shipper chưa thể thấy trên sàn
         shipperStatus = 'UNAVAILABLE';
       }
 

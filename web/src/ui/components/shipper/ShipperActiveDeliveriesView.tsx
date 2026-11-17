@@ -244,6 +244,9 @@ export default function ShipperActiveDeliveriesView() {
     }
     setSelectedIds({});
     setBulkLoading(false);
+    if (activeTab === 'PICKING_UP') {
+      setActiveTab('IN_TRANSIT');
+    }
   };
 
   const handleBulkComplete = async () => {
@@ -485,7 +488,12 @@ export default function ShipperActiveDeliveriesView() {
             {isPickingUp ? (
               <button
                 type="button"
-                onClick={() => confirmPickup(row.id)}
+                onClick={async () => {
+                  await confirmPickup(row.id);
+                  if (activeTab === 'PICKING_UP') {
+                    setActiveTab('IN_TRANSIT');
+                  }
+                }}
                 className="px-2.5 py-1 rounded-lg bg-[#00875A] hover:bg-[#003B2B] text-white text-xs font-bold shadow-2xs transition-colors flex items-center gap-1 cursor-pointer"
                 title="Bấm sau khi đã nhận kiện hàng từ Shop"
               >
@@ -898,7 +906,12 @@ export default function ShipperActiveDeliveriesView() {
                       {isPickingUp ? (
                         <button
                           type="button"
-                          onClick={() => confirmPickup(row.id)}
+                          onClick={async () => {
+                            await confirmPickup(row.id);
+                            if (activeTab === 'PICKING_UP') {
+                              setActiveTab('IN_TRANSIT');
+                            }
+                          }}
                           className="flex-1 py-2 bg-[#00875A] hover:bg-[#003B2B] text-white text-xs font-bold rounded-lg shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <span className="material-symbols-outlined text-[15px]">done</span>

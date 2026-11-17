@@ -21,6 +21,7 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
     ORDER_EVENTS.CANCELLED,
     ORDER_EVENTS.COMPLETED,
     ORDER_EVENTS.SELLER_CONFIRMED,
+    ORDER_EVENTS.SELLER_PREPARING,
     ORDER_EVENTS.SELLER_SHIPPED,
     ORDER_EVENTS.SELLER_CANCELLED,
     PAYMENT_EVENTS.FAILED,
@@ -144,15 +145,23 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
         buyer(
           "ORDER_STATUS",
           "Người bán đã xác nhận",
-          `Đơn hàng ${code} đã được người bán xác nhận.`,
+          `Đơn hàng ${code} đã được người bán xác nhận và đang đóng gói sách.`,
+        );
+        break;
+      case ORDER_EVENTS.SELLER_PREPARING:
+      case "SELLER_ORDER_PREPARING":
+        buyer(
+          "ORDER_STATUS",
+          "Đã đóng gói xong",
+          `Đơn hàng ${code} đã đóng gói xong và đang chờ bưu tá đến lấy.`,
         );
         targets.push({
           recipientId: "DELIVERY",
           recipientType: "DELIVERY",
           type: "SHIPPING_UPDATE",
           title: "Đơn hàng mới sẵn sàng giao",
-          message: `Shop vừa đóng gói xong đơn hàng ${code}. Vào nhận đơn ngay!`,
-          actionUrl: `/shipper/orders`,
+          message: `Shop đã đóng gói xong đơn hàng ${code}. Vào nhận đơn ngay!`,
+          actionUrl: `/shipper/available-orders`,
         });
         break;
       case ORDER_EVENTS.SELLER_SHIPPED:

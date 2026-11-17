@@ -461,7 +461,6 @@ function SellerOrdersContent() {
       if (res.success) {
         showToast?.({ title: 'Thành công', message: 'Đã xác nhận đơn hàng thành công!', type: 'success' });
         realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { orderId, status: 'CONFIRMED' });
-        realtimeSyncBus.publish('SHIPPER_AVAILABLE_ORDER_BROADCAST', { orderId, status: 'CONFIRMED' });
         await loadData();
       } else {
         showToast?.({ title: 'Lỗi', message: res.error?.message || 'Không thể xác nhận đơn hàng', type: 'error' });
@@ -479,8 +478,9 @@ function SellerOrdersContent() {
       const res = await orderApi.prepareOrder(orderId);
       if (res.success) {
         showToast?.({ title: 'Thành công', message: 'Đã chuyển đơn hàng sang trạng thái đóng gói!', type: 'success' });
-        realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { orderId, status: 'PREPARING' });
-        realtimeSyncBus.publish('SHIPPER_AVAILABLE_ORDER_BROADCAST', { orderId, status: 'PREPARING' });
+        const targetOrder = orders.find((o) => o.id === orderId);
+        realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { orderId, orderCode: targetOrder?.code, status: 'PREPARING' });
+        realtimeSyncBus.publish('SHIPPER_AVAILABLE_ORDER_BROADCAST', { orderId, orderCode: targetOrder?.code, status: 'PREPARING' });
         await loadData();
       } else {
         showToast?.({ title: 'Lỗi', message: res.error?.message || 'Không thể chuẩn bị đơn hàng', type: 'error' });
@@ -637,8 +637,7 @@ function SellerOrdersContent() {
           const res = await orderApi.confirmOrder(o.id);
           if (res.success) {
             successCount++;
-            realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { orderId: o.id, status: 'CONFIRMED' });
-            realtimeSyncBus.publish('SHIPPER_AVAILABLE_ORDER_BROADCAST', { orderId: o.id, status: 'CONFIRMED' });
+            realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { orderId: o.id, orderCode: o.code, status: 'CONFIRMED' });
           }
         }
         showToast?.({ title: 'Thành công', message: `Đã xác nhận ${successCount}/${pendingOrders.length} đơn hàng!`, type: 'success' });
@@ -655,8 +654,8 @@ function SellerOrdersContent() {
           const res = await orderApi.prepareOrder(o.id);
           if (res.success) {
             successCount++;
-            realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { orderId: o.id, status: 'PREPARING' });
-            realtimeSyncBus.publish('SHIPPER_AVAILABLE_ORDER_BROADCAST', { orderId: o.id, status: 'PREPARING' });
+            realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { orderId: o.id, orderCode: o.code, status: 'PREPARING' });
+            realtimeSyncBus.publish('SHIPPER_AVAILABLE_ORDER_BROADCAST', { orderId: o.id, orderCode: o.code, status: 'PREPARING' });
           }
         }
         showToast?.({ title: 'Thành công', message: `Đã chuyển ${successCount}/${confirmedOrders.length} đơn hàng sang Chờ Giao Bưu Tá!`, type: 'success' });
