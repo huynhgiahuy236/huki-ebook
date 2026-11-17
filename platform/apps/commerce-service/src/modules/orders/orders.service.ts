@@ -3315,6 +3315,9 @@ export class OrdersService {
    */
   async sellerListReturnRequests(actor: BookActor, query?: { status?: string; search?: string }) {
     const scope = await getSellerScope(actor);
+    if (!scope.isPlatformAdmin && scope.storeIds.length === 0 && scope.ownerUserIds.length === 0) {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Chỉ Người bán hoặc Platform Admin mới có quyền truy cập');
+    }
     const storeIds = scope.isPlatformAdmin ? [] : scope.storeIds;
 
     const where: any = {};
@@ -3931,6 +3934,9 @@ export class OrdersService {
    */
   async sellerListReplacements(actor: BookActor) {
     const scope = await getSellerScope(actor);
+    if (!scope.isPlatformAdmin && scope.storeIds.length === 0 && scope.ownerUserIds.length === 0) {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Chỉ Người bán hoặc Platform Admin mới có quyền truy cập');
+    }
     const storeIds = scope.isPlatformAdmin ? [] : scope.storeIds;
 
     const where: any = {

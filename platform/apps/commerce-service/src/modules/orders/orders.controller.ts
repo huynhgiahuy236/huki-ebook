@@ -31,7 +31,7 @@ import {
   ApiForbiddenResponse,
   ApiBadRequestResponse,
 } from '@nestjs/swagger';
-import { AuthenticatedGuard, BookActor, OptionalBookAuthGuard } from '../../common/book-auth.guard';
+import { AuthenticatedGuard, BookActor, BookWriteGuard, OptionalBookAuthGuard } from '../../common/book-auth.guard';
 import { CurrentBookActor } from '../../common/current-book-actor.decorator';
 import { CancelOrderDto } from './dto/checkout.dto';
 import {
@@ -211,6 +211,7 @@ export class OrdersController {
   }
 
   @Get(['seller/return-requests', 'seller/returns'])
+  @UseGuards(BookWriteGuard)
   @ApiOperation({ summary: 'List return requests for Seller' })
   sellerListReturnRequests(
     @CurrentBookActor() actor: BookActor,
