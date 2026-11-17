@@ -3193,11 +3193,32 @@ export class OrdersService {
         reason,
         reasonDetail: dto.reasonDetail || '',
         customerEvidence,
-        status: ReturnRequestStatus.PENDING_REVIEW,
+        status: ReturnRequestStatus.FORWARDED_TO_SELLER,
         amount,
         quantity,
       },
     });
+
+    try {
+      await this.prisma.outboxEvent.create({
+        data: {
+          eventId: randomBytes(16).toString('hex'),
+          type: 'RETURN_FORWARDED',
+          aggregateId: masterOrderId,
+          payload: {
+            returnRequestId: returnRequest.id,
+            orderId: masterOrderId,
+            sellerOrderId,
+            storeId,
+            bookTitle,
+            status: 'FORWARDED_TO_SELLER',
+          },
+          status: 'PENDING',
+        },
+      });
+    } catch {
+      // safe fallback
+    }
 
     // Auto-freeze escrow for this item
     if (masterOrder && isUuid(masterOrderId)) {
@@ -3801,8 +3822,12 @@ export class OrdersService {
   /**
    * Buyer lists all return and refund requests
    */
-  async buyerListReturnRequests(userId: string, query?: { type?: string; status?: string }) {
+  async buyerListReturnRequests(userId: string, query?: { type?: string; status?: string; orderId?: string }) {
     const where: any = { userId };
+
+    if (query?.orderId) {
+      where.orderId = query.orderId;
+    }
 
     if (query?.type && query.type !== 'ALL') {
       const dbType = query.type === 'REPLACEMENT' ? ReturnType.REPLACE : query.type === 'REFUND' ? ReturnType.REFUND : query.type;

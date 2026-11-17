@@ -286,9 +286,10 @@ export class OrdersController {
     @CurrentBookActor() actor: BookActor,
     @Query('type') type?: string,
     @Query('status') status?: string,
+    @Query('orderId') orderId?: string,
   ) {
     if (!actor?.sub) return [];
-    return this.orders.buyerListReturnRequests(actor.sub, { type, status });
+    return this.orders.buyerListReturnRequests(actor.sub, { type, status, orderId });
   }
 
   @Post([':id/items/:orderItemId/return-request', ':id/items/:orderItemId/returns'])

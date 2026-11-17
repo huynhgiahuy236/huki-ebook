@@ -603,10 +603,11 @@ export const orderApi = {
   /**
    * Khách hàng lấy danh sách tất cả yêu cầu đổi trả & hoàn tiền
    */
-  getBuyerReturnRequests: async (params?: { type?: string; status?: string }): Promise<ApiResponse<ReturnRequestData[]>> => {
+  getBuyerReturnRequests: async (params?: { type?: string; status?: string; orderId?: string }): Promise<ApiResponse<ReturnRequestData[]>> => {
     const query = new URLSearchParams();
     if (params?.type) query.append('type', params.type);
     if (params?.status) query.append('status', params.status);
+    if (params?.orderId) query.append('orderId', params.orderId);
     const qs = query.toString();
     return apiClient<ReturnRequestData[]>(`/orders/buyer/returns${qs ? `?${qs}` : ''}`, { method: 'GET' });
   },
@@ -859,6 +860,7 @@ export interface ReturnRequestData {
   sellerDisputeReason?: string | null;
   status:
     | 'WAITING_FORWARD'
+    | 'PENDING_REVIEW'
     | 'FORWARDED_TO_SELLER'
     | 'SELLER_ACCEPTED'
     | 'SELLER_DISPUTED'
@@ -869,6 +871,21 @@ export interface ReturnRequestData {
     | 'REJECTED'
     | 'COMPLETED';
   replacementStatus?: string | null;
+  bankAccount?: {
+    bankName?: string;
+    accountNumber?: string;
+    accountHolderName?: string;
+  } | null;
+  amount?: number;
+  quantity?: number;
+  bookTitle?: string;
+  bookCoverUrl?: string;
+  storeName?: string;
+  customerName?: string;
+  customerPhone?: string;
+  arbitrationRuling?: string | null;
+  arbitrationNotes?: string | null;
+  arbitratedBy?: string | null;
   forwardedToSellerAt?: string | null;
   sellerRespondedAt?: string | null;
   replacementTrackingCode?: string | null;
