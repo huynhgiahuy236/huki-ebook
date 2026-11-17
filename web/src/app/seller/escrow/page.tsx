@@ -729,18 +729,20 @@ export default function SellerEscrowPage() {
             <div className="text-xs text-emerald-600 mt-1">
               {stats.availableBalance > 0
                 ? 'Có thể tạo lệnh rút tiền về STK ngay'
-                : 'Đã rút hết về STK ngân hàng'}
+                : 'Đã rút hết về STK ngân hàng (Số dư ví: 0 ₫)'}
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-            <span>Tích lũy giải ngân: {formatVND(stats.totalReleasedAmount)}</span>
+            <span title="Toàn bộ doanh thu tích lũy đã qua giai đoạn ký quỹ và vào ví">
+              Tổng đã giải ngân: <strong className="text-gray-700">{formatVND(stats.totalReleasedAmount)}</strong>
+            </span>
             {stats.availableBalance > 0 ? (
               <Link href="/seller/finance" className="font-bold text-emerald-700 hover:underline">
                 Rút tiền ngay →
               </Link>
             ) : (
-              <Link href="/seller/finance" className="text-slate-400 font-medium hover:text-slate-600">
-                Xem lịch sử ví →
+              <Link href="/seller/finance" className="text-slate-500 font-semibold hover:text-[#00875A] transition-colors">
+                Lịch sử ví &amp; lệnh rút →
               </Link>
             )}
           </div>

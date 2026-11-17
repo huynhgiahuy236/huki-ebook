@@ -25,6 +25,10 @@ interface ShipperRecord {
   rating: number;
   totalDeliveries: number;
   codDebt: number;
+  codOrdersCount?: number;
+  onlineOrdersCount?: number;
+  codCollected?: number;
+  onlineTotal?: number;
   walletBalance: number;
   status: 'ACTIVE' | 'OFFLINE' | 'SUSPENDED' | 'PENDING_APPROVAL';
   joinDate: string;
@@ -248,18 +252,29 @@ export default function AdminShippersView() {
         key: 'finance',
         title: 'Nợ COD & Thu Nhập',
         render: (_val, shipper) => (
-          <div className="flex flex-col gap-0.5 font-mono">
-            <div className="text-xs">
-              <span className="text-gray-400 text-[10px]">Nợ COD: </span>
+          <div className="flex flex-col gap-1 font-mono text-xs">
+            <div>
+              <span className="text-gray-400 text-[10px]">Nợ COD sàn: </span>
               {shipper.codDebt > 0 ? (
                 <strong className="text-amber-700 font-bold">{shipper.codDebt.toLocaleString('vi-VN')}đ</strong>
               ) : (
-                <span className="text-emerald-600 font-medium">0đ</span>
+                <span className="text-emerald-600 font-medium">0đ (Đã nộp đủ)</span>
+              )}
+              {Boolean(shipper.codOrdersCount) && (
+                <span className="text-gray-500 text-[10px] block font-sans">
+                  ({shipper.codOrdersCount} đơn COD tiền mặt)
+                </span>
               )}
             </div>
-            <div className="text-xs">
-              <span className="text-gray-400 text-[10px]">Ví: </span>
-              <strong className="text-[#00875A] font-bold">{shipper.walletBalance.toLocaleString('vi-VN')}đ</strong>
+            <div>
+              <span className="text-gray-400 text-[10px]">Đơn PayOS: </span>
+              <span className="text-indigo-700 font-semibold text-[11px] font-sans">
+                {shipper.onlineOrdersCount || 0} đơn ({shipper.onlineTotal ? shipper.onlineTotal.toLocaleString('vi-VN') + 'đ' : '0đ'})
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-400 text-[10px]">Ví công: </span>
+              <strong className="text-[#00875A] font-bold">+{shipper.walletBalance.toLocaleString('vi-VN')}đ</strong>
             </div>
           </div>
         ),

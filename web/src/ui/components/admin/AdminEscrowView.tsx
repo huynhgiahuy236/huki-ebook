@@ -46,6 +46,7 @@ export interface EscrowTableItem {
     scope: 'STORE' | 'PLATFORM';
   } | null;
   orderGrandTotal?: number;
+  shippingFee?: number;
   platformVoucherDiscount?: number;
   platformFee?: number;
   sellerNet?: number;
@@ -78,6 +79,7 @@ export interface EscrowOrderGroup {
   id: string; // orderCode
   orderCode: string;
   orderGrandTotal?: number;
+  shippingFee?: number;
   orderCreatedAt: string;
   storeName: string;
   storeId: string;
@@ -699,6 +701,7 @@ export function AdminEscrowView() {
           id: it.orderCode,
           orderCode: it.orderCode,
           orderGrandTotal: (it as any).orderGrandTotal,
+          shippingFee: it.shippingFee || (it as any).shippingFee || 30000,
           orderCreatedAt: it.orderCreatedAt,
           storeName: it.storeName,
           storeId: it.storeId,
@@ -895,28 +898,42 @@ export function AdminEscrowView() {
       },
       {
         key: 'totalAmount',
-        title: 'Tổng Giá Trị Đơn',
+        title: 'Dòng Tiền Đơn Hàng',
         align: 'right',
         render: (_, row) => {
-          const totalOrderItemsSubtotal = row.items.reduce((sum, it) => sum + it.subtotal, 0);
+          const totalOrderItemsSubtotal = row.items.reduce((sum, it) => sum + (it.effectiveSubtotal !== undefined ? it.effectiveSubtotal : it.subtotal), 0);
           const totalStoreDiscount = row.items.reduce((sum, it) => sum + (it.storeVoucherDiscount || 0), 0);
           const totalPlatformDiscount = row.items.reduce((sum, it) => sum + (it.platformVoucherDiscount || 0), 0);
-          const grandTotal = row.orderGrandTotal || Math.max(0, totalOrderItemsSubtotal - totalStoreDiscount - totalPlatformDiscount);
+          const shippingFee = row.shippingFee || 30000;
+          const grandTotal = row.orderGrandTotal || Math.max(0, totalOrderItemsSubtotal + shippingFee - totalPlatformDiscount);
 
           return (
-            <div className="flex flex-col items-end">
-              <span className="font-mono text-[13px] font-bold text-theme-text">
+            <div className="flex flex-col items-end gap-0.5">
+              <div className="text-[11px] font-mono">
+                <span className="text-slate-400 text-[10px]">Sách: </span>
+                <span className="font-semibold text-slate-800">{totalOrderItemsSubtotal.toLocaleString('vi-VN')} đ</span>
+              </div>
+              <div className="text-[11px] font-mono">
+                <span className="text-slate-400 text-[10px]">Ship: </span>
+                <span className="text-slate-600 font-medium">+{shippingFee.toLocaleString('vi-VN')} đ</span>
+              </div>
+              <div className="font-mono text-xs font-black text-theme-text border-t border-slate-200/60 pt-0.5 mt-0.5">
+                <span className="text-slate-400 text-[9px] font-sans font-normal">Tổng thu: </span>
                 {grandTotal.toLocaleString('vi-VN')} đ
-              </span>
+              </div>
               <div className="flex flex-col items-end text-[9.5px] font-medium leading-tight mt-0.5">
-                {totalStoreDiscount > 0 && (
-                  <span className="text-rose-600">
-                    (-{totalStoreDiscount.toLocaleString('vi-VN')}đ Voucher Shop)
+                {row.paymentMethod === 'COD' ? (
+                  <span className="text-amber-700 font-bold bg-amber-50 border border-amber-200/60 px-1.5 py-0.5 rounded text-[9.5px]">
+                    COD (Bưu tá thu)
+                  </span>
+                ) : (
+                  <span className="text-teal-700 font-bold bg-teal-50 border border-teal-200/60 px-1.5 py-0.5 rounded text-[9.5px]">
+                    PayOS (Vào quỹ sàn)
                   </span>
                 )}
-                {totalPlatformDiscount > 0 && (
-                  <span className="text-teal-600">
-                    (-{totalPlatformDiscount.toLocaleString('vi-VN')}đ Voucher Sàn)
+                {totalStoreDiscount > 0 && (
+                  <span className="text-rose-600 text-[9px]">
+                    (-{totalStoreDiscount.toLocaleString('vi-VN')}đ Voucher Shop)
                   </span>
                 )}
               </div>

@@ -98,6 +98,11 @@ const statusToVariantMap: Record<string, SellerStatusVariant> = {
   INFO: 'info',
   RETURN_REQUESTED: 'info',
   EXCHANGED: 'info',
+  FORWARDED_TO_SELLER: 'warning',
+  SELLER_ACCEPTED: 'info',
+  SELLER_DISPUTED: 'danger',
+  RETURNED_TO_STORE: 'purple',
+  REPLACED: 'success',
 };
 
 const statusLabels: Record<string, string> = {
@@ -135,6 +140,11 @@ const statusLabels: Record<string, string> = {
   DRAFT: 'Bản Nháp',
   RETURN_REQUESTED: 'Yêu Cầu Đổi Trả',
   EXCHANGED: 'Đã Đổi Mới',
+  FORWARDED_TO_SELLER: 'Cần Shop Xử Lý',
+  SELLER_ACCEPTED: 'Shop Đã Đồng Ý',
+  SELLER_DISPUTED: 'Shop Khiếu Nại',
+  RETURNED_TO_STORE: 'Sách Đã Về Kho (Chờ Shop Nhận)',
+  REPLACED: 'Đã Đổi Sách Mới',
 };
 
 export function SellerStatusBadge({

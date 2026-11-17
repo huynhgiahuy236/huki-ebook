@@ -240,6 +240,33 @@ export default function SellerReturnsPage() {
     }
   };
 
+  const handleConfirmReceipt = async (item: ReturnRequestData) => {
+    try {
+      const res = await orderApi.sellerConfirmReturnReceipt(item.id);
+      if (res.success) {
+        showToast(`Đã xác nhận nhận sách hoàn cho yêu cầu #${(item.order?.code || item.orderId || '').slice(-8)}!`, 'success');
+        await fetchReturns();
+      } else {
+        showToast(res.error?.message || 'Không thể xác nhận nhận hàng', 'error');
+      }
+    } catch {
+      showToast('Có lỗi xảy ra khi xác nhận nhận hàng hoàn', 'error');
+    }
+  };
+
+  const handleAcceptReturn = async (item: ReturnRequestData) => {
+    try {
+      const res = await orderApi.sellerAcceptReturnRequest(item.id);
+      if (res.success) {
+        showToast('Đã chấp thuận yêu cầu đổi trả!', 'success');
+        await fetchReturns();
+      } else {
+        showToast(res.error?.message || 'Không thể chấp thuận yêu cầu', 'error');
+      }
+    } catch {
+      showToast('Có lỗi xảy ra khi chấp thuận yêu cầu', 'error');
+    }
+  };
 
   const [expandedReturnIds, setExpandedReturnIds] = useState<Record<string, boolean>>({});
 
@@ -331,17 +358,39 @@ export default function SellerReturnsPage() {
       {
         key: 'status',
         title: 'Trạng Thái',
-        width: 140,
+        width: 170,
         align: 'center',
-        render: (_val, item) => <SellerStatusBadge status={item.status} />,
+        render: (_val, item) => {
+          const isReturnedToStore = item.replacementStatus === 'RETURNED_TO_STORE';
+          const displayStatus = isReturnedToStore && item.status === 'SELLER_ACCEPTED' ? 'RETURNED_TO_STORE' : item.status;
+          return <SellerStatusBadge status={displayStatus} />;
+        },
       },
       {
         key: 'actions',
         title: 'Thao Tác',
-        width: 120,
+        width: 170,
         align: 'right',
         render: (_val, item) => (
-          <div className="flex items-center justify-end gap-1.5">
+          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+            {item.replacementStatus === 'RETURNED_TO_STORE' && item.status !== 'REFUNDED' && item.status !== 'REPLACED' && (
+              <SellerActionButton
+                variant="primary"
+                label="Đã nhận sách"
+                icon="task_alt"
+                size="sm"
+                onClick={() => handleConfirmReceipt(item)}
+              />
+            )}
+            {item.status === 'FORWARDED_TO_SELLER' && (
+              <SellerActionButton
+                variant="primary"
+                label="Đồng ý"
+                icon="check_circle"
+                size="sm"
+                onClick={() => handleAcceptReturn(item)}
+              />
+            )}
             <Link href={`/seller/returns/${item.id}`}>
               <SellerActionButton
                 variant="view"

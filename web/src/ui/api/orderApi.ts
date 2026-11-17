@@ -644,6 +644,20 @@ export const orderApi = {
   },
 
   /**
+   * Seller 1-click xác nhận đã nhận hàng hoàn về kho
+   */
+  sellerConfirmReturnReceipt: async (id: string): Promise<ApiResponse<ReturnRequestData>> => {
+    const res = await apiClient<ReturnRequestData>(`/orders/seller/returns/${id}/confirm-receipt`, { method: 'POST' });
+    if (res.success) {
+      realtimeSyncBus.publish('RETURN_RESOLVED', {
+        returnRequestId: id,
+        status: (res.data as any)?.status || 'RESOLVED',
+      });
+    }
+    return res;
+  },
+
+  /**
    * Seller yêu cầu phản biện
    */
   sellerDisputeReturnRequest: async (
@@ -840,7 +854,11 @@ export interface ReturnRequestData {
     | 'SELLER_DISPUTED'
     | 'ARBITRATED_BUYER_WINS'
     | 'ARBITRATED_SELLER_WINS'
+    | 'REFUNDED'
+    | 'REPLACED'
+    | 'REJECTED'
     | 'COMPLETED';
+  replacementStatus?: string | null;
   forwardedToSellerAt?: string | null;
   sellerRespondedAt?: string | null;
   replacementTrackingCode?: string | null;

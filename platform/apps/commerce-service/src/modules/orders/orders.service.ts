@@ -2417,6 +2417,7 @@ export class OrdersService {
               orderId: order.id,
               orderCode: order.code,
               orderGrandTotal: Number(order.grandTotal ?? 0),
+              shippingFee: Number(sellerOrder.shippingFee) || 30000,
               orderCreatedAt: order.createdAt.toISOString(),
               orderStatus: sellerOrder.status || order.status,
               paymentMethod: order.paymentMethod,
@@ -3418,6 +3419,81 @@ export class OrdersService {
   }
 
   /**
+   * Seller confirms returned item was received at warehouse (1-click confirmation)
+   */
+  async sellerConfirmReturnReceipt(actor: BookActor, returnRequestId: string) {
+    const scope = await getSellerScope(actor);
+    const req = await this.prisma.returnRequest.findUnique({
+      where: { id: returnRequestId },
+    });
+
+    if (!req) {
+      throwNotFound(ErrorCode.ORDER_NOT_FOUND, 'Không tìm thấy yêu cầu đổi trả');
+    }
+
+    let hasPermission = scope.isPlatformAdmin;
+    if (!hasPermission) {
+      if (
+        scope.storeIds.includes(req.storeId) ||
+        scope.ownerUserIds.includes(req.storeId) ||
+        scope.businessIds.includes(req.storeId) ||
+        req.storeId === actor.sub
+      ) {
+        hasPermission = true;
+      } else if (req.sellerOrderId) {
+        const isUuid = (v?: string) => Boolean(v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v));
+        if (isUuid(req.sellerOrderId)) {
+          const so = await this.prisma.sellerOrder.findUnique({ where: { id: req.sellerOrderId } });
+          if (so && (scope.storeIds.includes(so.storeId) || so.ownerUserId === actor.sub || scope.ownerUserIds.includes(so.ownerUserId))) {
+            hasPermission = true;
+          }
+        }
+      }
+    }
+
+    if (!hasPermission) {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Không có quyền thao tác trên yêu cầu đổi trả này');
+    }
+
+    const nextStatus = req.returnType === ReturnType.REPLACE ? ReturnRequestStatus.REPLACED : ReturnRequestStatus.REFUNDED;
+
+    const updated = await this.prisma.returnRequest.update({
+      where: { id: returnRequestId },
+      data: {
+        status: nextStatus,
+        replacementStatus: 'COMPLETED',
+      },
+    });
+
+    // Sổ cái OrderStatusHistory
+    try {
+      await this.prisma.orderStatusHistory.create({
+        data: {
+          orderId: req.orderId,
+          sellerOrderId: req.sellerOrderId,
+          fromStatus: 'RETURN_DELIVERED_TO_STORE',
+          toStatus: nextStatus === ReturnRequestStatus.REFUNDED ? 'RETURN_REFUNDED' : 'RETURN_REPLACED',
+          title: `Chủ Shop đã xác nhận nhận sách hoàn về kho`,
+          description: `Chủ Shop đã kiểm tra và nhận lại ấn phẩm "${req.bookTitle}" vào kho. Hệ thống HuKi ${nextStatus === ReturnRequestStatus.REFUNDED ? 'tiến hành giải phóng ký quỹ và hoàn tiền cho khách' : 'hoàn tất thủ tục đổi ấn phẩm mới'}.`,
+          actorType: 'SELLER',
+          actorId: actor?.sub || 'seller_system',
+          metadata: {
+            returnRequestId: req.id,
+            bookId: req.bookId,
+            bookTitle: req.bookTitle,
+            type: req.returnType,
+            status: nextStatus,
+          },
+        },
+      });
+    } catch (histErr) {
+      console.warn('Could not record OrderStatusHistory for return receipt:', histErr);
+    }
+
+    return this.formatReturnRequest(updated);
+  }
+
+  /**
    * Seller disputes the return request with evidence
    */
   async sellerDisputeReturnRequest(
@@ -3845,6 +3921,15 @@ export class OrdersService {
       take: 100,
     });
 
+    const orderIds = sellerOrders.map((so) => so.orderId).filter(Boolean);
+    const remittanceHistories = await this.prisma.orderStatusHistory.findMany({
+      where: {
+        orderId: { in: orderIds },
+        toStatus: 'COD_REMITTANCE',
+      },
+    });
+    const remittedOrderSet = new Set(remittanceHistories.map((h) => h.orderId));
+
     const forwardOrders = sellerOrders.map((so) => {
       const order = so.order;
       const address = (order?.shippingAddress as any) || {};
@@ -3899,7 +3984,9 @@ export class OrdersService {
         shippingFee: shippingFee,
         codAmount: codAmount,
         paymentMethod: paymentMethod,
-        isCodRemitted: paymentMethod === 'COD' ? order?.paymentStatus === PaymentStatus.SUCCEEDED : true,
+        isCodRemitted: paymentMethod === 'COD'
+          ? Boolean((order as any)?.isCodRemitted === true || remittedOrderSet.has(order?.id || ''))
+          : true,
         orderId: order?.id,
         orderCode: order?.code,
         paymentStatus: order?.paymentStatus,
@@ -3959,7 +4046,9 @@ export class OrdersService {
           deliveryWard: ward,
           deliveryDistrict: district,
           deliveryProvince: province,
-          shopName: ret.storeName || 'Kho Sách NXB Kim Đồng',
+          shopName: (!ret.storeName || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ret.storeName))
+            ? 'Kho Sách HuKi (Đối Tác)'
+            : ret.storeName,
           shopPhone: '0912 345 678',
           shopAddress: 'Kho trả hàng: Số 88 Đường Lý Thường Kiệt, TP. Cao Lãnh, Đồng Tháp', // Điểm TRẢ sách là kho Shop
           items: [
@@ -4521,6 +4610,16 @@ export class OrdersService {
     let giaoDeliveredCount = 0;
     let giaoCodDebt = 0;
     let giaoWallet = 0;
+    let giaoCodOrdersCount = 0;
+    let giaoOnlineOrdersCount = 0;
+    let giaoCodCollected = 0;
+    let giaoOnlineTotal = 0;
+
+    const remittedOrderHistories = await this.prisma.orderStatusHistory.findMany({
+      where: { toStatus: 'COD_REMITTANCE' },
+      select: { orderId: true },
+    });
+    const remittedOrderSet = new Set(remittedOrderHistories.map((h) => h.orderId).filter(Boolean));
 
     sellerOrders.forEach((so) => {
       const isDelivered = so.status === SellerOrderStatus.DELIVERED || so.status === SellerOrderStatus.COMPLETED;
@@ -4528,15 +4627,20 @@ export class OrdersService {
         giaoDeliveredCount += 1;
         const shippingFee = Number(so.shippingFee) || 30000;
         giaoWallet += shippingFee;
+        const grandTotal = Number(so.grandTotal) || 0;
         if (so.order?.paymentMethod === 'COD') {
-          const grandTotal = Number(so.grandTotal) || 0;
-          giaoCodDebt += Math.max(0, grandTotal - shippingFee);
+          giaoCodOrdersCount += 1;
+          giaoCodCollected += grandTotal;
+          const isRemitted = (so.order as any)?.isCodRemitted === true || remittedOrderSet.has(so.orderId);
+          if (!isRemitted) {
+            giaoCodDebt += Math.max(0, grandTotal - shippingFee);
+          }
+        } else {
+          giaoOnlineOrdersCount += 1;
+          giaoOnlineTotal += grandTotal;
         }
       }
     });
-
-    const totalRemitted = await this.getRemittedCodTotal();
-    giaoCodDebt = Math.max(0, giaoCodDebt - totalRemitted);
 
     return [
       {
@@ -4551,6 +4655,10 @@ export class OrdersService {
         rating: 5.0,
         totalDeliveries: giaoDeliveredCount,
         codDebt: giaoCodDebt,
+        codOrdersCount: giaoCodOrdersCount,
+        onlineOrdersCount: giaoOnlineOrdersCount,
+        codCollected: giaoCodCollected,
+        onlineTotal: giaoOnlineTotal,
         walletBalance: giaoWallet,
         status: 'ACTIVE',
         joinDate: '15/01/2026',

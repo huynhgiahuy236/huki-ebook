@@ -180,13 +180,13 @@ export function AdminFinanceView() {
     fetchLivePayoutRequests();
   }, [fetchLivePayoutRequests]);
 
-  // Gentle Fallback Polling (30s) & Lắng nghe sự kiện rút tiền thời gian thực
+  // Gentle Fallback Polling (8s) & Lắng nghe sự kiện rút tiền thời gian thực
   useEffect(() => {
     const pollTimer = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         fetchLivePayoutRequests(true);
       }
-    }, 30000);
+    }, 8000);
 
     const unsubscribe = realtimeSyncBus.subscribe((msg) => {
       if (msg.type === 'PAYOUT_REQUESTED') {
@@ -526,6 +526,27 @@ export function AdminFinanceView() {
   const completedCount = useMemo(() => liveRequests.filter((r) => r.status === 'COMPLETED').length, [liveRequests]);
   const failedCount = useMemo(() => liveRequests.filter((r) => r.status === 'FAILED').length, [liveRequests]);
   const rejectedCount = useMemo(() => liveRequests.filter((r) => r.status === 'REJECTED').length, [liveRequests]);
+
+  const pendingAmount = useMemo(
+    () => liveRequests.filter((r) => r.status === 'PENDING').reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+    [liveRequests]
+  );
+  const approvedAmount = useMemo(
+    () => liveRequests.filter((r) => r.status === 'APPROVED').reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+    [liveRequests]
+  );
+  const completedAmount = useMemo(
+    () => liveRequests.filter((r) => r.status === 'COMPLETED').reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+    [liveRequests]
+  );
+  const failedAmount = useMemo(
+    () => liveRequests.filter((r) => r.status === 'FAILED').reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+    [liveRequests]
+  );
+  const rejectedAmount = useMemo(
+    () => liveRequests.filter((r) => r.status === 'REJECTED').reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+    [liveRequests]
+  );
 
   // Live Requests Pagination
   const totalPagesLive = Math.ceil(filteredLiveRequests.length / pageSize) || 1;
@@ -900,7 +921,10 @@ export function AdminFinanceView() {
               <span className="material-symbols-outlined text-[16px]">hourglass_top</span>
             </span>
           </div>
-          <div className="text-xl font-extrabold text-gray-900 mt-1.5">{pendingCount}</div>
+          <div className="mt-1.5 flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-xl font-extrabold text-gray-900">{pendingCount}</span>
+            <span className="text-xs font-bold text-amber-700 font-mono">({formatVND(pendingAmount)})</span>
+          </div>
           <div className="mt-1.5 text-[11px] text-amber-700 font-bold">Cần kế toán xác nhận</div>
         </div>
 
@@ -911,7 +935,10 @@ export function AdminFinanceView() {
               <span className="material-symbols-outlined text-[16px]">verified</span>
             </span>
           </div>
-          <div className="text-xl font-extrabold text-gray-900 mt-1.5">{approvedCount}</div>
+          <div className="mt-1.5 flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-xl font-extrabold text-blue-700">{approvedCount}</span>
+            <span className="text-xs font-bold text-blue-600 font-mono">({formatVND(approvedAmount)})</span>
+          </div>
           <div className="mt-1.5 text-[11px] text-blue-600 font-medium">Sẵn sàng chi trả Task 77</div>
         </div>
 
@@ -922,8 +949,11 @@ export function AdminFinanceView() {
               <span className="material-symbols-outlined text-[16px]">task_alt</span>
             </span>
           </div>
-          <div className="text-xl font-extrabold text-[#00875A] mt-1.5">{completedCount}</div>
-          <div className="mt-1.5 text-[11px] text-emerald-700 font-medium">Đã ghi sổ DEBIT_FROZEN</div>
+          <div className="mt-1.5 flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-xl font-extrabold text-[#00875A]">{completedCount}</span>
+            <span className="text-xs font-bold text-emerald-700 font-mono">({formatVND(completedAmount)})</span>
+          </div>
+          <div className="mt-1.5 text-[11px] text-emerald-700 font-medium">Bao gồm tự động giải ngân qua PIN</div>
         </div>
 
         <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs">
@@ -933,7 +963,10 @@ export function AdminFinanceView() {
               <span className="material-symbols-outlined text-[16px]">warning</span>
             </span>
           </div>
-          <div className="text-xl font-extrabold text-amber-600 mt-1.5">{failedCount}</div>
+          <div className="mt-1.5 flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-xl font-extrabold text-amber-600">{failedCount}</span>
+            <span className="text-xs font-bold text-amber-700 font-mono">({formatVND(failedAmount)})</span>
+          </div>
           <div className="mt-1.5 text-[11px] text-amber-600 font-medium">Có thể thử lại / hoàn tiền</div>
         </div>
 
@@ -944,7 +977,10 @@ export function AdminFinanceView() {
               <span className="material-symbols-outlined text-[16px]">cancel</span>
             </span>
           </div>
-          <div className="text-xl font-extrabold text-gray-900 mt-1.5">{rejectedCount}</div>
+          <div className="mt-1.5 flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-xl font-extrabold text-gray-900">{rejectedCount}</span>
+            <span className="text-xs font-bold text-rose-600 font-mono">({formatVND(rejectedAmount)})</span>
+          </div>
           <div className="mt-1.5 text-[11px] text-rose-600 font-medium">Đã hoàn trả số dư khả dụng</div>
         </div>
       </div>

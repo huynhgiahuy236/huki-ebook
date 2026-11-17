@@ -167,14 +167,19 @@ function CatalogPageContent() {
       let catSlug = 'selfhelp';
       if (rb.category) {
         const catStr = (typeof rb.category === 'object' ? rb.category?.slug || rb.category?.name : String(rb.category)).toLowerCase();
-        if (catStr.includes('kinh-te') || catStr.includes('business') || catStr.includes('kinh-doanh')) catSlug = 'business';
-        else if (catStr.includes('cong-nghe') || catStr.includes('tech') || catStr.includes('khoa-hoc')) catSlug = 'technology';
-        else if (catStr.includes('van-hoc') || catStr.includes('literature') || catStr.includes('tieu-thuyet')) catSlug = 'literature';
+        if (catStr.includes('kinh-te') || catStr.includes('business') || catStr.includes('kinh-doanh') || catStr.includes('tai-chinh')) catSlug = 'business';
+        else if (catStr.includes('cong-nghe') || catStr.includes('tech') || catStr.includes('khoa-hoc') || catStr.includes('tri-thuc')) catSlug = 'technology';
+        else if (catStr.includes('van-hoc') || catStr.includes('literature') || catStr.includes('tieu-thuyet') || catStr.includes('truyen')) catSlug = 'literature';
+        else if (catStr.includes('thieu-nhi') || catStr.includes('children') || catStr.includes('kids')) catSlug = 'children';
+        else if (catStr.includes('ky-nang') || catStr.includes('selfhelp') || catStr.includes('tam-ly')) catSlug = 'selfhelp';
+        else catSlug = catStr;
       } else {
         const text = `${rb.title || ''} ${rb.description || ''}`.toLowerCase();
         if (text.includes('kinh doanh') || text.includes('kinh tế') || text.includes('tài chính') || text.includes('đầu tư')) catSlug = 'business';
-        else if (text.includes('công nghệ') || text.includes('ai') || text.includes('lập trình') || text.includes('khoa học')) catSlug = 'technology';
+        else if (text.includes('công nghệ') || text.includes('ai') || text.includes('lập trình') || text.includes('khoa học') || text.includes('tri thức')) catSlug = 'technology';
         else if (text.includes('tiểu thuyết') || text.includes('truyện') || text.includes('thơ') || text.includes('văn học')) catSlug = 'literature';
+        else if (text.includes('thiếu nhi') || text.includes('trẻ em') || text.includes('cổ tích')) catSlug = 'children';
+        else if (text.includes('kỹ năng') || text.includes('tâm lý') || text.includes('phát triển bản thân')) catSlug = 'selfhelp';
       }
       const authorName = rb.author?.name || (typeof rb.author === 'string' ? rb.author : null) || rawRb.authorName || 'Tác giả HUKI';
       const publisherName = rb.publisher?.name || (typeof rb.publisher === 'string' ? rb.publisher : null) || rawRb.publisherName || rawRb.shopName || 'HUKI Publisher';
@@ -183,7 +188,7 @@ function CatalogPageContent() {
       const cached = reviewSummaryService.get(rb.id);
       const computedRating = (cached && cached.totalReviews > 0)
         ? cached.averageRating
-        : (rawRb.rating ? Number(rawRb.rating) : undefined);
+        : (rawRb.rating && Number(rawRb.rating) > 0 ? Number(rawRb.rating) : undefined);
       const rawSales = rawRb.soldCount ?? rawRb.sales ?? rawRb.soldQuantity ?? 0;
       const salesNum = typeof rawSales === 'number' ? rawSales : (!isNaN(Number(rawSales)) ? Number(rawSales) : 0);
       const salesStr = salesNum >= 1000 ? `${(salesNum / 1000).toFixed(1)}k` : `${salesNum}`;
@@ -220,9 +225,25 @@ function CatalogPageContent() {
     const matches = allBooks.filter((book) => {
       // Category filter
       if (selectedCat !== 'all') {
-        const catMap: Record<string, string> = { 'van-hoc': 'literature', 'kinh-te': 'business', 'ky-nang': 'selfhelp', 'cong-nghe': 'technology' };
+        const catMap: Record<string, string> = {
+          'van-hoc': 'literature',
+          'literature': 'literature',
+          'kinh-te': 'business',
+          'kinh-doanh': 'business',
+          'business': 'business',
+          'ky-nang': 'selfhelp',
+          'selfhelp': 'selfhelp',
+          'cong-nghe': 'technology',
+          'technology': 'technology',
+          'khoa-hoc': 'technology',
+          'tri-thuc': 'technology',
+          'thieu-nhi': 'children',
+          'children': 'children',
+          'tam-ly': 'selfhelp',
+          'giao-duc': 'education',
+        };
         const normalizedSelected = catMap[selectedCat] || selectedCat;
-        if (book.category !== normalizedSelected) return false;
+        if (book.category !== normalizedSelected && !book.category?.includes(normalizedSelected) && !normalizedSelected.includes(book.category || '')) return false;
       }
       // Format filter
       if (selectedFormat === 'ebook' && !book.hasEbook) return false;
@@ -236,17 +257,26 @@ function CatalogPageContent() {
         if (!normBookPub.includes(normSelected) && !normSelected.includes(normBookPub)) return false;
       }
 
-      // Author filter
+      // Author filter (supports both accented name and hyphenated slug e.g. "nguyen-nhat-anh")
       if (selectedAuthor !== 'all') {
         const normAuthor = normalizeVietnameseText(book.author || '');
-        const normSelectedAuthor = normalizeVietnameseText(selectedAuthor);
-        if (!normAuthor.includes(normSelectedAuthor)) return false;
+        const normSelectedAuthor = normalizeVietnameseText(selectedAuthor.replace(/-/g, ' '));
+        if (!normAuthor.includes(normSelectedAuthor) && !normSelectedAuthor.includes(normAuthor)) return false;
       }
 
-      // Rating filter
+      // Rating filter (standard e-commerce threshold: 5 stars => >= 4.5; 4 stars => >= 4.0; 3 stars => >= 3.0)
       if (selectedRating !== 'all') {
         const minRating = Number(selectedRating);
-        if (!isNaN(minRating) && (book.rating ?? 0) < minRating) return false;
+        if (!isNaN(minRating)) {
+          const threshold = minRating >= 5 ? 4.5 : minRating >= 4 ? 4.0 : minRating >= 3 ? 3.0 : minRating;
+          const bookRating = book.rating;
+          if (typeof bookRating === 'number' && bookRating > 0) {
+            if (bookRating < threshold) return false;
+          } else {
+            // Unrated books retain editorial inclusion if filtering standard 5 stars
+            if (minRating > 5) return false;
+          }
+        }
       }
 
       // Price range
@@ -284,7 +314,11 @@ function CatalogPageContent() {
       if (selectedSort === 'price-low') return a.price - b.price;
       if (selectedSort === 'price-high') return b.price - a.price;
       if (selectedSort === 'bestseller') return parseSales(b.sales) - parseSales(a.sales);
-      if (selectedSort === 'new') return String(b.id).localeCompare(String(a.id));
+      if (selectedSort === 'new') {
+        const dateB = new Date(b.book?.publishedAt || b.book?.publishedDate || b.book?.createdAt || 0).getTime();
+        const dateA = new Date(a.book?.publishedAt || a.book?.publishedDate || a.book?.createdAt || 0).getTime();
+        return dateB - dateA;
+      }
       return (b.rating ?? 0) - (a.rating ?? 0);
     });
   }, [allBooks, selectedCat, selectedFormat, selectedPublisher, selectedAuthor, selectedRating, minPriceParam, maxPriceParam, selectedSort, searchTerm]);

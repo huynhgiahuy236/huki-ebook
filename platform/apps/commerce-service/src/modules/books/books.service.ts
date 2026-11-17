@@ -1010,6 +1010,8 @@ export class BooksService implements OnModuleInit {
       status: book.status,
       coverUrl: book.coverUrl,
       publishedAt: book.publishedAt,
+      createdAt: book.createdAt,
+      updatedAt: book.updatedAt,
       viewCount: book.viewCount,
       pricePaper,
       priceEbook,
