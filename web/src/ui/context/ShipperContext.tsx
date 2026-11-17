@@ -706,15 +706,18 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
           // Tự động đồng bộ ngầm khi trạng thái đổi, không rung chuông báo sai
           refreshOrders(true);
         }
-      } else if (msg.type === 'RETURN_REQUESTED' || msg.type === 'ESCROW_FROZEN') {
+      } else if (
+        msg.type === 'RETURN_SELLER_ACCEPTED' ||
+        (msg.type === 'DISPUTE_ARBITRATED' && payload?.ruling === 'BUYER_WINS')
+      ) {
         if (isOnline) {
           refreshOrders(true);
           playShipperChime();
           const retCode = payload?.returnTrackingCode || (payload?.returnRequestId ? `HUKI-RET-${String(payload.returnRequestId).slice(0, 8).toUpperCase()}` : 'mới');
           showToast(
             {
-              title: ' Nhiệm vụ lấy hàng hoàn mới!',
-              message: `Đơn hoàn #${retCode} vừa được gán trực tiếp cho bạn (Sticky Shipper). Vui lòng đến nhà khách để thu hồi sách hoàn về kho Shop!`,
+              title: '🔔 Nhiệm vụ thu hồi sách mới!',
+              message: `Shop đã đồng ý đổi trả đơn #${retCode}. Vui lòng đến nhà khách để thu hồi sách hoàn về kho Shop!`,
             },
             'warning'
           );

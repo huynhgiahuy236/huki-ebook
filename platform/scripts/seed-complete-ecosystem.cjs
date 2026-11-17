@@ -199,7 +199,7 @@ async function runSeed() {
           discountedPrice,
           b.category_id,
           b.author_id,
-          b.publisher_id,
+          'p0000003-0000-4000-8000-000000000003',
           b.format,
           b.cover_url,
         ]

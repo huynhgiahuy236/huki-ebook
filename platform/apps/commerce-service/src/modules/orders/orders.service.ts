@@ -3415,8 +3415,28 @@ export class OrdersService {
       where: { id: returnRequestId },
       data: {
         status: ReturnRequestStatus.SELLER_ACCEPTED,
+        replacementStatus: 'RETURNING',
       },
     });
+
+    try {
+      await this.prisma.outboxEvent.create({
+        data: {
+          eventId: randomBytes(16).toString('hex'),
+          type: 'RETURN_SELLER_ACCEPTED',
+          aggregateId: req.orderId,
+          payload: {
+            returnRequestId: req.id,
+            orderId: req.orderId,
+            sellerOrderId: req.sellerOrderId,
+            status: 'SELLER_ACCEPTED',
+          },
+          status: 'PENDING',
+        },
+      });
+    } catch {
+      // safe fallback
+    }
 
     return this.formatReturnRequest(updated);
   }
@@ -3562,6 +3582,26 @@ export class OrdersService {
         status: ReturnRequestStatus.SELLER_DISPUTED,
       },
     });
+
+    try {
+      await this.prisma.outboxEvent.create({
+        data: {
+          eventId: randomBytes(16).toString('hex'),
+          type: 'RETURN_SELLER_DISPUTED',
+          aggregateId: req.orderId,
+          payload: {
+            returnRequestId: req.id,
+            orderId: req.orderId,
+            sellerOrderId: req.sellerOrderId,
+            reason: dto.reason,
+            status: 'SELLER_DISPUTED',
+          },
+          status: 'PENDING',
+        },
+      });
+    } catch {
+      // safe fallback
+    }
 
     return this.formatReturnRequest(updated);
   }
@@ -4011,7 +4051,10 @@ export class OrdersService {
       const returnRequests: any[] = await this.prisma.returnRequest.findMany({
         where: {
           status: {
-            notIn: [ReturnRequestStatus.REJECTED, ReturnRequestStatus.REFUNDED, ReturnRequestStatus.REPLACED],
+            in: [
+              ReturnRequestStatus.SELLER_ACCEPTED,
+              ReturnRequestStatus.ARBITRATED_BUYER_WINS,
+            ],
           },
         },
         orderBy: { createdAt: 'desc' },

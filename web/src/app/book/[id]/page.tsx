@@ -1534,7 +1534,10 @@ export default function BookDetailPage() {
                           {publisherProfile.name}
                         </Link>
                         <span className="inline-flex items-center gap-0.5 bg-[#006953]/10 text-[#006953] text-[10px] font-bold px-2 py-0.5 rounded-full">
-                          <span className="material-symbols-outlined text-xs">verified</span>NXB Chính Hãng
+                          <span className="material-symbols-outlined text-xs">verified</span>
+                          {publisherProfile.name.toLowerCase().includes((book.publisher || '').toLowerCase()) || (book.publisher || '').toLowerCase().includes(publisherProfile.name.toLowerCase())
+                            ? 'NXB Chính Hãng'
+                            : 'Gian Hàng Chính Hãng'}
                         </span>
                       </div>
                       <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{publisherProfile.description}</p>

@@ -635,10 +635,15 @@ export const orderApi = {
   sellerAcceptReturnRequest: async (id: string): Promise<ApiResponse<ReturnRequestData>> => {
     const res = await apiClient<ReturnRequestData>(`/orders/seller/returns/${id}/accept`, { method: 'POST' });
     if (res.success) {
-      realtimeSyncBus.publish('RETURN_SELLER_ACCEPTED', {
-        returnRequestId: id,
-        status: 'SELLER_ACCEPTED',
-      });
+      realtimeSyncBus.publish(
+        'RETURN_SELLER_ACCEPTED',
+        {
+          returnRequestId: id,
+          orderCode: (res.data as any)?.orderCode,
+          status: 'SELLER_ACCEPTED',
+        },
+        { roles: ['SHIPPER', 'BUYER', 'ALL'] }
+      );
     }
     return res;
   },
@@ -675,11 +680,16 @@ export const orderApi = {
       body: JSON.stringify(payload),
     });
     if (res.success) {
-      realtimeSyncBus.publish('RETURN_SELLER_DISPUTED', {
-        returnRequestId: id,
-        reason: payload.reason,
-        status: 'SELLER_DISPUTED',
-      });
+      realtimeSyncBus.publish(
+        'RETURN_SELLER_DISPUTED',
+        {
+          disputeId: id,
+          returnRequestId: id,
+          reason: payload.reason,
+          status: 'SELLER_DISPUTED',
+        },
+        { roles: ['ADMIN', 'ADMIN_CON', 'ALL'] }
+      );
     }
     return res;
   },
