@@ -23,7 +23,7 @@ import { SellerGroupedOrderTable } from '@/ui/components/seller/SellerGroupedOrd
 import { SellerPayoutGroupedTable } from '@/ui/components/seller/SellerPayoutGroupedTable';
 import { featureFlagsService } from '@/ui/services/featureFlagsService';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
-import { calculateSellerFinancials, formatVND } from '@/ui/utils/sellerFinanceEngine';
+import { calculateSellerFinancials, formatVND, ESCROW_CONFIG } from '@/ui/utils/sellerFinanceEngine';
 
 function formatVietnamDateTime(dateStr?: string | null): string {
   if (!dateStr) return 'N/A';
@@ -344,7 +344,7 @@ export default function SellerFinancePage() {
     );
 
     showToast?.(
-      `Đơn #${item.orderCode} đã hoàn tất 2 phút đổi trả! +${formatVND(item.sellerNet)} đã chuyển sang Số Dư Khả Dụng!`,
+      `Đơn #${item.orderCode} đã hoàn tất ${ESCROW_CONFIG.DURATION_LABEL} đổi trả! +${formatVND(item.sellerNet)} đã chuyển sang Số Dư Khả Dụng!`,
       'success'
     );
 
@@ -372,7 +372,7 @@ export default function SellerFinancePage() {
             <span>Tài Chính &amp; Ví Số Dư Người Bán</span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Chu kỳ dòng tiền minh bạch: Vận chuyển &rarr; Ký quỹ đổi trả (2 phút) &rarr; Ví khả dụng &rarr; Rút về tài khoản ngân hàng.
+            Chu kỳ dòng tiền minh bạch: Vận chuyển &rarr; Ký quỹ đổi trả ({ESCROW_CONFIG.DURATION_LABEL}) &rarr; Ví khả dụng &rarr; Rút về tài khoản ngân hàng.
           </p>
         </div>
 
@@ -536,7 +536,7 @@ export default function SellerFinancePage() {
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1">
                     <span className="material-symbols-outlined text-xs text-amber-500">timer</span>
-                    <span>Chờ hạn đổi trả 2 phút ({metrics.holdingEscrowCount} món):</span>
+                    <span>Bảo chứng đổi trả {ESCROW_CONFIG.DURATION_LABEL} ({metrics.holdingEscrowCount} món):</span>
                   </span>
                   <span className="font-bold text-amber-600 font-mono">{formatVND(metrics.holdingEscrowAmount)}</span>
                 </div>

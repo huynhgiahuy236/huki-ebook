@@ -14,6 +14,7 @@ import {
 } from '../common';
 import { realtimeSyncBus, type SyncMessage } from '../../services/realtimeSyncBus';
 import { playAdminAlertSound } from '@/ui/utils/chatSound';
+import { ESCROW_CONFIG } from '@/ui/constants/escrowConfig';
 
 export interface EscrowTableItem {
   id: string; // order item id
@@ -583,7 +584,7 @@ export function AdminEscrowView() {
 
       const currentTime = nowTime || Date.now();
       const elapsed = Math.floor((currentTime - startMs) / 1000);
-      const totalDuration = 120; // 2 Phút Ký Quỹ Đổi Trả
+      const totalDuration = ESCROW_CONFIG.HOLD_DURATION_SECONDS; // Ký Quỹ Đổi Trả Config
       const remainingSec = Math.max(0, totalDuration - elapsed);
       const isExpired = remainingSec <= 0;
 
@@ -598,7 +599,7 @@ export function AdminEscrowView() {
         remainingSec,
         formattedTime: formatted,
         text: isExpired ? 'Hết hạn đổi trả' : `Còn ${formatted}`,
-        reason: isExpired ? '' : `Đang trong hạn đổi trả 2 phút (${formatted} còn lại)`,
+        reason: isExpired ? '' : `Đang trong hạn đổi trả ${ESCROW_CONFIG.DURATION_LABEL} (${formatted} còn lại)`,
       };
     },
     [mounted, nowTime],
@@ -1213,7 +1214,7 @@ export function AdminEscrowView() {
                         ) : returnInfo.type === 'WAITING_DELIVERY' ? (
                           <span
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium text-theme-text-muted bg-theme-surface-subtle border border-theme-border"
-                            title="Sách giấy đang giao, chưa kích hoạt thời hạn đổi trả 2 phút"
+                            title={`Sách giấy đang giao, chưa kích hoạt thời hạn đổi trả ${ESCROW_CONFIG.DURATION_LABEL}`}
                           >
                             <span className="material-symbols-outlined text-[14px]">local_shipping</span>
                             <span>Chờ giao hàng</span>
@@ -1222,7 +1223,7 @@ export function AdminEscrowView() {
                           <span
                             suppressHydrationWarning
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50/80 text-amber-800 border border-amber-200/80 font-mono shadow-2xs"
-                            title="Đang trong thời hạn kiểm tra và đổi trả 2 phút"
+                            title={`Đang trong thời hạn kiểm tra và đổi trả ${ESCROW_CONFIG.DURATION_LABEL}`}
                           >
                             <span className="material-symbols-outlined text-[14px] text-amber-600 animate-spin">timer</span>
                             <span>Còn {returnInfo.formattedTime}</span>
@@ -1238,7 +1239,7 @@ export function AdminEscrowView() {
                         ) : (
                           <span
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium text-emerald-700 bg-emerald-50/50 border border-emerald-200/50"
-                            title="Đã qua thời hạn 2 phút đổi trả, sẵn sàng bàn giao cho cửa hàng"
+                            title={`Đã qua thời hạn ${ESCROW_CONFIG.DURATION_LABEL} đổi trả, sẵn sàng bàn giao cho cửa hàng`}
                           >
                             <span className="material-symbols-outlined text-[14px] text-emerald-600">check_circle</span>
                             <span>Hết hạn đổi trả</span>
@@ -1380,7 +1381,7 @@ export function AdminEscrowView() {
             <span>Ký Quỹ Sàn &amp; Tài Khoản Trung Gian (Escrow Ledger)</span>
           </h1>
           <p className="text-xs text-theme-text-muted mt-1">
-            Kiểm soát dòng tiền giữ hộ, thời hạn đổi trả 2 phút, đóng băng khiếu nại và điều phối hoàn tiền / giải ngân
+            Kiểm soát dòng tiền giữ hộ, thời hạn đổi trả {ESCROW_CONFIG.DURATION_LABEL}, đóng băng khiếu nại và điều phối hoàn tiền / giải ngân
           </p>
         </div>
 

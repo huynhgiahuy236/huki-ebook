@@ -15,6 +15,7 @@ import { paymentApi } from '@/ui/api/paymentApi';
 import { realtimeSyncBus, type SyncMessage } from '@/ui/services/realtimeSyncBus';
 import { playChatChimeSound } from '@/ui/utils/chatSound';
 import QuickDispatchNotificationModal from '@/ui/components/common/QuickDispatchNotificationModal';
+import { ESCROW_CONFIG } from '@/ui/constants/escrowConfig';
 
 export default function OrderDetailPage() {
   const params = useParams();
@@ -839,9 +840,9 @@ export default function OrderDetailPage() {
                         </span>
                         <span className="text-[11px] text-on-surface-variant block">{step.time}</span>
                         {(step as any).returnAlert && (
-                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 mt-0.5 rounded-md text-[9.5px] font-black bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700 animate-pulse" title="Đang trong thời hạn đổi trả 2 phút (demo)">
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 mt-0.5 rounded-md text-[9.5px] font-black bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700 animate-pulse" title={`Đang trong thời hạn đổi trả ${ESCROW_CONFIG.DURATION_LABEL}`}>
                             <span className="material-symbols-outlined text-[11px] text-amber-700 font-black">priority_high</span>
-                            <span>Hạn Đổi Trả (2m)</span>
+                            <span>Hạn Đổi Trả ({ESCROW_CONFIG.DURATION_LABEL})</span>
                           </span>
                         )}
                       </div>

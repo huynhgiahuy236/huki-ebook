@@ -17,6 +17,7 @@ import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { useToast } from '@/ui/context/ToastContext';
 
 import { calculateSellerFinancials, formatVND } from '@/ui/utils/sellerFinanceEngine';
+import { ESCROW_CONFIG } from '@/ui/constants/escrowConfig';
 import {
   DataTableFilterBar,
   DateFilterValue,
@@ -86,7 +87,6 @@ export default function SellerEscrowPage() {
   // Filters
   const [activeStatusTab, setActiveStatusTab] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-  const [formatFilter, setFormatFilter] = useState<'ALL' | 'PHYSICAL' | 'DIGITAL'>('ALL');
   const [paymentFilter, setPaymentFilter] = useState<'ALL' | 'COD' | 'PAYOS'>('ALL');
   const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -202,7 +202,7 @@ export default function SellerEscrowPage() {
     );
 
     showToast?.(
-      `Đơn #${item.orderCode} đã hoàn tất 2 phút đổi trả! Tiền đã được giải ngân sang Số Dư Khả Dụng!`,
+      `Đơn #${item.orderCode} đã hoàn tất ${ESCROW_CONFIG.DURATION_LABEL} đổi trả! Tiền đã được giải ngân sang Số Dư Khả Dụng!`,
       'success'
     );
 
@@ -219,7 +219,7 @@ export default function SellerEscrowPage() {
     });
   }, [escrowItems, wallet, payouts]);
 
-  // Filtering Logic
+  // Filtering Logic: 100% Orthogonal
   const filteredItems = useMemo(() => {
     return escrowItems.filter((it) => {
       const isCancelled =
@@ -227,28 +227,35 @@ export default function SellerEscrowPage() {
         (it as any).status === 'CANCELLED' ||
         it.escrowStatus === ('CANCELLED' as any);
 
-      // 1. Status Filter
+      const isDelivered =
+        it.orderStatus === 'DELIVERED' ||
+        it.orderStatus === 'COMPLETED' ||
+        Boolean(it.deliveredAt);
+
+      // 1. Status Filter (Financial lifecycle)
       if (activeStatusTab === 'CANCELLED') {
         if (!isCancelled) return false;
+      } else if (activeStatusTab === 'IN_TRANSIT') {
+        if (isCancelled) return false;
+        const isInTransit = it.escrowStatus === 'PENDING_PAYMENT' || (!isDelivered && it.escrowStatus === 'HOLDING');
+        if (!isInTransit) return false;
+      } else if (activeStatusTab === 'HOLDING') {
+        if (isCancelled) return false;
+        if (it.escrowStatus !== 'HOLDING' || !isDelivered) return false;
       } else if (activeStatusTab !== 'ALL') {
         if (isCancelled || it.escrowStatus !== activeStatusTab) return false;
       }
 
-      // 2. Format Filter
-      const isDigital = it.format === 'DIGITAL' || it.bookTitle?.toLowerCase().includes('ebook');
-      if (formatFilter === 'DIGITAL' && !isDigital) return false;
-      if (formatFilter === 'PHYSICAL' && isDigital) return false;
-
-      // 3. Payment Filter
+      // 2. Payment Method Filter
       if (paymentFilter === 'COD' && it.paymentMethod !== 'COD') return false;
       if (paymentFilter === 'PAYOS' && it.paymentMethod === 'COD') return false;
 
-      // 4. Date Filter (Split Presets + Specific Dates)
+      // 3. Date Filter
       if (!matchesDateFilter(it.orderCreatedAt, dateFilter)) {
         return false;
       }
 
-      // 5. Search query
+      // 4. Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchCode = it.orderCode?.toLowerCase().includes(q) || it.orderId?.toLowerCase().includes(q);
@@ -262,7 +269,23 @@ export default function SellerEscrowPage() {
 
       return true;
     });
-  }, [escrowItems, activeStatusTab, formatFilter, paymentFilter, dateFilter, searchQuery]);
+  }, [escrowItems, activeStatusTab, paymentFilter, dateFilter, searchQuery]);
+
+  // Status Tabs
+  const statusTabs = useMemo(() => {
+    const cancelledCount = escrowItems.filter(
+      (it) => it.orderStatus === 'CANCELLED' || (it as any).status === 'CANCELLED' || it.escrowStatus === ('CANCELLED' as any)
+    ).length;
+
+    return [
+      { key: 'ALL', label: 'Tất Cả', count: stats.totalCount },
+      { key: 'IN_TRANSIT', label: 'Đang Vận Chuyển', count: stats.inTransitCount },
+      { key: 'HOLDING', label: `Bảo Chứng Đổi Trả (${ESCROW_CONFIG.DURATION_LABEL})`, count: stats.holdingCount },
+      { key: 'RELEASED', label: 'Đã Giải Ngân Vào Ví', count: stats.releasedCount },
+      { key: 'FROZEN', label: 'Đóng Băng Tranh Chấp', count: stats.frozenCount },
+      { key: 'CANCELLED', label: 'Đã Hủy', count: cancelledCount },
+    ];
+  }, [stats, escrowItems]);
 
   const toggleSelectAll = () => {
     if (selectedIds.length === filteredItems.length) {
@@ -354,7 +377,7 @@ export default function SellerEscrowPage() {
   // Reset page when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeStatusTab, searchQuery, formatFilter, paymentFilter, dateFilter, pageSize]);
+  }, [activeStatusTab, searchQuery, paymentFilter, dateFilter, pageSize]);
 
   // Export CSV
   const handleExportCSV = () => {
@@ -431,10 +454,11 @@ export default function SellerEscrowPage() {
       },
       {
         key: 'product',
-        title: 'Sách & Phân Loại',
-        minWidth: 240,
+        title: 'Sách & Chi Tiết',
+        minWidth: 260,
         render: (_val, it) => {
           const isDigital = it.format === 'DIGITAL' || it.bookTitle?.toLowerCase().includes('ebook');
+          const isCod = it.paymentMethod === 'COD';
           return (
             <div className="flex items-center gap-2.5 py-1">
               {it.coverUrl ? (
@@ -455,17 +479,14 @@ export default function SellerEscrowPage() {
                 >
                   {it.bookTitle}
                 </span>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold border ${
-                    isDigital
-                      ? 'bg-purple-50 text-purple-700 border-purple-200'
-                      : 'bg-amber-50 text-amber-700 border-amber-200'
-                  }`}>
-                    {isDigital ? 'Ebook' : 'Sách In'}
+                <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500">
+                  <span className="font-mono">SL: {it.quantity || 1}</span>
+                  <span className="text-slate-300">•</span>
+                  <span className="font-semibold text-slate-600">
+                    {isCod ? 'Tiền mặt (COD)' : 'Chuyển khoản VietQR'}
                   </span>
-                  <span className="text-[11px] text-slate-500 font-mono">
-                    SL: {it.quantity || 1}
-                  </span>
+                  <span className="text-slate-300">•</span>
+                  <span>{isDigital ? 'Ebook' : 'Sách in'}</span>
                 </div>
               </div>
             </div>
@@ -475,30 +496,28 @@ export default function SellerEscrowPage() {
       {
         key: 'financials',
         title: 'Doanh Thu & Thực Nhận',
-        width: 200,
+        width: 180,
+        align: 'right',
         render: (_val, it) => (
-          <div className="py-1 text-xs">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-slate-500 text-[11px]">Tiền hàng:</span>
-              <span className="font-mono text-slate-800 font-semibold">{formatVND(it.subtotal)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-2 text-[10.5px]">
-              <span className="text-slate-400">Phí sàn (5%):</span>
-              <span className="font-mono text-rose-600">-{formatVND(it.platformFee)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-2 pt-0.5 border-t border-slate-100 mt-0.5">
-              <span className="text-emerald-800 font-semibold text-[11px]">Thực nhận:</span>
-              <span className="font-mono text-[#00875A] font-bold text-xs">+{formatVND(it.sellerNet)}</span>
-            </div>
+          <div className="py-1 text-right flex flex-col items-end">
+            <span className="font-mono text-xs font-bold text-[#00875A] block leading-tight">
+              +{formatVND(it.sellerNet)}
+            </span>
+            <span
+              className="text-[11px] text-slate-400 font-mono block mt-0.5"
+              title={`Doanh thu gốc: ${formatVND(it.subtotal)} | Phí sàn (5%): -${formatVND(it.platformFee)}`}
+            >
+              Giá bán: {formatVND(it.subtotal)}
+            </span>
           </div>
         ),
       },
       {
         key: 'status',
         title: 'Trạng Thái Ký Quỹ',
-        width: 170,
+        width: 175,
         align: 'center',
-        render: (_val, it) => <EscrowTableBadge item={it} />,
+        render: (_val, it) => <EscrowTableBadge item={it} onAutoRelease={handleAutoReleaseItem} />,
       },
       {
         key: 'actions',
@@ -584,7 +603,7 @@ export default function SellerEscrowPage() {
                 {it.escrowStatus === 'RELEASED'
                   ? 'Đã hoàn tất đối soát & giải ngân vào số dư khả dụng của gian hàng.'
                   : it.escrowStatus === 'HOLDING'
-                  ? 'Đang trong thời hạn bảo chứng test đổi trả 2 phút.'
+                  ? `Đang trong thời hạn bảo chứng đổi trả (${ESCROW_CONFIG.DURATION_LABEL}).`
                   : it.escrowStatus === 'PENDING_PAYMENT'
                   ? 'Kiện hàng đang vận chuyển, chờ bưu tá thu tiền COD.'
                   : 'Đang tạm khóa do có khiếu nại phát sinh.'}
@@ -661,7 +680,7 @@ export default function SellerEscrowPage() {
           <div className="mt-3">
             <div className="text-2xl font-black text-amber-700">{formatVND(stats.totalEscrowHolding)}</div>
             <div className="text-xs text-amber-900 mt-1">
-              Gồm {stats.pendingCount + stats.holdingCount + stats.frozenCount} món sách đang chờ giải ngân
+              Gồm {stats.inTransitCount + stats.holdingCount + stats.frozenCount} đơn hàng đang chờ giải ngân
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-amber-100 flex items-center justify-between text-[11px] text-amber-800">
@@ -670,33 +689,33 @@ export default function SellerEscrowPage() {
           </div>
         </div>
 
-        {/* Card 2: Chờ Shipper Giao & Thu COD */}
+        {/* Card 2: Tiền Đang Vận Chuyển */}
         <div className="bg-white rounded-2xl border border-blue-100 p-5 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-blue-800 uppercase tracking-wider">
-              Chờ Thu COD (Đang Vận Chuyển)
+              Tiền Đang Vận Chuyển
             </span>
             <span className="p-2 rounded-xl bg-blue-50 text-blue-600">
               <span className="material-symbols-outlined text-[20px]">local_shipping</span>
             </span>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-black text-blue-700">{formatVND(stats.pendingAmount)}</div>
+            <div className="text-2xl font-black text-blue-700">{formatVND(stats.inTransitAmount)}</div>
             <div className="text-xs text-blue-600 mt-1">
-              {stats.pendingCount} món đang giao tận nơi
+              {stats.inTransitCount} đơn đang trên đường giao khách
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-            <span>Tiền mặt bưu tá thu</span>
-            <span className="font-semibold">Sẽ nộp về sàn</span>
+            <span>Bưu tá đang giao</span>
+            <span className="font-semibold">Cả COD &amp; Chuyển khoản</span>
           </div>
         </div>
 
-        {/* Card 3: Đang Trong Hạn 2 Phút Test Đổi Trả */}
+        {/* Card 3: Đang Trong Hạn Bảo Chứng Đổi Trả */}
         <div className="bg-white rounded-2xl border border-purple-100 p-5 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-purple-800 uppercase tracking-wider">
-              Đang Đếm Ngược Đổi Trả (2 phút)
+              Bảo Chứng Đổi Trả ({ESCROW_CONFIG.DURATION_LABEL})
             </span>
             <span className="p-2 rounded-xl bg-purple-50 text-purple-600">
               <span className="material-symbols-outlined text-[20px]">timer</span>
@@ -705,11 +724,11 @@ export default function SellerEscrowPage() {
           <div className="mt-3">
             <div className="text-2xl font-black text-purple-700">{formatVND(stats.holdingAmount)}</div>
             <div className="text-xs text-purple-600 mt-1">
-              {stats.holdingCount} món đã giao / khách đã thanh toán
+              {stats.holdingCount} đơn khách đã nhận / đang bảo chứng
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-            <span>Hết 2 phút → Vào ví ngay</span>
+            <span>Hết {ESCROW_CONFIG.DURATION_LABEL} → Vào ví ngay</span>
             <span className="font-bold text-emerald-600">Auto Release</span>
           </div>
         </div>
@@ -749,7 +768,7 @@ export default function SellerEscrowPage() {
         </div>
       </div>
 
-      {/* 3. RICH FILTER & SEARCH TOOLBAR WITH SPLIT DATE FILTER AND BULK ACTIONS */}
+      {/* 3. RICH FILTER & SEARCH TOOLBAR */}
       <DataTableFilterBar
         searchPlaceholder="Tìm mã đơn, tên sách, tên khách, SĐT..."
         searchQuery={searchQuery}
@@ -758,20 +777,7 @@ export default function SellerEscrowPage() {
           setCurrentPage(1);
         }}
         className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
-        tabs={[
-          { key: 'ALL', label: 'Tất Cả', count: stats.totalCount },
-          { key: 'PENDING_PAYMENT', label: 'Chờ Thu COD / Vận Chuyển', count: stats.pendingCount },
-          { key: 'HOLDING', label: 'Đang Ký Quỹ Đếm Ngược', count: stats.holdingCount },
-          { key: 'RELEASED', label: 'Đã Giải Ngân', count: stats.releasedCount },
-          { key: 'FROZEN', label: 'Đóng Băng', count: stats.frozenCount },
-          {
-            key: 'CANCELLED',
-            label: 'Đã Hủy',
-            count: escrowItems.filter(
-              (it) => it.orderStatus === 'CANCELLED' || (it as any).status === 'CANCELLED' || it.escrowStatus === ('CANCELLED' as any)
-            ).length,
-          },
-        ]}
+        tabs={statusTabs}
         activeTab={activeStatusTab}
         onTabChange={(tab: string) => {
           setActiveStatusTab(tab);
@@ -779,18 +785,6 @@ export default function SellerEscrowPage() {
         }}
         extraFilters={
           <div className="flex items-center gap-2">
-            <select
-              value={formatFilter}
-              onChange={(e) => {
-                setFormatFilter(e.target.value as any);
-                setCurrentPage(1);
-              }}
-              className="h-9 px-3 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
-            >
-              <option value="ALL">Tất Cả Định Dạng</option>
-              <option value="PHYSICAL">Sách Giấy Vật Lý</option>
-              <option value="DIGITAL">Sách Điện Tử (Ebook)</option>
-            </select>
             <select
               value={paymentFilter}
               onChange={(e) => {
@@ -800,8 +794,8 @@ export default function SellerEscrowPage() {
               className="h-9 px-3 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
             >
               <option value="ALL">Mọi Phương Thức TT</option>
-              <option value="COD">Tiền Mặt COD</option>
-              <option value="PAYOS">PayOS / VietQR</option>
+              <option value="COD">Tiền Mặt (COD)</option>
+              <option value="PAYOS">Chuyển Khoản (PayOS/VietQR)</option>
             </select>
           </div>
         }
@@ -981,7 +975,7 @@ export default function SellerEscrowPage() {
                   {selectedItem.escrowStatus === 'RELEASED'
                     ? 'Đã hết hạn đổi trả, tiền đã cộng vào Số Dư Khả Dụng trong Ví của Shop.'
                     : selectedItem.escrowStatus === 'HOLDING'
-                    ? '⏳ Đang trong thời gian 2 phút test đổi trả. Sàn HuKi đang giữ tiền bảo chứng an toàn.'
+                    ? `⏳ Đang trong thời gian bảo chứng đổi trả (${ESCROW_CONFIG.DURATION_LABEL}). Sàn HuKi đang giữ tiền bảo chứng an toàn.`
                     : selectedItem.escrowStatus === 'PENDING_PAYMENT'
                     ? 'Đơn hàng đang được Shipper giao tận nơi, chờ thu tiền mặt COD.'
                     : 'Món hàng đang bị đóng băng do có khiếu nại đổi trả đang xử lý.'}

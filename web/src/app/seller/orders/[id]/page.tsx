@@ -8,6 +8,7 @@ import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { can, PERMISSIONS } from '@/ui/utils/permissions';
+import { ESCROW_CONFIG } from '@/ui/constants/escrowConfig';
 import {
   SellerStatusBadge,
   SellerActionButton,
@@ -507,14 +508,14 @@ export default function SellerOrderDetailPage() {
               {(() => {
                 const rawTime = (order as any).deliveredAt || order.completedAt || (order as any).updatedAt;
                 const elapsed = rawTime ? (Date.now() - new Date(rawTime).getTime()) / 1000 : 999;
-                if (elapsed < 120) {
+                if (elapsed < ESCROW_CONFIG.HOLD_DURATION_SECONDS) {
                   return (
                     <span
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-black bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs animate-pulse"
-                      title="Đang trong thời hạn đổi trả 2 phút demo (Ký quỹ Escrow bảo vệ)"
+                      title={`Đang trong thời hạn đổi trả ${ESCROW_CONFIG.DURATION_LABEL} (Ký quỹ Escrow bảo vệ)`}
                     >
                       <span className="material-symbols-outlined text-[15px] text-amber-700 font-black">priority_high</span>
-                      <span>Hạn Đổi Trả (2 phút demo)</span>
+                      <span>Hạn Đổi Trả ({ESCROW_CONFIG.DURATION_LABEL})</span>
                     </span>
                   );
                 }

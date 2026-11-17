@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { ESCROW_CONFIG } from '@/ui/constants/escrowConfig';
 
 export interface EscrowCountdownProps {
   orderId?: string;
@@ -27,7 +28,7 @@ export default function EscrowCountdown({
   subOrderId,
   storeName = 'Gian Hàng',
   amount = 0,
-  initialSeconds = 120,
+  initialSeconds = ESCROW_CONFIG.HOLD_DURATION_SECONDS,
   startTime,
   isFrozen = false,
   isEbook = false,
@@ -39,7 +40,7 @@ export default function EscrowCountdown({
   const router = useRouter();
 
   const calculateRemainingSeconds = useCallback(() => {
-    const totalDuration = initialSeconds || 120;
+    const totalDuration = initialSeconds || ESCROW_CONFIG.HOLD_DURATION_SECONDS;
 
     let startTimestamp: number | null = null;
     if (startTime) {
@@ -193,7 +194,7 @@ export default function EscrowCountdown({
               Hết Hạn Đổi Trả (Dispute Window Closed)
             </div>
             <div className="text-xs text-slate-600 dark:text-slate-400">
-              Thời hạn kiểm tra và đổi trả 2 phút đã kết thúc. Tiền ký quỹ ({Number(amount).toLocaleString('vi-VN')}₫) đang được Sàn xử lý bàn giao cho {storeName}.
+              Thời hạn kiểm tra và đổi trả {ESCROW_CONFIG.DURATION_LABEL} đã kết thúc. Tiền ký quỹ ({Number(amount).toLocaleString('vi-VN')}₫) đang được Sàn xử lý bàn giao cho {storeName}.
             </div>
           </div>
         </div>

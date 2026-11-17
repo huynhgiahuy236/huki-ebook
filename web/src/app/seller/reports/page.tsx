@@ -17,7 +17,7 @@ import { SellerGroupedOrderTable } from '@/ui/components/seller/SellerGroupedOrd
 import { SellerPayoutGroupedTable } from '@/ui/components/seller/SellerPayoutGroupedTable';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { useToast } from '@/ui/context/ToastContext';
-import { calculateSellerFinancials, formatVND } from '@/ui/utils/sellerFinanceEngine';
+import { calculateSellerFinancials, formatVND, ESCROW_CONFIG } from '@/ui/utils/sellerFinanceEngine';
 
 function formatVietnamDateTime(dateStr?: string | null): string {
   if (!dateStr) return 'N/A';
@@ -167,7 +167,7 @@ export default function SellerFinancialReportsPage() {
 
     // 3. Notify toast
     showToast?.(
-      `Đơn #${item.orderCode} đã hoàn tất 2 phút đổi trả! +${formatVND(item.sellerNet)} đã chuyển sang Số Dư Khả Dụng!`,
+      `Đơn #${item.orderCode} đã hoàn tất ${ESCROW_CONFIG.DURATION_LABEL} đổi trả! +${formatVND(item.sellerNet)} đã chuyển sang Số Dư Khả Dụng!`,
       'success'
     );
 
@@ -278,7 +278,7 @@ export default function SellerFinancialReportsPage() {
         it.escrowStatus === 'RELEASED'
           ? 'Đã Giải Ngân Khả Dụng'
           : it.escrowStatus === 'HOLDING'
-          ? 'Đang Ký Quỹ Đổi Trả (2 phút)'
+          ? `Đang Ký Quỹ Đổi Trả (${ESCROW_CONFIG.DURATION_LABEL})`
           : it.escrowStatus === 'PENDING_PAYMENT'
           ? 'Đang Giao Hàng (Dự Kiến)'
           : 'Đang Phong Tỏa Khiếu Nại';
@@ -389,7 +389,7 @@ export default function SellerFinancialReportsPage() {
               <div className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
                 <span>Tiền Chờ Quyết Toán ({stats.holdingCount + stats.inTransitCount})</span>
               </div>
-              <p className="text-[11px] text-gray-500 mt-0.5">Quản lý đơn hàng bảo chứng &amp; hạn đổi trả 2 phút</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">Quản lý đơn hàng bảo chứng &amp; hạn đổi trả {ESCROW_CONFIG.DURATION_LABEL}</p>
             </div>
           </div>
           <span className="material-symbols-outlined text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all text-lg">arrow_forward</span>
@@ -514,7 +514,7 @@ export default function SellerFinancialReportsPage() {
               {formatVND(stats.holdingNet)}
             </div>
             <p className="text-[11px] text-gray-500 mt-0.5">
-              {stats.holdingCount} món đang đếm ngược hạn đổi trả (2 phút)
+              {stats.holdingCount} món đang đếm ngược hạn đổi trả ({ESCROW_CONFIG.DURATION_LABEL})
             </p>
           </div>
           <div className="pt-2 border-t border-amber-100 flex items-center justify-between text-[10.5px] text-amber-700 font-medium">
@@ -691,7 +691,7 @@ export default function SellerFinancialReportsPage() {
           <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-600 bg-gray-50/70 p-3 rounded-xl">
             <span className="flex items-center gap-1 text-[11px]">
               <span className="material-symbols-outlined text-sm text-emerald-600">verified</span>
-              <span>Bảo chứng Escrow: Hết 2 phút đổi trả, tiền tự động nhảy sang Khả dụng và ghi lịch sử.</span>
+              <span>Bảo chứng Escrow: Hết {ESCROW_CONFIG.DURATION_LABEL} đổi trả, tiền tự động nhảy sang Khả dụng và ghi lịch sử.</span>
             </span>
             <Link href="/seller/finance" className="text-emerald-700 font-bold hover:underline shrink-0 text-xs">
               Mở Ví Rút Tiền &rarr;
@@ -995,7 +995,7 @@ export default function SellerFinancialReportsPage() {
 
               <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900">
                 <strong className="block text-amber-800 text-xs mb-1">2. Tiền Ký Quỹ Escrow (Sàn bảo chứng):</strong>
-                Đơn đã giao thành công, tiền 95% nằm trong quỹ bảo chứng của sàn trong thời gian người mua được đổi trả (2 phút test).
+                Đơn đã giao thành công, tiền 95% nằm trong quỹ bảo chứng của sàn trong thời gian người mua được đổi trả ({ESCROW_CONFIG.DURATION_LABEL}).
               </div>
 
               <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900">

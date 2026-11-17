@@ -1,4 +1,7 @@
 import type { SellerEscrowItem, WalletData, PayoutRequestItem, WalletTransactionItem } from '@/ui/api/walletApi';
+import { ESCROW_CONFIG } from '@/ui/constants/escrowConfig';
+
+export { ESCROW_CONFIG };
 
 export interface SellerFinancialMetrics {
   // 1. Tổng quan Doanh thu
@@ -138,12 +141,12 @@ export function calculateSellerFinancials(options: CalculateFinanceOptions): Sel
       payosCount += 1;
     }
 
-    // Phân loại giai đoạn dòng tiền (Tự động chuyển RELEASED nếu hết hạn đổi trả 2 phút)
+    // Phân loại giai đoạn dòng tiền (Tự động chuyển RELEASED nếu hết hạn đổi trả)
     let effectiveStatus = it.escrowStatus;
     const isDelivered = it.orderStatus === 'DELIVERED' || it.orderStatus === 'COMPLETED' || Boolean(it.deliveredAt);
     if (effectiveStatus === 'HOLDING' && isDelivered) {
       const startMs = new Date(it.deliveredAt || it.orderCreatedAt).getTime();
-      if (!isNaN(startMs) && startMs > 0 && (Date.now() - startMs) >= 120 * 1000) {
+      if (!isNaN(startMs) && startMs > 0 && (Date.now() - startMs) >= ESCROW_CONFIG.HOLD_DURATION_SECONDS * 1000) {
         effectiveStatus = 'RELEASED';
       }
     }
