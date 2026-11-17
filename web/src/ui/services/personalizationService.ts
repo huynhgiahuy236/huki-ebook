@@ -168,15 +168,29 @@ export const personalizationService = {
   /**
    * Ghi nhận tương tác xem sách / chi tiết sản phẩm
    */
-  recordBookInteraction(bookId: string, categoryId?: string, categoryName?: string, authorName?: string): void {
+  recordBookInteraction(
+    bookId: string,
+    categoryId?: string,
+    categoryName?: string,
+    authorName?: string,
+    publisherName?: string,
+    title?: string
+  ): void {
     if (typeof window === 'undefined' || !bookId) return;
     try {
       const raw = localStorage.getItem(RECENT_INTERACTIONS_KEY);
-      const current: Array<{ bookId: string; categoryId?: string; categoryName?: string; authorName?: string; time: number }> =
-        raw ? JSON.parse(raw) : [];
+      const current: Array<{
+        bookId: string;
+        categoryId?: string;
+        categoryName?: string;
+        authorName?: string;
+        publisherName?: string;
+        title?: string;
+        time: number;
+      }> = raw ? JSON.parse(raw) : [];
 
       const updated = [
-        { bookId, categoryId, categoryName, authorName, time: Date.now() },
+        { bookId, categoryId, categoryName, authorName, publisherName, title, time: Date.now() },
         ...current.filter((item) => item.bookId !== bookId),
       ].slice(0, 15);
 
@@ -230,6 +244,8 @@ export const personalizationService = {
     // Lấy tương tác gần đây
     let recentCategories: string[] = [];
     let recentAuthors: string[] = [];
+    let recentPublishers: string[] = [];
+    let recentTitles: string[] = [];
     if (typeof window !== 'undefined') {
       try {
         const raw = localStorage.getItem(RECENT_INTERACTIONS_KEY);
@@ -237,6 +253,8 @@ export const personalizationService = {
           const list: any[] = JSON.parse(raw);
           recentCategories = list.map((i) => i.categoryName).filter(Boolean);
           recentAuthors = list.map((i) => i.authorName).filter(Boolean);
+          recentPublishers = list.map((i) => i.publisherName).filter(Boolean);
+          recentTitles = list.map((i) => i.title).filter(Boolean);
         }
       } catch {
         // ignore
@@ -244,7 +262,7 @@ export const personalizationService = {
     }
 
     // Map chấm điểm từng sách
-    const scoredBooks: Array<{ book: BookData; score: number; reason: string }> = [];
+    const scoredBooks: Array<{ book: BookData; score: number; reason: string; publisherKey: string }> = [];
 
     for (const book of allBooks) {
       // Bỏ qua nếu sách bị loại trừ hoặc chưa xuất bản
@@ -259,6 +277,8 @@ export const personalizationService = {
       const normAuthor = normalizeVietnameseText(book.author?.name || (book as any).authorName || '');
       const normCat = normalizeVietnameseText(book.category?.name || (book as any).categoryName || '');
       const normDesc = normalizeVietnameseText(book.description || '');
+      const rawPub = book.publisher?.name || (book as any).publisherName || (book as any).store?.name || 'HuKi Partner';
+      const normPub = normalizeVietnameseText(rawPub);
 
       // 1. So khớp với Thị Hiếu do Bé Cáo AI phân tích (TRỌNG SỐ CAO NHẤT: +120 ĐIỂM)
       if (aiInterests.length > 0) {
@@ -340,6 +360,7 @@ export const personalizationService = {
           }
         }
       }
+
       if (recentAuthors.length > 0) {
         for (let i = 0; i < recentAuthors.length; i++) {
           const a = recentAuthors[i];
@@ -348,20 +369,52 @@ export const personalizationService = {
             const recencyMultiplier = i < 2 ? 1.4 : 1.0;
             score += 90 * recencyMultiplier;
             if (topReason === 'Gợi ý nổi bật') {
-              topReason = `Cùng tác giả bạn vừa xem: ${a}`;
+              topReason = `Cùng tác giả bạn quan tâm: ${a}`;
             }
             break;
           }
         }
       }
 
-      // 5. Tiêu chí chất lượng sách & Gian hàng uy tín (Fair Store Prioritization)
-      const bookAny = book as any;
-      if (bookAny.rating && bookAny.rating >= 4.5) {
-        score += 15; // Đánh giá cao
+      if (recentPublishers.length > 0) {
+        for (let i = 0; i < recentPublishers.length; i++) {
+          const p = recentPublishers[i];
+          const normP = normalizeVietnameseText(p);
+          if (normP && (normPub.includes(normP) || normP.includes(normPub))) {
+            const recencyMultiplier = i < 2 ? 1.4 : 1.0;
+            score += 80 * recencyMultiplier;
+            if (topReason === 'Gợi ý nổi bật') {
+              topReason = `Từ NXB bạn quan tâm: ${p}`;
+            }
+            break;
+          }
+        }
       }
+
+      // 5. Tiêu chí chất lượng sách, LƯỢT BÁN THỰC & ĐÁNH GIÁ (User Requested Quality Signal)
+      const bookAny = book as any;
+      const realSales = Number(book.soldCount ?? bookAny.sales ?? 0);
+      if (realSales > 0) {
+        score += Math.min(60, realSales * 3); // Lượt bán thực tế boost lên tới +60 điểm
+        if (realSales >= 5 && topReason === 'Gợi ý nổi bật') {
+          topReason = `Sách bán chạy (${realSales} cuốn)`;
+        }
+      }
+
+      const realRating = Number(book.rating ?? bookAny.averageRating ?? 0);
+      if (realRating >= 4.5) {
+        score += 25; // Đánh giá cao
+      } else if (realRating >= 4.0) {
+        score += 15;
+      }
+
+      const views = Number(book.viewCount ?? bookAny.views ?? 0);
+      if (views > 0) {
+        score += Math.min(20, Math.floor(views / 5));
+      }
+
       if (bookAny.isOfficialStore || bookAny.store?.isVerified || bookAny.businessId) {
-        score += 20; // Gian hàng đối tác / đã xác thực
+        score += 15; // Gian hàng đối tác / đã xác thực
       }
       if (bookAny.hasEbook || bookAny.format === 'HYBRID' || bookAny.format === 'EBOOK') {
         score += 10; // Có hỗ trợ đọc Ebook DRM bản quyền
@@ -371,35 +424,69 @@ export const personalizationService = {
         book,
         score,
         reason: topReason,
+        publisherKey: normPub || 'unknown',
       });
     }
 
     // Sắp xếp theo điểm số giảm dần
     scoredBooks.sort((a, b) => b.score - a.score);
 
-    // 6. BẢO ĐẢM KHÔNG RENDER SẢN PHẨM TRÙNG LẶP & ĐA DẠNG HÓA
+    // 6. BẢO ĐẢM KHÔNG RENDER SẢN PHẨM TRÙNG LẶP & ĐA DẠNG HÓA NHÀ XUẤT BẢN (Anti-Monopoly Diversity Balancing)
     const finalResults: PersonalizedBookItem[] = [];
     const seenIds = new Set<string>();
     const seenTitles = new Set<string>();
+    const publisherCountMap: Record<string, number> = {};
+
+    // Pass 1: Giới hạn tối đa 4 cuốn trên mỗi NXB để đảm bảo cân bằng phong phú giữa các đơn vị xuất bản
+    const maxPerPublisher = Math.max(3, Math.ceil(limit / 5));
 
     for (const item of scoredBooks) {
       if (finalResults.length >= limit) break;
 
       const b = item.book;
       const cleanTitleKey = normalizeVietnameseText(b.title).slice(0, 25);
+      const pub = item.publisherKey;
+      const currentPubCount = publisherCountMap[pub] || 0;
 
       if (seenIds.has(b.id) || seenTitles.has(cleanTitleKey)) {
         continue;
       }
 
+      if (currentPubCount >= maxPerPublisher) {
+        continue;
+      }
+
       seenIds.add(b.id);
       seenTitles.add(cleanTitleKey);
+      publisherCountMap[pub] = currentPubCount + 1;
 
       finalResults.push({
         ...b,
         relevanceScore: item.score,
         recommendationReason: item.reason,
       });
+    }
+
+    // Pass 2: Nếu còn thiếu slot (do các NXB khác hết sách), lấp đầy bằng các sách điểm cao nhất còn lại
+    if (finalResults.length < limit) {
+      for (const item of scoredBooks) {
+        if (finalResults.length >= limit) break;
+        const b = item.book;
+        const cleanTitleKey = normalizeVietnameseText(b.title).slice(0, 25);
+
+        if (seenIds.has(b.id) || seenTitles.has(cleanTitleKey)) {
+          continue;
+        }
+
+        seenIds.add(b.id);
+        seenTitles.add(cleanTitleKey);
+
+        finalResults.push({
+          ...b,
+          relevanceScore: item.score,
+          recommendationReason: item.reason,
+        });
+      }
     }
 
     return finalResults;

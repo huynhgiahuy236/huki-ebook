@@ -46,6 +46,64 @@ const ADMIN_DEFAULT_BANNERS = [
   },
 ];
 
+/**
+ * Kiểm tra tiêu đề sách hợp lệ cho trang chủ (loại trừ các đầu sách test/rác)
+ */
+function isValidDisplayBook(book?: any): boolean {
+  if (!book || !book.title) return false;
+  const t = String(book.title).trim().toLowerCase();
+  if (t.startsWith('http://') || t.startsWith('https://')) return false;
+  if (t.startsWith('test') || t.startsWith('sadasd') || t.startsWith('ádasdasd') || t.startsWith('ádasd')) return false;
+  return true;
+}
+
+/**
+ * Đảm bảo cân bằng hiển thị giữa các nhà xuất bản trên từng dải sản phẩm
+ * Tránh tình trạng 1 NXB độc chiếm toàn bộ các ô hiển thị
+ */
+function balanceBooksByPublisher<T extends { publisher?: any; storeId?: string; title?: string }>(
+  books: T[],
+  maxPerPublisher: number = 2,
+  limit: number = 6
+): T[] {
+  if (!books || books.length === 0) return [];
+
+  const validBooks = books.filter(isValidDisplayBook);
+  const results: T[] = [];
+  const pubCounts: Record<string, number> = {};
+  const seenIds = new Set<string>();
+
+  // Pass 1: Lấy các sách tốt nhất nhưng không vượt quá maxPerPublisher trên mỗi NXB
+  for (const b of validBooks) {
+    if (results.length >= limit) break;
+    const rawPub = typeof b.publisher === 'string' ? b.publisher : b.publisher?.name;
+    const pubName = (rawPub || 'Gian Hàng HUKI').trim();
+    const count = pubCounts[pubName] || 0;
+    const bId = (b as any).id || (b as any).bookId;
+
+    if (bId && seenIds.has(bId)) continue;
+    if (count >= maxPerPublisher) continue;
+
+    results.push(b);
+    if (bId) seenIds.add(bId);
+    pubCounts[pubName] = count + 1;
+  }
+
+  // Pass 2: Nếu chưa đủ limit (do các NXB khác hết sách), lấy tiếp các sách điểm cao nhất còn lại
+  if (results.length < limit) {
+    for (const b of validBooks) {
+      if (results.length >= limit) break;
+      const bId = (b as any).id || (b as any).bookId;
+      if (bId && seenIds.has(bId)) continue;
+
+      results.push(b);
+      if (bId) seenIds.add(bId);
+    }
+  }
+
+  return results;
+}
+
 export default function HomePage() {
   const router = useRouter();
   const { addToCart } = useCart();
@@ -117,13 +175,13 @@ export default function HomePage() {
     let isSubscribed = true;
     const fetchBooksWithRetry = async (attempt = 1) => {
       try {
-        const res = await catalogApi.getPublicBooks({ limit: 100 });
+        const res = await catalogApi.getPublicBooks({ limit: 300 });
         if (!isSubscribed) return;
         if (res.success && Array.isArray(res.data) && res.data.length > 0) {
           setRealBooks(res.data);
           setIsLoadingBooks(false);
           try {
-            localStorage.setItem("huki_cached_public_books", JSON.stringify(res.data.slice(0, 60)));
+            localStorage.setItem("huki_cached_public_books", JSON.stringify(res.data.slice(0, 150)));
           } catch {}
           return;
         }
@@ -571,13 +629,25 @@ export default function HomePage() {
     }
 
     const discounted = realBooks.filter((b) => {
+      if (!isValidDisplayBook(b)) return false;
       const p = Number(b.price || 0);
       const op = Number(b.originalPrice || 0);
       return (b.discountPercent && b.discountPercent > 0) || (op > p);
     });
 
     if (discounted.length > 0) {
-      return discounted.slice(0, 6).map((b) => {
+      // Sắp xếp ưu tiên: Chiết khấu cao, lượt bán thực tế, và đánh giá cao
+      const sortedDiscounted = [...discounted].sort((a, b) => {
+        const pctA = a.discountPercent || Math.round(((Number(a.originalPrice || 0) - Number(a.price || 0)) / Number(a.originalPrice || 1)) * 100);
+        const pctB = b.discountPercent || Math.round(((Number(b.originalPrice || 0) - Number(b.price || 0)) / Number(b.originalPrice || 1)) * 100);
+        if (pctB !== pctA) return pctB - pctA;
+        const salesA = Number(a.soldCount ?? (a as any).sales ?? 0);
+        const salesB = Number(b.soldCount ?? (b as any).sales ?? 0);
+        return salesB - salesA;
+      });
+
+      const balancedDiscounted = balanceBooksByPublisher(sortedDiscounted, 2, 6);
+      return balancedDiscounted.map((b) => {
         const p = Number(b.price || 0);
         const op = Number(b.originalPrice || 0);
         const orig = op > p ? op : Math.round(p * 1.25);
@@ -623,13 +693,23 @@ export default function HomePage() {
   const allBestsellers = useMemo(() => {
     if (!realBooks || realBooks.length === 0) return [];
 
-    const sortedBySales = [...realBooks].sort((a, b) => {
+    const validBooks = realBooks.filter(isValidDisplayBook);
+
+    const sortedBySales = [...validBooks].sort((a, b) => {
       const salesA = Number(a.soldCount ?? (a as any).sales ?? 0);
       const salesB = Number(b.soldCount ?? (b as any).sales ?? 0);
-      return salesB - salesA;
+      if (salesB !== salesA) return salesB - salesA;
+
+      const ratingA = Number(a.rating ?? (a as any).averageRating ?? 0);
+      const ratingB = Number(b.rating ?? (b as any).averageRating ?? 0);
+      if (ratingB !== ratingA) return ratingB - ratingA;
+
+      const viewsA = Number(a.viewCount ?? (a as any).views ?? 0);
+      const viewsB = Number(b.viewCount ?? (b as any).views ?? 0);
+      return viewsB - viewsA;
     });
 
-    return sortedBySales.slice(0, 18).map((b) => {
+    return sortedBySales.map((b) => {
       const salePrice = b.price || 0;
       const origPrice =
         b.originalPrice && b.originalPrice > salePrice
@@ -666,9 +746,10 @@ export default function HomePage() {
   }, [realBooks]);
 
   const filteredBestsellers = useMemo(() => {
-    if (bestsellerTab === "paper") return allBestsellers.filter((b) => b.category === "paper");
-    if (bestsellerTab === "ebook") return allBestsellers.filter((b) => b.category === "ebook");
-    return allBestsellers;
+    let list = allBestsellers;
+    if (bestsellerTab === "paper") list = allBestsellers.filter((b) => b.category === "paper");
+    else if (bestsellerTab === "ebook") list = allBestsellers.filter((b) => b.category === "ebook");
+    return balanceBooksByPublisher(list, 2, 6);
   }, [bestsellerTab, allBestsellers]);
 
   // 6. Official Stores & Publishers (From Real Publishers API)
@@ -834,7 +915,22 @@ export default function HomePage() {
         break;
     }
 
-    return books.slice(0, 12);
+    const validBooks = books.filter(isValidDisplayBook);
+
+    // Sắp xếp ưu tiên: Lượt bán thực tế, điểm đánh giá và lượt xem
+    const sorted = [...validBooks].sort((a, b) => {
+      const salesA = Number(a.soldCount ?? (a as any).sales ?? 0);
+      const salesB = Number(b.soldCount ?? (b as any).sales ?? 0);
+      if (salesB !== salesA) return salesB - salesA;
+      const ratingA = Number(a.rating ?? (a as any).averageRating ?? 0);
+      const ratingB = Number(b.rating ?? (b as any).averageRating ?? 0);
+      if (ratingB !== ratingA) return ratingB - ratingA;
+      const viewsA = Number(a.viewCount ?? (a as any).views ?? 0);
+      const viewsB = Number(b.viewCount ?? (b as any).views ?? 0);
+      return viewsB - viewsA;
+    });
+
+    return balanceBooksByPublisher(sorted, 3, 12);
   }, [realBooks, selectedCategoryTab]);
 
   const currentCategoryTabInfo = useMemo(() => {

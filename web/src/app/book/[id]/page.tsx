@@ -231,7 +231,9 @@ export default function BookDetailPage() {
               bookData.id,
               bookData.category?.id || bookData.categoryId,
               bookData.category?.name || bookData.categoryName,
-              bookData.author?.name || bookData.authorName
+              bookData.author?.name || bookData.authorName,
+              bookData.publisher?.name || (bookData as any).publisherName,
+              bookData.title
             );
           } catch { }
           setIsLoadingBook(false);
@@ -259,7 +261,9 @@ export default function BookDetailPage() {
                 bookData.id,
                 bookData.category?.id || bookData.categoryId,
                 bookData.category?.name || bookData.categoryName,
-                bookData.author?.name || bookData.authorName
+                bookData.author?.name || bookData.authorName,
+                bookData.publisher?.name || (bookData as any).publisherName,
+                bookData.title
               );
             } catch { }
           }

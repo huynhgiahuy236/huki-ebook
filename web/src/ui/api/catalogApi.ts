@@ -60,6 +60,7 @@ export interface BookData {
   businessId?: string;
   category?: CategoryData | null;
   createdAt?: string;
+  viewCount?: number;
   soldCount?: number;
   sales?: number;
   rating?: number;

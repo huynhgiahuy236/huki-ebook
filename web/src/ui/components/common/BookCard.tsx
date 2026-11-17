@@ -240,7 +240,9 @@ export default function BookCard({
         book.id,
         (book as any).categoryId || (book as any).category?.id,
         (book as any).categoryName || (book as any).category?.name || (typeof book.format === 'string' ? book.format : undefined),
-        authorName
+        authorName,
+        publisher,
+        book.title
       );
     } catch {}
     router.push(`/book/${book.slug || book.id}`);
