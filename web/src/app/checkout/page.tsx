@@ -133,19 +133,38 @@ export default function CheckoutPage() {
   }, [isDirectMode, directItem, cartItems]);
 
   const ebookItems = checkedItems.filter(
-    (i: any) => i.type === "ebook" || i.format === "DIGITAL" || (!i.format && i.type !== "physical") || i.format === "EBOOK"
+    (i: any) =>
+      i.type === "ebook" ||
+      i.format === "DIGITAL" ||
+      i.format === "EBOOK" ||
+      i.format === "BOTH" ||
+      i.type === "both" ||
+      i.type === "combo" ||
+      Boolean(i.hasEbook) ||
+      (!i.format && i.type !== "physical") ||
+      i.title?.toLowerCase().includes("ebook") ||
+      i.title?.toLowerCase().includes("combo")
   );
   const physicalItems = checkedItems.filter(
-    (i: any) => i.type === "physical" || i.format === "PHYSICAL" || (typeof i.format === "string" && i.format.toLowerCase().includes("giấy"))
+    (i: any) =>
+      i.type === "physical" ||
+      i.format === "PHYSICAL" ||
+      i.format === "BOTH" ||
+      i.type === "both" ||
+      i.type === "combo" ||
+      Boolean(i.hasPaper) ||
+      (typeof i.format === "string" && i.format.toLowerCase().includes("giấy"))
   );
+  const hasDigitalOrCombo = ebookItems.length > 0;
+  const isPurePhysical = checkedItems.length > 0 && !hasDigitalOrCombo;
   const effectiveHasPhysical = physicalItems.length > 0;
 
-  // Auto-switch payment method to ONLINE_PAYMENT if pure digital/ebook order
+  // Auto-switch payment method to ONLINE_PAYMENT if order cannot use COD (e.g. contains Ebook or Combo)
   useEffect(() => {
-    if (!effectiveHasPhysical && paymentMethod === "COD") {
+    if (!isPurePhysical && paymentMethod === "COD") {
       setPaymentMethod("ONLINE_PAYMENT");
     }
-  }, [effectiveHasPhysical, paymentMethod]);
+  }, [isPurePhysical, paymentMethod]);
 
   const rawSubtotal = useMemo(() => {
     return checkedItems.reduce(
@@ -1928,8 +1947,8 @@ export default function CheckoutPage() {
                   />
                 </label>
 
-                {/* COD Option: Only enabled if order contains physical items */}
-                {effectiveHasPhysical ? (
+                {/* COD Option: Only enabled if order contains 100% pure physical items */}
+                {isPurePhysical ? (
                   <label
                     onClick={() => setPaymentMethod("COD")}
                     className={`p-2.5 sm:p-3 rounded-lg border cursor-pointer flex items-center justify-between transition-all ${
@@ -1954,7 +1973,7 @@ export default function CheckoutPage() {
                           </span>
                         </div>
                         <span className="text-[10.5px] text-[var(--theme-text-muted,#49454f)] block">
-                          Thanh toán tiền mặt cho bưu tá khi nhận sách giấy
+                          Thanh toán tiền mặt cho bưu tá khi nhận sách giấy tận nơi
                         </span>
                       </div>
                     </div>
@@ -1967,18 +1986,19 @@ export default function CheckoutPage() {
                     />
                   </label>
                 ) : (
-                  <div className="p-2.5 rounded-lg border border-dashed border-[var(--theme-border,#e8e5df)] bg-[var(--theme-background,#F2FBF9)]/30 opacity-70 flex items-center justify-between text-xs text-[var(--theme-text-muted,#49454f)]">
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[18px] text-amber-600">
-                        info
-                      </span>
-                      <span>
-                        Đơn hàng <strong>Ebook số DRM</strong>: Không áp dụng COD. Sách được mở đọc ngay lập tức sau khi quét QR VietQR.
+                  <div className="p-3 rounded-xl border border-dashed border-amber-300 bg-amber-50/60 dark:bg-amber-950/20 text-xs text-[var(--theme-text-muted,#49454f)] flex items-start gap-2.5">
+                    <span className="material-symbols-outlined text-[18px] text-amber-600 shrink-0 mt-0.5">
+                      lock
+                    </span>
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-xs text-gray-700 dark:text-gray-300">Thanh toán khi nhận hàng (COD)</span>
+                        <span className="bg-amber-200 text-amber-900 text-[9px] font-bold px-1.5 py-0.2 rounded">Khóa</span>
+                      </div>
+                      <span className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                        Đơn hàng có chứa <strong>Ebook / Combo sách số</strong>: Không áp dụng hình thức COD. Vui lòng thanh toán trực tuyến qua VietQR PayOS để được mở khóa đọc sách ngay lập tức.
                       </span>
                     </div>
-                    <span className="text-[10px] font-bold bg-neutral-200 dark:bg-neutral-800 px-2 py-0.5 rounded shrink-0">
-                      Không COD
-                    </span>
                   </div>
                 )}
               </div>

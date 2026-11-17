@@ -100,6 +100,10 @@ export class NotificationGateway implements OnGatewayConnection {
   notification(recipientId: string, data: Record<string, unknown>) {
     this.server?.to(this.room(recipientId)).emit("notification", data);
     this.server?.to(`store:${recipientId}`).emit("notification", data);
+    this.server?.to(`shipper:${recipientId}`).emit("notification", data);
+    if (data.recipientType === "DELIVERY" || recipientId === "DELIVERY") {
+      this.server?.to("shipper_channel").emit("notification", data);
+    }
   }
 
   read(recipientId: string, notificationId: string) {

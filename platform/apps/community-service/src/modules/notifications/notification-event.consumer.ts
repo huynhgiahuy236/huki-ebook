@@ -146,6 +146,14 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
           "Người bán đã xác nhận",
           `Đơn hàng ${code} đã được người bán xác nhận.`,
         );
+        targets.push({
+          recipientId: "DELIVERY",
+          recipientType: "DELIVERY",
+          type: "SHIPPING_UPDATE",
+          title: "Đơn hàng mới sẵn sàng giao",
+          message: `Shop vừa đóng gói xong đơn hàng ${code}. Vào nhận đơn ngay!`,
+          actionUrl: `/shipper/orders`,
+        });
         break;
       case ORDER_EVENTS.SELLER_SHIPPED:
         buyer(

@@ -219,10 +219,7 @@ export class WalletService {
           // Physical book: requires delivery AND (buyer confirmation OR admin escrow release OR expired return window)
           const isPhysicalDelivered = so.status === 'DELIVERED' || so.status === 'COMPLETED' || !!so.completedAt;
           const isCodOrder = order?.paymentMethod === 'COD';
-          const isCodRemitted = Boolean(
-            order?.paymentStatus === 'SUCCEEDED' ||
-            histories.some((h) => h.toStatus === 'COD_REMITTANCE')
-          );
+          const isCodRemitted = histories.some((h) => h.orderId === order?.id && h.toStatus === 'COD_REMITTANCE');
 
           if (!isPhysicalDelivered) {
             totalPendingNet += net;
@@ -420,7 +417,10 @@ export class WalletService {
         const isBuyerConfirmed = histories.some(
           (h) => (h.toStatus === 'BUYER_CONFIRMED' || h.toStatus === 'ORDER_CONFIRMED' || (h.toStatus === 'COMPLETED' && h.actorType === 'USER')) && (!h.sellerOrderId || h.sellerOrderId === so.id),
         );
-        const isReleased = !so.requiresShipping || (isPhysicalDelivered && (isBuyerConfirmed || isReturnWindowPassed));
+        const isCodOrder = order?.paymentMethod === 'COD';
+        const isCodRemitted = histories.some((h) => h.orderId === order?.id && h.toStatus === 'COD_REMITTANCE');
+        const canReleaseMoney = !isCodOrder || isCodRemitted;
+        const isReleased = !so.requiresShipping || (isPhysicalDelivered && canReleaseMoney && (isBuyerConfirmed || isReturnWindowPassed));
 
         for (const item of so.items) {
           if (!loggedItemIds.has(item.id)) {

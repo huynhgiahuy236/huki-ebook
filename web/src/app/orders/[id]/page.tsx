@@ -642,17 +642,17 @@ export default function OrderDetailPage() {
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex items-center gap-3 self-start md:self-center print:hidden">
+            {/* Action Buttons - Clean Visual Hierarchy & Zero Text Wrap */}
+            <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-center print:hidden mt-3 sm:mt-0">
               {(order.status === 'PENDING_PAYMENT' || order.paymentStatus === 'PENDING') && order.paymentMethod === 'ONLINE_PAYMENT' && (
                 <button
                   type="button"
                   onClick={() => {
                     router.push(`/checkout/payment/${order.id}`);
                   }}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer animate-pulse"
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 animate-pulse"
                 >
-                  <span className="material-symbols-outlined text-base">qr_code_2</span>
+                  <span className="material-symbols-outlined text-[15px]">qr_code_2</span>
                   <span>Thanh Toán VietQR</span>
                 </button>
               )}
@@ -660,49 +660,42 @@ export default function OrderDetailPage() {
               <button
                 type="button"
                 onClick={() => setShowDispatchModal(true)}
-                className="px-4 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                className="px-3 py-1.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-gray-50 border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
+                title="Gửi tin nhắn dặn dò đơn hàng tới người bán"
               >
-                <span className="material-symbols-outlined text-base text-amber-600">notifications_active</span>
-                <span>Dặn dò / Nhắn Shop</span>
+                <span className="material-symbols-outlined text-[15px] text-gray-500">chat</span>
+                <span>Nhắn Shop</span>
               </button>
 
               <button
                 type="button"
                 onClick={handlePrint}
-                className="px-4 py-2 rounded-xl bg-theme-surface hover:bg-theme-bg border border-theme-border text-on-surface text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                className="px-3 py-1.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-gray-50 border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
               >
-                <span className="material-symbols-outlined text-base">print</span>
+                <span className="material-symbols-outlined text-[15px] text-gray-500">print</span>
                 <span>In Biên Lai</span>
               </button>
 
               {(order.status === 'COMPLETED' || order.status === 'DELIVERED') && (
                 <Link
                   href={`/orders/${order.id}/review`}
-                  className="px-4 py-2 rounded-xl bg-[#006953] text-white text-xs font-bold hover:bg-[#00523c] transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl bg-[#00875A] text-white text-xs font-bold hover:bg-[#00704A] transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <span className="material-symbols-outlined text-base">rate_review</span>
+                  <span className="material-symbols-outlined text-[15px]">rate_review</span>
                   <span>Đánh Giá Sản Phẩm</span>
                 </Link>
               )}
 
-              {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && order.status !== 'SHIPPED' && (
+              {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && order.status !== 'SHIPPED' && order.status !== 'DELIVERED' && (
                 <button
                   type="button"
                   onClick={() => setCancelOrderModal({ open: true, reason: '' })}
-                  className="px-4 py-2 rounded-xl bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-300 border border-red-200 dark:border-red-900 text-xs font-bold hover:bg-red-100 transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-900 text-xs font-bold hover:bg-rose-100 transition-all inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <span className="material-symbols-outlined text-base">cancel</span>
-                  <span>Hủy Toàn Bộ Đơn</span>
+                  <span className="material-symbols-outlined text-[15px]">cancel</span>
+                  <span>Hủy Đơn</span>
                 </button>
               )}
-
-              <Link
-                href="/books"
-                className="px-4 py-2 rounded-xl bg-theme-primary text-white text-xs font-bold hover:bg-theme-primary-hover transition-all shadow-xs inline-flex items-center gap-1.5"
-              >
-                <span className="material-symbols-outlined text-base">shopping_bag</span>
-                <span>Mua Thêm Sách</span>
-              </Link>
             </div>
           </div>
 

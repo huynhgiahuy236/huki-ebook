@@ -619,10 +619,22 @@ export class CheckoutService {
         }
 
         const requiresShipping = finalSnapshot.groups.some((g) => g.requiresShipping);
-        if (dto.paymentMethod === PaymentMethod.COD && !requiresShipping) {
+        const hasDigitalOrCombo = finalSnapshot.groups.some((g) =>
+          g.items.some(
+            (item) =>
+              item.format === 'DIGITAL' ||
+              (item.format as string) === 'BOTH' ||
+              (item as any).format === 'EBOOK' ||
+              (item as any).format === 'COMBO' ||
+              item.title?.toLowerCase().includes('ebook') ||
+              item.title?.toLowerCase().includes('combo')
+          )
+        );
+
+        if (dto.paymentMethod === PaymentMethod.COD && (!requiresShipping || hasDigitalOrCombo)) {
           throwBadRequest(
             ErrorCode.PAYMENT_PROVIDER_INVALID,
-            'Đơn hàng thuần sách điện tử (Ebook DRM) không hỗ trợ hình thức thanh toán khi nhận hàng (COD). Vui lòng chọn thanh toán trực tuyến PayOS (VietQR).',
+            'Đơn hàng có chứa Ebook hoặc Combo sách số không hỗ trợ hình thức thanh toán khi nhận hàng (COD). Vui lòng chọn thanh toán trực tuyến qua PayOS (VietQR) để được mở khóa đọc sách tức thì.',
           );
         }
 

@@ -68,6 +68,8 @@ export class NotificationsService {
       if (type === "DELIVERY" || type === "SHIPPER") {
         conditions.push({ recipientType: "DELIVERY", recipientId: actor.sub });
         conditions.push({ recipientType: "DELIVERY", recipientId: "*" });
+        conditions.push({ recipientType: "DELIVERY", recipientId: "DELIVERY" });
+        conditions.push({ recipientType: "DELIVERY" });
         return conditions;
       }
       if (type === "ADMIN") {

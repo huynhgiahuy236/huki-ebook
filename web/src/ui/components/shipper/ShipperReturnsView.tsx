@@ -248,8 +248,8 @@ export default function ShipperReturnsView() {
 
         return (
           <div className="text-xs space-y-1 py-1">
-            <div className="font-bold text-slate-800 break-words line-clamp-2 leading-snug" title={isUuid(row.shopName) ? "Kho Hàng Đối Tác HuKi" : row.shopName}>
-              {row.shopName}
+            <div className="font-bold text-slate-800 break-words line-clamp-2 leading-snug">
+              {isUuid(row.shopName) ? 'Kho Sách HuKi (Đối Tác)' : (row.shopName || 'Kho Sách HuKi')}
             </div>
             <div className="text-slate-500 text-[11px] break-words line-clamp-2 leading-snug" title={row.shopAddress}>
               {row.shopAddress}
@@ -472,8 +472,116 @@ export default function ShipperReturnsView() {
         itemName="kiện hàng hoàn"
       />
 
-      {/* 5. Grouped Data Table */}
-      <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs overflow-hidden">
+      {/* 5. Mobile Parcel Cards (< md) */}
+      <div className="block md:hidden space-y-3">
+        {pagedOrders.length === 0 ? (
+          <div className="p-8 text-center bg-white dark:bg-neutral-900 rounded-2xl border border-slate-200 text-slate-400 text-xs">
+            Không có kiện hàng hoàn nào trong danh sách.
+          </div>
+        ) : (
+          pagedOrders.map((row) => {
+            const isStep1 = row.status === 'PICKING_UP';
+            const shopDisplayName = isUuid(row.shopName) ? 'Kho Sách HuKi (Đối Tác)' : (row.shopName || 'Kho Sách HuKi');
+            const fullAddr = `${row.deliveryAddress}, ${row.deliveryWard || ''}, ${row.deliveryDistrict || ''}, ${row.deliveryProvince || ''}`;
+            const customerMapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(fullAddr)}`;
+            const shopMapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(row.shopAddress)}`;
+
+            return (
+              <div key={row.id} className="bg-white dark:bg-neutral-900 rounded-2xl p-4 border border-slate-200 dark:border-neutral-800 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-neutral-800">
+                  <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-[#00875A]">
+                    <span>#{row.returnTrackingCode || row.code}</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    isStep1
+                      ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                      : 'bg-blue-50 text-blue-700 border border-blue-200'
+                  }`}>
+                    {isStep1 ? 'B1: Thu hồi từ khách' : 'B2: Trả về kho Shop'}
+                  </span>
+                </div>
+
+                <div className="text-xs space-y-1">
+                  <div className="font-bold text-slate-800 dark:text-slate-200">
+                    {row.items?.[0]?.title || '1x Sách hoàn trả'}
+                  </div>
+                  {row.returnReason && (
+                    <div className="text-rose-600 text-[11px] bg-rose-50 p-1.5 rounded">
+                      Lý do: {row.returnReason}
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-neutral-800/60 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 text-[10.5px]">Điểm lấy (Khách):</span>
+                    <div className="flex items-center gap-2">
+                      <a href={`tel:${row.customerPhone}`} className="text-[#00875A] font-bold text-[11px] flex items-center gap-0.5">
+                        <span className="material-symbols-outlined text-[13px]">call</span>
+                        <span>Gọi</span>
+                      </a>
+                      <a href={customerMapUrl} target="_blank" rel="noopener noreferrer" className="text-slate-500 font-bold text-[11px] flex items-center gap-0.5">
+                        <span className="material-symbols-outlined text-[13px]">navigation</span>
+                        <span>Bản đồ</span>
+                      </a>
+                    </div>
+                  </div>
+                  <div className="font-semibold text-slate-800 dark:text-slate-200">{row.customerName} - {row.customerPhone}</div>
+                  <div className="text-slate-500 text-[11px]">{fullAddr}</div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-neutral-800/60 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 text-[10.5px]">Điểm trả (Kho Shop):</span>
+                    <div className="flex items-center gap-2">
+                      <a href={`tel:${row.shopPhone}`} className="text-[#00875A] font-bold text-[11px] flex items-center gap-0.5">
+                        <span className="material-symbols-outlined text-[13px]">call</span>
+                        <span>Gọi</span>
+                      </a>
+                      <a href={shopMapUrl} target="_blank" rel="noopener noreferrer" className="text-slate-500 font-bold text-[11px] flex items-center gap-0.5">
+                        <span className="material-symbols-outlined text-[13px]">navigation</span>
+                        <span>Kho</span>
+                      </a>
+                    </div>
+                  </div>
+                  <div className="font-semibold text-slate-800 dark:text-slate-200">{shopDisplayName}</div>
+                  <div className="text-slate-500 text-[11px]">{row.shopAddress}</div>
+                </div>
+
+                <div className="pt-1 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Tiền công thu hồi</span>
+                    <strong className="text-[#00875A] text-sm font-bold">+{row.shippingFee?.toLocaleString('vi-VN')}đ</strong>
+                  </div>
+
+                  {isStep1 ? (
+                    <button
+                      type="button"
+                      onClick={() => confirmPickup(row.id)}
+                      className="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">done</span>
+                      <span>Đã Lấy Hàng</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenHandoverModal(row)}
+                      className="px-3.5 py-1.5 bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">task_alt</span>
+                      <span>Bàn Giao Kho</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* 6. Grouped Data Table (Desktop view) */}
+      <div className="hidden md:block bg-white dark:bg-neutral-900 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs overflow-hidden">
         <GroupedDataTable
           columns={columns}
           data={pagedOrders}
@@ -484,133 +592,68 @@ export default function ShipperReturnsView() {
             const fullAddr = `${row.deliveryAddress}, ${row.deliveryWard || ''}, ${row.deliveryDistrict || ''}, ${row.deliveryProvince || ''}`;
             const customerMapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(fullAddr)}`;
             const shopMapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(row.shopAddress)}`;
+            const shopDisplayName = isUuid(row.shopName) ? 'Kho Sách HuKi (Đối Tác)' : (row.shopName || 'Kho Sách HuKi');
 
             return (
-              <div className="p-4 bg-slate-50 dark:bg-neutral-800/40 rounded-xl space-y-4 text-xs">
-                {/* 3-CARD MASTER-DETAIL CONTAINER */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5">
-                  {/* Card 1: Tuyến Đường Thu Hồi & Trả Hàng */}
-                  <div className="p-3.5 bg-white dark:bg-neutral-900 rounded-xl border border-slate-200 dark:border-neutral-700 space-y-2.5">
-                    <div className="font-bold text-slate-800 dark:text-white uppercase tracking-wider text-[11px] flex items-center gap-1.5 pb-1.5 border-b border-slate-100 dark:border-neutral-800">
-                      <span className="material-symbols-outlined text-[15px] text-purple-700">swap_calls</span>
-                      <span>Hành Trình Thu Hồi &amp; Bàn Giao</span>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div>
-                        <span className="text-[10px] font-bold text-purple-700 uppercase block">1. Điểm lấy sách (Nhà khách):</span>
-                        <div className="font-bold text-slate-800">{row.customerName}</div>
-                        <div className="text-slate-500 text-[11px] break-words line-clamp-2 leading-snug">{fullAddr}</div>
-                        <div className="flex items-center gap-3 pt-1">
-                          <a href={`tel:${row.customerPhone}`} className="text-[#00875A] font-semibold text-[11px] hover:underline flex items-center gap-0.5">
-                            <span className="material-symbols-outlined text-[13px]">call</span>
-                            <span>{row.customerPhone}</span>
-                          </a>
-                          <a href={customerMapUrl} target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-slate-800 font-semibold text-[11px] flex items-center gap-0.5">
-                            <span className="material-symbols-outlined text-[13px]">navigation</span>
-                            <span>Chỉ đường tới Khách</span>
-                          </a>
-                        </div>
-                      </div>
-
-                      <div className="pt-2 border-t border-slate-100 dark:border-neutral-800">
-                        <span className="text-[10px] font-bold text-[#00875A] uppercase block">2. Điểm trả sách (Kho Shop):</span>
-                        <div className="font-bold text-slate-800">{row.shopName}</div>
-                        <div className="text-slate-500 text-[11px] break-words line-clamp-2 leading-snug">{row.shopAddress}</div>
-                        <div className="flex items-center gap-3 pt-1">
-                          <a href={`tel:${row.shopPhone}`} className="text-[#00875A] font-semibold text-[11px] hover:underline flex items-center gap-0.5">
-                            <span className="material-symbols-outlined text-[13px]">call</span>
-                            <span>{row.shopPhone}</span>
-                          </a>
-                          <a href={shopMapUrl} target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-slate-800 font-semibold text-[11px] flex items-center gap-0.5">
-                            <span className="material-symbols-outlined text-[13px]">navigation</span>
-                            <span>Chỉ đường tới Kho</span>
-                          </a>
-                        </div>
-                      </div>
-                    </div>
+              <div className="p-3.5 bg-slate-50/80 dark:bg-neutral-800/40 rounded-xl space-y-2.5 text-xs border border-slate-200/60 dark:border-neutral-700/60">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pb-2 border-b border-slate-200/60 dark:border-neutral-700/60">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-slate-800 dark:text-white flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[15px] text-[#00875A]">route</span>
+                      <span>Lộ trình:</span>
+                    </span>
+                    <span className="text-slate-600">Khách: <strong>{row.customerName}</strong> ({row.customerPhone})</span>
+                    <span className="text-slate-400">➔</span>
+                    <span className="text-slate-600">Kho: <strong>{shopDisplayName}</strong></span>
                   </div>
 
-                  {/* Card 2: Kiện Sách Thu Hồi */}
-                  <div className="p-3.5 bg-white dark:bg-neutral-900 rounded-xl border border-slate-200 dark:border-neutral-700 space-y-2.5">
-                    <div className="font-bold text-slate-800 dark:text-white uppercase tracking-wider text-[11px] flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-neutral-800">
-                      <div className="flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-[15px] text-purple-700">inventory_2</span>
-                        <span>Kiện Hàng Hoàn ({row.items?.length || 0} sản phẩm)</span>
-                      </div>
-                      <span className="text-[10px] text-slate-400 font-semibold">{(row.totalWeight || 500) / 1000} kg</span>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`tel:${row.customerPhone}`}
+                      className="px-2 py-1 rounded bg-white dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 text-[#00875A] font-semibold text-[11px] hover:bg-slate-50 flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[13px]">call</span>
+                      <span>Gọi Khách</span>
+                    </a>
+                    <a
+                      href={customerMapUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-1 rounded bg-white dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 text-slate-600 font-semibold text-[11px] hover:bg-slate-50 flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[13px]">navigation</span>
+                      <span>Chỉ đường</span>
+                    </a>
+                    <a
+                      href={shopMapUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-1 rounded bg-white dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 text-slate-600 font-semibold text-[11px] hover:bg-slate-50 flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[13px]">warehouse</span>
+                      <span>Kho Shop</span>
+                    </a>
+                  </div>
+                </div>
 
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11.5px]">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-purple-800 dark:text-purple-300">Sách hoàn:</span>
+                    <span className="text-slate-700 dark:text-slate-200 font-medium">
+                      {row.items?.map((it: any) => `${it.quantity}x ${it.title}`).join(', ') || '1x Sách thu hồi'}
+                    </span>
                     {row.returnReason && (
-                      <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px]">
-                        <strong>Lý do hoàn:</strong> {row.returnReason}
-                      </div>
+                      <span className="text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-200 text-[10.5px]">
+                        Lý do: {row.returnReason}
+                      </span>
                     )}
-
-                    <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                      {row.items?.map((it: any, idx: number) => (
-                        <div key={idx} className="p-2 rounded-lg bg-slate-50 dark:bg-neutral-800/60 border border-slate-100 dark:border-neutral-700 flex items-center gap-2">
-                          <span className="w-6 h-6 rounded bg-purple-100 text-purple-900 text-[10px] font-bold flex items-center justify-center shrink-0">
-                            {it.quantity}x
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="font-bold text-slate-900 dark:text-white break-words line-clamp-2 leading-snug">
-                              {it.title}
-                            </div>
-                            <div className="text-[10px] text-slate-400">Định dạng: {it.format || 'Sách giấy'}</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
                   </div>
 
-                  {/* Card 3: Tiền Công & Tác Vụ */}
-                  <div className="p-3.5 bg-white dark:bg-neutral-900 rounded-xl border border-slate-200 dark:border-neutral-700 flex flex-col justify-between space-y-2.5">
-                    <div>
-                      <div className="font-bold text-slate-800 dark:text-white uppercase tracking-wider text-[11px] flex items-center gap-1.5 pb-1.5 border-b border-slate-100 dark:border-neutral-800">
-                        <span className="material-symbols-outlined text-[15px] text-[#00875A]">payments</span>
-                        <span>Chi Phí Vận Chuyển Thu Hồi</span>
-                      </div>
-
-                      <div className="space-y-2 pt-2 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-500">Tiền công thu hồi:</span>
-                          <strong className="text-[#00875A] font-bold text-sm">
-                            +{row.shippingFee?.toLocaleString('vi-VN')}đ
-                          </strong>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-500">Thu tiền khách:</span>
-                          <span className="font-semibold text-slate-600">0đ (Không thu COD)</span>
-                        </div>
-                        <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-950 text-[11px] leading-relaxed">
-                          Sau khi bàn giao sách hoàn về kho Shop thành công, hệ thống tự động cộng +{row.shippingFee?.toLocaleString('vi-VN')}đ vào ví thu nhập của bạn.
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Action buttons inside drawer */}
-                    <div className="pt-2 flex items-center gap-2">
-                      {isStep1 ? (
-                        <button
-                          type="button"
-                          onClick={() => confirmPickup(row.id)}
-                          className="w-full py-2 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-lg shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <span className="material-symbols-outlined text-[15px]">done</span>
-                          <span>Đã Nhận Sách Hoàn Từ Khách</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenHandoverModal(row)}
-                          className="w-full py-2 bg-[#003B2B] hover:bg-emerald-950 text-white text-xs font-bold rounded-lg shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <span className="material-symbols-outlined text-[15px]">task_alt</span>
-                          <span>Bàn Giao Về Kho Của Shop</span>
-                        </button>
-                      )}
-                    </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-slate-500">Tiền công thu hồi:</span>
+                    <strong className="text-[#00875A] font-bold text-xs">
+                      +{row.shippingFee?.toLocaleString('vi-VN')}đ (Cộng ví khi xong)
+                    </strong>
                   </div>
                 </div>
               </div>
