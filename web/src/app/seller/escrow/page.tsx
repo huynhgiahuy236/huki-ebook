@@ -3,7 +3,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/ui/context/AuthContext';
-import { walletApi, type SellerEscrowItem } from '@/ui/api/walletApi';
+import {
+  walletApi,
+  payoutApi,
+  type SellerEscrowItem,
+  type WalletData,
+  type PayoutRequestItem,
+} from '@/ui/api/walletApi';
+import { businessApi } from '@/ui/api/businessApi';
 import EscrowTableBadge from '@/ui/components/seller/EscrowTableBadge';
 import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
@@ -60,7 +67,19 @@ function formatVietnamDateTime(dateStr?: string | null): string {
 export default function SellerEscrowPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
-  const storeId = (user as any)?.business?.id || (user as any)?.storeId || '501ece69-23b9-4126-9b5e-e3dc206d0c20';
+  const [businessDetail, setBusinessDetail] = useState<any>(null);
+  const [wallet, setWallet] = useState<WalletData | null>(null);
+  const [payouts, setPayouts] = useState<PayoutRequestItem[]>([]);
+
+  const activeBusinessId = (user as any)?.businessId || (user as any)?.business?.id;
+  const storeId =
+    businessDetail?.stores?.[0]?.id ||
+    (user?.business as any)?.stores?.[0]?.id ||
+    (user as any)?.storeId ||
+    user?.business?.id ||
+    activeBusinessId ||
+    '501ece69-23b9-4126-9b5e-e3dc206d0c20';
+
   const [escrowItems, setEscrowItems] = useState<SellerEscrowItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -91,16 +110,39 @@ export default function SellerEscrowPage() {
   const fetchEscrowItems = useCallback(async (isSilent?: boolean) => {
     if (!isSilent) setIsLoading(true);
     try {
-      const res = await walletApi.getSellerEscrowItems();
-      if (res.success && Array.isArray(res.data)) {
-        setEscrowItems(res.data);
+      const escrowPromise = walletApi.getSellerEscrowItems().catch(() => ({ success: false, data: [] }));
+      const bizPromise = !businessDetail ? businessApi.getMyBusiness().catch(() => null) : Promise.resolve(null);
+
+      const [escrowRes, bizRes] = await Promise.all([escrowPromise, bizPromise]);
+      if (escrowRes?.success && Array.isArray(escrowRes.data)) {
+        setEscrowItems(escrowRes.data);
+      }
+
+      let currentStoreId = storeId;
+      if (bizRes?.success && bizRes.data) {
+        const b = (bizRes.data as any)?.data || bizRes.data;
+        setBusinessDetail(b);
+        currentStoreId = b?.stores?.[0]?.id || currentStoreId;
+      }
+
+      if (currentStoreId) {
+        const [walletRes, payoutsRes] = await Promise.all([
+          walletApi.getStoreWallet(currentStoreId).catch(() => null),
+          payoutApi.getStorePayoutRequests(currentStoreId, { limit: 100 }).catch(() => null),
+        ]);
+        if (walletRes?.success && walletRes.data) {
+          setWallet(walletRes.data);
+        }
+        if (payoutsRes?.success && payoutsRes.data?.items) {
+          setPayouts(payoutsRes.data.items);
+        }
       }
     } catch (err) {
-      console.warn('Lỗi tải danh sách tiền đang treo:', err);
+      console.warn('Lỗi tải dữ liệu tài chính:', err);
     } finally {
       if (!isSilent) setIsLoading(false);
     }
-  }, []);
+  }, [businessDetail, storeId]);
 
   useEffect(() => {
     fetchEscrowItems();
@@ -126,9 +168,12 @@ export default function SellerEscrowPage() {
       const payload = msg.payload as any;
       const isCurrentStore = !payload?.storeId || payload.storeId === storeId;
 
-      if ((msg.type === 'ORDER_CREATED' || msg.type === 'ORDER_PAYMENT_SUCCEEDED') && isCurrentStore) {
+      if (msg.type === 'ORDER_PAYMENT_SUCCEEDED' && isCurrentStore) {
         fetchEscrowItems(true);
-        showToast?.('Khách vừa thanh toán đơn hàng mới! Tiền đã nổ vào mục Tiền Ký Quỹ Đang Giữ.', 'success');
+        showToast?.('Khách đã thanh toán đơn hàng mới! Tiền đã nổ vào mục Tiền Ký Quỹ Đang Giữ.', 'success');
+      } else if (msg.type === 'ORDER_CREATED' && isCurrentStore && payload?.paymentMethod === 'COD') {
+        fetchEscrowItems(true);
+        showToast?.('Đơn hàng COD mới đã được tạo và chờ giao hàng!', 'info');
       } else if ((msg.type === 'ESCROW_RELEASED' || msg.type === 'WALLET_BALANCE_UPDATED') && isCurrentStore) {
         fetchEscrowItems(true);
         showToast?.('Tiền hàng đã hoàn tất đổi trả và giải ngân thành công!', 'info');
@@ -166,20 +211,27 @@ export default function SellerEscrowPage() {
 
   // Comprehensive stats (Excluding cancelled orders) via Centralized Engine
   const stats = useMemo(() => {
-    return calculateSellerFinancials({ escrowItems });
-  }, [escrowItems]);
+    return calculateSellerFinancials({
+      escrowItems,
+      wallet,
+      payouts,
+      platformFeeRate: 0.05,
+    });
+  }, [escrowItems, wallet, payouts]);
 
   // Filtering Logic
   const filteredItems = useMemo(() => {
     return escrowItems.filter((it) => {
-      // Exclude CANCELLED orders
-      if (it.orderStatus === 'CANCELLED' || (it as any).status === 'CANCELLED') {
-        return false;
-      }
+      const isCancelled =
+        it.orderStatus === 'CANCELLED' ||
+        (it as any).status === 'CANCELLED' ||
+        it.escrowStatus === ('CANCELLED' as any);
 
       // 1. Status Filter
-      if (activeStatusTab !== 'ALL' && it.escrowStatus !== activeStatusTab) {
-        return false;
+      if (activeStatusTab === 'CANCELLED') {
+        if (!isCancelled) return false;
+      } else if (activeStatusTab !== 'ALL') {
+        if (isCancelled || it.escrowStatus !== activeStatusTab) return false;
       }
 
       // 2. Format Filter
@@ -662,27 +714,35 @@ export default function SellerEscrowPage() {
           </div>
         </div>
 
-        {/* Card 4: Đã Giải Ngân Thành Công */}
+        {/* Card 4: Số Dư Khả Dụng Rút Tiền */}
         <div className="bg-white rounded-2xl border border-emerald-100 p-5 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
-              Đã Giải Ngân Sang Ví
+              Số Dư Khả Dụng (Ví Shop)
             </span>
             <span className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
-              <span className="material-symbols-outlined text-[20px]">check_circle</span>
+              <span className="material-symbols-outlined text-[20px]">account_balance_wallet</span>
             </span>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-black text-emerald-700">{formatVND(stats.releasedAmount)}</div>
+            <div className="text-2xl font-black text-emerald-700">{formatVND(stats.availableBalance)}</div>
             <div className="text-xs text-emerald-600 mt-1">
-              {stats.releasedCount} món đã hoàn tất &amp; vào số dư
+              {stats.availableBalance > 0
+                ? 'Có thể tạo lệnh rút tiền về STK ngay'
+                : 'Đã rút hết về STK ngân hàng'}
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-            <span>Sẵn sàng rút về STK</span>
-            <Link href="/seller/finance" className="font-bold text-emerald-700 hover:underline">
-              Rút tiền ngay →
-            </Link>
+            <span>Tích lũy giải ngân: {formatVND(stats.totalReleasedAmount)}</span>
+            {stats.availableBalance > 0 ? (
+              <Link href="/seller/finance" className="font-bold text-emerald-700 hover:underline">
+                Rút tiền ngay →
+              </Link>
+            ) : (
+              <Link href="/seller/finance" className="text-slate-400 font-medium hover:text-slate-600">
+                Xem lịch sử ví →
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -698,10 +758,17 @@ export default function SellerEscrowPage() {
         className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
         tabs={[
           { key: 'ALL', label: 'Tất Cả', count: stats.totalCount },
-          { key: 'PENDING_PAYMENT', label: 'Chờ Thu COD', count: stats.pendingCount },
+          { key: 'PENDING_PAYMENT', label: 'Chờ Thu COD / Vận Chuyển', count: stats.pendingCount },
           { key: 'HOLDING', label: 'Đang Ký Quỹ Đếm Ngược', count: stats.holdingCount },
           { key: 'RELEASED', label: 'Đã Giải Ngân', count: stats.releasedCount },
           { key: 'FROZEN', label: 'Đóng Băng', count: stats.frozenCount },
+          {
+            key: 'CANCELLED',
+            label: 'Đã Hủy',
+            count: escrowItems.filter(
+              (it) => it.orderStatus === 'CANCELLED' || (it as any).status === 'CANCELLED' || it.escrowStatus === ('CANCELLED' as any)
+            ).length,
+          },
         ]}
         activeTab={activeStatusTab}
         onTabChange={(tab: string) => {

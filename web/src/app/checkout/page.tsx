@@ -1276,13 +1276,15 @@ export default function CheckoutPage() {
             },
           ];
 
-          realtimeSyncBus.publish('ORDER_CREATED', {
-            orderId: orderData.id,
-            orderCode: orderData.code,
-            grandTotal: orderData.grandTotal,
-            paymentMethod: isOnline ? 'ONLINE_PAYMENT' : 'COD',
-            sellerOrders: effectiveSellerOrders,
-          });
+          if (!isOnline) {
+            realtimeSyncBus.publish('ORDER_CREATED', {
+              orderId: orderData.id,
+              orderCode: orderData.code,
+              grandTotal: orderData.grandTotal,
+              paymentMethod: 'COD',
+              sellerOrders: effectiveSellerOrders,
+            });
+          }
 
           realtimeSyncBus.publish('AFFILIATE_COMMISSION_CREATED', {
             orderId: orderData.id,

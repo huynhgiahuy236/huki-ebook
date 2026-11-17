@@ -344,7 +344,18 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
       setUnreadCount(0);
     });
 
+    // Gentle fallback polling every 15s when offline or socket disconnected
+    const fallbackPoll = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchUnreadCount();
+        if (autoFetch) {
+          fetchNotifications(1, false, isReadFilter);
+        }
+      }
+    }, 15000);
+
     return () => {
+      clearInterval(fallbackPoll);
       if (typeof window !== 'undefined') {
         window.removeEventListener('online', handleFocusOrOnline);
         document.removeEventListener('visibilitychange', handleFocusOrOnline);

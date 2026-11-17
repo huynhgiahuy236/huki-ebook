@@ -112,9 +112,12 @@ export default function SellerFinancialReportsPage() {
       const payload = msg.payload as any;
       const isCurrentStore = !payload?.storeId || payload.storeId === storeId;
 
-      if ((msg.type === 'ORDER_CREATED' || msg.type === 'ORDER_PAYMENT_SUCCEEDED') && isCurrentStore) {
+      if (msg.type === 'ORDER_PAYMENT_SUCCEEDED' && isCurrentStore) {
         fetchData(true);
-        showToast?.('Khách vừa thanh toán đơn hàng VietQR/PayOS mới! Tiền đã nổ vào mục Tiền Ký Quỹ Đang Giữ.', 'success');
+        showToast?.('Khách đã thanh toán đơn hàng VietQR/PayOS mới! Tiền đã nổ vào mục Tiền Ký Quỹ Đang Giữ.', 'success');
+      } else if (msg.type === 'ORDER_CREATED' && isCurrentStore && payload?.paymentMethod === 'COD') {
+        fetchData(true);
+        showToast?.('Đơn hàng COD mới đã được tạo và chờ giao hàng!', 'info');
       } else if ((msg.type === 'ESCROW_RELEASED' || msg.type === 'WALLET_BALANCE_UPDATED') && isCurrentStore) {
         fetchData(true);
         showToast?.('Tiền hàng đã được giải ngân thành công vào Số Dư Khả Dụng!', 'info');

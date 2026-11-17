@@ -72,6 +72,16 @@ export default function EscrowTableBadge({ item, onAutoRelease }: EscrowTableBad
     return () => clearInterval(timer);
   }, [isCompleted, isDelivered, item.escrowStatus, onAutoRelease, item]);
 
+  // 0. ĐƠN ĐÃ HỦY
+  if (item.escrowStatus === ('CANCELLED' as any) || item.orderStatus === 'CANCELLED') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+        <span className="material-symbols-outlined text-[13px]">cancel</span>
+        <span>Đơn Đã Hủy</span>
+      </span>
+    );
+  }
+
   // 1. ĐÃ GIẢI NGÂN (Hoàn tất đổi trả hoặc hết 2 phút)
   if (isCompleted || item.escrowStatus === 'RELEASED') {
     return (
@@ -82,12 +92,28 @@ export default function EscrowTableBadge({ item, onAutoRelease }: EscrowTableBad
     );
   }
 
-  // 2. CHỜ THU COD
+  // 2. CHỜ SHOP XÁC NHẬN / ĐÓNG GÓI
+  if (
+    item.escrowStatus === ('PENDING_CONFIRMATION' as any) ||
+    item.orderStatus === 'PENDING_CONFIRMATION' ||
+    item.orderStatus === 'CONFIRMED' ||
+    item.orderStatus === 'PREPARING'
+  ) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+        <span className="material-symbols-outlined text-[13px]">inventory_2</span>
+        <span>Chờ Shop Đóng Gói</span>
+      </span>
+    );
+  }
+
+  // 3. CHỜ KHÁCH THANH TOÁN (ONLINE) HOẶC ĐANG GIAO HÀNG (COD)
   if (item.escrowStatus === 'PENDING_PAYMENT') {
+    const isOnlineUnpaid = item.paymentMethod !== 'COD' && item.paymentStatus !== 'SUCCEEDED';
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-        <span className="material-symbols-outlined text-[13px]">local_shipping</span>
-        <span>Đang Giao Hàng</span>
+        <span className="material-symbols-outlined text-[13px]">{isOnlineUnpaid ? 'payment' : 'local_shipping'}</span>
+        <span>{isOnlineUnpaid ? 'Chờ Khách Thanh Toán' : 'Đang Giao Hàng'}</span>
       </span>
     );
   }

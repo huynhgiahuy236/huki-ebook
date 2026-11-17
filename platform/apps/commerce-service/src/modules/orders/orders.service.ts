@@ -2314,15 +2314,22 @@ export class OrdersService {
           const isPhysicalDelivered = sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED';
           const isCodOrder = order.paymentMethod === PaymentMethod.COD;
           const isCodRemitted = Boolean(
-            order.paymentStatus === PaymentStatus.SUCCEEDED ||
+            (order as any).isCodRemitted === true ||
             histories.some((h) => h.orderId === order.id && h.toStatus === 'COD_REMITTANCE')
           );
 
-          if (itemHistory) {
+          const isCancelled = (order.status as string) === 'CANCELLED' || (sellerOrder.status as string) === 'CANCELLED';
+
+          if (isCancelled) {
+            escrowStatus = 'CANCELLED' as any;
+          } else if (itemHistory) {
             const target = (itemHistory.metadata as any)?.targetStatus;
             if (target) escrowStatus = target;
           } else if (freezeEntry && (!unfreezeEntry || new Date(freezeEntry.createdAt) > new Date(unfreezeEntry.createdAt))) {
             escrowStatus = 'FROZEN';
+          } else if (!isCodOrder && order.paymentStatus !== PaymentStatus.SUCCEEDED) {
+            // Đơn online chưa thanh toán qua cổng PayOS -> Chưa có tiền vào sàn!
+            escrowStatus = 'PENDING_PAYMENT';
           } else if (isItemDigital) {
             if (unfreezeEntry && (unfreezeEntry.toStatus === 'ESCROW_RELEASED' || unfreezeEntry.toStatus === 'ESCROW_UNFROZEN')) {
               escrowStatus = 'RELEASED';
@@ -2332,8 +2339,11 @@ export class OrdersService {
           } else {
             // For PHYSICAL book:
             if (!isPhysicalDelivered) {
-              // Chưa giao hàng: Đang vận chuyển / xử lý
-              escrowStatus = 'PENDING_PAYMENT';
+              if (sellerOrder.status === 'PENDING_CONFIRMATION' || sellerOrder.status === 'CONFIRMED' || sellerOrder.status === 'PREPARING') {
+                escrowStatus = 'PENDING_CONFIRMATION' as any;
+              } else {
+                escrowStatus = 'PENDING_PAYMENT';
+              }
             } else if (isCodOrder && !isCodRemitted) {
               // Tiền COD shipper thu nhưng CHƯA nộp cho sàn -> Chờ bưu tá nộp COD!
               escrowStatus = 'PENDING_PAYMENT';
@@ -2447,14 +2457,15 @@ export class OrdersService {
                 ? `Khách yêu cầu hoàn hàng: ${activeReturn.reasonDetail || activeReturn.reason || 'Sản phẩm lỗi/hư hỏng'}`
                 : freezeEntry?.title || null,
               refundedAt: (escrowStatus === 'REFUNDED' && activeReturn?.updatedAt) ? activeReturn.updatedAt.toISOString() : null,
-              remittanceInfo: (order.paymentMethod === PaymentMethod.COD && (isPhysicalDelivered || orderRemittance)) ? {
+              remittanceInfo: (order.paymentMethod === PaymentMethod.COD && isCodRemitted) ? {
                 isRemitted: true,
                 remittedAt: orderRemittance ? orderRemittance.createdAt.toISOString() : (sellerOrder.completedAt?.toISOString() || new Date().toISOString()),
                 method: (orderRemittance?.metadata as any)?.method || 'VietQR PayOS (Cổng Quỹ Sàn)',
                 txCode: (orderRemittance?.metadata as any)?.txCode || `HUKICOD-${order.code}`,
-                shipperName: 'Nguyễn Văn Hưng (Bưu tá HuKi Express)',
+                shipperName: (orderRemittance?.metadata as any)?.shipperName || 'Nguyễn Văn Giao (Shipper HUKI)',
                 shipperCode: orderRemittance?.actorId || 'SHIPPER-8899',
               } : null,
+              isCodRemitted: Boolean(isCodRemitted),
             });
           }
         }
@@ -2471,14 +2482,11 @@ export class OrdersService {
     const scope = await getSellerScope(actor);
     const storeIds = scope.isPlatformAdmin ? [] : scope.storeIds;
 
-    const whereOrder: any = {
-      status: { not: 'CANCELLED' },
-    };
+    const whereOrder: any = {};
     if (!scope.isPlatformAdmin && storeIds.length > 0) {
       whereOrder.sellerOrders = {
         some: {
           storeId: { in: storeIds },
-          status: { not: 'CANCELLED' },
         },
       };
     }
@@ -2489,7 +2497,6 @@ export class OrdersService {
         sellerOrders: {
           where: {
             ...(scope.isPlatformAdmin ? {} : { storeId: { in: storeIds } }),
-            status: { not: 'CANCELLED' },
           },
           include: {
             items: {
@@ -2576,15 +2583,22 @@ export class OrdersService {
 
           const isCodOrder = order.paymentMethod === PaymentMethod.COD;
           const isCodRemitted = Boolean(
-            order.paymentStatus === PaymentStatus.SUCCEEDED ||
+            (order as any).isCodRemitted === true ||
             histories.some((h) => h.orderId === order.id && h.toStatus === 'COD_REMITTANCE')
           );
 
-          if (itemHistory) {
+          const isCancelled = (order.status as string) === 'CANCELLED' || (sellerOrder.status as string) === 'CANCELLED';
+
+          if (isCancelled) {
+            escrowStatus = 'CANCELLED' as any;
+          } else if (itemHistory) {
             const target = (itemHistory.metadata as any)?.targetStatus;
             if (target) escrowStatus = target;
           } else if (freezeEntry && (!unfreezeEntry || new Date(freezeEntry.createdAt) > new Date(unfreezeEntry.createdAt))) {
             escrowStatus = 'FROZEN';
+          } else if (!isCodOrder && order.paymentStatus !== PaymentStatus.SUCCEEDED) {
+            // Đơn online chưa thanh toán qua cổng PayOS -> Chưa có tiền vào sàn!
+            escrowStatus = 'PENDING_PAYMENT';
           } else if (isItemDigital) {
             if (unfreezeEntry && (unfreezeEntry.toStatus === 'ESCROW_RELEASED' || unfreezeEntry.toStatus === 'ESCROW_UNFROZEN')) {
               escrowStatus = 'RELEASED';
@@ -2594,8 +2608,11 @@ export class OrdersService {
           } else {
             // For PHYSICAL book:
             if (!isPhysicalDelivered) {
-              // Chưa giao hàng: Đang vận chuyển / đóng gói
-              escrowStatus = 'PENDING_PAYMENT';
+              if (sellerOrder.status === 'PENDING_CONFIRMATION' || sellerOrder.status === 'CONFIRMED' || sellerOrder.status === 'PREPARING') {
+                escrowStatus = 'PENDING_CONFIRMATION' as any;
+              } else {
+                escrowStatus = 'PENDING_PAYMENT';
+              }
             } else if (isCodOrder && !isCodRemitted) {
               // Tiền COD shipper thu nhưng CHƯA nộp cho sàn -> Chờ bưu tá nộp COD!
               escrowStatus = 'PENDING_PAYMENT';
@@ -2684,14 +2701,15 @@ export class OrdersService {
                 scope: 'STORE',
               } : null,
               escrowStatus,
-              remittanceInfo: (order.paymentMethod === PaymentMethod.COD && (isPhysicalDelivered || orderRemittance)) ? {
+              remittanceInfo: (order.paymentMethod === PaymentMethod.COD && isCodRemitted) ? {
                 isRemitted: true,
                 remittedAt: orderRemittance ? orderRemittance.createdAt.toISOString() : (sellerOrder.completedAt?.toISOString() || new Date().toISOString()),
                 method: (orderRemittance?.metadata as any)?.method || 'VietQR PayOS (Cổng Quỹ Sàn)',
                 txCode: (orderRemittance?.metadata as any)?.txCode || `HUKICOD-${order.code}`,
-                shipperName: 'Nguyễn Văn Hưng (Bưu tá HuKi Express)',
+                shipperName: (orderRemittance?.metadata as any)?.shipperName || 'Nguyễn Văn Giao (Shipper HUKI)',
                 shipperCode: orderRemittance?.actorId || 'SHIPPER-8899',
               } : null,
+              isCodRemitted: Boolean(isCodRemitted),
             });
           }
         }
@@ -3981,10 +3999,16 @@ export class OrdersService {
     });
     if (!sellerOrder) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
 
-    const actorId = actor?.sub || 'shipper-hung';
+    const actorId = actor?.sub || 'ship-0000-4000-8000-000000000003';
+    const validShipperIds = new Set([
+      actorId,
+      'ship-0000-4000-8000-000000000003',
+      'shipper-hung',
+      'SHIPPER-8899',
+    ]);
 
     // Atomic Concurrency check: If already claimed by another driver
-    if (sellerOrder.deliveryStaffId && sellerOrder.deliveryStaffId !== actorId) {
+    if (sellerOrder.deliveryStaffId && !validShipperIds.has(sellerOrder.deliveryStaffId)) {
       throwConflict(ErrorCode.ORDER_ALREADY_CANCELLED, 'Đơn hàng này đã được một bưu tá khác tiếp nhận!');
     }
 
@@ -3998,7 +4022,7 @@ export class OrdersService {
           id,
           OR: [
             { deliveryStaffId: null },
-            { deliveryStaffId: actorId },
+            { deliveryStaffId: { in: Array.from(validShipperIds) } },
           ],
         },
         data: {
@@ -4115,6 +4139,7 @@ export class OrdersService {
           trackingCode,
           shippedAt: new Date(),
           status: SellerOrderStatus.SHIPPED,
+          deliveryStaffId: sellerOrder.deliveryStaffId || actor?.sub || 'ship-0000-4000-8000-000000000003',
         },
       });
 
@@ -4347,20 +4372,21 @@ export class OrdersService {
         await this.completion.completeIfReady(tx, order.id);
       });
 
+      const shipperProfile = this.getShipperProfile(actor);
       await this.prisma.orderStatusHistory.create({
         data: {
           orderId: order.id,
           toStatus: 'COD_REMITTANCE',
           title: 'Bưu tá nộp tiền mặt COD về Quỹ Sàn HuKi Express',
           actorType: 'SHIPPER_COD_REMITTANCE',
-          actorId: actor?.sub || 'SHIPPER-8899',
+          actorId: shipperProfile.id || actor?.sub || 'SHIPPER-8899',
           metadata: {
             amount,
             method,
             txCode,
             timestamp: now.toISOString(),
-            shipperName: 'Nguyễn Văn Hưng',
-            shipperCode: actor?.sub || 'SHIPPER-8899',
+            shipperName: shipperProfile.name || 'Nguyễn Văn Giao (Shipper HUKI)',
+            shipperCode: shipperProfile.code || actor?.sub || 'SHIPPER-8899',
           },
         },
       });
@@ -4434,10 +4460,10 @@ export class OrdersService {
       const meta = (h.metadata as any) || {};
       return {
         id: h.id,
-        shipperName: 'Nguyễn Văn Hưng',
+        shipperName: meta.shipperName || 'Nguyễn Văn Giao (Shipper HUKI)',
         shipperCode: h.actorId || 'SHIPPER-8899',
-        licensePlate: '66-F1 987.65',
-        phone: '0988 776 655',
+        licensePlate: meta.licensePlate || '66-F1 987.65',
+        phone: meta.phone || '0988 776 655',
         amount: Number(meta.amount) || 0,
         method: meta.method || 'VietQR PayOS',
         txCode: meta.txCode || h.id,
@@ -4447,46 +4473,85 @@ export class OrdersService {
     });
   }
 
+  private shipperProfileOverrides = new Map<string, any>();
+
+  updateShipperProfile(actor?: BookActor, body?: any) {
+    const actorId = actor?.sub || 'ship-0000-4000-8000-000000000003';
+    const existing = this.shipperProfileOverrides.get(actorId) || {};
+    const updated = {
+      ...existing,
+      ...body,
+      updatedAt: new Date().toISOString(),
+    };
+    this.shipperProfileOverrides.set(actorId, updated);
+    this.shipperProfileOverrides.set('SHIPPER-8899', updated);
+    this.shipperProfileOverrides.set('shipper-hung', updated);
+    return updated;
+  }
+
+  getShipperProfile(actor?: BookActor) {
+    const actorId = actor?.sub || 'ship-0000-4000-8000-000000000003';
+    const override =
+      this.shipperProfileOverrides.get(actorId) ||
+      this.shipperProfileOverrides.get('SHIPPER-8899') ||
+      {};
+    return {
+      id: 'ship-0000-4000-8000-000000000003',
+      code: 'SHIPPER-8899',
+      name: override.name || 'Nguyễn Văn Giao (Shipper HUKI)',
+      phone: override.phone || '0988 776 655',
+      email: override.email || 'shipper@huki.com',
+      vehicleType: override.vehicleType || 'Xe máy Honda Wave RSX 110cc',
+      licensePlate: override.licensePlate || '66-F1 987.65',
+      activeZone: override.activeZone || 'Đồng Tháp (TP. Cao Lãnh & TP. Sa Đéc)',
+      identityCard: override.identityCard || '087098001234',
+      rating: 5.0,
+      joinDate: '15/01/2026',
+    };
+  }
+
   async adminListShippers(actor?: BookActor) {
     const sellerOrders = await this.prisma.sellerOrder.findMany({
       where: { requiresShipping: true },
       include: { order: true },
     });
 
-    let hungDeliveredCount = 0;
-    let hungCodDebt = 0;
-    let hungWallet = 0;
+    const activeProfile = this.getShipperProfile(actor);
+
+    let giaoDeliveredCount = 0;
+    let giaoCodDebt = 0;
+    let giaoWallet = 0;
 
     sellerOrders.forEach((so) => {
       const isDelivered = so.status === SellerOrderStatus.DELIVERED || so.status === SellerOrderStatus.COMPLETED;
       if (isDelivered) {
-        hungDeliveredCount += 1;
+        giaoDeliveredCount += 1;
         const shippingFee = Number(so.shippingFee) || 30000;
-        hungWallet += shippingFee;
+        giaoWallet += shippingFee;
         if (so.order?.paymentMethod === 'COD') {
           const grandTotal = Number(so.grandTotal) || 0;
-          hungCodDebt += Math.max(0, grandTotal - shippingFee);
+          giaoCodDebt += Math.max(0, grandTotal - shippingFee);
         }
       }
     });
 
     const totalRemitted = await this.getRemittedCodTotal();
-    hungCodDebt = Math.max(0, hungCodDebt - totalRemitted);
+    giaoCodDebt = Math.max(0, giaoCodDebt - totalRemitted);
 
     return [
       {
-        id: 'SHP-001',
-        code: 'SHIPPER-8899',
-        name: 'Nguyễn Văn Hưng',
-        phone: '0988 776 655',
-        email: 'shipper.hung@huki.vn',
-        vehicleType: 'Xe máy Honda Wave Alpha 110cc',
-        licensePlate: '66-F1 987.65',
-        zone: 'Đồng Tháp (Cao Lãnh & Sa Đéc)',
+        id: activeProfile.id || 'ship-0000-4000-8000-000000000003',
+        code: activeProfile.code || 'SHIPPER-8899',
+        name: activeProfile.name || 'Nguyễn Văn Giao (Shipper HUKI)',
+        phone: activeProfile.phone || '0988 776 655',
+        email: activeProfile.email || 'shipper@huki.com',
+        vehicleType: activeProfile.vehicleType || 'Xe máy Honda Wave RSX 110cc',
+        licensePlate: activeProfile.licensePlate || '66-F1 987.65',
+        zone: activeProfile.activeZone || 'Đồng Tháp (TP. Cao Lãnh & TP. Sa Đéc)',
         rating: 5.0,
-        totalDeliveries: hungDeliveredCount,
-        codDebt: hungCodDebt,
-        walletBalance: hungWallet,
+        totalDeliveries: giaoDeliveredCount,
+        codDebt: giaoCodDebt,
+        walletBalance: giaoWallet,
         status: 'ACTIVE',
         joinDate: '15/01/2026',
       },

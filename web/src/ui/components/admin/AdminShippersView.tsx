@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { orderApi } from '@/ui/api/orderApi';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
 import { AdminStatusBadge } from './AdminUI';
 import {
@@ -86,6 +87,12 @@ export default function AdminShippersView() {
 
   useEffect(() => {
     fetchData();
+    const unsub = realtimeSyncBus.subscribe((msg) => {
+      if (msg.type === 'SHIPPER_PROFILE_UPDATED') {
+        fetchData();
+      }
+    });
+    return () => unsub();
   }, [fetchData]);
 
   const toggleStatus = (id: string) => {

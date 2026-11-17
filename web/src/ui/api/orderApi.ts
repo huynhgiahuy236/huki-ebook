@@ -797,6 +797,23 @@ export const orderApi = {
       body: JSON.stringify({ status }),
     });
   },
+
+  /**
+   * Cập nhật thông tin hồ sơ bưu tá
+   */
+  updateShipperProfile: async (data: Partial<any>): Promise<ApiResponse<any>> => {
+    return apiClient<any>('/orders/shipper/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Lấy thông tin hồ sơ bưu tá từ cổng vận chuyển
+   */
+  getShipperProfile: async (): Promise<ApiResponse<any>> => {
+    return apiClient<any>('/orders/shipper/profile', { method: 'GET' });
+  },
 };
 
 export interface ReturnRequestData {

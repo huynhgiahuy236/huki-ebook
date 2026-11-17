@@ -84,4 +84,26 @@ export class ShipperOrdersController {
   listRemittances() {
     return this.orders.listRemittances();
   }
+
+  @Get(['profile', 'shipper/profile'])
+  @ApiOperation({ summary: 'Get current shipper driver profile' })
+  getProfile(@CurrentBookActor() actor?: BookActor) {
+    return this.orders.getShipperProfile(actor);
+  }
+
+  @Patch(['profile', 'shipper/profile'])
+  @ApiOperation({ summary: 'Update shipper driver profile' })
+  updateProfile(
+    @CurrentBookActor() actor?: BookActor,
+    @Body() body?: {
+      name?: string;
+      phone?: string;
+      vehicleType?: string;
+      licensePlate?: string;
+      activeZone?: string;
+      identityCard?: string;
+    },
+  ) {
+    return this.orders.updateShipperProfile(actor, body);
+  }
 }

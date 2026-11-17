@@ -71,6 +71,7 @@ export interface EscrowTableItem {
     shipperName: string;
     shipperCode: string;
   } | null;
+  isCodRemitted?: boolean;
 }
 
 export interface EscrowOrderGroup {
@@ -604,7 +605,7 @@ export function AdminEscrowView() {
   // Lọc danh sách theo Tab và Ô tìm kiếm
   const filteredItems = useMemo(() => {
     return items.filter((it) => {
-      const isCodUnremitted = it.paymentMethod === 'COD' && !it.remittanceInfo?.isRemitted && it.paymentStatus !== 'SUCCEEDED';
+      const isCodUnremitted = it.paymentMethod === 'COD' && !it.remittanceInfo?.isRemitted && !it.isCodRemitted;
 
       if (activeTab !== 'ALL') {
         if (activeTab === 'HOLDING') {
@@ -752,7 +753,7 @@ export function AdminEscrowView() {
 
     items.forEach((it) => {
       const itemAmount = (it.effectiveSubtotal !== undefined ? it.effectiveSubtotal : it.subtotal) || 0;
-      const isCodUnremitted = it.paymentMethod === 'COD' && !it.remittanceInfo?.isRemitted && it.paymentStatus !== 'SUCCEEDED';
+      const isCodUnremitted = it.paymentMethod === 'COD' && !it.remittanceInfo?.isRemitted && !it.isCodRemitted;
 
       if (it.escrowStatus === 'RELEASED') {
         totalReleased += itemAmount;

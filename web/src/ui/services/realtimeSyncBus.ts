@@ -71,6 +71,7 @@ export type SyncEventType =
   | 'SHIPPER_PICKED_UP'
   | 'SHIPPER_DELIVERED'
   | 'SHIPPER_COD_REMITTED'
+  | 'SHIPPER_PROFILE_UPDATED'
   | 'CHAT_MESSAGE_RECEIVED'
   | 'CHAT_UNREAD_COUNT_CHANGED'
   | 'RETURN_REQUESTED'
@@ -218,6 +219,7 @@ export function getDefaultRolesForEventType(type: SyncEventType): NotificationRo
       return ['BUYER', 'SELLER', 'SHIPPER'];
 
     case 'SHIPPER_COD_REMITTED':
+    case 'SHIPPER_PROFILE_UPDATED':
       return ['SHIPPER', 'ADMIN'];
 
     case 'PAYOUT_REQUESTED':
