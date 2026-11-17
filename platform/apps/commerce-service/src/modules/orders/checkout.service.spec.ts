@@ -165,7 +165,7 @@ describe("CheckoutService (Prisma)", () => {
                     title: "Sách Hay",
                     coverUrl: null,
                     isbn: null,
-                    format: CartItemFormat.DIGITAL,
+                    format: CartItemFormat.PHYSICAL,
                     quantity: 1,
                     unitPrice: 100000,
                     subtotal: 100000,
