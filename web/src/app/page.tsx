@@ -52,20 +52,9 @@ export default function HomePage() {
   const { showToast } = useToast();
   const { user, isLoggedIn } = useAuth();
 
-  // 1. REAL COMMERCE DATA FROM BACKEND DATABASE (Cached warm fallback for instant rendering)
-  const [realBooks, setRealBooks] = useState<BookData[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem("huki_cached_public_books");
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch {}
-    }
-    return [];
-  });
-  const [isLoadingBooks, setIsLoadingBooks] = useState<boolean>(() => realBooks.length === 0);
+  // 1. REAL COMMERCE DATA FROM BACKEND DATABASE (SSR/CSR identical initial state to prevent Hydration Mismatch)
+  const [realBooks, setRealBooks] = useState<BookData[]>([]);
+  const [isLoadingBooks, setIsLoadingBooks] = useState<boolean>(true);
   const [realCategories, setRealCategories] = useState<CategoryData[]>([]);
   const [realPublishers, setRealPublishers] = useState<CatalogEntity[]>([]);
   const [realAuthors, setRealAuthors] = useState<CatalogEntity[]>([]);
@@ -80,19 +69,8 @@ export default function HomePage() {
   const [isHeroHovered, setIsHeroHovered] = useState(false);
   const [customBanners, setCustomBanners] = useState<any[]>([]);
 
-  // Local Interactivity States (Instant sync with local wallet cache)
-  const [savedVouchers, setSavedVouchers] = useState<string[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem("huki_saved_voucher_codes");
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed)) return parsed;
-        }
-      } catch {}
-    }
-    return [];
-  });
+  // Local Interactivity States (SSR/CSR identical initial state to prevent Hydration Mismatch)
+  const [savedVouchers, setSavedVouchers] = useState<string[]>([]);
   const [bestsellerTab, setBestsellerTab] = useState("all");
   const [selectedCategoryTab, setSelectedCategoryTab] = useState("all");
   const tabsContainerRef = React.useRef<HTMLDivElement>(null);
@@ -109,6 +87,30 @@ export default function HomePage() {
   const [isAuthorHovered, setIsAuthorHovered] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [personalizationTick, setPersonalizationTick] = useState(0);
+
+  // Warm fallback from localStorage after initial client mount to avoid SSR Hydration Mismatch
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem("huki_cached_public_books");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setRealBooks((prev) => (prev.length === 0 ? parsed : prev));
+          setIsLoadingBooks(false);
+        }
+      }
+    } catch {}
+
+    try {
+      const cachedVouchers = localStorage.getItem("huki_saved_voucher_codes");
+      if (cachedVouchers) {
+        const parsed = JSON.parse(cachedVouchers);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSavedVouchers((prev) => (prev.length === 0 ? parsed : prev));
+        }
+      }
+    } catch {}
+  }, []);
 
   // Fetch Real Books (with exponential backoff retry to guard against cold-start DB latency)
   useEffect(() => {
@@ -988,18 +990,26 @@ export default function HomePage() {
               <div className="px-3 py-2 text-[11px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-100 mb-1">
                 Danh Mục Sách
               </div>
-              {categoriesMenu.map((cat, idx) => (
-                <Link
-                  key={idx}
-                  href={cat.to}
-                  className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-gray-700 hover:text-[#003B2B] hover:bg-[#003B2B]/5 transition-all group"
-                >
-                  <span className="line-clamp-1">{cat.name}</span>
-                  <span className="material-symbols-outlined text-[14px] text-gray-300 group-hover:text-[#003B2B] group-hover:translate-x-0.5 transition-all">
-                    chevron_right
-                  </span>
-                </Link>
-              ))}
+              {categoriesMenu.length === 0 ? (
+                <div className="space-y-1.5 py-1 px-1">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="h-7 bg-gray-100/80 rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              ) : (
+                categoriesMenu.map((cat, idx) => (
+                  <Link
+                    key={idx}
+                    href={cat.to}
+                    className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-gray-700 hover:text-[#003B2B] hover:bg-[#003B2B]/5 transition-all group"
+                  >
+                    <span className="line-clamp-1">{cat.name}</span>
+                    <span className="material-symbols-outlined text-[14px] text-gray-300 group-hover:text-[#003B2B] group-hover:translate-x-0.5 transition-all">
+                      chevron_right
+                    </span>
+                  </Link>
+                ))
+              )}
             </div>
 
             <div className="pt-2 border-t border-gray-100 mt-2">
