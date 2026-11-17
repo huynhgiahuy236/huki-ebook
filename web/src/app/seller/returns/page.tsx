@@ -70,7 +70,7 @@ export default function SellerReturnsPage() {
     fetchReturns();
   }, [fetchReturns]);
 
-  // Lắng nghe cập nhật khiếu nại & phán quyết trọng tài realtime
+  // Lắng nghe cập nhật khiếu nại, vận chuyển thu hồi & phán quyết trọng tài realtime
   useEffect(() => {
     const unsub = realtimeSyncBus.subscribe((msg) => {
       if (msg.type === 'RETURN_REQUESTED' || msg.type === 'RETURN_FORWARDED') {
@@ -86,16 +86,56 @@ export default function SellerReturnsPage() {
           `Phán quyết trọng tài sàn HUKI: ${isSellerWin ? 'Người bán thắng kiện' : 'Người mua thắng kiện'}`,
           isSellerWin ? 'success' : 'error'
         );
+      } else if (msg.type === 'RETURN_PICKED_UP') {
+        fetchReturns();
+        playSellerOrderChimeSound();
+        showToast('Bưu tá đã lấy sách hoàn từ khách và đang trên đường giao về kho của Shop!', 'info');
+      } else if (msg.type === 'RETURN_DELIVERED_TO_STORE') {
+        fetchReturns();
+        playSellerOrderChimeSound();
+        showToast('Sách hoàn đã được bưu tá bàn giao về kho của Shop. Vui lòng kiểm tra và xác nhận nhận sách!', 'success');
       } else if (
         msg.type === 'RETURN_SELLER_ACCEPTED' ||
         msg.type === 'RETURN_SELLER_DISPUTED' ||
-        msg.type === 'RETURN_REPLACEMENT_SHIPPED'
+        msg.type === 'RETURN_REPLACEMENT_SHIPPED' ||
+        msg.type === 'ESCROW_REFUNDED' ||
+        msg.type === 'RETURN_RESOLVED'
       ) {
         fetchReturns();
       }
     }, { role: 'SELLER' });
     return () => unsub();
   }, [fetchReturns, showToast]);
+
+  // Dispatch Shipper Modal state
+  const [dispatchModalItem, setDispatchModalItem] = useState<ReturnRequestData | null>(null);
+  const [driverNote, setDriverNote] = useState('');
+  const [isDispatching, setIsDispatching] = useState(false);
+
+  const handleOpenDispatchModal = (item: ReturnRequestData) => {
+    setDispatchModalItem(item);
+    setDriverNote('');
+  };
+
+  const handleConfirmDispatch = async () => {
+    if (!dispatchModalItem) return;
+    try {
+      setIsDispatching(true);
+      const res = await orderApi.sellerDispatchShipper(dispatchModalItem.id, driverNote.trim());
+      if (res.success) {
+        playSellerOrderChimeSound();
+        showToast('Đã gửi thông báo điều phối bưu tá HuKi Express đến nhận sách hoàn tại nhà khách hàng!', 'success');
+        setDispatchModalItem(null);
+        await fetchReturns();
+      } else {
+        showToast(res.error?.message || 'Không thể điều phối bưu tá', 'error');
+      }
+    } catch {
+      showToast('Có lỗi khi gửi thông báo điều phối bưu tá', 'error');
+    } finally {
+      setIsDispatching(false);
+    }
+  };
 
   const filteredReturns = useMemo(() => {
     return returns.filter((it) => {
@@ -391,6 +431,15 @@ export default function SellerReturnsPage() {
                 onClick={() => handleAcceptReturn(item)}
               />
             )}
+            {item.status === 'SELLER_ACCEPTED' && item.replacementStatus !== 'RETURNED_TO_STORE' && (
+              <SellerActionButton
+                variant="secondary"
+                label="Nhắn bưu tá"
+                icon="local_shipping"
+                size="sm"
+                onClick={() => handleOpenDispatchModal(item)}
+              />
+            )}
             <Link href={`/seller/returns/${item.id}`}>
               <SellerActionButton
                 variant="view"
@@ -573,6 +622,115 @@ export default function SellerReturnsPage() {
         }}
         className="w-full"
       />
+
+      {/* Modal Điều Phối Bưu Tá HuKi Express Thu Hồi Sách */}
+      {dispatchModalItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xl max-w-lg w-full overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-emerald-50/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#003B2B] text-white flex items-center justify-center shadow-xs">
+                  <span className="material-symbols-outlined text-[20px]">local_shipping</span>
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">
+                    Điều Phối Bưu Tá HuKi Express Lấy Sách
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Thu hồi sách hoàn tại nhà khách hàng về kho Shop
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDispatchModalItem(null)}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-4 text-xs">
+              {/* Summary Card */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Đơn hàng</span>
+                  <span className="font-mono font-bold text-slate-900">#{dispatchModalItem.order?.code || dispatchModalItem.orderId}</span>
+                </div>
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Ấn phẩm</span>
+                  <span className="font-medium text-slate-800 text-right line-clamp-1">{dispatchModalItem.orderItem?.title || 'Sản phẩm hoàn'}</span>
+                </div>
+                <div className="pt-2 border-t border-slate-200/60 flex items-start gap-2">
+                  <span className="material-symbols-outlined text-emerald-600 text-[16px] shrink-0 mt-0.5">location_on</span>
+                  <div className="space-y-0.5">
+                    <span className="font-bold text-slate-800 block">Điểm lấy sách (Nhà khách):</span>
+                    <span className="text-slate-600 block text-[11.5px] leading-relaxed">
+                      {dispatchModalItem.user?.fullName || dispatchModalItem.user?.name || 'Khách hàng'} · {dispatchModalItem.order?.shippingAddress?.phone || '0901234567'}
+                    </span>
+                    <span className="text-slate-500 block text-[11px]">
+                      {dispatchModalItem.order?.shippingAddress?.fullAddress || dispatchModalItem.order?.shippingAddress?.line1 || 'Địa chỉ người mua'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fast Refund Notice */}
+              <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/70 flex items-start gap-2 text-amber-900">
+                <span className="material-symbols-outlined text-amber-600 text-base shrink-0 mt-0.5">bolt</span>
+                <p className="text-[11.5px] leading-relaxed">
+                  <b>Cơ chế Hoàn Tiền Nhanh:</b> Ngay khi bưu tá đến nhà khách và xác nhận đã lấy sách, Sàn HuKi sẽ tự động hoàn tiền ký quỹ cho khách. Bưu tá sẽ tiếp tục vận chuyển sách về bàn giao cho kho của bạn.
+                </p>
+              </div>
+
+              {/* Driver Note Input */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700">
+                  Ghi chú dặn dò bưu tá (Tùy chọn)
+                </label>
+                <textarea
+                  value={driverNote}
+                  onChange={(e) => setDriverNote(e.target.value)}
+                  placeholder="VD: Khách hẹn lấy buổi chiều, vui lòng kiểm tra xem gáy sách có bị rách seal không..."
+                  rows={3}
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDispatchModalItem(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="button"
+                disabled={isDispatching}
+                onClick={handleConfirmDispatch}
+                className="px-5 py-2 rounded-xl bg-[#003B2B] hover:bg-emerald-950 text-white text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isDispatching ? (
+                  <>
+                    <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                    <span>Đang phát lệnh...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-sm">send</span>
+                    <span>Phát Lệnh Cho Bưu Tá</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

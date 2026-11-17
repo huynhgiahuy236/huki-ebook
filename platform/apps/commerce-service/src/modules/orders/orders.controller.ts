@@ -238,6 +238,16 @@ export class OrdersController {
     return this.orders.sellerAcceptReturnRequest(actor, id);
   }
 
+  @Post(['seller/return-requests/:id/dispatch-shipper', 'seller/returns/:id/dispatch-shipper'])
+  @ApiOperation({ summary: 'Seller dispatches shipper to pick up return book from customer' })
+  sellerDispatchShipper(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto?: { note?: string; scheduledTime?: string },
+  ) {
+    return this.orders.sellerDispatchShipper(actor, id, dto);
+  }
+
   @Post(['seller/return-requests/:id/confirm-receipt', 'seller/returns/:id/confirm-receipt'])
   @ApiOperation({ summary: 'Seller confirms returned item received at warehouse' })
   sellerConfirmReturnReceipt(

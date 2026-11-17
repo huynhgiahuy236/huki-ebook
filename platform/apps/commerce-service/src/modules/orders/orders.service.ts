@@ -3436,7 +3436,7 @@ export class OrdersService {
       where: { id: returnRequestId },
       data: {
         status: ReturnRequestStatus.SELLER_ACCEPTED,
-        replacementStatus: 'RETURNING',
+        replacementStatus: 'PENDING_PICKUP',
       },
     });
 
@@ -3451,6 +3451,155 @@ export class OrdersService {
             orderId: req.orderId,
             sellerOrderId: req.sellerOrderId,
             status: 'SELLER_ACCEPTED',
+          },
+          status: 'PENDING',
+        },
+      });
+      await this.prisma.outboxEvent.create({
+        data: {
+          eventId: randomBytes(16).toString('hex'),
+          type: 'SHIPPER_AVAILABLE_ORDER_BROADCAST',
+          aggregateId: req.orderId,
+          payload: {
+            returnRequestId: req.id,
+            orderId: req.orderId,
+            orderType: 'RETURN',
+            status: 'AVAILABLE',
+          },
+          status: 'PENDING',
+        },
+      });
+    } catch {
+      // safe fallback
+    }
+
+    try {
+      await this.prisma.orderStatusHistory.create({
+        data: {
+          orderId: req.orderId,
+          sellerOrderId: req.sellerOrderId,
+          fromStatus: req.status,
+          toStatus: 'RETURN_ACCEPTED',
+          title: 'Shop đã đồng ý yêu cầu đổi trả / hoàn tiền',
+          description: 'Người bán đã chấp thuận yêu cầu. Đang điều phối Bưu tá HuKi Express đến nhận sách hoàn tại nhà khách hàng.',
+          actorType: 'SELLER',
+          actorId: actor.sub,
+          metadata: {
+            returnRequestId: req.id,
+            bookId: req.bookId,
+            bookTitle: req.bookTitle,
+            status: 'PENDING_PICKUP',
+          },
+        },
+      });
+    } catch (histErr) {
+      console.warn('Could not record status history for seller accept return:', histErr);
+    }
+
+    return this.formatReturnRequest(updated);
+  }
+
+  /**
+   * Seller dispatches / pings shipper to pick up return from customer
+   */
+  async sellerDispatchShipper(
+    actor: BookActor,
+    returnRequestId: string,
+    dto?: { note?: string; scheduledTime?: string },
+  ) {
+    const scope = await getSellerScope(actor);
+    const req = await this.prisma.returnRequest.findUnique({
+      where: { id: returnRequestId },
+    });
+
+    if (!req) {
+      throwNotFound(ErrorCode.ORDER_NOT_FOUND, 'Không tìm thấy yêu cầu đổi trả');
+    }
+
+    let hasPermission = scope.isPlatformAdmin;
+    if (!hasPermission) {
+      if (
+        scope.storeIds.includes(req.storeId) ||
+        scope.ownerUserIds.includes(req.storeId) ||
+        scope.businessIds.includes(req.storeId) ||
+        req.storeId === actor.sub
+      ) {
+        hasPermission = true;
+      } else if (req.sellerOrderId) {
+        const isUuid = (v?: string) => Boolean(v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v));
+        if (isUuid(req.sellerOrderId)) {
+          const so = await this.prisma.sellerOrder.findUnique({ where: { id: req.sellerOrderId } });
+          if (so && (scope.storeIds.includes(so.storeId) || so.ownerUserId === actor.sub || scope.ownerUserIds.includes(so.ownerUserId))) {
+            hasPermission = true;
+          }
+        }
+      }
+    }
+
+    if (!hasPermission) {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Không có quyền thao tác trên yêu cầu đổi trả này');
+    }
+
+    const updated = await this.prisma.returnRequest.update({
+      where: { id: returnRequestId },
+      data: {
+        status: ReturnRequestStatus.SELLER_ACCEPTED,
+        replacementStatus: 'PENDING_PICKUP',
+      },
+    });
+
+    try {
+      await this.prisma.orderStatusHistory.create({
+        data: {
+          orderId: req.orderId,
+          sellerOrderId: req.sellerOrderId,
+          fromStatus: req.status,
+          toStatus: 'RETURN_ACCEPTED',
+          title: 'Shop đã gửi lệnh điều phối bưu tá thu hồi sách',
+          description: dto?.note
+            ? `Shop dặn dò bưu tá HuKi Express: "${dto.note}"`
+            : 'Shop đã gửi thông báo điều phối bưu tá HuKi Express đến nhận sách hoàn tại nhà khách hàng.',
+          actorType: 'SELLER',
+          actorId: actor.sub,
+          metadata: {
+            returnRequestId: req.id,
+            bookId: req.bookId,
+            bookTitle: req.bookTitle,
+            status: 'PENDING_PICKUP',
+            driverNote: dto?.note || '',
+          },
+        },
+      });
+    } catch (histErr) {
+      console.warn('Could not record status history for dispatch shipper:', histErr);
+    }
+
+    try {
+      await this.prisma.outboxEvent.create({
+        data: {
+          eventId: randomBytes(16).toString('hex'),
+          type: 'RETURN_SELLER_ACCEPTED',
+          aggregateId: req.orderId,
+          payload: {
+            returnRequestId: req.id,
+            orderId: req.orderId,
+            sellerOrderId: req.sellerOrderId,
+            status: 'SELLER_ACCEPTED',
+            note: dto?.note || '',
+          },
+          status: 'PENDING',
+        },
+      });
+      await this.prisma.outboxEvent.create({
+        data: {
+          eventId: randomBytes(16).toString('hex'),
+          type: 'SHIPPER_AVAILABLE_ORDER_BROADCAST',
+          aggregateId: req.orderId,
+          payload: {
+            returnRequestId: req.id,
+            orderId: req.orderId,
+            orderType: 'RETURN',
+            note: dto?.note || '',
           },
           status: 'PENDING',
         },
@@ -3499,6 +3648,7 @@ export class OrdersService {
       throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Không có quyền thao tác trên yêu cầu đổi trả này');
     }
 
+    const isAlreadyRefunded = req.status === ReturnRequestStatus.REFUNDED;
     const nextStatus = req.returnType === ReturnType.REPLACE ? ReturnRequestStatus.REPLACED : ReturnRequestStatus.REFUNDED;
 
     const updated = await this.prisma.returnRequest.update({
@@ -3518,7 +3668,9 @@ export class OrdersService {
           fromStatus: 'RETURN_DELIVERED_TO_STORE',
           toStatus: nextStatus === ReturnRequestStatus.REFUNDED ? 'RETURN_REFUNDED' : 'RETURN_REPLACED',
           title: `Chủ Shop đã xác nhận nhận sách hoàn về kho`,
-          description: `Chủ Shop đã kiểm tra và nhận lại ấn phẩm "${req.bookTitle}" vào kho. Hệ thống HuKi ${nextStatus === ReturnRequestStatus.REFUNDED ? 'tiến hành giải phóng ký quỹ và hoàn tiền cho khách' : 'hoàn tất thủ tục đổi ấn phẩm mới'}.`,
+          description: isAlreadyRefunded
+            ? `Chủ Shop đã kiểm tra và nhận lại ấn phẩm "${req.bookTitle}" vào kho thành công. Người mua đã được hoàn tiền nhanh từ thời điểm Bưu tá tiếp nhận sách hoàn.`
+            : `Chủ Shop đã kiểm tra và nhận lại ấn phẩm "${req.bookTitle}" vào kho. Hệ thống HuKi ${nextStatus === ReturnRequestStatus.REFUNDED ? 'tiến hành giải phóng ký quỹ và hoàn tiền cho khách' : 'hoàn tất thủ tục đổi ấn phẩm mới'}.`,
           actorType: 'SELLER',
           actorId: actor?.sub || 'seller_system',
           metadata: {
@@ -4079,7 +4231,11 @@ export class OrdersService {
             in: [
               ReturnRequestStatus.SELLER_ACCEPTED,
               ReturnRequestStatus.ARBITRATED_BUYER_WINS,
+              ReturnRequestStatus.REFUNDED,
             ],
+          },
+          replacementStatus: {
+            notIn: ['COMPLETED'],
           },
         },
         orderBy: { createdAt: 'desc' },
@@ -4230,15 +4386,43 @@ export class OrdersService {
       });
       if (returnReq) {
         const retTrackingCode = `HUKI-RET-${id.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+        const isRefund = returnReq.returnType === ReturnType.REFUND || (returnReq.returnType as string) === 'REFUND';
+        const nextStatus = isRefund ? ReturnRequestStatus.REFUNDED : returnReq.status;
+
         const updated = await this.prisma.returnRequest.update({
           where: { id },
           data: {
+            status: nextStatus,
             replacementStatus: 'RETURNING',
             replacementCarrier: 'HUKI_EXPRESS',
             replacementTrackingCode: retTrackingCode,
             replacementShippedAt: new Date(),
           },
         });
+
+        // Revoke DRM access if applicable
+        if (isRefund && returnReq.bookId) {
+          try {
+            const parentOrder = await this.prisma.order.findUnique({
+              where: { id: returnReq.orderId },
+              select: { userId: true },
+            });
+            if (parentOrder?.userId) {
+              await this.prisma.bookAccess?.updateMany({
+                where: {
+                  userId: parentOrder.userId,
+                  bookId: returnReq.bookId,
+                },
+                data: {
+                  status: 'REVOKED',
+                  updatedAt: new Date(),
+                },
+              });
+            }
+          } catch (accessErr) {
+            console.warn('Could not revoke book access on return pickup refund:', accessErr);
+          }
+        }
 
         // Ghi Sổ Cái / Timeline OrderStatusHistory minh bạch cho cả User & Admin
         try {
@@ -4247,9 +4431,13 @@ export class OrdersService {
               orderId: returnReq.orderId,
               sellerOrderId: returnReq.sellerOrderId,
               fromStatus: 'RETURN_ACCEPTED',
-              toStatus: 'RETURN_PICKED_UP',
-              title: `Bưu tá đã lấy hàng thu hồi từ người mua`,
-              description: `Bưu tá HuKi Express đã tiếp nhận sách hoàn "${returnReq.bookTitle}". Mã vận đơn hoàn chiều về: #${retTrackingCode}`,
+              toStatus: isRefund ? 'RETURN_REFUNDED' : 'RETURN_PICKED_UP',
+              title: isRefund
+                ? `Hoàn tiền nhanh: Bưu tá đã lấy sách hoàn từ người mua`
+                : `Bưu tá đã lấy hàng thu hồi từ người mua`,
+              description: isRefund
+                ? `Bưu tá HuKi Express đã tiếp nhận sách hoàn "${returnReq.bookTitle}". Hệ thống kích hoạt cơ chế Hoàn Tiền Nhanh (Fast Refund), tiền ký quỹ 100% được giải phóng hoàn trả cho Người mua.`
+                : `Bưu tá HuKi Express đã tiếp nhận sách hoàn "${returnReq.bookTitle}". Mã vận đơn hoàn chiều về: #${retTrackingCode}`,
               actorType: 'SHIPPER',
               actorId: actor?.sub || 'shipper_system',
               metadata: {
@@ -4257,13 +4445,49 @@ export class OrdersService {
                 bookId: returnReq.bookId,
                 bookTitle: returnReq.bookTitle,
                 reverseTrackingCode: retTrackingCode,
-                status: 'RETURNING',
+                status: isRefund ? 'REFUNDED' : 'RETURNING',
                 shipperName: 'Nguyễn Văn Hưng (Bưu tá HuKi Express)',
               },
             },
           });
         } catch (histErr) {
           console.warn('Could not record OrderStatusHistory for return pickup:', histErr);
+        }
+
+        try {
+          await this.prisma.outboxEvent.create({
+            data: {
+              eventId: randomBytes(16).toString('hex'),
+              type: 'RETURN_PICKED_UP',
+              aggregateId: returnReq.orderId,
+              payload: {
+                returnRequestId: returnReq.id,
+                orderId: returnReq.orderId,
+                sellerOrderId: returnReq.sellerOrderId,
+                trackingCode: retTrackingCode,
+                status: nextStatus,
+                isRefund,
+              },
+              status: 'PENDING',
+            },
+          });
+          if (isRefund) {
+            await this.prisma.outboxEvent.create({
+              data: {
+                eventId: randomBytes(16).toString('hex'),
+                type: 'ESCROW_REFUNDED',
+                aggregateId: returnReq.orderId,
+                payload: {
+                  returnRequestId: returnReq.id,
+                  orderId: returnReq.orderId,
+                  amount: returnReq.amount,
+                },
+                status: 'PENDING',
+              },
+            });
+          }
+        } catch (evtErr) {
+          console.warn('Could not emit outbox events for return pickup:', evtErr);
         }
 
         return updated;

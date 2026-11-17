@@ -650,6 +650,38 @@ export const orderApi = {
   },
 
   /**
+   * Seller điều phối / nhắn bưu tá đến nhà khách lấy sách hoàn
+   */
+  sellerDispatchShipper: async (id: string, note?: string): Promise<ApiResponse<ReturnRequestData>> => {
+    const res = await apiClient<ReturnRequestData>(`/orders/seller/returns/${id}/dispatch-shipper`, {
+      method: 'POST',
+      body: JSON.stringify({ note }),
+    });
+    if (res.success) {
+      realtimeSyncBus.publish(
+        'RETURN_SELLER_ACCEPTED',
+        {
+          returnRequestId: id,
+          orderCode: (res.data as any)?.orderCode,
+          status: 'SELLER_ACCEPTED',
+          note,
+        },
+        { roles: ['SHIPPER', 'BUYER', 'ALL'] }
+      );
+      realtimeSyncBus.publish(
+        'SHIPPER_AVAILABLE_ORDER_BROADCAST',
+        {
+          orderId: id,
+          orderType: 'RETURN',
+          note,
+        },
+        { roles: ['SHIPPER'] }
+      );
+    }
+    return res;
+  },
+
+  /**
    * Seller 1-click xác nhận đã nhận hàng hoàn về kho
    */
   sellerConfirmReturnReceipt: async (id: string): Promise<ApiResponse<ReturnRequestData>> => {

@@ -57,7 +57,7 @@ export default function SellerReturnDetailPage() {
     fetchDetail();
   }, [fetchDetail]);
 
-  // Lắng nghe phán quyết trọng tài realtime
+  // Lắng nghe cập nhật khiếu nại, bưu tá thu hồi & phán quyết trọng tài realtime
   useEffect(() => {
     const unsub = realtimeSyncBus.subscribe((msg) => {
       if (msg.type === 'DISPUTE_ARBITRATED') {
@@ -74,10 +74,86 @@ export default function SellerReturnDetailPage() {
             isSellerWin ? 'success' : 'error'
           );
         }
+      } else if (msg.type === 'RETURN_PICKED_UP') {
+        fetchDetail();
+        playChatChimeSound();
+        showToast(
+          {
+            title: 'Bưu tá đã lấy sách hoàn',
+            message: 'Bưu tá HuKi Express đã tiếp nhận sách hoàn từ khách. Hệ thống đã kích hoạt hoàn tiền nhanh cho người mua.',
+          },
+          'info'
+        );
+      } else if (msg.type === 'RETURN_DELIVERED_TO_STORE') {
+        fetchDetail();
+        playChatChimeSound();
+        showToast(
+          {
+            title: 'Sách hoàn đã về đến kho',
+            message: 'Bưu tá đã bàn giao sách hoàn về kho của Shop. Vui lòng kiểm tra và xác nhận nhận sách.',
+          },
+          'success'
+        );
+      } else if (msg.type === 'RETURN_RESOLVED' || msg.type === 'ESCROW_REFUNDED') {
+        fetchDetail();
       }
     });
     return () => unsub();
   }, [id, fetchDetail, showToast]);
+
+  const [dispatchNote, setDispatchNote] = useState('');
+  const [isDispatching, setIsDispatching] = useState(false);
+  const [isConfirmingReceipt, setIsConfirmingReceipt] = useState(false);
+
+  const handleDispatchShipper = async () => {
+    if (!returnReq) return;
+    try {
+      setIsDispatching(true);
+      const res = await orderApi.sellerDispatchShipper(returnReq.id, dispatchNote.trim());
+      if (res.success && res.data) {
+        showToast(
+          {
+            title: 'Đã phát lệnh điều phối bưu tá',
+            message: 'Đã gửi thông báo cho bưu tá HuKi Express đến nhận sách hoàn tại nhà khách hàng.',
+          },
+          'success'
+        );
+        playChatChimeSound();
+        setReturnReq(res.data);
+      } else {
+        showToast({ title: 'Lỗi', message: res.error?.message || 'Không thể điều phối bưu tá' }, 'error');
+      }
+    } catch (err: any) {
+      showToast({ title: 'Lỗi', message: err.message || 'Lỗi kết nối máy chủ' }, 'error');
+    } finally {
+      setIsDispatching(false);
+    }
+  };
+
+  const handleConfirmWarehouseReceipt = async () => {
+    if (!returnReq) return;
+    try {
+      setIsConfirmingReceipt(true);
+      const res = await orderApi.sellerConfirmReturnReceipt(returnReq.id);
+      if (res.success && res.data) {
+        showToast(
+          {
+            title: 'Đã nhận sách vào kho',
+            message: 'Đã xác nhận nhận lại ấn phẩm vào kho Shop thành công.',
+          },
+          'success'
+        );
+        playChatChimeSound();
+        setReturnReq(res.data);
+      } else {
+        showToast({ title: 'Lỗi', message: res.error?.message || 'Không thể xác nhận nhận hàng' }, 'error');
+      }
+    } catch (err: any) {
+      showToast({ title: 'Lỗi', message: err.message || 'Lỗi kết nối máy chủ' }, 'error');
+    } finally {
+      setIsConfirmingReceipt(false);
+    }
+  };
 
   const handleAccept = async () => {
     if (!returnReq) return;
@@ -90,11 +166,12 @@ export default function SellerReturnDetailPage() {
             title: 'Đã xác nhận yêu cầu',
             message:
               returnReq.type === 'REFUND'
-                ? 'Bạn đã đồng ý yêu cầu hoàn tiền. Sàn sẽ hoàn trả số tiền cho khách hàng.'
+                ? 'Bạn đã đồng ý yêu cầu hoàn tiền. Hệ thống đã thông báo bưu tá HuKi Express chuẩn bị đến nhận sách.'
                 : 'Bạn đã đồng ý yêu cầu đổi hàng. Vui lòng gửi ấn phẩm mới cho khách và nhập mã vận đơn.',
           },
           'success'
         );
+        playChatChimeSound();
         setReturnReq(res.data);
       } else {
         showToast({ title: 'Lỗi', message: res.error?.message || 'Không thể xác nhận yêu cầu' }, 'error');
@@ -287,7 +364,12 @@ export default function SellerReturnDetailPage() {
   }
 
   const isForwarded = returnReq.status === 'FORWARDED_TO_SELLER';
-  const isAccepted = returnReq.status === 'SELLER_ACCEPTED';
+  const isAccepted =
+    returnReq.status === 'SELLER_ACCEPTED' ||
+    returnReq.status === 'REFUNDED' ||
+    returnReq.replacementStatus === 'PENDING_PICKUP' ||
+    returnReq.replacementStatus === 'RETURNING' ||
+    returnReq.replacementStatus === 'RETURNED_TO_STORE';
   const isDisputed = returnReq.status === 'SELLER_DISPUTED';
 
   return (
@@ -456,6 +538,106 @@ export default function SellerReturnDetailPage() {
                       <img src={img} alt={`Seller Evidence ${i + 1}`} className="w-full h-full object-cover" />
                     </a>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Reverse Logistics Dispatch & Pickup Box (When Accepted / In Reverse Logistics) */}
+          {isAccepted && (
+            <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-200/70 space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-emerald-950">
+                  <span className="material-symbols-outlined text-lg text-emerald-700">local_shipping</span>
+                  <span>Điều Phối Bưu Tá HuKi Express Thu Hồi Sách Tại Nhà Khách</span>
+                </div>
+                {returnReq.replacementTrackingCode && (
+                  <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    Mã vận đơn: {returnReq.replacementTrackingCode}
+                  </span>
+                )}
+              </div>
+
+              {/* Status Banner based on reverse progress */}
+              {returnReq.replacementStatus === 'RETURNED_TO_STORE' ? (
+                <div className="p-4 rounded-xl bg-white border border-emerald-200 space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-700 font-bold text-xs">
+                    <span className="material-symbols-outlined text-base">task_alt</span>
+                    <span>Sách hoàn đã được bưu tá bàn giao về kho của bạn!</span>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Vui lòng mở kiện sách, kiểm tra đúng tình trạng và ấn phẩm. Sau đó bấm nút xác nhận dưới đây để hoàn tất hồ sơ.
+                  </p>
+                  <div className="flex justify-end pt-1">
+                    <SellerActionButton
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      icon="inventory"
+                      loading={isConfirmingReceipt}
+                      onClick={handleConfirmWarehouseReceipt}
+                    >
+                      Xác Nhận Đã Nhận Sách Vào Kho
+                    </SellerActionButton>
+                  </div>
+                </div>
+              ) : returnReq.replacementStatus === 'RETURNING' ? (
+                <div className="p-4 rounded-xl bg-white border border-emerald-200 space-y-2">
+                  <div className="flex items-center gap-2 text-sky-700 font-bold text-xs">
+                    <span className="material-symbols-outlined text-base animate-pulse">local_shipping</span>
+                    <span>Bưu tá đã lấy sách từ khách & đang vận chuyển về kho Shop</span>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Tài xế HuKi Express đã tiếp nhận sách hoàn từ người mua. Hệ thống đã kích hoạt <b>Hoàn Tiền Nhanh</b> cho khách. Khi tài xế giao sách tới kho, bạn sẽ nhận được thông báo để bấm xác nhận nhận sách.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-white border border-emerald-200/80 space-y-3">
+                  <div className="flex items-start gap-2.5 text-xs text-slate-700">
+                    <span className="material-symbols-outlined text-emerald-700 text-base shrink-0 mt-0.5">home_pin</span>
+                    <div>
+                      <p className="font-bold text-slate-900">Địa chỉ lấy sách hoàn:</p>
+                      <p className="text-slate-600 text-[11.5px] mt-0.5">
+                        {returnReq.user?.name || returnReq.user?.fullName || 'Khách hàng'} · {returnReq.user?.phone || '0901234567'}
+                      </p>
+                      <p className="text-slate-500 text-[11px] mt-0.5">
+                        {(returnReq.order?.shippingAddress as any)?.fullAddress || (returnReq.order?.shippingAddress as any)?.line1 || 'Địa chỉ nhận hàng của đơn'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/60 text-amber-900 text-[11.5px] leading-relaxed flex items-start gap-2">
+                    <span className="material-symbols-outlined text-amber-600 text-base shrink-0">bolt</span>
+                    <p>
+                      <b>Cơ chế Hoàn Tiền Nhanh:</b> Khi bưu tá đến nhà khách và bấm xác nhận đã lấy hàng, tiền ký quỹ sẽ được Sàn hoàn trả ngay cho khách, bưu tá sẽ chở ấn phẩm về kho Shop.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5 pt-1">
+                    <label className="block text-[11.5px] font-bold text-slate-700">
+                      Ghi chú / Dặn dò bưu tá (Tùy chọn)
+                    </label>
+                    <textarea
+                      value={dispatchNote}
+                      onChange={(e) => setDispatchNote(e.target.value)}
+                      placeholder="VD: Khách hẹn lấy buổi chiều, kiểm tra kỹ xem ấn phẩm có nguyên vẹn..."
+                      rows={2}
+                      className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                    />
+                  </div>
+
+                  <div className="flex justify-end pt-1">
+                    <SellerActionButton
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      icon="send"
+                      loading={isDispatching}
+                      onClick={handleDispatchShipper}
+                    >
+                      Nhắn Bưu Tá Đến Lấy Sách
+                    </SellerActionButton>
+                  </div>
                 </div>
               )}
             </div>

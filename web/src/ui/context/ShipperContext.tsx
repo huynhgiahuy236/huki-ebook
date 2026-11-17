@@ -838,11 +838,24 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
       )
     );
 
-    realtimeSyncBus.publish('SHIPPER_PICKED_UP', {
-      orderId,
-      isReturn,
-      trackingCode: target?.code,
-    });
+    if (isReturn) {
+      realtimeSyncBus.publish('RETURN_PICKED_UP', {
+        orderId: target?.orderId || orderId,
+        returnRequestId: orderId,
+        isReturn: true,
+        trackingCode: target?.code,
+      });
+      realtimeSyncBus.publish('ESCROW_REFUNDED', {
+        orderId: target?.orderId || orderId,
+        returnRequestId: orderId,
+      });
+    } else {
+      realtimeSyncBus.publish('SHIPPER_PICKED_UP', {
+        orderId,
+        isReturn,
+        trackingCode: target?.code,
+      });
+    }
 
     // Ensure the order is retained in active in-transit deliveries
     saveClaimedId(orderId);
@@ -856,9 +869,9 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
       showToast(
         {
           title: 'Đã nhận sách hoàn từ khách!',
-          message: 'Kiện sách đã được nhận từ khách hàng. Vui lòng vận chuyển bàn giao về kho của Shop.',
+          message: 'Hệ thống đã kích hoạt hoàn tiền ngay cho người mua. Vui lòng vận chuyển sách về bàn giao cho kho Shop.',
         },
-        'info'
+        'success'
       );
     } else {
       showToast(
