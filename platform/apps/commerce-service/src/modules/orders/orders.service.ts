@@ -4088,9 +4088,10 @@ export class OrdersService {
     });
     if (!sellerOrder) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
 
-    const actorId = actor?.sub || 'ship-0000-4000-8000-000000000003';
+    const actorId = actor?.sub || '507b69fc-a379-40cb-8e9f-5398fe67a531';
     const validShipperIds = new Set([
       actorId,
+      '507b69fc-a379-40cb-8e9f-5398fe67a531',
       'ship-0000-4000-8000-000000000003',
       'shipper-hung',
       'SHIPPER-8899',
@@ -4206,8 +4207,8 @@ export class OrdersService {
     });
     if (!sellerOrder) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
 
-    const carrier = dto?.carrier || 'GHTK';
-    const trackingCode = dto?.trackingCode || `GHTK-${randomBytes(4).toString('hex').toUpperCase()}`;
+    const carrier = dto?.carrier || sellerOrder.carrier || 'HUKI_EXPRESS';
+    const trackingCode = dto?.trackingCode || sellerOrder.trackingCode || `HUKI-EXP-${randomBytes(4).toString('hex').toUpperCase()}`;
 
     // SH-003: Check if order already picked up or delivered by another driver
     if (sellerOrder.status === SellerOrderStatus.SHIPPED || sellerOrder.status === SellerOrderStatus.DELIVERED) {
@@ -4228,7 +4229,7 @@ export class OrdersService {
           trackingCode,
           shippedAt: new Date(),
           status: SellerOrderStatus.SHIPPED,
-          deliveryStaffId: sellerOrder.deliveryStaffId || actor?.sub || 'ship-0000-4000-8000-000000000003',
+          deliveryStaffId: sellerOrder.deliveryStaffId || actor?.sub || '507b69fc-a379-40cb-8e9f-5398fe67a531',
         },
       });
 

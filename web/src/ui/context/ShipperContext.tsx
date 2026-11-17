@@ -523,7 +523,9 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
               (myAuthId && o.deliveryStaffId === myAuthId) ||
               o.deliveryStaffId === 'shipper-hung' ||
               o.deliveryStaffId === 'ship-0000-4000-8000-000000000003' ||
-              o.deliveryStaffId === 'SHIPPER-8899'
+              o.deliveryStaffId === '507b69fc-a379-40cb-8e9f-5398fe67a531' ||
+              o.deliveryStaffId === 'SHIPPER-8899' ||
+              user?.role === 'PLATFORM_ADMIN'
             )
           ) || storedClaimedSet.has(item.id);
 
@@ -831,7 +833,8 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
       trackingCode: target?.code,
     });
 
-    removeClaimedId(orderId);
+    // Ensure the order is retained in active in-transit deliveries
+    saveClaimedId(orderId);
     try {
       await orderApi.shipperPickup(orderId);
     } catch (err) {
