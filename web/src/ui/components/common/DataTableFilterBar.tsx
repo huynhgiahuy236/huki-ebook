@@ -881,19 +881,7 @@ export function DataTableFilterBar<TStatus extends string = string>(props: DataT
                   </button>
                 )}
               </div>
-            ) : (
-              <div className="flex items-center gap-1.5 opacity-50">
-                <button
-                  type="button"
-                  disabled
-                  className="h-9 px-3 rounded-xl text-xs font-semibold bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/60 text-neutral-400 cursor-not-allowed flex items-center gap-2"
-                  title="Chọn ít nhất 1 dòng trong bảng để thực hiện thao tác"
-                >
-                  <span>-- Chọn việc cần làm (chọn ở bảng) --</span>
-                  <span className="text-[8px] text-neutral-400">▼</span>
-                </button>
-              </div>
-            )}
+            ) : null}
           </div>
         )}
       </div>

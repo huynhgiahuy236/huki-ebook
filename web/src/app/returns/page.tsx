@@ -26,7 +26,12 @@ function ReturnProgressContent() {
     setLoading(true);
     try {
       // 1. Fetch buyer return requests
-      const res = await orderApi.getBuyerReturnRequests(orderId ? { orderId } : undefined);
+      let res = await orderApi.getBuyerReturnRequests(orderId ? { orderId } : undefined);
+      // Fallback: if queried with orderId but got empty (e.g. order code vs uuid), fetch all buyer returns
+      if ((!res.success || !Array.isArray(res.data) || res.data.length === 0) && orderId) {
+        res = await orderApi.getBuyerReturnRequests();
+      }
+
       if (res.success && Array.isArray(res.data) && res.data.length > 0) {
         // If returnId is provided, find exact match; otherwise take the newest for this order
         let target = res.data[0];

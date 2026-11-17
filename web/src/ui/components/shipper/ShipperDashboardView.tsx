@@ -1,8 +1,9 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useShipper } from '@/ui/context/ShipperContext';
+import { StandardPaginationBar } from '@/ui/components/common/GroupedDataTable';
 
 export default function ShipperDashboardView() {
   const {
@@ -15,6 +16,21 @@ export default function ShipperDashboardView() {
     historyOrders,
     acceptOrder,
   } = useShipper();
+
+  // Pagination for Active Deliveries (Prevents vertical page sprawl when 10+ orders active)
+  const [activePage, setActivePage] = useState(1);
+  const activePageSize = 3;
+  const totalActivePages = Math.max(1, Math.ceil(activeDeliveries.length / activePageSize));
+  const paginatedActiveDeliveries = activeDeliveries.slice(
+    (activePage - 1) * activePageSize,
+    activePage * activePageSize
+  );
+
+  useEffect(() => {
+    if (activePage > totalActivePages) {
+      setActivePage(1);
+    }
+  }, [activeDeliveries.length, totalActivePages, activePage]);
 
   return (
     <div className="space-y-4">
@@ -146,6 +162,11 @@ export default function ShipperDashboardView() {
                 <h2 className="text-sm font-bold text-[#003B2B] uppercase tracking-wider">
                   Đơn Hàng Đang Tiến Hành ({activeDeliveries.length})
                 </h2>
+                {totalActivePages > 1 && (
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                    Trang {activePage}/{totalActivePages}
+                  </span>
+                )}
               </div>
               <Link
                 href="/shipper/active-deliveries"
@@ -173,68 +194,84 @@ export default function ShipperDashboardView() {
                 </Link>
               </div>
             ) : (
-              <div className="divide-y divide-[#F1F5F9]">
-                {activeDeliveries.map((delivery) => (
-                  <div key={delivery.id} className="p-5 hover:bg-gray-50/70 transition-colors">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-sm text-[#003B2B]">
-                          {delivery.code}
-                        </span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
-                          {delivery.status === 'PICKING_UP'
-                            ? '1. Đang đi lấy sách từ Shop'
-                            : delivery.status === 'IN_TRANSIT'
-                            ? '2. Đang đi giao tới khách'
-                            : 'Hoàn tất'}
-                        </span>
-                        <span className="text-xs text-gray-400">• {delivery.distanceKm} km</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-xs text-gray-500">Tiền công ship: </span>
-                        <strong className="text-sm font-bold text-[#00875A]">
-                          +{delivery.shippingFee.toLocaleString('vi-VN')}đ
-                        </strong>
-                      </div>
-                    </div>
-
-                    {/* Routing timeline */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] text-xs">
-                      <div>
-                        <div className="text-[11px] font-bold text-amber-700 flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[14px]">storefront</span>
-                          <span>Điểm lấy hàng: {delivery.shopName}</span>
+              <div>
+                <div className="divide-y divide-[#F1F5F9]">
+                  {paginatedActiveDeliveries.map((delivery) => (
+                    <div key={delivery.id} className="p-5 hover:bg-gray-50/70 transition-colors">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-sm text-[#003B2B]">
+                            {delivery.code}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
+                            {delivery.status === 'PICKING_UP'
+                              ? '1. Đang đi lấy sách từ Shop'
+                              : delivery.status === 'IN_TRANSIT'
+                              ? '2. Đang đi giao tới khách'
+                              : 'Hoàn tất'}
+                          </span>
+                          <span className="text-xs text-gray-400">• {delivery.distanceKm} km</span>
                         </div>
-                        <div className="text-gray-600 mt-0.5 break-words line-clamp-2 leading-snug">{delivery.shopAddress}</div>
-                        <div className="text-gray-400 text-[11px]">SĐT Shop: {delivery.shopPhone}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-bold text-emerald-700 flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[14px]">person_pin_circle</span>
-                          <span>Điểm giao: {delivery.customerName}</span>
-                        </div>
-                        <div className="text-gray-600 mt-0.5 break-words line-clamp-2 leading-snug">{delivery.deliveryAddress}</div>
-                        <div className="text-gray-400 text-[11px]">
-                          Thu COD:{' '}
-                          <strong className="text-gray-800">
-                            {delivery.codAmount > 0 ? `${delivery.codAmount.toLocaleString('vi-VN')}đ` : '0đ (Đã thanh toán online)'}
+                        <div className="text-right">
+                          <span className="text-xs text-gray-500">Tiền công ship: </span>
+                          <strong className="text-sm font-bold text-[#00875A]">
+                            +{delivery.shippingFee.toLocaleString('vi-VN')}đ
                           </strong>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Action Bar */}
-                    <div className="mt-3 flex items-center justify-end gap-2">
-                      <Link
-                        href="/shipper/active-deliveries"
-                        className="px-3 py-1.5 bg-[#00875A] hover:bg-[#003B2B] text-white text-xs font-bold rounded-lg shadow-2xs flex items-center gap-1 transition-colors"
-                      >
-                        <span className="material-symbols-outlined text-[15px]">route</span>
-                        <span>Cập nhật tiến trình & Giao hàng</span>
-                      </Link>
+                      {/* Routing timeline */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0] text-xs">
+                        <div>
+                          <div className="text-[11px] font-bold text-amber-700 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[14px]">storefront</span>
+                            <span>Điểm lấy hàng: {delivery.shopName}</span>
+                          </div>
+                          <div className="text-gray-600 mt-0.5 break-words line-clamp-2 leading-snug">{delivery.shopAddress}</div>
+                          <div className="text-gray-400 text-[11px]">SĐT Shop: {delivery.shopPhone}</div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] font-bold text-emerald-700 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[14px]">person_pin_circle</span>
+                            <span>Điểm giao: {delivery.customerName}</span>
+                          </div>
+                          <div className="text-gray-600 mt-0.5 break-words line-clamp-2 leading-snug">{delivery.deliveryAddress}</div>
+                          <div className="text-gray-400 text-[11px]">
+                            Thu COD:{' '}
+                            <strong className="text-gray-800">
+                              {delivery.codAmount > 0 ? `${delivery.codAmount.toLocaleString('vi-VN')}đ` : '0đ (Đã thanh toán online)'}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Bar */}
+                      <div className="mt-3 flex items-center justify-end gap-2">
+                        <Link
+                          href="/shipper/active-deliveries"
+                          className="px-3 py-1.5 bg-[#00875A] hover:bg-[#003B2B] text-white text-xs font-bold rounded-lg shadow-2xs flex items-center gap-1 transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">route</span>
+                          <span>Cập nhật tiến trình & Giao hàng</span>
+                        </Link>
+                      </div>
                     </div>
+                  ))}
+                </div>
+
+                {/* Pagination Controls */}
+                {totalActivePages > 1 && (
+                  <div className="border-t border-[#F1F5F9] bg-[#FAFAFA]/60 px-4 py-2">
+                    <StandardPaginationBar
+                      currentPage={activePage}
+                      totalPages={totalActivePages}
+                      totalItems={activeDeliveries.length}
+                      pageSize={activePageSize}
+                      onPageChange={setActivePage}
+                      itemLabel="đơn đang giao"
+                    />
                   </div>
-                ))}
+                )}
               </div>
             )}
           </div>

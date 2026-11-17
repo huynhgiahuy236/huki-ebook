@@ -6,6 +6,7 @@ import EscrowTableBadge from './EscrowTableBadge';
 import type { SellerEscrowItem } from '@/ui/api/walletApi';
 import { formatVND } from '@/ui/utils/sellerFinanceEngine';
 import { useToast } from '@/ui/context/ToastContext';
+import { ESCROW_CONFIG } from '@/ui/constants/escrowConfig';
 
 export interface SellerGroupedOrderTableProps {
   items: SellerEscrowItem[];
@@ -310,7 +311,7 @@ export function SellerGroupedOrderTable({
             <p className="font-medium text-gray-700 mt-0.5">
               {it.escrowStatus === 'RELEASED'
                 ? 'Tiền đã giải ngân thành công vào số dư khả dụng của ví shop.'
-                : 'Tiền đang được bảo vệ trong tài khoản ký quỹ. Hết 7 ngày đổi trả sẽ tự động chuyển vào ví khả dụng.'}
+                : `Tiền đang được bảo vệ trong tài khoản ký quỹ. Hết ${ESCROW_CONFIG.DURATION_LABEL} đổi trả sẽ tự động chuyển vào ví khả dụng.`}
             </p>
           </div>
 
@@ -355,7 +356,7 @@ export function SellerGroupedOrderTable({
           {[
             { id: 'ALL', label: 'Tất Cả' },
             { id: 'RELEASED', label: 'Đã Cộng Ví' },
-            { id: 'HOLDING', label: 'Đang Giữ Hộ (7 Ngày)' },
+            { id: 'HOLDING', label: `Đang Giữ Hộ (${ESCROW_CONFIG.DURATION_LABEL})` },
             { id: 'PENDING_PAYMENT', label: 'Chờ Thanh Toán' },
           ].map((f) => (
             <button
@@ -453,32 +454,38 @@ export function SellerGroupedOrderTable({
           emptyTitle="Chưa có món hàng nào phát sinh"
           emptyMessage="Các đơn sách sau khi khách đặt sẽ xuất hiện và đối soát đầy đủ tại đây."
           summaryRow={
-            <tr className="bg-gray-100/90 font-black text-xs text-gray-900 border-t-2 border-gray-300">
-              <td className="py-3 px-3 text-center">Σ</td>
-              <td className="py-3 px-3" colSpan={2}>
-                <span className="font-bold uppercase tracking-wider text-gray-800">
-                  Tổng Cộng ({filteredItems.length} Đơn Hàng)
-                </span>
-              </td>
-              <td className="py-3 px-3 text-right font-mono">
-                {formatVND(grandTotals.subtotal)}
-              </td>
-              <td className="py-3 px-3 text-right font-mono text-amber-700">
-                -{formatVND(grandTotals.platformFee)}
-              </td>
-              <td className="py-3 px-3 text-right font-mono text-[#00875A] text-sm">
-                +{formatVND(grandTotals.sellerNet)}
-              </td>
-              <td className="py-3 px-3 text-center text-gray-500 font-medium">Toàn Bộ Dòng Tiền</td>
-            </tr>
+            filteredItems.length > 0 ? (
+              <tr className="bg-gray-100/90 font-black text-xs text-gray-900 border-t-2 border-gray-300">
+                <td className="py-3 px-3 text-center">Σ</td>
+                <td className="py-3 px-3" colSpan={2}>
+                  <span className="font-bold uppercase tracking-wider text-gray-800">
+                    Tổng Cộng ({filteredItems.length} Đơn Hàng)
+                  </span>
+                </td>
+                <td className="py-3 px-3 text-right font-mono">
+                  {formatVND(grandTotals.subtotal)}
+                </td>
+                <td className="py-3 px-3 text-right font-mono text-amber-700">
+                  -{formatVND(grandTotals.platformFee)}
+                </td>
+                <td className="py-3 px-3 text-right font-mono text-[#00875A] text-sm">
+                  +{formatVND(grandTotals.sellerNet)}
+                </td>
+                <td className="py-3 px-3 text-center text-gray-500 font-medium">Toàn Bộ Dòng Tiền</td>
+              </tr>
+            ) : undefined
           }
-          pagination={{
-            currentPage,
-            totalItems: filteredItems.length,
-            pageSize: 10,
-            onPageChange: setCurrentPage,
-            itemLabel: 'đơn hàng',
-          }}
+          pagination={
+            filteredItems.length > 0
+              ? {
+                  currentPage,
+                  totalItems: filteredItems.length,
+                  pageSize: 10,
+                  onPageChange: setCurrentPage,
+                  itemLabel: 'đơn hàng',
+                }
+              : undefined
+          }
         />
       </div>
     </div>

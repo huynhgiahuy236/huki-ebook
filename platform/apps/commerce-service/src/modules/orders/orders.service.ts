@@ -3978,7 +3978,19 @@ export class OrdersService {
     const where: any = { userId };
 
     if (query?.orderId) {
-      where.orderId = query.orderId;
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query.orderId)) {
+        where.orderId = query.orderId;
+      } else {
+        const matchedOrder = await this.prisma.order.findFirst({
+          where: { code: query.orderId },
+          select: { id: true },
+        });
+        if (matchedOrder) {
+          where.orderId = matchedOrder.id;
+        } else {
+          where.orderId = query.orderId;
+        }
+      }
     }
 
     if (query?.type && query.type !== 'ALL') {

@@ -712,7 +712,7 @@ export default function SellerFinancePage() {
               loading={isWalletLoading}
               onAutoReleaseItem={handleAutoReleaseItem}
               title="Bảng Kê Chi Tiết Đơn Hàng & Ký Quỹ Escrow"
-              subtitle="Tự động phân bổ doanh thu 95% sau 7 ngày hoặc khi đối soát COD bưu tá hoàn tất"
+              subtitle={`Tự động phân bổ doanh thu 95% sau ${ESCROW_CONFIG.DURATION_LABEL} hoặc khi đối soát COD bưu tá hoàn tất`}
             />
           </div>
         )}

@@ -84,6 +84,11 @@ export function StandardPaginationBar({
   itemLabel = 'mục',
   className = '',
 }: PaginationConfig & { className?: string }) {
+  // If there are no items, hide the pagination bar completely
+  if (totalItems <= 0) {
+    return null;
+  }
+
   const calculatedTotalPages = Math.max(1, totalPages !== undefined ? totalPages : Math.ceil(totalItems / pageSize) || 1);
   const safeCurrentPage = Math.min(Math.max(1, currentPage), calculatedTotalPages);
 
@@ -695,7 +700,7 @@ export default function GroupedDataTable<T extends Record<string, any> = any>({
             )}
           </tbody>
 
-          {summaryRow && (
+          {summaryRow && displayData.length > 0 && (
             <tfoot className="border-t-2 border-theme-border bg-theme-surface-subtle font-bold">
               {summaryRow}
             </tfoot>
