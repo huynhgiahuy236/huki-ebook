@@ -30,10 +30,16 @@
 [6. E2E Test Local] ◄── [5. Unit Test & Build] ◄── [4. Sửa Tận Gốc Local]
        │
        ▼
-[7. Kiểm toán Ma trận Local vs UAT]
+[7. Ma trận Môi trường & Quét Sạch Bug Ngầm / Request Spam (PRE-UAT GATE)]
        │
        ▼
-[8. Triển khai UAT & Test Live] ──► [9. Báo cáo Nghiệm thu] ──► [10. DONE & RELEASE]
+[8. Triển khai UAT & Test Live]
+       │
+       ▼
+[9. Soi Chiếu Nhật Ký Hệ Thống & Giám Sát Tải CPU/RAM (POST-UAT GATE)]
+       │
+       ▼
+[10. Nghiệm Thu Báo Cáo & DONE RELEASE]
 ```
 
 ---
@@ -107,40 +113,72 @@
 
 ---
 
-### Bước 7: Kiểm toán Phân biệt Môi trường Local vs UAT (Environment Matrix Audit)
+### Bước 7: Kiểm toán Ma trận Môi trường & Quét Sạch Bug Ngầm / Request Spam (Pre-UAT Hygiene & Resource Gate)
+> **Cửa ngõ bắt buộc trước khi đóng gói code lên máy chủ UAT.** Mục đích: Làm sạch triệt để mọi lỗi logic ngầm có thể gây nghẽn hàng đợi, vòng lặp vô tận, request spam liên tục hoặc quá tải CPU/RAM.
+
 - **Thao tác:**
-  - Phân loại rạch ròi giữa **"Lỗi cả Local & UAT đều bị"** (do code logic) và **"Lỗi chỉ UAT bị"** (do môi trường).
-  - Rà soát các lỗi môi trường UAT thường gặp:
-    - Thiếu biến môi trường trong `docker-compose.uat.yml` (`COMMERCE_SERVICE_URL`, `BUSINESS_DATABASE_URL`, `IDENTITY_DATABASE_URL`).
-    - Cấu hình Nginx Reverse Proxy: Lỗi trailing slash `/socket.io/`, lỗi giới hạn tải ảnh `client_max_body_size 413`.
-    - Chứng chỉ SSL / CORS / Cookie cross-domain (`SameSite=Lax`, `Secure`).
+  1. **Phân loại rạch ròi sự khác biệt môi trường (Local vs UAT Matrix):**
+     - Phân định rõ "Lỗi cả Local & UAT đều bị" (do logic code) vs "Lỗi chỉ UAT bị" (do biến môi trường, mạng Docker).
+     - Kiểm toán biến môi trường trong `docker-compose.uat.yml` và `docker-compose.prod.yml`: Đảm bảo các vi dịch vụ có đủ URL gọi nội bộ qua mạng Docker (`COMMERCE_SERVICE_URL: http://commerce-service-uat:3003`, `BUSINESS_SERVICE_URL: http://business-service-uat:3002`, `IDENTITY_SERVICE_URL: http://identity-service-uat:3001`), tránh lỗi `ECONNREFUSED localhost:3003` ngầm.
+     - Kiểm toán Nginx Reverse Proxy: Trailing slash `/socket.io/`, `client_max_body_size 100M`, WebSocket upgrade.
+  2. **Quét vòng lặp vô tận & Polling bão request (Client Request Spam Storm):**
+     - Rà soát mã nguồn `web/` để loại bỏ các `useEffect` thiếu/sai dependencies gây re-render vô hạn.
+     - Loại bỏ hoàn toàn polling dày đặc (`setInterval` 1s-2s gọi API liên tục như `/api/v1/broadcast-notifications`, `/cart`, `/auth/status`). Các request kiểm tra nền bắt buộc phải có Throttle, Debounce, Exponential Backoff hoặc chuyển sang WebSocket/SSE.
+  3. **Quét rò rỉ tài nguyên & Ngăn chặn Treo CPU (Backend Hot Loops & CPU Spikes):**
+     - Kiểm tra các background workers, scheduled crons, setInterval trong microservices. Mọi timer nền không phục vụ luồng chính phải gọi `.unref()` để không giữ tiến trình hoặc gây leak Jest runner.
+     - Các consumer RabbitMQ khi retry bắt buộc phải có Exponential Backoff (độ trễ tăng dần), **tuyệt đối cấm retry nóng (hot loop)** làm CPU nhảy lên 100% và nghẽn message broker.
+  4. **Kiểm tra rò rỉ kết nối Database (Connection Pool Exhaustion):**
+     - Đảm bảo mọi Prisma transaction (`tx`) và truy vấn đều giải phóng kết nối đúng cách, có timeout và catch lỗi rõ ràng, không để connection bị treo gây sập pool DB khi chạy tải.
+  5. **Nhật ký Local sạch tuyệt đối:**
+     - 0 lỗi `AggregateError: ECONNREFUSED`, 0 unhandled promise rejections, 0 vòng lặp log spam trong console/terminal.
 
 ---
 
 ### Bước 8: Triển khai UAT Staging & Kiểm thử Trực tiếp (Live E2E Verification)
 - **Thao tác:**
-  - Merge code vào nhánh UAT và deploy lên máy chủ Staging (`https://huki-uat.duckdns.org`).
-  - Chạy bộ script kiểm toán chuyên biệt UAT trong [`scripts/uat-audit/`](file:///e:/HuKi/scripts/uat-audit/).
-  - Thực hiện kịch bản kiểm thử E2E liên thông đa phân hệ (Cross-portal E2E flows):
+  - Merge code vào nhánh `develop` để kích hoạt workflow CI/CD `.github/workflows/deploy-staging.yml`.
+  - Quá trình deploy tự động build Docker images, SSH lên VPS, tự động chạy `npx prisma db push` cho các service có migration mới (ví dụ: `voucher_reservations`), và khởi động lại cụm container UAT.
+  - Chạy bộ script kiểm toán chuyên biệt UAT trong [`scripts/uat-audit/`](file:///e:/HuKi/scripts/uat-audit/) (ví dụ: `test_uat_e2e_verification.js`, `test_docker_env_audit.js`).
+  - Thực hiện kịch bản kiểm thử E2E liên thông đa phân hệ trên domain thật `https://huki-uat.duckdns.org`:
     * *Độc giả mua hàng* ➔ *Người bán nhận thông báo & đóng hàng* ➔ *Bưu tá lấy hàng & nộp ảnh POD* ➔ *Khách nhận hàng* ➔ *Escrow tự động giải ngân cho Shop sau 7 ngày* ➔ *CTV Affiliate nhận hoa hồng khả dụng*.
 
 ---
 
-### Bước 9: Lập Báo cáo Kiểm toán Tổng hợp Nghiệm thu (Master Audit Report)
+### Bước 9: Soi Chiếu Nhật Ký Hệ Thống & Giám Sát Tải Thực Tế trên UAT (Post-Deploy Live Monitoring & Resource Health Gate)
+> **Cửa ngõ bắt buộc sau khi deploy UAT và trước khi nghiệm thu Done.** Mục đích: Soi xét toàn bộ nhật ký (logs), traffic mạng và mức tiêu hao CPU/RAM trên máy chủ thực tế để bảo đảm hệ thống vận hành êm ái, sạch bóng bug ngầm.
+
 - **Thao tác:**
-  - Cập nhật báo cáo tổng kết (ví dụ: [`task/uat-audit/MASTER-AUDIT-REPORT.md`](file:///e:/HuKi/task/uat-audit/MASTER-AUDIT-REPORT.md)).
-  - Ghi nhận trạng thái: Đánh dấu `[ĐÃ SỬA]` kèm dẫn chứng commit, dòng mã xử lý, và script kiểm chứng thành công.
-  - Phân tích các Rủi ro Lan truyền (Collateral Risks) còn tồn đọng: Hiệu năng, dung lượng DB, bảo mật thông tin OWASP, rò rỉ ranh giới vi dịch vụ.
+  1. **Soi chiếu Nhật ký Máy chủ (Container Logs Audit):**
+     - Chạy kiểm tra log trên máy chủ VPS: `docker logs --tail=200 -f <container_name>` đối với tất cả các container: `api-gateway`, `commerce-service`, `identity-service`, `business-service`, `promotion-service`, `shipping-service`, `web`.
+     - **Tiêu chuẩn:** Không có lỗi 500 ngầm lặp đi lặp lại, không có thông báo đứt kết nối nội bộ hoặc lỗi `AggregateError` bị spam liên tục trong log.
+  2. **Soi chiếu Network Traffic trên Trình duyệt (Browser Zero-Spam Verification):**
+     - Mở DevTools Network Tab trên trình duyệt khi người dùng ở trạng thái nghỉ (idle) trên các trang trọng yếu (`/`, `/seller/dashboard`, `/admin`, `/checkout`, `/account/affiliate/dashboard`).
+     - **Tiêu chuẩn:** Không có bất kỳ request nào bị bắn spam liên tục mỗi giây. Không có lỗi HTTP 429 (Rate Limit) do client tự spam chính server của mình.
+  3. **Giám sát Tải CPU & Bộ nhớ Thực tế (`docker stats`):**
+     - Chạy lệnh `docker stats --no-stream` trên máy chủ VPS:
+       * Mức sử dụng CPU của toàn bộ cụm container ở trạng thái nhàn rỗi (idle) phải ở ngưỡng an toàn (< 15-20%).
+       * Không có container nào bị ghim CPU ở mức 90-100% do lỗi logic lặp vô tận hoặc hot loop retry.
+       * Bộ nhớ RAM ổn định, không có hiện tượng rò rỉ bộ nhớ tăng dần đều theo thời gian (linear memory leak).
+  4. **Kiểm soát Hàng đợi RabbitMQ & Redis Broker:**
+     - Hàng đợi `huki.events` không bị ứ đọng backlog lớn (lag count = 0 hoặc ổn định ở mức thấp).
+     - Dead Letter Queue (`*.dlq`) không bị tích tụ message lỗi trôi nổi.
+  5. **Lập Báo cáo Kiểm toán Tổng hợp Nghiệm thu (Master Audit Report):**
+     - Cập nhật báo cáo tổng kết (ví dụ: [`task/uat-audit/MASTER-AUDIT-REPORT.md`](file:///e:/HuKi/task/uat-audit/MASTER-AUDIT-REPORT.md)).
+     - Ghi nhận trạng thái: Đánh dấu `[ĐÃ SỬA]` kèm dẫn chứng commit, dòng mã xử lý, và script kiểm chứng thành công.
+     - Phân tích các Rủi ro Lan truyền (Collateral Risks) còn tồn đọng: Hiệu năng, dung lượng DB, bảo mật thông tin OWASP, ranh giới vi dịch vụ.
 
 ---
 
 ### Bước 10: Hoàn tất & Sẵn sàng Release (Done Checklist & Production Readiness)
 - **Thao tác:**
-  - Rà soát checklist bảo đảm cuối cùng:
-    - [x] Không còn chuỗi fallback key hardcode trong mã nguồn.
-    - [x] Không còn kết nối SQL trực tiếp chéo cơ sở dữ liệu (`pg.Client`).
-    - [x] Database Migrations đã được apply hoàn tất trên mọi database vi dịch vụ.
-    - [x] Cơ chế phân quyền và chống gian lận (Anti-fraud, Self-referral, Role restriction) hoạt động chuẩn xác.
+  - Rà soát checklist bảo đảm cuối cùng (Toàn bộ điều kiện bắt buộc để chuyển task sang trạng thái **DONE**):
+    - [x] **Zero Fallback Keys:** Không còn chuỗi fallback key hardcode trong mã nguồn.
+    - [x] **Zero Cross-DB SQL:** Không còn kết nối SQL trực tiếp chéo cơ sở dữ liệu (`pg.Client`), 100% giao tiếp qua Internal API / Domain Events.
+    - [x] **Database Schema Sync:** Migrations đã được apply hoàn tất trên mọi database vi dịch vụ.
+    - [x] **Zero Request Spamming:** Không còn polling vô tận, broadcast spam hoặc vòng lặp re-render ở Client làm nghẽn mạng.
+    - [x] **Resource Health & Low CPU:** Mức sử dụng CPU & RAM trên VPS duy trì ổn định, không có background worker/hot retry nào gây nghẽn CPU.
+    - [x] **Clean Logs:** Container logs trên UAT sạch bóng các lỗi 500 / ECONNREFUSED định kỳ.
+    - [x] **Security & Anti-Fraud:** Cơ chế phân quyền và chống gian lận (Anti-fraud, Self-referral, Role restriction) hoạt động chuẩn xác.
   - Đánh dấu task / bug là **DONE**, tạo Pull Request chính thức để merge vào nhánh chính (`develop` / `main`).
 
 ---
