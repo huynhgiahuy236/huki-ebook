@@ -40,6 +40,7 @@ export interface SettlementCalculationResult {
   commissionPercent: number;
   platformCommission: number;
   platformSubsidy: number;
+  affiliateCommission?: number;
   sellerNet: number;
   currency: string;
 }
@@ -91,16 +92,19 @@ export class SettlementService implements OnApplicationBootstrap {
    * Calculate Platform Commission and Net Seller Proceeds using PolicyConfigService
    * Adheres to DEC-002 (Configured engineering basis) and DEC-004 (Subsidy rate)
    */
-  calculateSettlement(sellerOrder: {
-    id: string;
-    orderId: string;
-    code: string;
-    storeId: string;
-    itemSubtotal: Decimal | number | string;
-    shippingFee: Decimal | number | string;
-    grandTotal: Decimal | number | string;
-    order?: { code?: string };
-  }): SettlementCalculationResult {
+  calculateSettlement(
+    sellerOrder: {
+      id: string;
+      orderId: string;
+      code: string;
+      storeId: string;
+      itemSubtotal: Decimal | number | string;
+      shippingFee: Decimal | number | string;
+      grandTotal: Decimal | number | string;
+      order?: { code?: string };
+    },
+    affiliateCommissionAmount: number = 0,
+  ): SettlementCalculationResult {
     const commissionPercent = this.policyConfig.platformCommissionPercent; // Default 15%
     const basis = this.policyConfig.commissionCalculationBasis; // 'NET_PAID' or 'SUBTOTAL' (DEC-002)
     const subsidyRate = this.policyConfig.platformVoucherSubsidyRate; // Default 0 (DEC-004)
@@ -129,8 +133,13 @@ export class SettlementService implements OnApplicationBootstrap {
       .mul(new Decimal(subsidyRate))
       .toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
 
-    // Seller Net Payout = Merchandise Net - Commission + Subsidy (Excludes shipping fee)
-    let sellerNet = merchandiseNet.sub(platformCommission).add(platformSubsidy);
+    const affCommission = new Decimal(affiliateCommissionAmount || 0);
+
+    // Seller Net Payout = Merchandise Net - Platform Commission - Affiliate Commission + Platform Subsidy (Excludes shipping fee)
+    let sellerNet = merchandiseNet
+      .sub(platformCommission)
+      .sub(affCommission)
+      .add(platformSubsidy);
     if (sellerNet.isNegative()) {
       sellerNet = new Decimal(0);
     }
@@ -149,6 +158,7 @@ export class SettlementService implements OnApplicationBootstrap {
       commissionPercent,
       platformCommission: platformCommission.toNumber(),
       platformSubsidy: platformSubsidy.toNumber(),
+      affiliateCommission: affCommission.toNumber(),
       sellerNet: sellerNet.toNumber(),
       currency: 'VND',
     };
@@ -428,7 +438,20 @@ export class SettlementService implements OnApplicationBootstrap {
       include: { entries: true },
     });
 
-    const calculation = this.calculateSettlement(sellerOrder);
+    let affiliateCommission = 0;
+    if (this.prisma.affiliateCommission?.aggregate) {
+      const affiliateAgg = await this.prisma.affiliateCommission.aggregate({
+        where: {
+          orderId: sellerOrder.orderId,
+          storeId: sellerOrder.storeId,
+          status: { in: ['PENDING', 'HOLDING', 'AVAILABLE'] },
+        },
+        _sum: { commissionAmount: true },
+      });
+      affiliateCommission = Number(affiliateAgg?._sum?.commissionAmount || 0);
+    }
+
+    const calculation = this.calculateSettlement(sellerOrder, affiliateCommission);
 
     if (existingLedgerTx) {
       // Check if wallet movement was completed; if not, recover it
@@ -452,6 +475,7 @@ export class SettlementService implements OnApplicationBootstrap {
             metadata: {
               ledgerTransactionId: existingLedgerTx.id,
               platformCommission: calculation.platformCommission,
+              affiliateCommission: calculation.affiliateCommission,
             },
           },
         );
@@ -524,6 +548,17 @@ export class SettlementService implements OnApplicationBootstrap {
       });
     }
 
+    // If affiliate marketing commission was generated, credit SELLER_COMMISSION_EXPENSE to balance the ledger
+    if (calculation.affiliateCommission && calculation.affiliateCommission > 0) {
+      entries.push({
+        accountType: LedgerAccountType.SELLER_COMMISSION_EXPENSE,
+        direction: LedgerEntryDirection.CREDIT,
+        amount: calculation.affiliateCommission,
+        storeId: sellerOrder.storeId || undefined,
+        description: `Deduct affiliate marketing commission for sub-order ${sellerOrder.code}`,
+      });
+    }
+
     const ledgerTx = await this.ledgerService.postTransaction({
       idempotencyKey,
       description: `Escrow settlement clearance for sub-order ${sellerOrder.code} (${calculation.commissionPercent}% platform commission)`,
@@ -541,6 +576,7 @@ export class SettlementService implements OnApplicationBootstrap {
         commissionPercent: calculation.commissionPercent,
         platformCommission: calculation.platformCommission,
         platformSubsidy: calculation.platformSubsidy,
+        affiliateCommission: calculation.affiliateCommission,
         sellerNet: calculation.sellerNet,
       },
     });
@@ -557,6 +593,7 @@ export class SettlementService implements OnApplicationBootstrap {
         metadata: {
           ledgerTransactionId: ledgerTx.id,
           platformCommission: calculation.platformCommission,
+          affiliateCommission: calculation.affiliateCommission,
         },
       },
     );

@@ -652,4 +652,62 @@ describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
       expect.any(Object),
     );
   });
+
+  it('16. deducts affiliate marketing commission from seller net proceeds and balances ledger with SELLER_COMMISSION_EXPENSE credit', async () => {
+    const mockOrder = createMockSellerOrder({
+      itemSubtotal: new Decimal(200000),
+      shippingFee: new Decimal(0),
+      grandTotal: new Decimal(200000),
+      status: SellerOrderStatus.DELIVERED,
+      completedAt: new Date(Date.now() - 200 * 3600 * 1000),
+    });
+
+    prisma.sellerOrder.findUnique.mockResolvedValue(mockOrder);
+    prisma.ledgerTransaction.findUnique.mockResolvedValue(null);
+    prisma.affiliateCommission = {
+      aggregate: jest.fn().mockResolvedValue({
+        _sum: { commissionAmount: new Decimal(16000) }, // 8% of 200,000 = 16,000 VND
+      }),
+    };
+
+    walletService.getOrCreateWallet.mockResolvedValue({ id: 'w-1', storeId: mockStoreA });
+    ledgerService.postTransaction.mockResolvedValue({
+      id: 'ltx-aff',
+      transactionNumber: 'LTX-AFF-001',
+      postedAt: new Date(),
+    });
+
+    const result = await service.settleSellerOrder('so-1');
+
+    // Commission: 15% of 200k = 30k. Affiliate: 16k.
+    // Net Payout: 200k - 30k - 16k = 154,000 VND
+    expect(result.calculation.platformCommission).toBe(30000);
+    expect(result.calculation.affiliateCommission).toBe(16000);
+    expect(result.calculation.sellerNet).toBe(154000);
+
+    // Verify wallet movement credited sellerNet (154,000)
+    expect(walletService.movePendingToAvailable).toHaveBeenCalledWith(
+      mockStoreA,
+      154000,
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          platformCommission: 30000,
+          affiliateCommission: 16000,
+        }),
+      }),
+    );
+
+    // Verify ledger entries contain SELLER_COMMISSION_EXPENSE credit (16,000)
+    expect(ledgerService.postTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entries: expect.arrayContaining([
+          expect.objectContaining({
+            accountType: LedgerAccountType.SELLER_COMMISSION_EXPENSE,
+            direction: LedgerEntryDirection.CREDIT,
+            amount: 16000,
+          }),
+        ]),
+      }),
+    );
+  });
 });
