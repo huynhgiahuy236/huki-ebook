@@ -23,7 +23,12 @@ describe('BusinessService', () => {
     emit: jest.fn(),
   };
 
-  const service = new BusinessService(mockPrisma as any, mockEventEmitter as any);
+  const mockIdentity = {
+    setBusinessRole: jest.fn(),
+    getProfiles: jest.fn().mockResolvedValue([]),
+  };
+
+  const service = new BusinessService(mockPrisma as any, mockEventEmitter as any, mockIdentity as any);
 
   beforeEach(() => jest.clearAllMocks());
 

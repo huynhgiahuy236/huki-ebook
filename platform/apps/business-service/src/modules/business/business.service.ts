@@ -8,12 +8,14 @@ import { ErrorCode } from '@huki/shared/errors';
 import { BUSINESS_EVENTS } from '@huki/shared/events';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction, AuditActorContext } from '@huki/shared';
+import { IdentityClientService } from '../identity/identity-client.service';
 
 @Injectable()
 export class BusinessService {
   constructor(
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
+    private readonly identity: IdentityClientService,
     private auditService?: AuditService,
   ) {}
 
@@ -369,15 +371,7 @@ export class BusinessService {
       });
 
       try {
-        const { Client } = require('pg');
-        const identityDbUrl =
-          process.env.IDENTITY_DATABASE_URL ||
-          process.env.DATABASE_URL?.replace(/\/[^\/]+$/, '/huki_identity') ||
-          'postgresql://postgres:postgres123@localhost:5432/huki_identity';
-        const pgClient = new Client({ connectionString: identityDbUrl });
-        await pgClient.connect();
-        await pgClient.query('UPDATE users SET role = $1 WHERE id = $2', ['BUSINESS', business.ownerId]);
-        await pgClient.end();
+        await this.identity.setBusinessRole(business.ownerId);
         console.log(`[business.service] Successfully updated user ${business.ownerId} role to BUSINESS in identity database`);
       } catch (err: any) {
         console.error('[business.service] Warning: Failed to sync user role to identity database:', err?.message || err);
@@ -641,21 +635,6 @@ export class BusinessService {
     }));
   }
 
-  private getIdentityDbClient() {
-    const { Client } = require('pg');
-    let defaultIdentityUrl = 'postgresql://postgres:postgres123@localhost:5432/huki_identity';
-    if (process.env.DATABASE_URL) {
-      defaultIdentityUrl = process.env.DATABASE_URL.replace(/\/[^\/\?]+(\?.*)?$/, (match, p1) => {
-        const query = p1 || '';
-        if (match.includes('_uat_')) return `/huki_uat_identity${query}`;
-        if (match.includes('_prod_')) return `/huki_prod_identity${query}`;
-        return `/huki_identity${query}`;
-      });
-    }
-    const identityDbUrl = process.env.IDENTITY_DATABASE_URL || defaultIdentityUrl;
-    return new Client({ connectionString: identityDbUrl });
-  }
-
   async getBusinessFollowers(businessId: string, page = 1, limit = 10, search = '') {
     const pageNum = Math.max(1, Number(page) || 1);
     const limitNum = Math.max(1, Math.min(100, Number(limit) || 10));
@@ -681,17 +660,10 @@ export class BusinessService {
     // 2. Fetch user details from identity_db
     const userMap: Record<string, any> = {};
     try {
-      const pgClient = this.getIdentityDbClient();
-      await pgClient.connect();
-      const res = await pgClient.query(
-        'SELECT id, full_name, email, phone, avatar, status FROM users WHERE id = ANY($1)',
-        [userIds],
-      );
-      await pgClient.end();
-
-      for (const row of res.rows) {
+      const profiles = await this.identity.getProfiles(userIds);
+      for (const row of profiles) {
         userMap[row.id] = {
-          fullName: row.full_name,
+          fullName: row.fullName,
           email: row.email,
           phone: row.phone,
           avatar: row.avatar,

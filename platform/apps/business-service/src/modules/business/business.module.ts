@@ -5,9 +5,10 @@ import { BusinessController } from './business.controller';
 import { StoreModule } from '../store/store.module';
 import { MemberModule } from '../member/member.module';
 import { AuthModule } from '../auth/auth.module';
+import { IdentityModule } from '../identity/identity.module';
 
 @Module({
-  imports: [PrismaModule, StoreModule, MemberModule, AuthModule],
+  imports: [PrismaModule, StoreModule, MemberModule, AuthModule, IdentityModule],
   controllers: [BusinessController],
   providers: [BusinessService],
   exports: [BusinessService],

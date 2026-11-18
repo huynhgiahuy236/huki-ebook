@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { InternalAuthGuard } from './guards/internal-auth.guard';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -13,6 +13,11 @@ export interface SellerScopeResponse {
 export interface ResolveTargetResponse {
   businessIds: string[];
   storeIds: string[];
+}
+
+export interface UserStoreMappingsResponse {
+  storeMapByOwner: Record<string, string>;
+  storeMapByMember: Record<string, { storeName: string; role: string }>;
 }
 
 @ApiTags('Internal')
@@ -93,6 +98,60 @@ export class InternalSellerScopeController {
       businessIds: Array.from(businessIds),
       storeIds: Array.from(storeIds),
     };
+  }
+
+  @Post('user-store-mappings')
+  @ApiOperation({ summary: 'Internal API: Get store/business mappings for a list of user IDs' })
+  async getUserStoreMappings(
+    @Body() body: { userIds: string[] },
+  ): Promise<UserStoreMappingsResponse> {
+    const userIds = Array.isArray(body?.userIds) ? body.userIds.filter(Boolean) : [];
+    const storeMapByOwner: Record<string, string> = {};
+    const storeMapByMember: Record<string, { storeName: string; role: string }> = {};
+
+    if (!userIds.length) {
+      return { storeMapByOwner, storeMapByMember };
+    }
+
+    const businesses = await this.prisma.business.findMany({
+      where: { ownerId: { in: userIds }, deletedAt: null },
+      include: {
+        stores: {
+          where: { deletedAt: null },
+          select: { name: true },
+        },
+      },
+    });
+
+    for (const b of businesses) {
+      storeMapByOwner[b.ownerId] = b.stores[0]?.name || b.name || 'Gian hàng';
+    }
+
+    const members = await this.prisma.member.findMany({
+      where: { userId: { in: userIds }, deletedAt: null },
+      include: {
+        business: {
+          select: {
+            name: true,
+            stores: {
+              where: { deletedAt: null },
+              select: { name: true },
+            },
+          },
+        },
+      },
+    });
+
+    for (const m of members) {
+      if (m.business) {
+        storeMapByMember[m.userId] = {
+          storeName: m.business.stores[0]?.name || m.business.name || 'Gian hàng',
+          role: m.role,
+        };
+      }
+    }
+
+    return { storeMapByOwner, storeMapByMember };
   }
 }
 

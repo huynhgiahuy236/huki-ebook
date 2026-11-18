@@ -20,23 +20,16 @@ import { EmailService } from "@huki/shared";
 import { AuditService } from "../audit/audit.service";
 import { AuditAction, AuditActorContext } from "@huki/shared";
 import { randomUUID } from "node:crypto";
+import { IdentityClientService } from "../identity/identity-client.service";
 
 @Injectable()
 export class MemberService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
+    private readonly identity: IdentityClientService,
     private readonly auditService?: AuditService,
   ) {}
-
-  private getIdentityDbClient() {
-    const { Client } = require("pg");
-    const identityDbUrl =
-      process.env.IDENTITY_DATABASE_URL ||
-      process.env.DATABASE_URL?.replace(/\/[^\/]+$/, "/huki_identity") ||
-      "postgresql://postgres:postgres123@localhost:5432/huki_identity";
-    return new Client({ connectionString: identityDbUrl });
-  }
 
   // ==================== PROVISION MEMBER DIRECTLY ====================
   async provisionMember(
@@ -50,58 +43,17 @@ export class MemberService {
     }
 
     const email = dto.email.trim().toLowerCase();
-    const pgClient = this.getIdentityDbClient();
-    await pgClient.connect();
-
     let targetUserId: string;
     const initialPass = dto.initialPassword?.trim() || "Staff123!";
-
-    try {
-      const userRes = await pgClient.query(
-        "SELECT id, role FROM users WHERE email = $1 AND deleted_at IS NULL LIMIT 1",
-        [email],
-      );
-
-      if (userRes.rows.length > 0) {
-        targetUserId = userRes.rows[0].id;
-        const existingMember = await this.prisma.member.findFirst({
-          where: { businessId, userId: targetUserId, deletedAt: null },
-        });
-        if (existingMember) {
-          throwBadRequest(ErrorCode.MEMBER_ALREADY_EXISTS);
-        }
-
-        if (userRes.rows[0].role === "USER") {
-          await pgClient.query(
-            "UPDATE users SET role = $1, must_change_password = TRUE, updated_at = NOW() WHERE id = $2",
-            ["BUSINESS", targetUserId],
-          );
-        } else {
-          await pgClient.query(
-            "UPDATE users SET must_change_password = TRUE, updated_at = NOW() WHERE id = $1",
-            [targetUserId],
-          );
-        }
-      } else {
-        const bcrypt = require("bcrypt");
-        const passwordHash = await bcrypt.hash(initialPass, 12);
-        const newUserId = randomUUID();
-
-        await pgClient.query(
-          `INSERT INTO users (id, email, password_hash, full_name, phone, role, status, email_verified_at, must_change_password, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, 'BUSINESS', 'ACTIVE', NOW(), TRUE, NOW(), NOW())`,
-          [
-            newUserId,
-            email,
-            passwordHash,
-            dto.fullName.trim(),
-            dto.phone?.trim() || null,
-          ],
-        );
-        targetUserId = newUserId;
-      }
-    } finally {
-      await pgClient.end();
+    const identityUser = await this.identity.lookupByEmail(email);
+    if (identityUser) {
+      targetUserId = identityUser.id;
+      const existingMember = await this.prisma.member.findFirst({ where: { businessId, userId: targetUserId, deletedAt: null } });
+      if (existingMember) throwBadRequest(ErrorCode.MEMBER_ALREADY_EXISTS);
+      await this.identity.prepareMemberAccess(targetUserId);
+    } else {
+      const created = await this.identity.createMemberAccount({ fullName: dto.fullName, email, phone: dto.phone, password: initialPass });
+      targetUserId = created.id;
     }
 
     const member = await this.prisma.member.create({
@@ -307,21 +259,9 @@ export class MemberService {
     > = {};
 
     try {
-      const pgClient = this.getIdentityDbClient();
-      await pgClient.connect();
-      const res = await pgClient.query(
-        "SELECT id, full_name, email, phone, avatar FROM users WHERE id = ANY($1)",
-        [userIds],
-      );
-      await pgClient.end();
-
-      for (const row of res.rows) {
-        userMap[row.id] = {
-          fullName: row.full_name,
-          email: row.email,
-          phone: row.phone,
-          avatar: row.avatar,
-        };
+      const profiles = await this.identity.getProfiles(userIds);
+      for (const row of profiles) {
+        userMap[row.id] = { fullName: row.fullName, email: row.email, phone: row.phone, avatar: row.avatar };
       }
     } catch (err: any) {
       console.warn(
@@ -358,21 +298,7 @@ export class MemberService {
 
     let userInfo: any = null;
     try {
-      const pgClient = this.getIdentityDbClient();
-      await pgClient.connect();
-      const res = await pgClient.query(
-        "SELECT id, full_name, email, phone, avatar FROM users WHERE id = $1 LIMIT 1",
-        [member!.userId],
-      );
-      await pgClient.end();
-      if (res.rows.length > 0) {
-        userInfo = {
-          fullName: res.rows[0].full_name,
-          email: res.rows[0].email,
-          phone: res.rows[0].phone,
-          avatar: res.rows[0].avatar,
-        };
-      }
+      userInfo = (await this.identity.getProfiles([member.userId]))[0] || null;
     } catch (err) {
       // Ignore
     }
@@ -506,20 +432,8 @@ export class MemberService {
       throwBadRequest(ErrorCode.MEMBER_ROLE_IMMUTABLE);
     }
 
-    const bcrypt = require("bcrypt");
     const pass = newPassword?.trim() || "Staff123!";
-    const passwordHash = await bcrypt.hash(pass, 12);
-
-    const pgClient = this.getIdentityDbClient();
-    await pgClient.connect();
-    try {
-      await pgClient.query(
-        "UPDATE users SET password_hash = $1, must_change_password = TRUE, updated_at = NOW() WHERE id = $2",
-        [passwordHash, member!.userId],
-      );
-    } finally {
-      await pgClient.end();
-    }
+    await this.identity.resetPassword(member.userId, pass);
 
     // Record Audit Log (Password is NEVER logged)
     await this.auditService?.record({

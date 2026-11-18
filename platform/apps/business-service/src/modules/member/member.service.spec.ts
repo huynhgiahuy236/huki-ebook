@@ -28,10 +28,19 @@ describe("MemberService", () => {
   };
 
   const email = { sendInvitationEmail: jest.fn() };
-  const service = new MemberService(mockPrisma as any, email as any);
+  const mockIdentity = {
+    lookupByEmail: jest.fn(),
+    createMemberAccount: jest.fn(),
+    prepareMemberAccess: jest.fn(),
+    resetPassword: jest.fn(),
+    setBusinessRole: jest.fn(),
+    getProfiles: jest.fn().mockResolvedValue([]),
+  };
+  const service = new MemberService(mockPrisma as any, email as any, mockIdentity as any);
 
   beforeEach(() => {
     jest.resetAllMocks();
+    mockIdentity.getProfiles.mockResolvedValue([]);
     mockPrisma.business.findFirst.mockImplementation(({ where }: any) =>
       where?.ownerId === "owner-1" || (where?.id === "business-1" && !where?.ownerId)
         ? { id: "business-1", ownerId: "owner-1" }
