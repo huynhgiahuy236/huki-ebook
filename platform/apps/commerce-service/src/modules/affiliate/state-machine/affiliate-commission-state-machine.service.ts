@@ -258,8 +258,12 @@ export class AffiliateCommissionStateMachineService {
    * Transition: PENDING/HOLDING -> CANCELLED
    * Used when an order is cancelled or refunded before settlement.
    */
-  async cancelCommission(commissionId: string, reason: string): Promise<any> {
-    return this.prisma.$transaction(async (tx) => {
+  async cancelCommission(
+    commissionId: string,
+    reason: string,
+    transactionClient?: any,
+  ): Promise<any> {
+    const cancel = async (tx: any) => {
       const commission = await tx.affiliateCommission.findUnique({
         where: { id: commissionId },
       });
@@ -325,7 +329,11 @@ export class AffiliateCommissionStateMachineService {
       }
 
       return updated;
-    });
+    };
+
+    return transactionClient
+      ? cancel(transactionClient)
+      : this.prisma.$transaction(cancel);
   }
 
   /**
@@ -335,8 +343,12 @@ export class AffiliateCommissionStateMachineService {
    *   DEBIT:  AFFILIATE_PAYABLE_AVAILABLE
    *   CREDIT: SELLER_COMMISSION_EXPENSE (storeId)
    */
-  async reverseCommission(commissionId: string, reason: string): Promise<ReverseCommissionResult> {
-    return this.prisma.$transaction(async (tx) => {
+  async reverseCommission(
+    commissionId: string,
+    reason: string,
+    transactionClient?: any,
+  ): Promise<ReverseCommissionResult> {
+    const reverse = async (tx: any) => {
       const commission = await tx.affiliateCommission.findUnique({
         where: { id: commissionId },
       });
@@ -439,14 +451,19 @@ export class AffiliateCommissionStateMachineService {
         reversalLedgerTransactionId: reversalLedgerTx.id,
         amount: amountNum,
       };
-    });
+    };
+
+    return transactionClient
+      ? reverse(transactionClient)
+      : this.prisma.$transaction(reverse);
   }
 
   /**
    * Block settlement due to buyer dispute
    */
-  async blockDispute(commissionId: string): Promise<any> {
-    return this.prisma.affiliateCommission.update({
+  async blockDispute(commissionId: string, transactionClient?: any): Promise<any> {
+    const client = transactionClient || this.prisma;
+    return client.affiliateCommission.update({
       where: { id: commissionId },
       data: {
         disputeBlocked: true,
@@ -458,8 +475,9 @@ export class AffiliateCommissionStateMachineService {
   /**
    * Unblock settlement after dispute resolution in favor of seller
    */
-  async unblockDispute(commissionId: string): Promise<any> {
-    return this.prisma.affiliateCommission.update({
+  async unblockDispute(commissionId: string, transactionClient?: any): Promise<any> {
+    const client = transactionClient || this.prisma;
+    return client.affiliateCommission.update({
       where: { id: commissionId },
       data: {
         disputeBlocked: false,

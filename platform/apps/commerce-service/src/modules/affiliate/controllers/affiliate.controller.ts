@@ -79,7 +79,8 @@ export class AffiliateController {
   @UseGuards(AuthenticatedGuard)
   async getMyProfile(@Req() req: BookRequest) {
     const userId = req.user!.sub;
-    return this.applicationService.getMyProfile(userId);
+    const userRole = req.user?.role;
+    return this.applicationService.getMyProfile(userId, userRole);
   }
 
   /**
@@ -93,6 +94,7 @@ export class AffiliateController {
     @Headers('x-request-id') requestId?: string,
   ) {
     const userId = req.user!.sub;
+    const userRole = req.user?.role;
     const ipAddress = req.ip || (req.headers['x-forwarded-for'] as string);
     const userAgent = req.headers['user-agent'];
 
@@ -100,6 +102,7 @@ export class AffiliateController {
       ipAddress,
       userAgent,
       requestId,
+      userRole,
     });
   }
 
@@ -114,6 +117,7 @@ export class AffiliateController {
     @Headers('x-request-id') requestId?: string,
   ) {
     const userId = req.user!.sub;
+    const userRole = req.user?.role;
     const ipAddress = req.ip || (req.headers['x-forwarded-for'] as string);
     const userAgent = req.headers['user-agent'];
 
@@ -121,6 +125,7 @@ export class AffiliateController {
       ipAddress,
       userAgent,
       requestId,
+      userRole,
     });
   }
 

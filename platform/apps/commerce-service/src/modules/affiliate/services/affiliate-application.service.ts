@@ -19,6 +19,7 @@ import {
 } from '../dto/affiliate-application.dto';
 import { AFFILIATE_EVENTS } from '@huki/shared';
 import { randomBytes } from 'crypto';
+import { BusinessServiceClient } from '../../../common/business-service.client';
 
 const RESERVED_AFFILIATE_CODES = new Set([
   'ADMIN',
@@ -102,7 +103,23 @@ export class AffiliateApplicationService {
   /**
    * Get application/profile of current user
    */
-  async getMyProfile(userId: string): Promise<any> {
+  async getMyProfile(userId: string, userRole?: string): Promise<any> {
+    const restrictedRoles = ['BUSINESS', 'PLATFORM_ADMIN', 'DELIVERY_STAFF'];
+    let isRoleRestricted = Boolean(userRole && restrictedRoles.includes(userRole));
+
+    if (!isRoleRestricted) {
+      try {
+        const scope = await BusinessServiceClient.getInstance().getSellerScope(userId);
+        if (
+          scope.isPlatformAdmin ||
+          (scope.storeIds && scope.storeIds.length > 0) ||
+          (scope.businessIds && scope.businessIds.length > 0)
+        ) {
+          isRoleRestricted = true;
+        }
+      } catch (e) {}
+    }
+
     const profile = await this.prisma.affiliateProfile.findUnique({
       where: { userId },
       include: {
@@ -116,6 +133,11 @@ export class AffiliateApplicationService {
       return {
         hasProfile: false,
         profile: null,
+        isRoleRestricted,
+        role: userRole,
+        restrictionReason: isRoleRestricted
+          ? 'Chương trình Tiếp thị liên kết chỉ dành cho Khách hàng / Độc giả cá nhân. Tài khoản Chủ Doanh Nghiệp hoặc Quản trị viên không thể tham gia.'
+          : undefined,
       };
     }
 
@@ -143,8 +165,31 @@ export class AffiliateApplicationService {
   async submitApplication(
     userId: string,
     dto: SubmitAffiliateApplicationDto,
-    meta: { ipAddress?: string; userAgent?: string; requestId?: string } = {},
+    meta: { ipAddress?: string; userAgent?: string; requestId?: string; userRole?: string } = {},
   ): Promise<any> {
+    // 0. Role Eligibility: Only regular buyers (USER) can apply. Sellers/Admins/Staff are excluded.
+    const restrictedRoles = ['BUSINESS', 'PLATFORM_ADMIN', 'DELIVERY_STAFF'];
+    if (meta?.userRole && restrictedRoles.includes(meta.userRole)) {
+      throw new BadRequestException(
+        'Chương trình Tiếp thị liên kết (Affiliate) chỉ dành cho Độc giả / Khách hàng (USER). Tài khoản Chủ doanh nghiệp (Seller), Quản trị viên (Admin) hoặc Nhân viên giao hàng không được phép tham gia.',
+      );
+    }
+
+    try {
+      const scope = await BusinessServiceClient.getInstance().getSellerScope(userId);
+      if (
+        scope.isPlatformAdmin ||
+        (scope.storeIds && scope.storeIds.length > 0) ||
+        (scope.businessIds && scope.businessIds.length > 0)
+      ) {
+        throw new BadRequestException(
+          'Tài khoản Chủ doanh nghiệp (Seller) hoặc Quản trị viên không được phép đăng ký làm Đối tác Tiếp thị liên kết.',
+        );
+      }
+    } catch (e: any) {
+      if (e instanceof BadRequestException) throw e;
+    }
+
     // 1. Check existing profile for this user
     const existing = await this.prisma.affiliateProfile.findUnique({
       where: { userId },
@@ -358,8 +403,15 @@ export class AffiliateApplicationService {
   async resubmitApplication(
     userId: string,
     dto: ResubmitAffiliateApplicationDto,
-    meta: { ipAddress?: string; userAgent?: string; requestId?: string } = {},
+    meta: { ipAddress?: string; userAgent?: string; requestId?: string; userRole?: string } = {},
   ): Promise<any> {
+    const restrictedRoles = ['BUSINESS', 'PLATFORM_ADMIN', 'DELIVERY_STAFF'];
+    if (meta?.userRole && restrictedRoles.includes(meta.userRole)) {
+      throw new BadRequestException(
+        'Tài khoản Chủ doanh nghiệp (Seller) hoặc Quản trị viên không được phép nộp lại hồ sơ tiếp thị liên kết.',
+      );
+    }
+
     const profile = await this.prisma.affiliateProfile.findUnique({
       where: { userId },
       include: { channels: true },

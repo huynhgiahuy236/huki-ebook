@@ -39,7 +39,7 @@ export interface UseAffiliateGuardOptions {
 export function useAffiliateGuard(options: UseAffiliateGuardOptions = {}): AffiliateGuardResult {
   const router = useRouter();
   const pathname = usePathname() || '';
-  const { isLoggedIn, isLoading: authLoading } = useAuth();
+  const { user, isLoggedIn, isLoading: authLoading } = useAuth();
   const { showToast } = useToast();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -55,6 +55,24 @@ export function useAffiliateGuard(options: UseAffiliateGuardOptions = {}): Affil
       setIsLoading(false);
       if (options.enforceActive) {
         router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+      }
+      return;
+    }
+
+    // Role check: Seller, Admin, Staff cannot participate in Affiliate program
+    const isRestrictedRole = Boolean(
+      user?.role && ['BUSINESS', 'PLATFORM_ADMIN', 'DELIVERY_STAFF'].includes(user.role)
+    );
+
+    if (isRestrictedRole) {
+      setStep('REJECTED');
+      setIsLoading(false);
+      if (options.enforceActive) {
+        showToast(
+          'Chương trình Tiếp thị liên kết chỉ dành cho Khách hàng/Độc giả cá nhân. Tài khoản Chủ Doanh Nghiệp hoặc Quản trị viên không thể tham gia.',
+          'error',
+        );
+        router.replace('/profile');
       }
       return;
     }

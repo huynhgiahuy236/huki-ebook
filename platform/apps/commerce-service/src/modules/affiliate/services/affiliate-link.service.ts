@@ -16,6 +16,7 @@ import {
   AffiliateLinkTargetType,
   BookFormat,
 } from '../../../../prisma/generated/client';
+import { BusinessServiceClient } from '../../../common/business-service.client';
 
 const BOT_USER_AGENT_REGEX =
   /(bot|crawler|spider|googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|rogerbot|linkedinbot|embedly|quora link preview|showyoubot|outbrain|pinterest\/0\.|pinterestbot|slackbot|vkShare|W3C_Validator|whatsapp)/i;
@@ -55,7 +56,30 @@ export class AffiliateLinkService {
   /**
    * 1. Create a new Affiliate Link
    */
-  async createLink(userId: string, dto: CreateAffiliateLinkDto) {
+  async createLink(userId: string, dto: CreateAffiliateLinkDto, userRole?: string) {
+    // 0. Seller/Admin restriction check
+    const restrictedRoles = ['BUSINESS', 'PLATFORM_ADMIN', 'DELIVERY_STAFF'];
+    if (userRole && restrictedRoles.includes(userRole)) {
+      throw new ForbiddenException(
+        'Tài khoản Chủ doanh nghiệp (Seller) hoặc Quản trị viên không được phép tạo liên kết tiếp thị.',
+      );
+    }
+
+    try {
+      const scope = await BusinessServiceClient.getInstance().getSellerScope(userId);
+      if (
+        scope.isPlatformAdmin ||
+        (scope.storeIds && scope.storeIds.length > 0) ||
+        (scope.businessIds && scope.businessIds.length > 0)
+      ) {
+        throw new ForbiddenException(
+          'Tài khoản Chủ doanh nghiệp (Seller) hoặc Quản trị viên không được phép tạo liên kết tiếp thị.',
+        );
+      }
+    } catch (e: any) {
+      if (e instanceof ForbiddenException) throw e;
+    }
+
     // 1. Verify user profile exists and is ACTIVE
     const profile = await this.prisma.affiliateProfile.findUnique({
       where: { userId },

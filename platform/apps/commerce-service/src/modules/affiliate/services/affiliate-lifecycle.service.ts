@@ -105,11 +105,18 @@ export class AffiliateLifecycleService {
 
     const results: any[] = [];
     for (const comm of digitalCommissions) {
-      const updated = await this.stateMachine.transitionToHolding(
-        comm.id,
-        24,
-        paidAt,
-      );
+      const updated = tx
+        ? await this.stateMachine.transitionToHolding(
+            comm.id,
+            24,
+            paidAt,
+            tx,
+          )
+        : await this.stateMachine.transitionToHolding(
+            comm.id,
+            24,
+            paidAt,
+          );
       results.push(updated);
     }
 
@@ -167,26 +174,42 @@ export class AffiliateLifecycleService {
    * 4. Order Cancelled (Quyết định 3)
    * Huỷ toàn bộ hoa hồng PENDING hoặc HOLDING của đơn hàng.
    */
-  async handleOrderCancelled(orderId: string, reason: string, tx?: any) {
+  async handleOrderCancelled(
+    orderId: string,
+    reason: string,
+    tx?: any,
+    sellerOrderId?: string,
+  ) {
     const client = tx || this.prisma;
-    const commissions = await client.affiliateCommission.findMany({
-      where: {
-        orderId,
-        status: {
-          in: [
-            AffiliateCommissionStatus.PENDING,
-            AffiliateCommissionStatus.HOLDING,
-          ],
-        },
+    const where: any = {
+      orderId,
+      status: {
+        in: [
+          AffiliateCommissionStatus.PENDING,
+          AffiliateCommissionStatus.HOLDING,
+        ],
       },
+    };
+    if (sellerOrderId) {
+      where.orderItem = { sellerOrderId };
+    }
+
+    const commissions = await client.affiliateCommission.findMany({
+      where,
     });
 
     const cancelled: any[] = [];
     for (const comm of commissions) {
-      const res = await this.stateMachine.cancelCommission(
-        comm.id,
-        reason || 'Order cancelled',
-      );
+      const res = tx
+        ? await this.stateMachine.cancelCommission(
+            comm.id,
+            reason || 'Order cancelled',
+            tx,
+          )
+        : await this.stateMachine.cancelCommission(
+            comm.id,
+            reason || 'Order cancelled',
+          );
       cancelled.push(res);
     }
 
@@ -222,17 +245,29 @@ export class AffiliateLifecycleService {
       commission.status === AffiliateCommissionStatus.PENDING ||
       commission.status === AffiliateCommissionStatus.HOLDING
     ) {
-      return this.stateMachine.cancelCommission(
-        commission.id,
-        reason || 'Line item returned / refunded before settlement',
-      );
+      return tx
+        ? this.stateMachine.cancelCommission(
+            commission.id,
+            reason || 'Line item returned / refunded before settlement',
+            tx,
+          )
+        : this.stateMachine.cancelCommission(
+            commission.id,
+            reason || 'Line item returned / refunded before settlement',
+          );
     }
 
     if (commission.status === AffiliateCommissionStatus.AVAILABLE) {
-      return this.stateMachine.reverseCommission(
-        commission.id,
-        reason || 'Line item returned / refunded after settlement (Reversed)',
-      );
+      return tx
+        ? this.stateMachine.reverseCommission(
+            commission.id,
+            reason || 'Line item returned / refunded after settlement (Reversed)',
+            tx,
+          )
+        : this.stateMachine.reverseCommission(
+            commission.id,
+            reason || 'Line item returned / refunded after settlement (Reversed)',
+          );
     }
 
     return commission;
@@ -255,7 +290,11 @@ export class AffiliateLifecycleService {
 
     const commissions = await client.affiliateCommission.findMany({ where });
     for (const comm of commissions) {
-      await this.stateMachine.blockDispute(comm.id);
+      if (tx) {
+        await this.stateMachine.blockDispute(comm.id, tx);
+      } else {
+        await this.stateMachine.blockDispute(comm.id);
+      }
     }
     this.logger.log(
       `[Dispute Blocked] Blocked ${commissions.length} commissions for dispute on order ${orderId}`,
@@ -280,7 +319,11 @@ export class AffiliateLifecycleService {
 
     const commissions = await client.affiliateCommission.findMany({ where });
     for (const comm of commissions) {
-      await this.stateMachine.unblockDispute(comm.id);
+      if (tx) {
+        await this.stateMachine.unblockDispute(comm.id, tx);
+      } else {
+        await this.stateMachine.unblockDispute(comm.id);
+      }
     }
     this.logger.log(
       `[Dispute Unblocked] Unblocked ${commissions.length} commissions for order ${orderId}`,

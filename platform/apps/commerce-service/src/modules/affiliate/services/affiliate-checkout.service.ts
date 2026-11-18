@@ -3,6 +3,7 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AffiliatePolicyResolverService } from '../policy-engine/affiliate-policy-resolver.service';
 import { ConfigService } from '@nestjs/config';
+import { BusinessServiceClient } from '../../../common/business-service.client';
 
 export interface CheckoutCommissionItem {
   orderItemId: string;
@@ -189,6 +190,27 @@ export class AffiliateCheckoutService {
       return null;
     }
 
+    // Anti-fraud: Seller/Admin exclusion (Sellers and Admins cannot earn affiliate commissions)
+    try {
+      const affiliateScope = await BusinessServiceClient.getInstance().getSellerScope(
+        attribution.profile.userId,
+      );
+      if (
+        affiliateScope.isPlatformAdmin ||
+        (affiliateScope.storeIds && affiliateScope.storeIds.length > 0) ||
+        (affiliateScope.businessIds && affiliateScope.businessIds.length > 0)
+      ) {
+        this.logger.warn(
+          `[Seller/Admin Attribution Blocked] Affiliate ${attribution.profile.id} (user ${attribution.profile.userId}) is a Seller or Admin. Bypassing affiliate attribution.`,
+        );
+        return null;
+      }
+    } catch (err: any) {
+      this.logger.warn(
+        `Failed to verify seller scope for affiliate user ${attribution.profile.userId}: ${err?.message || err}`,
+      );
+    }
+
     return attribution;
   }
 
@@ -231,6 +253,19 @@ export class AffiliateCheckoutService {
       if (link.targetType === 'STORE' && link.targetStoreId && link.targetStoreId !== item.storeId) {
         continue;
       }
+
+      // 1b. Anti-fraud: Block self-store commission (Seller cannot earn commission on items from own store)
+      try {
+        const affiliateScope = await BusinessServiceClient.getInstance().getSellerScope(
+          attribution.profile.userId,
+        );
+        if (affiliateScope.storeIds?.includes(item.storeId)) {
+          this.logger.warn(
+            `[Self-Store Attribution Blocked] Affiliate ${attribution.profile.id} owns store ${item.storeId} for book ${item.bookId}`,
+          );
+          continue;
+        }
+      } catch (e) {}
 
       // 2. Resolve policy and calculate commission
       const resolved = await this.policyResolver.resolveCommission(

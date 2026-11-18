@@ -35,8 +35,9 @@ export class AffiliateLinkController {
   @Post('links')
   async createLink(@Req() req: any, @Body() dto: CreateAffiliateLinkDto) {
     const userId = this.requireUserId(req);
+    const userRole = req.user?.role || req.headers?.['x-user-role'];
 
-    const data = await this.linkService.createLink(userId, dto);
+    const data = await this.linkService.createLink(userId, dto, userRole);
     return {
       success: true,
       message: 'Tạo liên kết tiếp thị thành công',
