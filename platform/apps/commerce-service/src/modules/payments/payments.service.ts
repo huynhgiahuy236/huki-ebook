@@ -33,6 +33,7 @@ import {
 import { ErrorCode } from "@huki/shared/errors";
 import { FlashSaleClientService } from "../orders/flash-sale-client.service";
 import { SettlementService } from "../orders/settlement.service";
+import { AffiliateLifecycleService } from "../affiliate/services/affiliate-lifecycle.service";
 
 function formatPaymentTimeoutLabel(
   isFlashSale: boolean,
@@ -60,6 +61,7 @@ export class PaymentsService
     private readonly reservations: InventoryReservationService,
     private readonly flashSales: FlashSaleClientService,
     private readonly settlementService?: SettlementService,
+    private readonly affiliateLifecycle?: AffiliateLifecycleService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -420,6 +422,13 @@ export class PaymentsService
       const digitalItems = orderData.sellerOrders
         .flatMap(({ items }: any) => items)
         .filter(({ format }: any) => format === CartItemFormat.DIGITAL);
+      if (digitalItems.length && this.affiliateLifecycle) {
+        await this.affiliateLifecycle.handleDigitalOrderPaid(
+          payment.orderId,
+          paidAt,
+          tx,
+        );
+      }
       for (const item of digitalItems) {
         await tx.bookAccess.upsert({
           where: {
@@ -608,6 +617,13 @@ export class PaymentsService
       const digitalItems = payment.order.sellerOrders
         .flatMap(({ items }) => items)
         .filter(({ format }) => format === CartItemFormat.DIGITAL);
+      if (digitalItems.length && this.affiliateLifecycle) {
+        await this.affiliateLifecycle.handleDigitalOrderPaid(
+          payment.orderId,
+          paidAt,
+          tx,
+        );
+      }
       for (const item of digitalItems) {
         await tx.bookAccess.upsert({
           where: {
@@ -1347,6 +1363,13 @@ export class PaymentsService
             actorType: "SYSTEM",
           },
         });
+        if (this.affiliateLifecycle) {
+          await this.affiliateLifecycle.handleOrderCancelled(
+            payment.orderId,
+            `Hết hạn thanh toán (Tự động hủy sau ${timeoutLabel})`,
+            tx,
+          );
+        }
         const failurePayload = {
           orderId: payment.orderId,
           orderCode: payment.order.code,
@@ -1454,6 +1477,13 @@ export class PaymentsService
             actorType: "SYSTEM",
           },
         });
+        if (this.affiliateLifecycle) {
+          await this.affiliateLifecycle.handleOrderCancelled(
+            order.id,
+            `Hết hạn thanh toán (Tự động hủy sau ${timeoutLabel})`,
+            tx,
+          );
+        }
       });
       await this.flashSales.releaseOrder(order.id).catch(() => undefined);
     }

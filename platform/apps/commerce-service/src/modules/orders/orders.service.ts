@@ -345,11 +345,11 @@ export class OrdersService {
 
       // Reverse / cancel affiliate commissions (BUG-MOD05-16)
       if (this.affiliateLifecycle) {
-        try {
-          await this.affiliateLifecycle.handleOrderCancelled(id, `Đơn hàng bị hủy bởi người mua: ${dto.reason}`, tx);
-        } catch (err) {
-          this.logger.warn(`Failed to cancel affiliate commission for order ${id}: ${err}`);
-        }
+        await this.affiliateLifecycle.handleOrderCancelled(
+          id,
+          `Đơn hàng bị hủy bởi người mua: ${dto.reason}`,
+          tx,
+        );
       }
 
       const newStatus = OrderStatus.CANCELLED;
@@ -495,11 +495,12 @@ export class OrdersService {
 
       // Reverse / cancel affiliate commissions (BUG-MOD05-16)
       if (this.affiliateLifecycle) {
-        try {
-          await this.affiliateLifecycle.handleOrderCancelled(o.id, `Người mua hủy kiện hàng: ${dto.reason}`, tx);
-        } catch (err) {
-          this.logger.warn(`Failed to cancel affiliate commission for sub-order ${sellerOrderId}: ${err}`);
-        }
+        await this.affiliateLifecycle.handleOrderCancelled(
+          o.id,
+          `Người mua hủy kiện hàng: ${dto.reason}`,
+          tx,
+          sellerOrderId,
+        );
       }
 
       await tx.outboxEvent.create({
@@ -573,6 +574,15 @@ export class OrdersService {
           actorId: actor.sub,
         },
       });
+
+      if (this.affiliateLifecycle) {
+        await this.affiliateLifecycle.handleOrderCancelled(
+          sellerOrder!.orderId,
+          `Người bán hủy kiện hàng: ${dto.reason}`,
+          tx,
+          sellerOrder!.id,
+        );
+      }
 
       await this.completion.completeIfReady(tx, sellerOrder!.orderId);
 
@@ -724,6 +734,15 @@ export class OrdersService {
           actorId: actor.sub,
         },
       });
+
+      if (this.affiliateLifecycle) {
+        await this.affiliateLifecycle.handleOrderCancelled(
+          sellerOrder!.orderId,
+          reason,
+          tx,
+          sellerOrder!.id,
+        );
+      }
 
       // Check if all sub-orders of this order are now cancelled
       const allSubOrders = await tx.sellerOrder.findMany({
@@ -2915,19 +2934,16 @@ export class OrdersService {
             },
           });
         }
-      }
-    });
 
-    if (dto.status === 'REFUNDED') {
-      // Reverse / cancel affiliate commissions on item refund (BUG-MOD05-16)
-      if (this.affiliateLifecycle) {
-        try {
-          await this.affiliateLifecycle.handleOrderItemRefunded(item.id, `Trả hàng hoàn tiền món: ${item.bookTitle}`);
-        } catch (err) {
-          this.logger.warn(`Failed to refund affiliate commission for item ${item.id}: ${err}`);
+        if (this.affiliateLifecycle) {
+          await this.affiliateLifecycle.handleOrderItemRefunded(
+            item.id,
+            `Trả hàng hoàn tiền món: ${item.bookTitle}`,
+            tx,
+          );
         }
       }
-    }
+    });
 
     if (dto.status === 'RELEASED') {
       await this.prisma.returnRequest.updateMany({
@@ -4700,6 +4716,15 @@ export class OrdersService {
           metadata: { reason },
         },
       });
+
+      if (this.affiliateLifecycle) {
+        await this.affiliateLifecycle.handleOrderCancelled(
+          sellerOrder.orderId,
+          `Giao hàng thất bại / Hoàn hàng: ${reason}`,
+          tx,
+          sellerOrder.id,
+        );
+      }
 
       return updated;
     });
