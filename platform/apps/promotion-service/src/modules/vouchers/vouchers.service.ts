@@ -280,16 +280,27 @@ export class VouchersService {
     }
 
     // Check usage limit
-    if (voucher.totalUsage > 0 && voucher.currentUsage >= voucher.totalUsage) {
+    const activeHolds = await this.prisma.voucherReservation.count({
+      where: { voucherId: voucher.id, status: 'HELD', expiresAt: { gt: now } },
+    });
+    if (voucher.totalUsage > 0 && voucher.currentUsage + activeHolds >= voucher.totalUsage) {
       return { valid: false, reason: 'Voucher usage limit reached' };
     }
 
     // Check per-user usage limit
     if (voucher.maxUsagePerUser) {
-      const userUsage = await this.prisma.voucherUsage.count({
-        where: { voucherId: voucher.id, userId },
-      });
-      if (userUsage >= voucher.maxUsagePerUser) {
+      const [userUsage, userHolds] = await Promise.all([
+        this.prisma.voucherUsage.count({ where: { voucherId: voucher.id, userId } }),
+        this.prisma.voucherReservation.count({
+          where: {
+            voucherId: voucher.id,
+            userId,
+            status: 'HELD',
+            expiresAt: { gt: now },
+          },
+        }),
+      ]);
+      if (userUsage + userHolds >= voucher.maxUsagePerUser) {
         return {
           valid: false,
           reason: `You have already used this voucher ${voucher.maxUsagePerUser} time(s)`,
@@ -391,45 +402,279 @@ export class VouchersService {
     };
   }
 
+  async reserveForCheckout(
+    userId: string,
+    checkoutSessionId: string,
+    orderId: string,
+    inputs: Array<{ code: string; discountAmount: number }>,
+  ) {
+    if (!userId || !checkoutSessionId || !orderId) {
+      throwBadRequest(ErrorCode.VALIDATION_REQUIRED);
+    }
+
+    const normalized = Array.from(
+      new Map(
+        inputs
+          .filter((input) => input.code?.trim())
+          .map((input) => [input.code.trim().toUpperCase(), input]),
+      ).values(),
+    );
+    if (normalized.length === 0) return { reserved: 0 };
+
+    return this.prisma.$transaction(async (tx) => {
+      const vouchers = await tx.voucher.findMany({
+        where: { code: { in: normalized.map((input) => input.code.toUpperCase()) } },
+        select: { id: true, code: true },
+      });
+      if (vouchers.length !== normalized.length) {
+        throwNotFound(ErrorCode.VOUCHER_NOT_FOUND);
+      }
+
+      const voucherByCode = new Map(vouchers.map((voucher: any) => [voucher.code, voucher]));
+      const orderedVouchers = normalized
+        .map((input) => ({ input, voucher: voucherByCode.get(input.code.trim().toUpperCase()) }))
+        .filter((item) => item.voucher)
+        .sort((a, b) => a.voucher!.id.localeCompare(b.voucher!.id));
+
+      // Serialize quota decisions per voucher. The row lock makes the reservation count
+      // and the per-user limit check safe against concurrent checkouts.
+      for (const { voucher } of orderedVouchers) {
+        await tx.$queryRaw`SELECT id FROM vouchers WHERE id = ${voucher!.id} FOR UPDATE`;
+      }
+
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 30 * 60 * 1000);
+      let reserved = 0;
+
+      for (const { input, voucher: row } of orderedVouchers) {
+        const voucher = await tx.voucher.findUnique({ where: { id: row!.id } });
+        if (!voucher || voucher.status !== 'ACTIVE' || voucher.startsAt > now || voucher.expiresAt < now) {
+          throwBadRequest(ErrorCode.VOUCHER_USAGE_FAILED, 'Voucher is not available for reservation');
+        }
+
+        await tx.voucherReservation.updateMany({
+          where: {
+            voucherId: voucher.id,
+            status: 'HELD',
+            expiresAt: { lte: now },
+          },
+          data: { status: 'EXPIRED' },
+        });
+
+        const existing = await tx.voucherReservation.findUnique({
+          where: {
+            checkoutSessionId_voucherId: {
+              checkoutSessionId,
+              voucherId: voucher.id,
+            },
+          },
+        });
+        if (existing?.status === 'CONSUMED') {
+          if (existing.orderId !== orderId) {
+            throwBadRequest(ErrorCode.VOUCHER_USAGE_FAILED, 'Checkout session is already linked to another order');
+          }
+          reserved += 1;
+          continue;
+        }
+        if (existing?.status === 'HELD' && existing.expiresAt > now) {
+          if (existing.orderId && existing.orderId !== orderId) {
+            throwBadRequest(ErrorCode.VOUCHER_USAGE_FAILED, 'Checkout session is already linked to another order');
+          }
+          reserved += 1;
+          continue;
+        }
+
+        const activeHolds = await tx.voucherReservation.count({
+          where: { voucherId: voucher.id, status: 'HELD', expiresAt: { gt: now } },
+        });
+        if (voucher.totalUsage > 0 && voucher.currentUsage + activeHolds >= voucher.totalUsage) {
+          throwBadRequest(ErrorCode.VOUCHER_USAGE_FAILED, 'Voucher usage limit reached');
+        }
+
+        if (voucher.maxUsagePerUser) {
+          const [usedByUser, heldByUser] = await Promise.all([
+            tx.voucherUsage.count({ where: { voucherId: voucher.id, userId } }),
+            tx.voucherReservation.count({
+              where: {
+                voucherId: voucher.id,
+                userId,
+                status: 'HELD',
+                expiresAt: { gt: now },
+                checkoutSessionId: { not: checkoutSessionId },
+              },
+            }),
+          ]);
+          if (usedByUser + heldByUser >= voucher.maxUsagePerUser) {
+            throwBadRequest(ErrorCode.VOUCHER_USAGE_FAILED, 'Voucher per-user usage limit reached');
+          }
+        }
+
+        if (existing) {
+          await tx.voucherReservation.update({
+            where: { id: existing.id },
+            data: {
+              userId,
+              discount: Math.max(0, input.discountAmount || 0),
+              status: 'HELD',
+              orderId,
+              expiresAt,
+            },
+          });
+        } else {
+          await tx.voucherReservation.create({
+            data: {
+              voucherId: voucher.id,
+              userId,
+              checkoutSessionId,
+              orderId,
+              discount: Math.max(0, input.discountAmount || 0),
+              expiresAt,
+            },
+          });
+        }
+        reserved += 1;
+      }
+
+      return { reserved };
+    });
+  }
+
+  async confirmCheckoutReservations(checkoutSessionId: string, orderId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const reservations = await tx.voucherReservation.findMany({
+        where: { checkoutSessionId, status: 'HELD' },
+        orderBy: { voucherId: 'asc' },
+      });
+      for (const reservation of reservations) {
+        await tx.$queryRaw`SELECT id FROM vouchers WHERE id = ${reservation.voucherId} FOR UPDATE`;
+
+        const current = await tx.voucherReservation.findUnique({
+          where: { id: reservation.id },
+        });
+        if (!current || current.status !== 'HELD') continue;
+        if (current.orderId && current.orderId !== orderId) {
+          throwBadRequest(ErrorCode.VOUCHER_USAGE_FAILED, 'Reservation is already linked to another order');
+        }
+
+        const existingUsage = await tx.voucherUsage.findFirst({
+          where: { voucherId: current.voucherId, orderId },
+        });
+        if (!existingUsage) {
+          const voucher = await tx.voucher.findUnique({ where: { id: current.voucherId } });
+          if (!voucher) throwNotFound(ErrorCode.VOUCHER_NOT_FOUND);
+          await tx.voucherUsage.create({
+            data: {
+              voucherId: current.voucherId,
+              userId: current.userId,
+              orderId,
+              discount: current.discount,
+            },
+          });
+          const updated = await tx.voucher.update({
+            where: { id: current.voucherId },
+            data: { currentUsage: { increment: 1 } },
+          });
+          if (updated.totalUsage > 0 && updated.currentUsage >= updated.totalUsage) {
+            await tx.voucher.update({
+              where: { id: current.voucherId },
+              data: { status: 'USED_UP' },
+            });
+          }
+        }
+
+        await tx.voucherReservation.update({
+          where: { id: current.id },
+          data: { status: 'CONSUMED', orderId },
+        });
+      }
+      return { confirmed: reservations.length };
+    });
+  }
+
+  async releaseCheckoutReservations(checkoutSessionId: string) {
+    const result = await this.prisma.voucherReservation.updateMany({
+      where: { checkoutSessionId, status: 'HELD' },
+      data: { status: 'RELEASED' },
+    });
+    return { released: result.count };
+  }
+
   async apply(
     userId: string,
     voucherId: string,
     orderId: string,
     discountAmount: number,
   ) {
-    const voucher = await this.prisma.voucher.findUnique({
-      where: { id: voucherId },
+    return this.prisma.$transaction(async (tx) => {
+      return this.consumeVoucherUsage(tx, voucherId, userId, orderId, discountAmount);
     });
+  }
+
+  private async consumeVoucherUsage(
+    tx: any,
+    voucherId: string,
+    userId: string,
+    orderId: string,
+    discountAmount: number,
+  ) {
+    await tx.$queryRaw`SELECT id FROM vouchers WHERE id = ${voucherId} FOR UPDATE`;
+    const voucher = await tx.voucher.findUnique({ where: { id: voucherId } });
     if (!voucher) throwNotFound(ErrorCode.VOUCHER_NOT_FOUND);
 
-    return this.prisma.$transaction(async (tx) => {
-      // Create usage record
-      await tx.voucherUsage.create({
-        data: {
-          voucherId,
-          userId,
-          orderId,
-          discount: discountAmount,
-        },
-      });
+    const existingUsage = await tx.voucherUsage.findFirst({
+      where: { voucherId, orderId },
+    });
+    if (existingUsage) return existingUsage;
 
-      // Update usage count
+    const now = new Date();
+    const activeHolds = await tx.voucherReservation.count({
+      where: { voucherId, status: 'HELD', expiresAt: { gt: now } },
+    });
+    if (
+      voucher.status !== 'ACTIVE' ||
+      voucher.startsAt > now ||
+      voucher.expiresAt < now ||
+      (voucher.totalUsage > 0 && voucher.currentUsage + activeHolds >= voucher.totalUsage)
+    ) {
+      throwBadRequest(ErrorCode.VOUCHER_USAGE_FAILED, 'Voucher usage limit reached or voucher is unavailable');
+    }
+
+    if (voucher.maxUsagePerUser) {
+      const [usedByUser, heldByUser] = await Promise.all([
+        tx.voucherUsage.count({ where: { voucherId, userId } }),
+        tx.voucherReservation.count({
+          where: {
+            voucherId,
+            userId,
+            status: 'HELD',
+            expiresAt: { gt: now },
+          },
+        }),
+      ]);
+      if (usedByUser + heldByUser >= voucher.maxUsagePerUser) {
+        throwBadRequest(ErrorCode.VOUCHER_USAGE_FAILED, 'Voucher per-user usage limit reached');
+      }
+    }
+
+    const usage = await tx.voucherUsage.create({
+      data: {
+        voucherId,
+        userId,
+        orderId,
+        discount: Math.max(0, discountAmount),
+      },
+    });
+    const updated = await tx.voucher.update({
+      where: { id: voucherId },
+      data: { currentUsage: { increment: 1 } },
+    });
+    if (updated.totalUsage > 0 && updated.currentUsage >= updated.totalUsage) {
       await tx.voucher.update({
         where: { id: voucherId },
-        data: { currentUsage: { increment: 1 } },
+        data: { status: 'USED_UP' },
       });
-
-      // Check if reached limit
-      if (
-        voucher!.totalUsage > 0 &&
-        voucher!.currentUsage + 1 >= voucher!.totalUsage
-      ) {
-        await tx.voucher.update({
-          where: { id: voucherId },
-          data: { status: 'USED_UP' },
-        });
-      }
-    });
+    }
+    return usage;
   }
 
   async isUserEligible(userId: string | undefined, voucher: any): Promise<boolean> {
@@ -437,14 +682,25 @@ export class VouchersService {
     const now = new Date();
     if (voucher.startsAt && new Date(voucher.startsAt) > now) return false;
     if (voucher.expiresAt && new Date(voucher.expiresAt) < now) return false;
-    if (voucher.totalUsage > 0 && voucher.currentUsage >= voucher.totalUsage) return false;
+    const activeHolds = await this.prisma.voucherReservation.count({
+      where: { voucherId: voucher.id, status: 'HELD', expiresAt: { gt: now } },
+    });
+    if (voucher.totalUsage > 0 && voucher.currentUsage + activeHolds >= voucher.totalUsage) return false;
 
     // Check user usage limit if user is known
     if (userId && userId !== 'anonymous' && voucher.maxUsagePerUser) {
-      const userUsage = await this.prisma.voucherUsage.count({
-        where: { voucherId: voucher.id, userId },
-      });
-      if (userUsage >= voucher.maxUsagePerUser) {
+      const [userUsage, userHolds] = await Promise.all([
+        this.prisma.voucherUsage.count({ where: { voucherId: voucher.id, userId } }),
+        this.prisma.voucherReservation.count({
+          where: {
+            voucherId: voucher.id,
+            userId,
+            status: 'HELD',
+            expiresAt: { gt: now },
+          },
+        }),
+      ]);
+      if (userUsage + userHolds >= voucher.maxUsagePerUser) {
         return false;
       }
     }
@@ -671,26 +927,34 @@ export class VouchersService {
     });
 
     const now = new Date();
-    const validSaved = savedRecords.filter((record) => {
-      const v = record.voucher;
-      if (!v) return false;
-      if (v.status !== 'ACTIVE') return false;
-      if (v.startsAt && new Date(v.startsAt) > now) return false;
-      if (v.expiresAt && new Date(v.expiresAt) < now) return false;
-      if (v.totalUsage > 0 && v.currentUsage >= v.totalUsage) return false;
-      return true;
-    });
-
-    // Also verify per-user max usage limit
     const validVouchers: any[] = [];
-    for (const record of validSaved) {
+    for (const record of savedRecords) {
       const v = record.voucher;
-      if (v.maxUsagePerUser) {
-        const count = await this.prisma.voucherUsage.count({
-          where: { voucherId: v.id, userId },
-        });
-        if (count >= v.maxUsagePerUser) continue;
-      }
+      if (!v || v.status !== 'ACTIVE') continue;
+      if (v.startsAt && new Date(v.startsAt) > now) continue;
+      if (v.expiresAt && new Date(v.expiresAt) < now) continue;
+
+      const [usageCount, holdCount] = await Promise.all([
+        this.prisma.voucherUsage.count({ where: { voucherId: v.id, userId } }),
+        this.prisma.voucherReservation.count({
+          where: {
+            voucherId: v.id,
+            userId,
+            status: 'HELD',
+            expiresAt: { gt: now },
+          },
+        }),
+      ]);
+      if (
+        v.maxUsagePerUser &&
+        usageCount + holdCount >= v.maxUsagePerUser
+      ) continue;
+
+      const allHolds = await this.prisma.voucherReservation.count({
+        where: { voucherId: v.id, status: 'HELD', expiresAt: { gt: now } },
+      });
+      if (v.totalUsage > 0 && v.currentUsage + allHolds >= v.totalUsage) continue;
+
       validVouchers.push({ ...v, savedAt: record.savedAt, isSaved: true });
     }
 
@@ -753,51 +1017,19 @@ export class VouchersService {
     orderId: string,
     discountAmount: number,
   ) {
-    const voucher = await this.prisma.voucher.findUnique({
-      where: { code: code.toUpperCase() },
-    });
-    if (!voucher) {
-      throwNotFound(ErrorCode.VOUCHER_NOT_FOUND);
-    }
-
-    const v = voucher;
     return this.prisma.$transaction(async (tx) => {
-      // Check if voucher has already been applied for this order (Idempotency)
-      const existingUsage = await tx.voucherUsage.findFirst({
-        where: { voucherId: v.id, orderId },
+      const voucher = await tx.voucher.findUnique({
+        where: { code: code.trim().toUpperCase() },
+        select: { id: true },
       });
-      if (existingUsage) {
-        return existingUsage;
-      }
-
-      // Create usage record
-      const usage = await tx.voucherUsage.create({
-        data: {
-          voucherId: v.id,
-          userId,
-          orderId,
-          discount: Math.max(0, discountAmount),
-        },
-      });
-
-      // Update usage count
-      await tx.voucher.update({
-        where: { id: v.id },
-        data: { currentUsage: { increment: 1 } },
-      });
-
-      // Check if reached limit
-      if (
-        v.totalUsage > 0 &&
-        v.currentUsage + 1 >= v.totalUsage
-      ) {
-        await tx.voucher.update({
-          where: { id: v.id },
-          data: { status: 'USED_UP' },
-        });
-      }
-
-      return usage;
+      if (!voucher) throwNotFound(ErrorCode.VOUCHER_NOT_FOUND);
+      return this.consumeVoucherUsage(
+        tx,
+        voucher.id,
+        userId,
+        orderId,
+        discountAmount,
+      );
     });
   }
 
@@ -817,23 +1049,54 @@ export class VouchersService {
    * Rollback voucher usages for a cancelled/refunded order
    */
   async rollbackByOrderId(orderId: string) {
-    const usages = await this.prisma.voucherUsage.findMany({
-      where: { orderId },
-    });
-    if (!usages.length) return { rolledBack: 0 };
-
     return this.prisma.$transaction(async (tx) => {
-      for (const usage of usages) {
+      const reservations = await tx.voucherReservation.findMany({
+        where: { orderId, status: { in: ['HELD', 'CONSUMED'] } },
+        orderBy: { voucherId: 'asc' },
+      });
+      for (const reservation of reservations) {
+        await tx.$queryRaw`SELECT id FROM vouchers WHERE id = ${reservation.voucherId} FOR UPDATE`;
+      }
+
+      let currentUsages = await tx.voucherUsage.findMany({
+        where: { orderId },
+        orderBy: { voucherId: 'asc' },
+      });
+      const reservationVoucherIds = new Set(reservations.map((reservation) => reservation.voucherId));
+      const additionalVoucherIds = Array.from(
+        new Set(currentUsages.map((usage) => usage.voucherId).filter((id) => !reservationVoucherIds.has(id))),
+      ).sort();
+      for (const voucherId of additionalVoucherIds) {
+        await tx.$queryRaw`SELECT id FROM vouchers WHERE id = ${voucherId} FOR UPDATE`;
+      }
+      if (additionalVoucherIds.length > 0) {
+        currentUsages = await tx.voucherUsage.findMany({
+          where: { orderId },
+          orderBy: { voucherId: 'asc' },
+        });
+      }
+
+      for (const usage of currentUsages) {
+        const updated = await tx.voucher.update({
+          where: { id: usage.voucherId },
+          data: { currentUsage: { decrement: 1 } },
+        });
+        const restoredStatus =
+          updated.status === 'USED_UP' &&
+          (updated.totalUsage === 0 || updated.currentUsage < updated.totalUsage)
+            ? 'ACTIVE'
+            : updated.status;
         await tx.voucher.update({
           where: { id: usage.voucherId },
-          data: {
-            currentUsage: { decrement: 1 },
-            status: 'ACTIVE',
-          },
+          data: { status: restoredStatus },
         });
       }
       await tx.voucherUsage.deleteMany({ where: { orderId } });
-      return { rolledBack: usages.length };
+      await tx.voucherReservation.updateMany({
+        where: { orderId, status: { in: ['HELD', 'CONSUMED'] } },
+        data: { status: 'RELEASED' },
+      });
+      return { rolledBack: currentUsages.length };
     });
   }
 

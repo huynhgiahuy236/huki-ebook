@@ -73,6 +73,52 @@ export class InternalPromotionsController {
     return this.vouchers.apply(body.userId, body.voucherId!, body.orderId, body.discountAmount);
   }
 
+  @Post('vouchers/reservations')
+  @ApiOperation({ summary: 'Reserve voucher quota for checkout (internal)' })
+  reserveVoucherQuota(
+    @Headers('x-internal-service-key') serviceKey: string,
+    @Headers('x-internal-api-key') apiKey: string,
+    @Body() body: {
+      userId: string;
+      checkoutSessionId: string;
+      orderId: string;
+      vouchers: Array<{ code: string; discountAmount: number }>;
+    },
+  ) {
+    this.assertInternal(serviceKey, apiKey);
+    return this.vouchers.reserveForCheckout(
+      body.userId,
+      body.checkoutSessionId,
+      body.orderId,
+      body.vouchers || [],
+    );
+  }
+
+  @Post('vouchers/reservations/confirm')
+  @ApiOperation({ summary: 'Confirm checkout voucher reservations (internal)' })
+  confirmVoucherReservations(
+    @Headers('x-internal-service-key') serviceKey: string,
+    @Headers('x-internal-api-key') apiKey: string,
+    @Body() body: { checkoutSessionId: string; orderId: string },
+  ) {
+    this.assertInternal(serviceKey, apiKey);
+    return this.vouchers.confirmCheckoutReservations(
+      body.checkoutSessionId,
+      body.orderId,
+    );
+  }
+
+  @Post('vouchers/reservations/release')
+  @ApiOperation({ summary: 'Release checkout voucher reservations (internal)' })
+  releaseVoucherReservations(
+    @Headers('x-internal-service-key') serviceKey: string,
+    @Headers('x-internal-api-key') apiKey: string,
+    @Body() body: { checkoutSessionId: string },
+  ) {
+    this.assertInternal(serviceKey, apiKey);
+    return this.vouchers.releaseCheckoutReservations(body.checkoutSessionId);
+  }
+
   @Post('vouchers/rollback')
   @ApiOperation({ summary: 'Rollback voucher for cancelled/refunded order (internal)' })
   rollbackVoucher(

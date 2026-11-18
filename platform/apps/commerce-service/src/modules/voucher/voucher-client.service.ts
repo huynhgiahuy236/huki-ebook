@@ -49,6 +49,11 @@ export interface VoucherUsageInput {
   discountAmount: number;
 }
 
+export interface VoucherReservationInput {
+  code: string;
+  discountAmount: number;
+}
+
 @Injectable()
 export class VoucherClientService {
   private readonly logger = new Logger(VoucherClientService.name);
@@ -117,6 +122,40 @@ export class VoucherClientService {
 
     if (!result?.success) {
       throwBadRequest(ErrorCode.VOUCHER_USAGE_FAILED);
+    }
+  }
+
+  async reserveForCheckout(
+    userId: string,
+    checkoutSessionId: string,
+    orderId: string,
+    vouchers: VoucherReservationInput[],
+  ): Promise<void> {
+    if (!vouchers.length) return;
+    await this.request('/internal/vouchers/reservations', {
+      method: 'POST',
+      headers: { ...this.internalHeaders() },
+      body: JSON.stringify({ userId, checkoutSessionId, orderId, vouchers }),
+    });
+  }
+
+  async confirmReservations(checkoutSessionId: string, orderId: string): Promise<void> {
+    await this.request('/internal/vouchers/reservations/confirm', {
+      method: 'POST',
+      headers: { ...this.internalHeaders() },
+      body: JSON.stringify({ checkoutSessionId, orderId }),
+    });
+  }
+
+  async releaseReservations(checkoutSessionId: string): Promise<void> {
+    try {
+      await this.request('/internal/vouchers/reservations/release', {
+        method: 'POST',
+        headers: { ...this.internalHeaders() },
+        body: JSON.stringify({ checkoutSessionId }),
+      });
+    } catch (error: any) {
+      this.logger.warn(`Failed to release voucher reservations for checkout ${checkoutSessionId}: ${error.message}`);
     }
   }
 

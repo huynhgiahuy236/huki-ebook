@@ -50,6 +50,7 @@ model Voucher {
 
   // Relations
   usages       VoucherUsage[]
+  reservations VoucherReservation[]
   savedByUsers UserSavedVoucher[]
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -112,6 +113,33 @@ model VoucherUsage {
   @@index([voucherId])
   @@index([userId])
   @@map("voucher_usages")
+}
+
+model VoucherReservation {
+  id                String                   @id @default(uuid())
+  voucherId         String                   @map("voucher_id")
+  voucher           Voucher                  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  userId            String                   @map("user_id")
+  checkoutSessionId String                   @map("checkout_session_id")
+  orderId           String?                  @map("order_id")
+  discount          Float                    @default(0)
+  status            VoucherReservationStatus @default(HELD)
+  expiresAt         DateTime                 @map("expires_at")
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+
+  @@unique([checkoutSessionId, voucherId])
+  @@index([voucherId, status, expiresAt])
+  @@index([voucherId, userId, status, expiresAt])
+  @@index([orderId, status])
+  @@map("voucher_reservations")
+}
+
+enum VoucherReservationStatus {
+  HELD
+  CONSUMED
+  RELEASED
+  EXPIRED
 }
 
 // ============================================
@@ -213,7 +241,7 @@ model FlashSale {
 
   // Cấu hình trợ giá và giới hạn mua toàn sàn
   discountPercent      Float?         @default(30) @map("discount_percent")
-  maxPerUser           Int?           @default(1) @map("max_per_user")
+  maxPerUser           Int?            @default(1) @map("max_per_user")
 
   status               FlashSaleStatus @default(SCHEDULED)
   pauseEffectiveAt     DateTime?       @map("pause_effective_at")

@@ -15,6 +15,14 @@ describe('VouchersService', () => {
       count: jest.fn(),
       create: jest.fn(),
     },
+    voucherReservation: {
+      count: jest.fn().mockResolvedValue(0),
+      findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 

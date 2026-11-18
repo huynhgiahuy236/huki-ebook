@@ -1,7 +1,7 @@
 import { EmailService } from "@huki/shared";
 import { Injectable, Optional, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { randomBytes } from "crypto";
+import { randomBytes, randomUUID } from "crypto";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CartService } from "../cart/cart.service";
 import { CheckoutConfirmDto, CheckoutPreviewDto } from "./dto/checkout.dto";
@@ -499,6 +499,8 @@ export class CheckoutService {
     if (existing) return this.confirmResponse(existing, true);
 
     let flashSaleReservationOrderId: string | undefined;
+    let voucherReservationSessionId: string | undefined;
+    const checkoutOrderId = randomUUID();
     try {
       const orderData = await this.prisma.$transaction(async (tx) => {
         const rawSession = await tx.checkoutSession.findUnique({
@@ -645,9 +647,41 @@ export class CheckoutService {
           }
         }
 
+        const voucherReservations = [
+          ...(finalSnapshot.vouchers?.platform?.code
+            ? [{
+                code: finalSnapshot.vouchers.platform.code,
+                discountAmount: finalSnapshot.vouchers.platform.discount || 0,
+              }]
+            : []),
+          ...(finalSnapshot.vouchers?.stores || []).map((voucher) => ({
+            code: voucher.code,
+            discountAmount: voucher.discount || 0,
+          })),
+          ...(finalSnapshot.vouchers?.shipping?.code
+            ? [{
+                code: finalSnapshot.vouchers.shipping.code,
+                discountAmount:
+                  finalSnapshot.shippingDiscountTotal ||
+                  finalSnapshot.vouchers.shipping.discount ||
+                  0,
+              }]
+            : []),
+        ];
+        if (voucherReservations.length > 0) {
+          voucherReservationSessionId = session.id;
+          await this.voucherClient.reserveForCheckout(
+            userId,
+            session.id,
+            checkoutOrderId,
+            voucherReservations,
+          );
+        }
+
         // Create order
         const order = await tx.order.create({
           data: {
+            id: checkoutOrderId,
             code: this.code("ORD"),
             userId,
             idempotencyKey,
@@ -892,6 +926,7 @@ export class CheckoutService {
             payload: {
               orderId: order.id,
               orderCode: order.code,
+              checkoutSessionId: session.id,
               userId,
               total: order.grandTotal,
               paymentMethod: order.paymentMethod,
@@ -936,8 +971,18 @@ export class CheckoutService {
         return { order, snapshot: finalSnapshot };
       });
 
-      if (orderData.snapshot) {
-        await this.consumeVouchers(userId, orderData.order.id, orderData.snapshot);
+      if (voucherReservationSessionId) {
+        try {
+          await this.voucherClient.confirmReservations(
+            voucherReservationSessionId,
+            orderData.order.id,
+          );
+        } catch (error: any) {
+          // ORDER_CREATED is in the Commerce outbox; Promotion retries confirmation from that event.
+          this.logger.warn(
+            `Voucher reservation confirmation deferred for order ${orderData.order.id}: ${error?.message}`,
+          );
+        }
       }
 
       if (userEmail && this.emailService && orderData.snapshot) {
@@ -966,6 +1011,25 @@ export class CheckoutService {
 
       return this.confirmResponse(orderData.order, false);
     } catch (error) {
+      if (voucherReservationSessionId) {
+        try {
+          const checkoutSession = await this.prisma.checkoutSession.findUnique({
+            where: { id: voucherReservationSessionId },
+            select: { consumedAt: true },
+          });
+          if (!checkoutSession?.consumedAt) {
+            await this.voucherClient.releaseReservations(voucherReservationSessionId);
+          } else {
+            this.logger.warn(
+              `Checkout ${voucherReservationSessionId} is already consumed; keeping voucher reservations for outbox confirmation`,
+            );
+          }
+        } catch (releaseCheckError: any) {
+          this.logger.warn(
+            `Could not determine whether checkout ${voucherReservationSessionId} committed; keeping voucher reservations: ${releaseCheckError?.message}`,
+          );
+        }
+      }
       if (flashSaleReservationOrderId) {
         await this.flashSales
           .releaseOrder(flashSaleReservationOrderId)
@@ -980,58 +1044,6 @@ export class CheckoutService {
       }
       this.logger.error(`[Checkout Confirm Failure] userId=${userId} sessionId=${dto.sessionId}: ${(error as any)?.message}`, (error as any)?.stack);
       throw error;
-    }
-  }
-
-  /**
-   * Consume voucher usage within the order transaction
-   */
-  private async consumeVouchers(
-    userId: string,
-    orderId: string,
-    snapshot: CheckoutSnapshot,
-  ): Promise<void> {
-    // Consume platform voucher
-    if (snapshot.vouchers?.platform?.code) {
-      try {
-        await this.voucherClient.apply(userId, {
-          code: snapshot.vouchers.platform.code,
-          orderId,
-          discountAmount: snapshot.platformDiscountTotal || 0,
-        });
-      } catch (error: any) {
-        // Log but don't fail - voucher may already be consumed or invalid
-        console.error('Failed to consume platform voucher:', error?.message || error);
-      }
-    }
-
-    // Consume store vouchers
-    if (snapshot.vouchers?.stores?.length) {
-      for (const storeVoucher of snapshot.vouchers.stores) {
-        if (!storeVoucher?.code) continue;
-        try {
-          await this.voucherClient.apply(userId, {
-            code: storeVoucher.code,
-            orderId,
-            discountAmount: storeVoucher.discount || 0,
-          });
-        } catch (error: any) {
-          console.error('Failed to consume store voucher:', error?.message || error);
-        }
-      }
-    }
-
-    // Consume shipping voucher (Freeship)
-    if (snapshot.vouchers?.shipping?.code) {
-      try {
-        await this.voucherClient.apply(userId, {
-          code: snapshot.vouchers.shipping.code,
-          orderId,
-          discountAmount: snapshot.shippingDiscountTotal || snapshot.vouchers.shipping.discount || 0,
-        });
-      } catch (error: any) {
-        console.error('Failed to consume shipping voucher:', error?.message || error);
-      }
     }
   }
 

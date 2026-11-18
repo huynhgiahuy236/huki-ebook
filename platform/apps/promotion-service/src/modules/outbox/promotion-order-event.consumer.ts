@@ -22,6 +22,7 @@ export class PromotionOrderEventConsumer implements OnApplicationBootstrap {
     this.bus.subscribe(
       'promotion-service.order-events',
       [
+        ORDER_EVENTS.CREATED,
         ORDER_EVENTS.CANCELLED,
         ORDER_EVENTS.SELLER_CANCELLED,
         PAYMENT_EVENTS.FAILED,
@@ -34,17 +35,28 @@ export class PromotionOrderEventConsumer implements OnApplicationBootstrap {
     const orderId = String(event.payload?.orderId ?? event.aggregateId);
     if (!orderId) return;
 
+    if (event.eventType === ORDER_EVENTS.CREATED) {
+      const checkoutSessionId = String(event.payload?.checkoutSessionId ?? '');
+      if (!checkoutSessionId) {
+        this.logger.warn(
+          `[Voucher Reservation] ORDER_CREATED event ${event.eventId} has no checkoutSessionId`,
+        );
+        return;
+      }
+      await this.vouchers.confirmCheckoutReservations(checkoutSessionId, orderId);
+      this.logger.log(
+        `[Voucher Reservation] Confirmed checkout reservations for order ${orderId}`,
+      );
+      return;
+    }
+
     this.logger.log(
       `[PromotionOrderEventConsumer] Processing ${event.eventType} for order ${orderId} - rolling back vouchers & flash sale reservations`,
     );
 
-    try {
-      const rollbackResult = await this.vouchers.rollbackByOrderId(orderId);
-      if (rollbackResult?.rolledBack) {
-        this.logger.log(`[Voucher Rollback] Successfully rolled back voucher for order ${orderId}`);
-      }
-    } catch (err: any) {
-      this.logger.warn(`[Voucher Rollback Error] Order ${orderId}: ${err.message}`);
+    const rollbackResult = await this.vouchers.rollbackByOrderId(orderId);
+    if (rollbackResult?.rolledBack) {
+      this.logger.log(`[Voucher Rollback] Successfully rolled back voucher for order ${orderId}`);
     }
 
     try {
