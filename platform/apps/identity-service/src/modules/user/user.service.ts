@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { Prisma, User, UserRole, UserStatus } from '../../../prisma/generated/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -15,22 +21,72 @@ export class UserService {
     private readonly emailService: EmailService,
   ) {}
 
-  private getCommerceDbClient() {
-    const { Client } = require('pg');
-    const commerceDbUrl =
-      process.env.COMMERCE_DATABASE_URL ||
-      process.env.DATABASE_URL?.replace(/\/[^\/]+$/, '/huki_commerce') ||
-      'postgresql://postgres:postgres123@localhost:5432/huki_commerce';
-    return new Client({ connectionString: commerceDbUrl });
+  async createBusinessMemberAccount(dto: { fullName: string; email: string; phone?: string | null; password: string }) {
+    const email = dto.email.trim().toLowerCase();
+    const existing = await this.findByEmail(email);
+    if (existing) throw new BadRequestException('Email already exists');
+    const password = dto.password?.trim();
+    if (!password) throw new BadRequestException('Password is required');
+    const user = await this.prisma.user.create({
+      data: {
+        id: randomUUID(), email, passwordHash: await bcrypt.hash(password, 12),
+        fullName: dto.fullName.trim(), phone: dto.phone?.trim() || null,
+        role: UserRole.BUSINESS, status: UserStatus.ACTIVE, emailVerifiedAt: new Date(), mustChangePassword: true,
+      },
+    });
+    await this.auditService.log({ actorId: 'BUSINESS_SERVICE', actorRole: 'SERVICE', service: 'identity-service', module: 'ACCOUNTS', action: AuditAction.CREATE, resource: 'User', resourceId: user.id, afterState: user, changedFields: ['id', 'email', 'fullName', 'phone', 'role', 'status'] });
+    return { id: user.id, role: user.role };
   }
 
-  private getBusinessDbClient() {
-    const { Client } = require('pg');
-    const businessDbUrl =
-      process.env.BUSINESS_DATABASE_URL ||
-      process.env.DATABASE_URL?.replace(/\/[^\/]+$/, '/huki_business') ||
-      'postgresql://postgres:postgres123@localhost:5432/huki_business';
-    return new Client({ connectionString: businessDbUrl });
+  async prepareBusinessMemberAccess(id: string) {
+    const user = await this.findById(id);
+    if (user.role === UserRole.PLATFORM_ADMIN) throw new ForbiddenException('Cannot grant member access to platform admin');
+    const updated = await this.prisma.user.update({ where: { id }, data: { ...(user.role === UserRole.USER ? { role: UserRole.BUSINESS } : {}), mustChangePassword: true } });
+    await this.auditService.log({ actorId: 'BUSINESS_SERVICE', actorRole: 'SERVICE', module: 'ACCOUNTS', action: AuditAction.UPDATE, resource: 'User', resourceId: id, beforeState: user, afterState: updated, changedFields: ['role', 'mustChangePassword'] });
+    return { id: updated.id, role: updated.role };
+  }
+
+  async resetPasswordInternally(id: string, password: string) {
+    if (!password?.trim()) throw new BadRequestException('Password is required');
+    const user = await this.findById(id);
+    await this.prisma.user.update({ where: { id }, data: { passwordHash: await bcrypt.hash(password.trim(), 12), mustChangePassword: true } });
+    await this.auditService.log({ actorId: 'BUSINESS_SERVICE', actorRole: 'SERVICE', module: 'ACCOUNTS', action: AuditAction.UPDATE, resource: 'User', resourceId: id, changedFields: ['passwordReset', 'mustChangePassword'] });
+    return { id: user.id };
+  }
+
+  async setBusinessRoleInternally(id: string) {
+    const user = await this.findById(id);
+    if (user.role === UserRole.PLATFORM_ADMIN) throw new ForbiddenException('Cannot change platform admin role');
+    const updated = await this.prisma.user.update({ where: { id }, data: { role: UserRole.BUSINESS } });
+    await this.auditService.log({ actorId: 'BUSINESS_SERVICE', actorRole: 'SERVICE', module: 'ACCOUNTS', action: AuditAction.UPDATE, resource: 'User', resourceId: id, beforeState: { role: user.role }, afterState: { role: updated.role }, changedFields: ['role'] });
+    return { id: updated.id, role: updated.role };
+  }
+
+  async getPublicProfiles(userIds: string[]) {
+    if (!userIds.length) return [];
+    const users = await this.prisma.user.findMany({ where: { id: { in: [...new Set(userIds)] }, deletedAt: null }, select: { id: true, fullName: true, email: true, phone: true, avatar: true, status: true } });
+    return users;
+  }
+
+  private get commerceServiceUrl(): string {
+    return (
+      process.env.COMMERCE_SERVICE_URL ||
+      `http://localhost:${process.env.COMMERCE_SERVICE_PORT || 3003}`
+    ).replace(/\/$/, '');
+  }
+
+  private get businessServiceUrl(): string {
+    return (
+      process.env.BUSINESS_SERVICE_URL ||
+      `http://localhost:${process.env.BUSINESS_SERVICE_PORT || 3002}`
+    ).replace(/\/$/, '');
+  }
+
+  private get internalServiceKey(): string {
+    return (
+      process.env.INTERNAL_SERVICE_KEY ||
+      'huki-local-internal-service'
+    );
   }
 
   async findById(id: string, includeDeleted = false): Promise<User> {
@@ -133,52 +189,39 @@ export class UserService {
       take: 200,
     });
 
-    // Query stores and members info from business DB
+    // Query stores and members info from business service internal API
     let storeMapByOwner: Record<string, string> = {};
     let storeMapByMember: Record<string, { storeName: string; role: string }> = {};
 
-    let pgClient: any = null;
     try {
-      pgClient = this.getBusinessDbClient();
-      await pgClient.connect();
-
-      // Get businesses and stores
-      const bizRes = await pgClient.query(`
-        SELECT b.id as business_id, b.owner_id, b.name as business_name, s.name as store_name
-        FROM businesses b
-        LEFT JOIN stores s ON s.business_id = b.id AND s.deleted_at IS NULL
-        WHERE b.deleted_at IS NULL
-      `);
-
-      for (const row of bizRes.rows) {
-        if (row.owner_id) {
-          storeMapByOwner[row.owner_id] = row.store_name || row.business_name || 'Gian hàng';
-        }
-      }
-
-      // Get members
-      const memRes = await pgClient.query(`
-        SELECT m.user_id, m.role, s.name as store_name, b.name as business_name
-        FROM members m
-        JOIN businesses b ON b.id = m.business_id AND b.deleted_at IS NULL
-        LEFT JOIN stores s ON s.business_id = b.id AND s.deleted_at IS NULL
-        WHERE m.deleted_at IS NULL
-      `);
-
-      for (const row of memRes.rows) {
-        if (row.user_id) {
-          storeMapByMember[row.user_id] = {
-            storeName: row.store_name || row.business_name || 'Gian hàng',
-            role: row.role,
+      const userIds = users.map((u) => u.id);
+      if (userIds.length > 0) {
+        const response = await fetch(
+          `${this.businessServiceUrl}/api/v1/internal/user-store-mappings`,
+          {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'x-internal-service-key': this.internalServiceKey,
+            },
+            body: JSON.stringify({ userIds }),
+            signal: AbortSignal.timeout(5000),
+          },
+        );
+        if (response.ok) {
+          const mapping = (await response.json()) as {
+            storeMapByOwner?: Record<string, string>;
+            storeMapByMember?: Record<string, { storeName: string; role: string }>;
           };
+          storeMapByOwner = mapping.storeMapByOwner || {};
+          storeMapByMember = mapping.storeMapByMember || {};
         }
       }
-    } catch (err) {
-      console.warn('[UserService] Could not load store details from business DB:', err);
-    } finally {
-      if (pgClient) {
-        await pgClient.end().catch(() => {});
-      }
+    } catch (err: any) {
+      console.warn(
+        '[UserService] Could not load store details from business service:',
+        err?.message || err,
+      );
     }
 
     const formattedUsers = users.map((u) => {
@@ -392,45 +435,53 @@ export class UserService {
    */
   private async checkCommercialObligations(userId: string): Promise<void> {
     try {
-      const commerceClient = this.getCommerceDbClient();
-      await commerceClient.connect();
-      try {
-        // 1. Kiểm tra đơn mua chưa hoàn tất
-        const orderRes = await commerceClient.query(
-          `SELECT id, code, status FROM orders 
-           WHERE user_id = $1 
-             AND status IN ('PENDING', 'PENDING_PAYMENT', 'PROCESSING', 'SHIPPING') 
-           LIMIT 5`,
-          [userId],
-        );
-        if (orderRes.rows && orderRes.rows.length > 0) {
-          const codes = orderRes.rows.map((r: any) => r.code || r.id).join(', ');
-          throw new BadRequestException(
-            `Không thể yêu cầu xóa tài khoản do bạn đang có ${orderRes.rows.length} đơn hàng chưa hoàn tất (Mã: ${codes}). Vui lòng chờ nhận hàng thành công hoặc hủy đơn trước khi xóa tài khoản.`,
-          );
-        }
+      const response = await fetch(
+        `${this.commerceServiceUrl}/api/v1/internal/orders/commercial-obligations/${encodeURIComponent(userId)}`,
+        {
+          method: 'GET',
+          headers: {
+            'x-internal-service-key': this.internalServiceKey,
+          },
+          signal: AbortSignal.timeout(5000),
+        },
+      );
 
-        // 2. Kiểm tra đơn bán chưa hoàn tất (nếu tài khoản là Người bán / Đối tác)
-        const sellerOrderRes = await commerceClient.query(
-          `SELECT id, status FROM seller_orders 
-           WHERE owner_user_id = $1 
-             AND status IN ('PENDING_PAYMENT', 'PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'SHIPPED') 
-           LIMIT 5`,
-          [userId],
+      if (!response.ok) {
+        throw new Error(`Commerce service returned status ${response.status}`);
+      }
+
+      const result = (await response.json()) as {
+        hasActiveBuyerOrders: boolean;
+        buyerOrders?: Array<{ id: string; code: string; status: string }>;
+        hasActiveSellerOrders: boolean;
+        sellerOrderCount: number;
+      };
+
+      // 1. Kiểm tra đơn mua chưa hoàn tất
+      if (result.hasActiveBuyerOrders && result.buyerOrders && result.buyerOrders.length > 0) {
+        const codes = result.buyerOrders.map((r: any) => r.code || r.id).join(', ');
+        throw new BadRequestException(
+          `Không thể yêu cầu xóa tài khoản do bạn đang có ${result.buyerOrders.length} đơn hàng chưa hoàn tất (Mã: ${codes}). Vui lòng chờ nhận hàng thành công hoặc hủy đơn trước khi xóa tài khoản.`,
         );
-        if (sellerOrderRes.rows && sellerOrderRes.rows.length > 0) {
-          throw new BadRequestException(
-            `Không thể yêu cầu xóa tài khoản do gian hàng của bạn đang có ${sellerOrderRes.rows.length} đơn bán đang chờ xử lý hoặc giao hàng. Vui lòng hoàn tất nghĩa vụ giao dịch trước khi xóa tài khoản.`,
-          );
-        }
-      } finally {
-        await commerceClient.end().catch(() => {});
+      }
+
+      // 2. Kiểm tra đơn bán chưa hoàn tất (nếu tài khoản là Người bán / Đối tác)
+      if (result.hasActiveSellerOrders && result.sellerOrderCount > 0) {
+        throw new BadRequestException(
+          `Không thể yêu cầu xóa tài khoản do gian hàng của bạn đang có ${result.sellerOrderCount} đơn bán đang chờ xử lý hoặc giao hàng. Vui lòng hoàn tất nghĩa vụ giao dịch trước khi xóa tài khoản.`,
+        );
       }
     } catch (err: any) {
       if (err instanceof BadRequestException || err instanceof ForbiddenException) {
         throw err;
       }
-      console.warn('[UserService] Could not verify commercial obligations before deletion:', err?.message || err);
+      console.error(
+        '[UserService] Could not verify commercial obligations before deletion:',
+        err?.message || err,
+      );
+      throw new ServiceUnavailableException(
+        'Hệ thống thương mại đang bận hoặc bảo trì, không thể xác minh trạng thái đơn hàng. Vui lòng thử lại sau ít phút.',
+      );
     }
   }
 

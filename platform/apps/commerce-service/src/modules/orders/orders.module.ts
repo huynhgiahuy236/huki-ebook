@@ -8,6 +8,7 @@ import { OrdersController } from "./orders.controller";
 import { OrdersService } from "./orders.service";
 import { SellerOrdersController } from "./seller-orders.controller";
 import { ShipperOrdersController } from "./shipper-orders.controller";
+import { InternalOrdersController } from "./internal-orders.controller";
 import { OrderCompletionService } from "./order-completion.service";
 import { FlashSaleClientService } from "./flash-sale-client.service";
 import { EscrowService } from "./escrow.service";
@@ -21,7 +22,13 @@ import { PolicyConfigService } from "@huki/shared";
 
 @Module({
   imports: [EmailModule, CartModule, ShippingModule, VoucherModule, WalletModule, LedgerModule, AffiliateModule],
-  controllers: [CheckoutController, OrdersController, SellerOrdersController, ShipperOrdersController],
+  controllers: [
+    CheckoutController,
+    OrdersController,
+    SellerOrdersController,
+    ShipperOrdersController,
+    InternalOrdersController,
+  ],
   providers: [
     CheckoutService,
     OrdersService,
