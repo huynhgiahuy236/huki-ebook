@@ -13,6 +13,7 @@ export type DomainEventHandler = (event: DomainEvent) => Promise<void>;
 export class RabbitMqEventBus implements OnApplicationShutdown {
   private readonly logger = new Logger(RabbitMqEventBus.name);
   private readonly exchange: string;
+  private readonly maxRetries: number;
   private readonly connection: AmqpConnectionManager;
   private readonly publisher: ChannelWrapper;
   private readonly consumers: ChannelWrapper[] = [];
@@ -26,6 +27,14 @@ export class RabbitMqEventBus implements OnApplicationShutdown {
       config.get<string>('RABBITMQ_EXCHANGE') ??
       process.env.RABBITMQ_EXCHANGE ??
       'huki.events';
+    const configuredMaxRetries = Number(
+      config.get<string>('RABBITMQ_MAX_RETRIES') ??
+        process.env.RABBITMQ_MAX_RETRIES ??
+        2,
+    );
+    this.maxRetries = Number.isInteger(configuredMaxRetries)
+      ? Math.max(0, Math.min(configuredMaxRetries, 10))
+      : 2;
     this.connection = connect([url], { reconnectTimeInSeconds: 5 });
     this.connection.on('connect', () =>
       this.logger.log(`Connected to RabbitMQ exchange ${this.exchange}`),
@@ -85,9 +94,16 @@ export class RabbitMqEventBus implements OnApplicationShutdown {
               await handler(event);
               rawChannel.ack(message);
             } catch (error) {
-              const retries = Number(
+              const parsedRetries = Number(
                 message.properties.headers?.['x-retry-count'] ?? 0,
               );
+              const retries = Number.isInteger(parsedRetries)
+                ? Math.max(0, parsedRetries)
+                : 0;
+              const retrying = retries < this.maxRetries;
+              const destination = retrying ? queue : deadLetterQueue;
+              const errorMessage =
+                error instanceof Error ? error.message : String(error);
               const options = {
                 persistent: true,
                 contentType: 'application/json',
@@ -96,22 +112,45 @@ export class RabbitMqEventBus implements OnApplicationShutdown {
                 headers: {
                   ...message.properties.headers,
                   'x-retry-count': retries + 1,
+                  'x-last-error': errorMessage.slice(0, 500),
+                  ...(retrying ? {} : { 'x-dead-lettered-at': new Date().toISOString() }),
                 },
               };
-              if (retries < 2) {
-                rawChannel.sendToQueue(queue, message.content, options);
-              } else {
-                rawChannel.sendToQueue(
-                  deadLetterQueue,
+
+              try {
+                if (retrying) {
+                  const delayMs = Math.min(1_000 * 2 ** retries, 10_000);
+                  await new Promise((resolve) => setTimeout(resolve, delayMs));
+                }
+
+                // ChannelWrapper uses publisher confirms. Ack the original only
+                // after RabbitMQ confirms the retry/DLQ copy was accepted.
+                await this.publisher.sendToQueue(
+                  destination,
                   message.content,
-                  options,
+                  options as any,
                 );
+                if (!retrying) {
+                  this.logger.error(
+                    `Event ${message.properties.messageId ?? 'unknown'} moved to ${deadLetterQueue}: ${errorMessage}`,
+                    error instanceof Error ? error.stack : undefined,
+                  );
+                }
+                rawChannel.ack(message);
+              } catch (publishError) {
                 this.logger.error(
-                  `Event ${message.properties.messageId ?? 'unknown'} moved to ${deadLetterQueue}`,
-                  error instanceof Error ? error.stack : String(error),
+                  `Could not publish ${retrying ? 'retry' : 'DLQ'} copy for event ${message.properties.messageId ?? 'unknown'}; requeueing original`,
+                  publishError instanceof Error ? publishError.stack : String(publishError),
                 );
+                try {
+                  rawChannel.nack(message, false, true);
+                } catch (nackError) {
+                  // A closed channel causes RabbitMQ to requeue unacked messages itself.
+                  this.logger.warn(
+                    `Could not nack event ${message.properties.messageId ?? 'unknown'}; broker will recover it when the channel closes: ${nackError instanceof Error ? nackError.message : String(nackError)}`,
+                  );
+                }
               }
-              rawChannel.ack(message);
             }
           },
           { noAck: false },
