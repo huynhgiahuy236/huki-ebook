@@ -33,28 +33,19 @@ export class ShippingOrderEventConsumer implements OnApplicationBootstrap {
   }
 
   private async handle(event: DomainEvent): Promise<void> {
-    // 1. Atomic Deduplication: Attempt to record into inbox_events first
-    try {
-      await this.prisma.inboxEvent.create({
-        data: {
-          eventId: event.eventId,
-          type: event.eventType,
-          aggregateId: event.aggregateId,
-          payload: event.payload as Prisma.InputJsonValue,
-        },
-      });
-    } catch (error) {
-      if ((error as { code?: string }).code === 'P2002') {
-        // Unique constraint violation on event_id: duplicate message, discard safely
-        this.logger.debug(
-          `[ShippingOrderEventConsumer] Duplicate event discarded: ${event.eventId} (${event.eventType})`,
-        );
-        return;
-      }
-      throw error;
+    const processed = await this.prisma.inboxEvent.findUnique({
+      where: { eventId: event.eventId },
+      select: { id: true },
+    });
+    if (processed) {
+      this.logger.debug(
+        `[ShippingOrderEventConsumer] Duplicate event discarded: ${event.eventId} (${event.eventType})`,
+      );
+      return;
     }
 
-    // 2. Process event exclusively
+    // Keep the inbox as a completion record. If processing throws, leave no
+    // completed marker so the broker can safely redeliver the event.
     this.logger.log(
       `[ShippingOrderEventConsumer] Processing ${event.eventType} for aggregate ${event.aggregateId} (eventId: ${event.eventId})`,
     );
@@ -79,6 +70,23 @@ export class ShippingOrderEventConsumer implements OnApplicationBootstrap {
         String(event.payload.sellerOrderId),
         { reason: String(event.payload?.reason ?? 'Seller order cancelled') },
       );
+    }
+
+    try {
+      await this.prisma.inboxEvent.create({
+        data: {
+          eventId: event.eventId,
+          type: event.eventType,
+          aggregateId: event.aggregateId,
+          payload: event.payload as Prisma.InputJsonValue,
+        },
+      });
+    } catch (error) {
+      // A concurrent redelivery may have completed the same event after the
+      // initial lookup. The shipment operations are idempotent by their stable
+      // sellerOrderId/trackingNumber keys, so this unique conflict is harmless.
+      if ((error as { code?: string }).code === 'P2002') return;
+      throw error;
     }
   }
 }

@@ -14,6 +14,7 @@ export interface CarrierFeeQuote {
   estimatedDays: { min: number; max: number };
 }
 export interface CarrierShipmentInput extends CarrierFeeInput {
+  /** Stable idempotency key: retries for a seller order must return its existing waybill. */
   sellerOrderId: string;
 }
 export interface CarrierShipmentResult {
@@ -22,6 +23,8 @@ export interface CarrierShipmentResult {
 }
 export interface CarrierProvider {
   calculateFee(input: CarrierFeeInput): Promise<CarrierFeeQuote>;
+  /** Implementations must deduplicate repeated requests using input.sellerOrderId. */
   createShipment(input: CarrierShipmentInput): Promise<CarrierShipmentResult>;
+  /** Repeated cancellation of the same tracking number must be safe. */
   cancelShipment(trackingNumber: string): Promise<void>;
 }
