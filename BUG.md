@@ -915,3 +915,42 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 #### 5. Đảm bảo Đồng bộ Realtime từ Seller sang Buyer Storefront:
 - Buyer Storefront tại `web/src/app/book/[id]/page.tsx` đọc trực tiếp từ `catalogApi.getBookById(id)` các trường `realBook.pricePaper`, `realBook.priceEbook`, `realBook.priceCombo`.
 - Khi Seller cập nhật thành công, backend lưu đúng SSOT và trả về tức thì. Trang chi tiết sách của người mua hiển thị chính xác 100% từng mức giá đã thiết lập mà không bị rơi vào giá ước lượng fallback.
+---
+
+### 7.15. BÁO CÁO TOÀN DIỆN VÀ GIẢI PHÁP TRIỆT ĐỂ NHÓM 2: CHATBOX AI, GỢI Ý ĐA ĐỊNH DẠNG, XÓA THÔNG BÁO KÉP VÀ GOM ĐƠN MUA NGAY 1 STORE
+
+- **Trang kiểm tra:** `https://huki-uat.duckdns.org/cart` & Chatbox AI Bé Cáo
+- **Bằng chứng lỗi trên UAT:** Ảnh chụp màn hình `media_1795283376563_2c87e542.jpg` (Xuất hiện 2 toast thông báo cùng lúc, giỏ hàng bị xé lẻ thành First News và Gian Hàng HUKI chứa cùng 1 cuốn sách *Làm Chủ Tư Duy Thay Đổi Vận Mệnh*).
+
+#### 1. Khắc phục lỗi 2 thông báo cùng lúc (Double Toast Notification):
+- **File sửa:** [`web/src/ui/components/ai/FloatingAIChatbox.tsx`](file:///e:/HuKi/web/src/ui/components/ai/FloatingAIChatbox.tsx)
+- **Nguyên nhân:** Khi click "+ Giỏ hàng" hoặc "Mua ngay", hàm `handleAddToCartItem` gọi `addToCart()` từ `CartContext.tsx`. Bản thân `CartContext.tsx` đã tự động phát thông báo toast màu xanh *"Đã thêm vào giỏ hàng: Ấn phẩm '...' đã được thêm vào giỏ của bạn."*. Tuy nhiên `FloatingAIChatbox.tsx` lại gọi thêm `showToast()` thứ 2 $\rightarrow$ 2 thông báo đè lên nhau.
+- **Khắc phục:** Loại bỏ hoàn toàn lệnh gọi `showToast` dư thừa trong `FloatingAIChatbox.tsx`, chỉ giữ lại duy nhất thông báo SSOT từ `CartContext.tsx`.
+
+#### 2. Khắc phục lỗi Xé lẻ Store & Cùng cuốn sách rơi vào 2 gian hàng khác nhau:
+- **Nguyên nhân cốt lõi:**
+  * Trong `FloatingAIChatbox.tsx`, dòng 186 trước đây **hardcode cứng** `storeId: 'huki-official'`. Khi sách trong DB thuộc gian hàng đối tác (như *First News - Trí Việt*), nhưng thêm từ chatbox lại bị ép sang `huki-official`.
+  * Trong `ai-chat.service.ts`, `getCatalogBooks()` không map `storeId`, `storeName`, `rating` từ DB của `commerce-service`.
+- **Khắc phục:**
+  * Bổ sung đầy đủ `storeId`, `storeName`, `category`, `categoryId`, `rating` vào cả `BookCatalogItem` và `SuggestedBookItem` trong [`ai-chat.service.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/chat/ai-chat.service.ts).
+  * Trong `FloatingAIChatbox.tsx`, truyền chính xác `book.storeId` và `book.storeName` vào giỏ hàng, hiển thị badge gian hàng `🏪 {book.storeName}` trực quan trên thẻ sách gợi ý.
+
+#### 3. Gom đơn "Mua Ngay" về 1 Store duy nhất (`selectStoreExclusive`):
+- **File sửa:**
+  * [`web/src/ui/context/CartContext.tsx`](file:///e:/HuKi/web/src/ui/context/CartContext.tsx)
+  * [`web/src/ui/components/ai/FloatingAIChatbox.tsx`](file:///e:/HuKi/web/src/ui/components/ai/FloatingAIChatbox.tsx)
+- **Cơ chế hoạt động:**
+  * Bổ sung phương thức `selectStoreExclusive(storeId: string, targetItemId?: string)` vào `CartContext`.
+  * Khi người mua bấm "Mua ngay" tại Chatbox AI: Thêm ấn phẩm vào giỏ hàng, tự động đánh dấu chọn (`checked = true`) cho sản phẩm/store này và **BỎ CHỌN TOÀN BỘ (`checked = false`)** các sản phẩm thuộc các store khác.
+  * Khi chuyển sang `/cart`: Giỏ hàng chỉ tập trung thanh toán đúng 1 store duy nhất vừa mua ngay, chuẩn trải nghiệm sàn TMĐT Shopee/Tiki.
+
+#### 4. Sắp xếp thông minh theo Giá tiền, Đánh giá và Lượt mua:
+- **File sửa:** [`platform/apps/community-service/src/modules/chat/ai-chat.service.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/chat/ai-chat.service.ts)
+- **Logic xếp hạng ứng biến:**
+  * Nếu người dùng quan tâm về tiền / ngân sách ("rẻ", "tiết kiệm", "dưới 100k"): Tự động sắp xếp theo **Giá thấp nhất (`price ASC`)**.
+  * Mặc định: Ưu tiên theo **Đánh giá cao nhất (`rating DESC`)**, **Lượt mua nhiều nhất (`soldCount DESC`)**, rồi đến **Giá tốt nhất (`price ASC`)**.
+  * Chống trùng lặp (Deduplication): Nếu cùng một tựa sách có mặt ở nhiều shop khác nhau, bot tự động chọn lọc phiên bản của shop tối ưu nhất để tư vấn, không làm loãng kết quả.
+
+#### 5. Tự động gợi ý sách cùng thể loại & Điều hướng mục Gợi ý cho bạn:
+- Khi người dùng tìm kiếm 1 cuốn sách bất kỳ, bot tự động tìm thêm 2-3 cuốn sách nổi bật cùng thể loại (`category`) trong kho và đính kèm vào `suggestedBooks`.
+- Bổ sung các Quick Prompts: `'Gợi ý cho bạn'`, `'Sách cùng thể loại'`, `'Xem mục gợi ý cho bạn'` dẫn thẳng tới trang danh mục cá nhân hóa (`/books?filter=for-you`).

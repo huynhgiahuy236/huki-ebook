@@ -18,6 +18,11 @@ export interface SuggestedBookItem {
   slug?: string;
   format?: string;
   soldCount?: number;
+  storeId?: string;
+  storeName?: string;
+  category?: string;
+  categoryId?: string;
+  rating?: number;
 }
 
 export interface AiChatAction {
@@ -57,7 +62,7 @@ export default function FloatingAIChatbox() {
   const router = useRouter();
   const pathname = usePathname();
   const { user } = useAuth();
-  const { addToCart } = useCart();
+  const { addToCart, selectStoreExclusive } = useCart();
   const { showToast } = useToast();
   const [addingBookId, setAddingBookId] = useState<string | null>(null);
   const [addedBookIds, setAddedBookIds] = useState<Record<string, boolean>>({});
@@ -71,25 +76,25 @@ export default function FloatingAIChatbox() {
   const activePrompts = useMemo(() => {
     if (lastAssistantMsg?.suggestedBooks && lastAssistantMsg.suggestedBooks.length > 0) {
       return [
+        'Gợi ý sách cùng thể loại',
         'Còn cuốn khác không?',
-        'Cuốn đầu tiên nói về gì?',
         'Có cuốn nào rẻ hơn không?',
-        'Có bản Ebook không?',
+        'Xem mục gợi ý cho bạn',
       ];
     }
     if (lastAssistantMsg?.content?.includes('giá niêm yết') || lastAssistantMsg?.content?.includes('nói về')) {
       return [
+        'Gợi ý sách cùng thể loại',
         'Có bản Ebook không?',
         'Tìm sách rẻ hơn đi',
-        'Còn cuốn khác không?',
-        'Hướng dẫn đọc Ebook DRM',
+        'Xem mục gợi ý cho bạn',
       ];
     }
     return [
-      'Sách nào hay?',
+      'Gợi ý cho bạn',
+      'Sách bán chạy nhất',
       'Có cuốn nào về kinh doanh không?',
       'Hướng dẫn đọc Ebook DRM',
-      'Thời gian & phí giao hàng',
     ];
   }, [lastAssistantMsg]);
 
@@ -183,17 +188,14 @@ export default function FloatingAIChatbox() {
         cover: book.coverUrl,
         format: book.format || 'Sách giấy',
         type: book.format?.toLowerCase().includes('ebook') ? 'ebook' : 'physical',
-        storeId: 'huki-official',
+        storeId: book.storeId || 'huki-official',
+        storeName: book.storeName || 'Gian Hàng HUKI Official',
       });
       try {
         personalizationService.recordBookInteraction(book.id);
       } catch {}
       setAddedBookIds((prev) => ({ ...prev, [book.id]: true }));
-      showToast({
-        type: 'success',
-        title: 'Đã thêm vào giỏ hàng',
-        message: `Cuốn "${book.title}" đã được thêm vào giỏ hàng!`,
-      });
+      // addToCart đã tự động hiển thị showToast thông báo chuẩn -> Triệt tiêu hoàn toàn lỗi 2 thông báo cùng lúc!
       setTimeout(() => {
         setAddedBookIds((prev) => ({ ...prev, [book.id]: false }));
       }, 3000);
@@ -210,12 +212,22 @@ export default function FloatingAIChatbox() {
       e.stopPropagation();
     }
     await handleAddToCartItem(book);
+    // Gom đơn về 1 store duy nhất: Bỏ chọn toàn bộ sản phẩm của các store khác để checkout sạch sẽ
+    if (selectStoreExclusive) {
+      selectStoreExclusive(book.storeId || 'huki-official', book.id);
+    }
     router.push('/cart');
   };
 
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend !== undefined ? textToSend : inputMessage).trim();
     if (!text || isLoading) return;
+
+    if (text === 'Xem mục gợi ý cho bạn') {
+      router.push('/books?filter=for-you');
+      setIsOpen(false);
+      return;
+    }
 
     const userMsg: AIMessage = {
       id: `user-${Date.now()}`,
@@ -532,13 +544,18 @@ export default function FloatingAIChatbox() {
                                   {book.title}
                                 </h4>
                                 <p className="text-[10px] text-slate-500 truncate">{book.author}</p>
-                                <div className="flex items-center gap-2 mt-0.5">
+                                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                                   <span className="font-bold text-[11px] text-[#003B2B]">
                                     {book.price.toLocaleString('vi-VN')}đ
                                   </span>
                                   {book.format && (
                                     <span className="text-[9px] bg-slate-200/80 text-slate-700 px-1.5 py-0.2 rounded font-medium">
                                       {book.format}
+                                    </span>
+                                  )}
+                                  {book.storeName && (
+                                    <span className="text-[9px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.2 rounded font-medium truncate max-w-[120px]" title={`Gian hàng: ${book.storeName}`}>
+                                      🏪 {book.storeName}
                                     </span>
                                   )}
                                 </div>

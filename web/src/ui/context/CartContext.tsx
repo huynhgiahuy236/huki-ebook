@@ -66,6 +66,7 @@ export interface CartContextType {
   updateQuantity: (id: string, delta: number) => Promise<void>;
   toggleCheckItem: (id: string) => void;
   toggleStoreCheck: (storeId: string, isChecked: boolean) => void;
+  selectStoreExclusive: (storeId: string, targetItemId?: string) => void;
   toggleAll: (isChecked: boolean) => void;
   clearCart: () => Promise<void>;
   clearUnavailableItems: () => Promise<void>;
@@ -698,6 +699,26 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [user, persistCart]
   );
 
+  // Chọn duy nhất 1 store (Bỏ chọn toàn bộ sản phẩm của các store khác khi bấm Mua Ngay)
+  const selectStoreExclusive = useCallback(
+    (storeId: string, targetItemId?: string) => {
+      setCartItems((prev) => {
+        const nextState = prev.map((item) => {
+          if (item.storeId === storeId && item.isAvailable !== false) {
+            if (targetItemId) {
+              return { ...item, checked: item.id === targetItemId || item.bookId === targetItemId };
+            }
+            return { ...item, checked: true };
+          }
+          return { ...item, checked: false };
+        });
+        persistCart(nextState, user);
+        return nextState;
+      });
+    },
+    [user, persistCart]
+  );
+
   // Toggle all available items
   const toggleAll = useCallback(
     (isChecked: boolean) => {
@@ -799,6 +820,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateQuantity,
     toggleCheckItem,
     toggleStoreCheck,
+    selectStoreExclusive,
     toggleAll,
     clearCart,
     clearUnavailableItems,

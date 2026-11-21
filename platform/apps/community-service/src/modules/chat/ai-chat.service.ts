@@ -13,6 +13,11 @@ export interface SuggestedBookItem {
   slug?: string;
   format?: string;
   soldCount?: number;
+  storeId?: string;
+  storeName?: string;
+  category?: string;
+  categoryId?: string;
+  rating?: number;
 }
 
 export interface AiChatAction {
@@ -36,6 +41,10 @@ export interface BookCatalogItem {
   slug?: string;
   author: string;
   category: string;
+  categoryId?: string;
+  storeId?: string;
+  storeName?: string;
+  rating?: number;
   price: number;
   originalPrice?: number;
   coverUrl: string;
@@ -137,19 +146,29 @@ export class AiChatService {
           ? json.items
           : [];
         if (rawBooks.length > 0) {
-          const catalogItems: BookCatalogItem[] = rawBooks.map((b: any) => ({
-            id: b.id,
-            title: b.title || "Tựa sách HUKI",
-            slug: b.slug,
-            author: b.author?.name || (typeof b.author === "string" ? b.author : "Tác giả HUKI"),
-            category: b.category?.name || (typeof b.category === "string" ? b.category : "Sách chọn lọc"),
-            price: Number(b.price || 0),
-            originalPrice: b.originalPrice ? Number(b.originalPrice) : undefined,
-            coverUrl: b.coverUrl || b.coverImage || "",
-            format: b.format === "DIGITAL" ? "Ebook DRM" : b.format === "PHYSICAL" ? "Sách giấy" : "Combo (Giấy + Ebook)",
-            soldCount: Number(b.soldCount ?? b.sales ?? 0),
-            description: (b.description || "").slice(0, 300),
-          }));
+          const catalogItems: BookCatalogItem[] = rawBooks.map((b: any) => {
+            const rawStoreName = b.store?.name || b.business?.name || b.publisher?.name;
+            const fallbackStoreName = String(b.storeId || "").toLowerCase().includes("first-news")
+              ? "First News - Trí Việt"
+              : "Gian Hàng HUKI Official";
+            return {
+              id: b.id,
+              title: b.title || "Tựa sách HUKI",
+              slug: b.slug,
+              author: b.author?.name || (typeof b.author === "string" ? b.author : "Tác giả HUKI"),
+              category: b.category?.name || (typeof b.category === "string" ? b.category : "Sách chọn lọc"),
+              categoryId: b.categoryId || b.category?.id,
+              storeId: b.storeId || b.businessId || "huki-official",
+              storeName: rawStoreName || fallbackStoreName,
+              rating: Number(b.rating || b.averageRating || 5),
+              price: Number(b.price || 0),
+              originalPrice: b.originalPrice ? Number(b.originalPrice) : undefined,
+              coverUrl: b.coverUrl || b.coverImage || "",
+              format: b.format === "DIGITAL" ? "Ebook DRM" : b.format === "PHYSICAL" ? "Sách giấy" : "Combo (Giấy + Ebook)",
+              soldCount: Number(b.soldCount ?? b.sales ?? 0),
+              description: (b.description || "").slice(0, 300),
+            };
+          });
 
           // Lưu vào Redis với TTL 1 giờ
           if (this.redis && catalogItems.length > 0) {
@@ -483,6 +502,22 @@ export class AiChatService {
       };
     }
 
+    // 8.1. CÂU HỎI "Gợi ý cho bạn", "Gợi ý sách cho tôi", "Dành cho bạn"
+    const isForYouRequest =
+      qNorm.includes("goi y cho ban") ||
+      qNorm.includes("danh cho ban") ||
+      qNorm.includes("goi y cho toi") ||
+      qNorm.includes("goi y sach cho toi");
+
+    if (isForYouRequest) {
+      const top = this.getTopBestsellers(allBooks, 4);
+      return {
+        intent: "FOR_YOU",
+        isFollowUp: false,
+        candidateBooks: top,
+      };
+    }
+
     // 9. Ý ĐỊNH ĐẶT HÀNG / THÊM GIỎ HÀNG TRỰC TIẾP
     const isCartOrder =
       qNorm.includes("them vao gio") ||
@@ -743,7 +778,47 @@ QUY TẮC BẮT BUỘC KHI GỢI Ý VÀ TƯ VẤN:
           slug: b.slug,
           format: b.format,
           soldCount: b.soldCount,
+          storeId: b.storeId,
+          storeName: b.storeName,
+          category: b.category,
+          categoryId: b.categoryId,
+          rating: b.rating,
         }));
+
+      // Chủ động hiện thêm các sách cùng thể loại (same type/category) nếu người dùng tìm cuốn đó
+      if (suggestedBooks.length > 0 && suggestedBooks.length < 4) {
+        const primaryCat = suggestedBooks[0].category;
+        if (primaryCat) {
+          const normPrimaryCat = this.normalizeText(primaryCat);
+          const sameCatBooks = allBooks
+            .filter((b) => {
+              const bCatNorm = this.normalizeText(b.category);
+              return bCatNorm.includes(normPrimaryCat) || normPrimaryCat.includes(bCatNorm);
+            })
+            .filter((b) => !suggestedBooks.some((s) => s.id === b.id))
+            .sort((a, b) => (b.rating || 5) - (a.rating || 5) || b.soldCount - a.soldCount)
+            .slice(0, 4 - suggestedBooks.length);
+
+          for (const extra of sameCatBooks) {
+            suggestedBooks.push({
+              id: extra.id,
+              title: extra.title,
+              author: extra.author,
+              price: extra.price,
+              originalPrice: extra.originalPrice,
+              coverUrl: extra.coverUrl,
+              slug: extra.slug,
+              format: extra.format,
+              soldCount: extra.soldCount,
+              storeId: extra.storeId,
+              storeName: extra.storeName,
+              category: extra.category,
+              categoryId: extra.categoryId,
+              rating: extra.rating,
+            });
+          }
+        }
+      }
 
       return {
         reply: cleanReply,
@@ -942,21 +1017,50 @@ QUY TẮC BẮT BUỘC KHI GỢI Ý VÀ TƯ VẤN:
       return { reply, extractedInterests: [], suggestedBooks: [], isFallback: true };
     }
 
-    // TÌM KIẾM THEO CHỦ ĐỀ HOẶC MẶC ĐỊNH
-    if (candidateBooks.length > 0) {
-      const bookLinks = candidateBooks
-        .map((b: BookCatalogItem) => `• [${b.title}](/book/${b.id}) - ${b.author} (${b.price.toLocaleString("vi-VN")}đ)`)
+    if (intent === "FOR_YOU" || analysis.intent === "FOR_YOU") {
+      const topPicks = candidateBooks.length > 0 ? candidateBooks : this.getTopBestsellers(allBooks, 4);
+      const bookLinks = topPicks
+        .map((b: BookCatalogItem) => `• [${b.title}](/book/${b.id}) - ${b.author} (⭐ ${b.rating || 5}/5 - ${b.price.toLocaleString("vi-VN")}đ)`)
         .join("\n");
-      const reply = `📚 Dạ Bé Cáo gửi bạn những tựa sách phù hợp với câu hỏi của bạn nè: 🦊✨\n\n${bookLinks}\n\nBạn bấm vào từng cuốn để xem thử nội dung nhé!`;
+      const reply = `✨ **Gợi Ý Dành Riêng Cho Bạn:** 🦊\n\nDựa trên xu hướng sách được yêu thích và đánh giá cao nhất trên sàn HUKI, Bé Cáo chọn lọc những cuốn sách này cho bạn nè:\n\n${bookLinks}\n\n👉 Bạn cũng có thể bấm [Xem tất cả tại mục Gợi ý cho bạn](/books?filter=for-you) để khám phá thêm nhiều tác phẩm mới nhé!`;
       return {
         reply,
-        extractedInterests: analysis.extractedCategory ? [analysis.extractedCategory.toLowerCase()] : [],
-        suggestedBooks: this.toSuggestedItems(candidateBooks),
+        extractedInterests: ["gợi ý cho bạn"],
+        suggestedBooks: this.toSuggestedItems(topPicks),
         isFallback: true,
       };
     }
 
-    const defaultTop = this.getTopBestsellers(allBooks, 3);
+    // TÌM KIẾM THEO CHỦ ĐỀ HOẶC MẶC ĐỊNH
+    if (candidateBooks.length > 0) {
+      // Chủ động bổ sung các sách cùng thể loại nếu danh sách gợi ý < 4 cuốn
+      let fullCandidates = [...candidateBooks];
+      if (fullCandidates.length < 4 && fullCandidates[0].category) {
+        const catNorm = this.normalizeText(fullCandidates[0].category);
+        const sameType = allBooks
+          .filter((b) => {
+            const bNorm = this.normalizeText(b.category);
+            return bNorm.includes(catNorm) || catNorm.includes(bNorm);
+          })
+          .filter((b) => !fullCandidates.some((c) => c.id === b.id))
+          .sort((a, b) => (b.rating || 5) - (a.rating || 5) || b.soldCount - a.soldCount)
+          .slice(0, 4 - fullCandidates.length);
+        fullCandidates.push(...sameType);
+      }
+
+      const bookLinks = fullCandidates
+        .map((b: BookCatalogItem) => `• [${b.title}](/book/${b.id}) - ${b.author} (${b.price.toLocaleString("vi-VN")}đ)`)
+        .join("\n");
+      const reply = `📚 Dạ Bé Cáo gửi bạn tựa sách tìm kiếm kèm các tác phẩm cùng thể loại nổi bật nè: 🦊✨\n\n${bookLinks}\n\nBạn bấm vào từng cuốn để xem chi tiết hoặc mua ngay nhé!`;
+      return {
+        reply,
+        extractedInterests: analysis.extractedCategory ? [analysis.extractedCategory.toLowerCase()] : [],
+        suggestedBooks: this.toSuggestedItems(fullCandidates),
+        isFallback: true,
+      };
+    }
+
+    const defaultTop = this.getTopBestsellers(allBooks, 4);
     const reply =
       "Dạ Bé Cáo là trợ lý thủ thư của sàn sách HUKI! 🦊 Nếu bạn cần tìm sách hay, hỏi về đơn hàng hay cách đọc ebook DRM thì cứ nhắn cho mình nhé. Dưới đây là một số cuốn sách nổi bật đang có trên sàn nè:";
     return {
@@ -978,6 +1082,11 @@ QUY TẮC BẮT BUỘC KHI GỢI Ý VÀ TƯ VẤN:
       slug: b.slug,
       format: b.format,
       soldCount: b.soldCount,
+      storeId: b.storeId,
+      storeName: b.storeName,
+      category: b.category,
+      categoryId: b.categoryId,
+      rating: b.rating,
     }));
   }
 
@@ -998,6 +1107,15 @@ QUY TẮC BẮT BUỘC KHI GỢI Ý VÀ TƯ VẤN:
     if (!q || allBooks.length === 0) return [];
 
     const qNormalized = this.normalizeText(q);
+
+    // Phát hiện người dùng có quan tâm về tiền / giá rẻ
+    const isPriceFocused =
+      qNormalized.includes("re") ||
+      qNormalized.includes("gia re") ||
+      qNormalized.includes("tiet kiem") ||
+      qNormalized.includes("it tien") ||
+      qNormalized.includes("duoi 100") ||
+      qNormalized.includes("duoi 200");
 
     const scored = allBooks.map((b) => {
       let score = 0;
@@ -1021,16 +1139,42 @@ QUY TẮC BẮT BUỘC KHI GỢI Ý VÀ TƯ VẤN:
         if (descNorm.includes(t)) score += 5;
       }
 
-      // Điểm cộng theo lượt bán thật
-      score += Math.min(b.soldCount * 3, 30);
+      // Điểm cộng theo đánh giá sao (rating) và lượt mua thật
+      const ratingBonus = ((b.rating || 5) / 5) * 20;
+      const soldBonus = Math.min((b.soldCount || 0) * 2, 30);
+      score += ratingBonus + soldBonus;
 
       return { book: b, score };
     });
 
-    return scored
-      .filter((s) => s.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map((s) => s.book);
+    const filtered = scored.filter((s) => s.score > 15);
+
+    // Sắp xếp theo yêu cầu của buyer:
+    // 1. Nếu buyer quan tâm tiền: Sắp xếp theo giá tăng dần (price ASC), rồi đến điểm match
+    // 2. Mặc định: Sắp xếp theo điểm match (kết hợp title, rating sao, lượt mua), rồi đến rating DESC, soldCount DESC, giá tốt nhất
+    filtered.sort((a, b) => {
+      if (isPriceFocused) {
+        if (a.book.price !== b.book.price) return a.book.price - b.book.price;
+        return b.score - a.score;
+      }
+      if (b.score !== a.score) return b.score - a.score;
+      if ((b.book.rating || 0) !== (a.book.rating || 0)) return (b.book.rating || 0) - (a.book.rating || 0);
+      if (b.book.soldCount !== a.book.soldCount) return b.book.soldCount - a.book.soldCount;
+      return a.book.price - b.book.price;
+    });
+
+    // Deduplication chống xé lẻ nhiều shop: Nếu trùng tiêu đề sách giữa các shop, chỉ giữ lại ấn phẩm uy tín nhất / giá tốt nhất
+    const seenTitles = new Set<string>();
+    const deduplicated: BookCatalogItem[] = [];
+    for (const item of filtered) {
+      const cleanTitle = this.normalizeText(item.book.title);
+      if (!seenTitles.has(cleanTitle)) {
+        seenTitles.add(cleanTitle);
+        deduplicated.push(item.book);
+      }
+    }
+
+    return deduplicated;
   }
 
   private normalizeText(str: string): string {
