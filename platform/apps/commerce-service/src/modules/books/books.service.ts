@@ -725,7 +725,13 @@ export class BooksService implements OnModuleInit {
   }
 
   async update(id: string, dto: UpdateBookDto, actor: BookActor) {
-    const existing = await this.prisma.book.findUnique({ where: { id } });
+    const existing = await this.prisma.book.findUnique({
+      where: { id },
+      include: {
+        physicalDetails: true,
+        digitalDetails: true,
+      },
+    });
     if (!existing) throwNotFound(ErrorCode.BOOK_NOT_FOUND);
     const canManage = await this.canManage(existing, actor);
     if (!canManage) throwForbidden(ErrorCode.BOOK_UNAUTHORIZED);
@@ -774,25 +780,46 @@ export class BooksService implements OnModuleInit {
         },
       });
 
-      if (dto.physicalDetails) {
-        const dim = (dto.physicalDetails.length && dto.physicalDetails.width && dto.physicalDetails.height)
-          ? `${dto.physicalDetails.length}x${dto.physicalDetails.width}x${dto.physicalDetails.height}`
-          : undefined;
+      if (dto.physicalDetails || dto.pricePaper !== undefined || dto.priceEbook !== undefined || dto.priceCombo !== undefined) {
+        const existingPhysical = (existing as any)?.physicalDetails;
+        let dimObj: Record<string, any> = {};
+        if (existingPhysical?.dimensions) {
+          try {
+            const parsed = typeof existingPhysical.dimensions === 'string'
+              ? JSON.parse(existingPhysical.dimensions)
+              : existingPhysical.dimensions;
+            if (parsed && typeof parsed === 'object') {
+              dimObj = { ...parsed };
+            } else if (typeof existingPhysical.dimensions === 'string') {
+              dimObj.dimensions = existingPhysical.dimensions;
+            }
+          } catch {
+            dimObj.dimensions = existingPhysical.dimensions;
+          }
+        }
+
+        if (dto.physicalDetails?.length && dto.physicalDetails?.width && dto.physicalDetails?.height) {
+          dimObj.dimensions = `${dto.physicalDetails.length}x${dto.physicalDetails.width}x${dto.physicalDetails.height}`;
+        }
+        if (dto.pricePaper !== undefined) dimObj.pricePaper = dto.pricePaper;
+        if (dto.priceEbook !== undefined) dimObj.priceEbook = dto.priceEbook;
+        if (dto.priceCombo !== undefined) dimObj.priceCombo = dto.priceCombo;
+        const dimensionsStr = Object.keys(dimObj).length > 0 ? JSON.stringify(dimObj) : undefined;
 
         await tx.physicalBookDetails.upsert({
           where: { bookId: id },
           create: {
             bookId: id,
-            stock: dto.physicalDetails.stock ?? 100,
-            weight: dto.physicalDetails.weight ?? 300,
-            dimensions: dim,
-            physicalEnabled: dto.physicalDetails.physicalEnabled ?? true,
+            stock: dto.physicalDetails?.stock ?? existingPhysical?.stock ?? 100,
+            weight: dto.physicalDetails?.weight ?? existingPhysical?.weight ?? 300,
+            dimensions: dimensionsStr,
+            physicalEnabled: dto.physicalDetails?.physicalEnabled ?? existingPhysical?.physicalEnabled ?? true,
           },
           update: {
-            ...(dto.physicalDetails.stock !== undefined ? { stock: dto.physicalDetails.stock } : {}),
-            ...(dto.physicalDetails.weight !== undefined ? { weight: dto.physicalDetails.weight } : {}),
-            ...(dim !== undefined ? { dimensions: dim } : {}),
-            ...(dto.physicalDetails.physicalEnabled !== undefined ? { physicalEnabled: dto.physicalDetails.physicalEnabled } : {}),
+            ...(dto.physicalDetails?.stock !== undefined ? { stock: dto.physicalDetails.stock } : {}),
+            ...(dto.physicalDetails?.weight !== undefined ? { weight: dto.physicalDetails.weight } : {}),
+            ...(dimensionsStr !== undefined ? { dimensions: dimensionsStr } : {}),
+            ...(dto.physicalDetails?.physicalEnabled !== undefined ? { physicalEnabled: dto.physicalDetails.physicalEnabled } : {}),
           },
         });
       }

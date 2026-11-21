@@ -63,6 +63,7 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
     coverUrl: '',
     price: '',
     originalPrice: '',
+    physicalPrice: '',
     ebookPrice: '',
     comboPrice: '',
     stock: '',
@@ -336,18 +337,50 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
         }
 
         // 4. Dimensions & Page Count
-        const dimStr = book.physicalDetails?.dimensions || '';
-        const dimParts = dimStr.split('x').map((s: string) => s.trim());
-        const lengthVal = book.physicalDetails?.length != null ? String(book.physicalDetails.length) : (dimParts[0] || '20.5');
-        const widthVal = book.physicalDetails?.width != null ? String(book.physicalDetails.width) : (dimParts[1] || '14.5');
-        const heightVal = book.physicalDetails?.height != null ? String(book.physicalDetails.height) : (dimParts[2] || '2.0');
+        let lengthVal = '20.5';
+        let widthVal = '14.5';
+        let heightVal = '2.0';
+        let parsedPricePaper: number | undefined = undefined;
+        let parsedPriceEbook: number | undefined = undefined;
+        let parsedPriceCombo: number | undefined = undefined;
+
+        const rawDim = book.physicalDetails?.dimensions || '';
+        if (rawDim) {
+          try {
+            const parsed = typeof rawDim === 'string' ? JSON.parse(rawDim) : rawDim;
+            if (parsed && typeof parsed === 'object') {
+              if (parsed.pricePaper !== undefined) parsedPricePaper = Number(parsed.pricePaper);
+              if (parsed.priceEbook !== undefined) parsedPriceEbook = Number(parsed.priceEbook);
+              if (parsed.priceCombo !== undefined) parsedPriceCombo = Number(parsed.priceCombo);
+              if (parsed.dimensions && typeof parsed.dimensions === 'string') {
+                const parts = parsed.dimensions.split('x').map((s: string) => s.trim());
+                if (parts[0]) lengthVal = parts[0];
+                if (parts[1]) widthVal = parts[1];
+                if (parts[2]) heightVal = parts[2];
+              }
+            } else if (typeof rawDim === 'string') {
+              const parts = rawDim.split('x').map((s: string) => s.trim());
+              if (parts[0]) lengthVal = parts[0];
+              if (parts[1]) widthVal = parts[1];
+              if (parts[2]) heightVal = parts[2];
+            }
+          } catch {
+            const parts = String(rawDim).split('x').map((s: string) => s.trim());
+            if (parts[0]) lengthVal = parts[0];
+            if (parts[1]) widthVal = parts[1];
+            if (parts[2]) heightVal = parts[2];
+          }
+        }
+        if (book.physicalDetails?.length != null) lengthVal = String(book.physicalDetails.length);
+        if (book.physicalDetails?.width != null) widthVal = String(book.physicalDetails.width);
+        if (book.physicalDetails?.height != null) heightVal = String(book.physicalDetails.height);
         const pageCountVal = book.physicalDetails?.pageCount != null ? String(book.physicalDetails.pageCount) : (book.pageCount != null ? String(book.pageCount) : (book.pages ? String(book.pages) : '320'));
 
         // 5. Teaser & Description
-        const descVal = book.description || 'Đắc Nhân Tâm là cuốn sách đầu tiên và hay nhất của mọi thời đại về nghệ thuật đối nhân xử thế, đem lại thành công và hạnh phúc cho hàng triệu độc giả trên toàn thế giới.';
+        const descVal = book.description || '';
         const teaserVal = book.teaser || (descVal.length > 140 ? descVal.slice(0, 140) + '...' : descVal);
 
-        // 6. Tags: Extract from book if present, or generate sensible clean tags based on book title/category, never hardcode DacNhanTam
+        // 6. Tags: Extract from book if present, or generate sensible clean tags based on book title/category
         let tagsVal: string[] = [];
         if (Array.isArray(book.tags) && book.tags.length > 0) {
           tagsVal = book.tags;
@@ -361,19 +394,40 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
         }
         setTags(tagsVal.length > 0 ? tagsVal : ['SachHay', 'TriThuc']);
 
-        // 7. Pricing
-        const basePrice = book.price ? String(book.price) : '98000';
-        const origPrice = book.originalPrice ? String(book.originalPrice) : String(Math.round(Number(basePrice) * 1.25));
-        const ebPrice = book.ebookPrice ? String(book.ebookPrice) : String(Math.round(Number(basePrice) * 0.7));
-        const cbPrice = book.comboPrice ? String(book.comboPrice) : String(Math.round(Number(basePrice) * 1.15));
+        // 7. Pricing Resolution (Preserve SSOT and handle all formats)
+        const basePrice = book.price != null ? String(book.price) : '';
+        const origPrice = book.originalPrice != null
+          ? String(book.originalPrice)
+          : (basePrice ? String(Math.round(Number(basePrice) * 1.25)) : '');
+        const physPrice = book.pricePaper != null
+          ? String(book.pricePaper)
+          : (parsedPricePaper != null
+            ? String(parsedPricePaper)
+            : ((book as any).physicalPrice != null
+              ? String((book as any).physicalPrice)
+              : basePrice));
+        const ebPrice = book.priceEbook != null
+          ? String(book.priceEbook)
+          : (parsedPriceEbook != null
+            ? String(parsedPriceEbook)
+            : ((book as any).ebookPrice != null
+              ? String((book as any).ebookPrice)
+              : (basePrice ? String(Math.round(Number(basePrice) * 0.7)) : '')));
+        const cbPrice = book.priceCombo != null
+          ? String(book.priceCombo)
+          : (parsedPriceCombo != null
+            ? String(parsedPriceCombo)
+            : ((book as any).comboPrice != null
+              ? String((book as any).comboPrice)
+              : basePrice));
 
         setForm({
-          title: book.title || 'Đắc Nhân Tâm - How to Win Friends and Influence People',
+          title: book.title || '',
           teaser: teaserVal,
           description: descVal,
           language: book.language || 'Tiếng Việt',
-          isbn: book.isbn || '978-604-58-1234-5',
-          edition: book.edition || 'Tái bản đặc biệt 2026',
+          isbn: book.isbn || '',
+          edition: book.edition || 'Tái bản lần 1',
           pages: pageCountVal,
           sku: book.sku || `HUKI-${(book.id || 'BOOK').slice(0, 8).toUpperCase()}`,
           format: fmt,
@@ -386,12 +440,13 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
           publisherId: publisherIdVal,
           customPublisherName: publisherNameStr,
           publisherName: publisherNameStr,
-          coverUrl: book.coverUrl || book.coverImage || book.cover || 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=400&q=80',
+          coverUrl: book.coverUrl || book.coverImage || book.cover || '',
           price: basePrice,
           originalPrice: origPrice,
+          physicalPrice: physPrice,
           ebookPrice: ebPrice,
           comboPrice: cbPrice,
-          stock: book.physicalDetails?.stock != null ? String(book.physicalDetails.stock) : (book.stock != null ? String(book.stock) : '150'),
+          stock: book.physicalDetails?.stock != null ? String(book.physicalDetails.stock) : (book.stock != null ? String(book.stock) : '0'),
           weight: book.physicalDetails?.weight != null ? String(book.physicalDetails.weight) : (book.weight != null ? String(book.weight) : '350'),
           length: lengthVal,
           width: widthVal,
@@ -465,12 +520,47 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
     };
   }, [form.title, form.description, form.coverUrl, form.isbn, tags]);
 
+  // Combo Savings Helper (Hiển thị % ưu đãi khi mua trọn gói Combo)
+  const comboSavings = useMemo(() => {
+    const phys = Number(form.physicalPrice) || 0;
+    const eb = Number(form.ebookPrice) || 0;
+    const combo = Number(form.comboPrice || form.price) || 0;
+    if (form.format === 'BOTH' && phys > 0 && eb > 0 && combo > 0) {
+      const sum = phys + eb;
+      const saved = sum - combo;
+      const percent = Math.round((saved / sum) * 100);
+      return { sum, saved, percent, isDiscounted: saved > 0, isOverpriced: saved < 0 };
+    }
+    return null;
+  }, [form.physicalPrice, form.ebookPrice, form.comboPrice, form.price, form.format]);
+
+  // Cash Flow Breakdown Helper (Dự toán dòng tiền thực nhận ví người bán)
+  const cashFlowPreview = useMemo(() => {
+    let sellingPrice = Number(form.price) || 0;
+    if (form.format === 'BOTH' && form.comboPrice) {
+      sellingPrice = Number(form.comboPrice);
+    } else if (form.format === 'PHYSICAL' && form.physicalPrice) {
+      sellingPrice = Number(form.physicalPrice);
+    } else if (form.format === 'DIGITAL' && form.ebookPrice) {
+      sellingPrice = Number(form.ebookPrice);
+    }
+    const feeRate = 0.05; // 5% phí sàn cố định HUKI
+    const platformFee = Math.round(sellingPrice * feeRate);
+    const sellerNet = Math.max(0, sellingPrice - platformFee);
+    return {
+      sellingPrice,
+      platformFee,
+      sellerNet,
+      platformFeeRatePercent: 5,
+    };
+  }, [form.price, form.comboPrice, form.physicalPrice, form.ebookPrice, form.format]);
+
   // Section Error Helpers
   const sectionErrors = useMemo(() => ({
     basic: Boolean(errors.title || errors.description),
     taxonomy: Boolean(errors.categoryId || errors.customCategoryName || errors.authorId || errors.customAuthorName || errors.publisherId),
     media: Boolean(errors.coverUrl),
-    pricing: Boolean(errors.price),
+    pricing: Boolean(errors.price || errors.physicalPrice || errors.ebookPrice || errors.comboPrice),
     inventory: Boolean(errors.stock || errors.weight),
   }), [errors]);
 
@@ -505,9 +595,27 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
       newErrors.coverUrl = 'Định dạng ảnh không hợp lệ (hỗ trợ tệp tải từ máy hoặc HTTPS).';
     }
 
-    const priceNum = Number(form.price || form.comboPrice || form.ebookPrice);
-    if (!priceNum || priceNum <= 0) {
-      newErrors.price = 'Giá bán niêm yết phải lớn hơn 0 ₫.';
+    // Pricing validation by format
+    if (form.format === 'BOTH') {
+      if (!form.physicalPrice || Number(form.physicalPrice) <= 0) {
+        newErrors.physicalPrice = 'Vui lòng nhập giá bán sách in.';
+      }
+      if (!form.ebookPrice || Number(form.ebookPrice) <= 0) {
+        newErrors.ebookPrice = 'Vui lòng nhập giá bán ebook DRM.';
+      }
+      if (!form.comboPrice || Number(form.comboPrice) <= 0) {
+        newErrors.comboPrice = 'Vui lòng nhập giá bán gói combo hybrid.';
+      }
+    } else if (form.format === 'PHYSICAL') {
+      const p = Number(form.physicalPrice || form.price);
+      if (!p || p <= 0) {
+        newErrors.price = 'Giá bán sách in phải lớn hơn 0 ₫.';
+      }
+    } else if (form.format === 'DIGITAL') {
+      const p = Number(form.ebookPrice || form.price);
+      if (!p || p <= 0) {
+        newErrors.price = 'Giá bán ebook DRM phải lớn hơn 0 ₫.';
+      }
     }
 
     if (form.format === 'PHYSICAL' || form.format === 'BOTH') {
@@ -529,7 +637,7 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
         scrollToSection('sec-taxonomy');
       } else if (newErrors.coverUrl) {
         scrollToSection('sec-media');
-      } else if (newErrors.price) {
+      } else if (newErrors.price || newErrors.physicalPrice || newErrors.ebookPrice || newErrors.comboPrice) {
         scrollToSection('sec-pricing');
       } else if (newErrors.stock || newErrors.weight) {
         scrollToSection('sec-inventory');
@@ -542,10 +650,23 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
       const isPhysical = form.format === 'PHYSICAL' || form.format === 'BOTH';
       const isDigital = form.format === 'DIGITAL' || form.format === 'BOTH';
 
+      let sellingPrice = Number(form.price || 0);
+      if (form.format === 'BOTH' && form.comboPrice) {
+        sellingPrice = Number(form.comboPrice);
+      } else if (form.format === 'PHYSICAL' && form.physicalPrice) {
+        sellingPrice = Number(form.physicalPrice);
+      } else if (form.format === 'DIGITAL' && form.ebookPrice) {
+        sellingPrice = Number(form.ebookPrice);
+      }
+
       const payload: any = {
         title: form.title.trim(),
         description: form.description.trim() || form.teaser.trim(),
-        price: priceNum,
+        price: sellingPrice,
+        originalPrice: form.originalPrice ? Number(form.originalPrice) : undefined,
+        pricePaper: isPhysical && form.physicalPrice ? Number(form.physicalPrice) : undefined,
+        priceEbook: isDigital && form.ebookPrice ? Number(form.ebookPrice) : undefined,
+        priceCombo: form.format === 'BOTH' && form.comboPrice ? Number(form.comboPrice) : undefined,
         format: form.format,
         isbn: form.isbn.trim() || undefined,
         coverUrl: form.coverUrl.trim() || undefined,
@@ -1252,8 +1373,8 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
                   sectionErrors.pricing ? 'bg-rose-100 text-rose-700' : 'bg-emerald-50 text-[#00875A]'
                 }`}>04</span>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Giá Bán &amp; Định Dạng</h3>
-                  <p className="text-[11px] text-slate-400">Giá bán niêm yết trên sàn HUKI Ebook.</p>
+                  <h3 className="text-sm font-bold text-slate-900">Giá Bán, Định Dạng &amp; Dòng Tiền</h3>
+                  <p className="text-[11px] text-slate-400">Thiết lập giá bìa niêm yết NXB, giá bán thực tế và xem dự toán dòng tiền ví người bán.</p>
                 </div>
               </div>
 
@@ -1288,36 +1409,232 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Giá Bán Niêm Yết (₫) <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    value={form.price}
-                    onChange={(e) => handleChange('price', e.target.value)}
-                    placeholder="VD: 120000"
-                    className={`w-full px-3 py-2 text-xs rounded-xl border font-mono font-bold ${
-                      errors.price ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' : 'border-slate-200 bg-slate-50/50 text-slate-900 focus:border-[#00875A]'
-                    } focus:outline-none`}
-                  />
-                  {errors.price && (
-                    <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">error</span>
-                      <span>{errors.price}</span>
+              {/* Giá Bìa Niêm Yết NXB (MSRP / Giá Gốc) */}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/70 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800">
+                      Giá Bìa Niêm Yết NXB (₫) - MSRP / Giá Gốc
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      Giá in cố định ở bìa sau cuốn sách do NXB ấn định. Hệ thống hiển thị gạch ngang để người mua so sánh mức giảm giá.
                     </p>
-                  )}
+                  </div>
+                  <div className="w-full sm:w-48">
+                    <input
+                      type="number"
+                      value={form.originalPrice}
+                      onChange={(e) => handleChange('originalPrice', e.target.value)}
+                      placeholder="VD: 150000"
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white font-mono font-bold text-slate-900 focus:outline-none focus:border-[#00875A]"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Giá Bìa Gốc (₫)</label>
-                  <input
-                    type="number"
-                    value={form.originalPrice}
-                    onChange={(e) => handleChange('originalPrice', e.target.value)}
-                    placeholder="VD: 150000"
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50/50 font-mono text-slate-900 focus:outline-none focus:border-[#00875A]"
-                  />
+              </div>
+
+              {/* Các mức giá bán thực tế theo định dạng */}
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800">
+                    Giá Bán Thực Tế Cho Khách Hàng (₫) <span className="text-rose-500">*</span>
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    {form.format === 'BOTH' ? 'Thiết lập giá lẻ từng món & giá ưu đãi khi mua combo' : 'Giá người mua thanh toán'}
+                  </span>
+                </div>
+
+                {/* Nếu chỉ chọn PHYSICAL */}
+                {form.format === 'PHYSICAL' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Giá Bán Sách In (₫) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={form.physicalPrice || form.price}
+                      onChange={(e) => {
+                        handleChange('physicalPrice', e.target.value);
+                        handleChange('price', e.target.value);
+                      }}
+                      placeholder="VD: 120000"
+                      className={`w-full px-3 py-2 text-xs rounded-xl border font-mono font-bold ${
+                        errors.price ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' : 'border-slate-200 bg-slate-50/50 text-slate-900 focus:border-[#00875A]'
+                      } focus:outline-none`}
+                    />
+                    {errors.price && (
+                      <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">error</span>
+                        <span>{errors.price}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Nếu chỉ chọn DIGITAL */}
+                {form.format === 'DIGITAL' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Giá Bán Ebook DRM (₫) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={form.ebookPrice || form.price}
+                      onChange={(e) => {
+                        handleChange('ebookPrice', e.target.value);
+                        handleChange('price', e.target.value);
+                      }}
+                      placeholder="VD: 59000"
+                      className={`w-full px-3 py-2 text-xs rounded-xl border font-mono font-bold ${
+                        errors.price ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' : 'border-slate-200 bg-slate-50/50 text-slate-900 focus:border-[#00875A]'
+                      } focus:outline-none`}
+                    />
+                    {errors.price && (
+                      <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">error</span>
+                        <span>{errors.price}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Nếu chọn BOTH (Combo Hybrid) */}
+                {form.format === 'BOTH' && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          1. Giá Sách In Lẻ (₫) <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          value={form.physicalPrice}
+                          onChange={(e) => handleChange('physicalPrice', e.target.value)}
+                          placeholder="VD: 120000"
+                          className={`w-full px-3 py-2 text-xs rounded-xl border font-mono font-bold ${
+                            errors.physicalPrice ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' : 'border-slate-200 bg-slate-50/50 text-slate-900 focus:border-[#00875A]'
+                          } focus:outline-none`}
+                        />
+                        {errors.physicalPrice && (
+                          <p className="text-[11px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[13px]">error</span>
+                            <span>{errors.physicalPrice}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          2. Giá Ebook DRM Lẻ (₫) <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          value={form.ebookPrice}
+                          onChange={(e) => handleChange('ebookPrice', e.target.value)}
+                          placeholder="VD: 59000"
+                          className={`w-full px-3 py-2 text-xs rounded-xl border font-mono font-bold ${
+                            errors.ebookPrice ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' : 'border-slate-200 bg-slate-50/50 text-slate-900 focus:border-[#00875A]'
+                          } focus:outline-none`}
+                        />
+                        {errors.ebookPrice && (
+                          <p className="text-[11px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[13px]">error</span>
+                            <span>{errors.ebookPrice}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          3. Giá Combo Trọn Gói (₫) <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          value={form.comboPrice}
+                          onChange={(e) => {
+                            handleChange('comboPrice', e.target.value);
+                            handleChange('price', e.target.value);
+                          }}
+                          placeholder="VD: 149000"
+                          className={`w-full px-3 py-2 text-xs rounded-xl border font-mono font-bold ${
+                            errors.comboPrice ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' : 'border-slate-200 bg-slate-50/50 text-slate-900 focus:border-[#00875A]'
+                          } focus:outline-none`}
+                        />
+                        {errors.comboPrice && (
+                          <p className="text-[11px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[13px]">error</span>
+                            <span>{errors.comboPrice}</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Widget Tính Tiết Kiệm Khi Mua Combo */}
+                    {comboSavings && (
+                      <div className={`p-3 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 ${
+                        comboSavings.isDiscounted ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800' : 'bg-amber-50/80 border-amber-200 text-amber-800'
+                      }`}>
+                        <div className="flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[16px] text-emerald-600">savings</span>
+                          <span>Tổng giá mua lẻ từng món: <strong>{comboSavings.sum.toLocaleString('vi-VN')} ₫</strong></span>
+                        </div>
+                        <span className="font-semibold">
+                          {comboSavings.isDiscounted
+                            ? `Tiết kiệm: ${comboSavings.saved.toLocaleString('vi-VN')} ₫ (${comboSavings.percent}%) khi mua Combo`
+                            : 'Lưu ý: Giá Combo chưa có ưu đãi giảm so với mua lẻ'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* BẢNG DỰ TOÁN DÒNG TIỀN & VÍ DOANH THU (CASH FLOW PREVIEW) */}
+              <div className="mt-4 p-4 rounded-xl bg-gradient-to-br from-emerald-50/60 to-slate-50 border border-emerald-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-md bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs">
+                      ₫
+                    </span>
+                    <span className="text-xs font-bold text-slate-900">
+                      Dự Toán Dòng Tiền &amp; Thực Nhận Ví Shop (Cash Flow Breakdown)
+                    </span>
+                  </div>
+                  <span className="text-[10.5px] font-semibold text-emerald-700 bg-emerald-100/60 px-2 py-0.5 rounded-full">
+                    Khấu trừ cố định 5%
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="p-3 bg-white rounded-lg border border-slate-200/80 shadow-2xs">
+                    <span className="text-[11px] text-slate-500 block mb-0.5">Doanh Thu Bán Sách (100% GMV)</span>
+                    <span className="text-sm font-bold font-mono text-slate-900">
+                      {cashFlowPreview.sellingPrice.toLocaleString('vi-VN')} ₫
+                    </span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">Giá khách thanh toán</span>
+                  </div>
+
+                  <div className="p-3 bg-white rounded-lg border border-slate-200/80 shadow-2xs">
+                    <span className="text-[11px] text-slate-500 block mb-0.5">Phí Sàn HUKI (5%)</span>
+                    <span className="text-sm font-bold font-mono text-rose-600">
+                      -{cashFlowPreview.platformFee.toLocaleString('vi-VN')} ₫
+                    </span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">Phí vận hành &amp; bản quyền DRM</span>
+                  </div>
+
+                  <div className="p-3 bg-white rounded-lg border border-emerald-300 shadow-2xs bg-emerald-50/30">
+                    <span className="text-[11px] text-emerald-700 font-semibold block mb-0.5">Thực Nhận Ví Shop (95%)</span>
+                    <span className="text-sm font-bold font-mono text-emerald-700">
+                      +{cashFlowPreview.sellerNet.toLocaleString('vi-VN')} ₫
+                    </span>
+                    <span className="text-[10px] text-emerald-600 block mt-0.5">Doanh thu ròng của Shop</span>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-slate-500 flex items-start gap-1.5 pt-1 border-t border-slate-200/60">
+                  <span className="material-symbols-outlined text-[15px] text-emerald-600 shrink-0 mt-0.5">verified_user</span>
+                  <span>
+                    <strong>Bảo chứng Escrow:</strong> Tiền sau khi bán sách được tạm giữ an toàn trong <em>Ký quỹ đổi trả</em> (2 phút trên UAT / 3 ngày Production) trước khi tự động giải ngân sang <em>Số dư Khả dụng Ví Shop</em> để rút về tài khoản ngân hàng.
+                  </span>
                 </div>
               </div>
             </section>

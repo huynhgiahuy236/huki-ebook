@@ -867,3 +867,51 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
    - Bổ sung nút bấm trực tiếp `[Xem & Xóa đợt cũ]` ngay cạnh cảnh báo khóa nút, giúp Seller điều hướng ngay đến đợt đang diễn ra để hủy/xóa và tạo đợt mới thuận tiện.
 
 
+---
+
+### 7.14. BÁO CÁO TOÀN DIỆN VÀ GIẢI PHÁP TRIỆT ĐỂ NHÓM 1: ĐIỀN DỮ LIỆU SỬA SÁCH, GIÁ NIÊM YẾT / GIÁ BÌA GỐC, DÒNG TIỀN VÀ ĐỒNG BỘ REALTIME
+
+- **Trang kiểm tra:** `https://huki-uat.duckdns.org/seller/product/af0462bc-9c7b-4848-8451-22dc37eb6ab2/edit` & `/seller/product/create`
+- **Tình trạng trước fix:**
+  1. Khi sửa sách: Dữ liệu kích thước bị chia cắt chuỗi (`dimStr.split('x')`) gây hỏng dữ liệu khi `dimensions` chứa JSON.
+  2. Bị mất hoàn toàn các trường giá `pricePaper` (sách in), `priceEbook` (ebook), `priceCombo` (combo) do backend `update()` trong `books.service.ts` ghi đè `dimensions = "${length}x${width}x${height}"` làm xóa sạch JSON lưu giá.
+  3. Giao diện chỉnh sửa chỉ có 2 ô "Giá Bán Niêm Yết" và "Giá Bìa Gốc", không cho phép xem và sửa giá riêng lẻ của Sách In, Ebook DRM, và Combo khi sách ở định dạng `BOTH`.
+  4. Thiếu hoàn toàn Bảng Dự Toán Dòng Tiền & Thực Nhận Ví Shop (Cash Flow Breakdown).
+  5. Sự nhập nhằng giữa "Giá Niêm Yết" và "Giá Bìa Gốc" khiến người dùng bối rối so với thực tế bán sách tại Việt Nam.
+
+#### 1. Nguyên nhân cốt lõi và Khắc phục Backend SSOT:
+- **File sửa:** [`platform/apps/commerce-service/src/modules/books/books.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/books.service.ts)
+  - Khi gọi `update(id, dto, actor)`:
+    * Include `physicalDetails: true, digitalDetails: true` khi lấy bản ghi hiện tại `existing`.
+    * Đọc an toàn `existingPhysical.dimensions`: nếu là JSON, trích xuất và bảo lưu toàn bộ giá trị `pricePaper`, `priceEbook`, `priceCombo`.
+    * Hợp nhất với các giá trị mới từ `dto.physicalDetails` và `dto.pricePaper`, `dto.priceEbook`, `dto.priceCombo`.
+    * Lưu trữ trở lại dưới dạng JSON hợp lệ vào `dimensions`, ngăn chặn 100% tình trạng mất dữ liệu sub-format khi cập nhật.
+
+#### 2. Chuẩn hóa API Contract Frontend:
+- **File sửa:** [`web/src/ui/api/catalogApi.ts`](file:///e:/HuKi/web/src/ui/api/catalogApi.ts)
+  - Bổ sung `pricePaper?: number`, `priceEbook?: number`, `priceCombo?: number` vào cả `BookData` và `CreateBookPayload`.
+
+#### 3. Làm rõ Khái niệm & Nghiệp vụ Giá Thương Mại Điện Tử (TMĐT Sách Việt Nam):
+- **"Giá Bìa Niêm Yết NXB (MSRP / Giá Gốc)" (`originalPrice`):**
+  - Là giá in cố định ở bìa sau của cuốn sách do Nhà xuất bản (NXB Trẻ, Kim Đồng, Nhã Nam...) ấn định.
+  - Sàn HUKI hiển thị gạch ngang mức giá này để người đọc thấy rõ mức chiết khấu khi mua lẻ.
+- **"Giá Bán Thực Tế Cho Khách Hàng" (`price` / `pricePaper` / `priceEbook` / `priceCombo`):**
+  - Là số tiền thực tế người mua phải thanh toán cho Shop.
+  - Sách In lẻ: Nhập giá bán sách in (`physicalPrice`).
+  - Ebook DRM lẻ: Nhập giá bán ebook DRM (`ebookPrice`).
+  - Combo Hybrid (BOTH): Nhập đủ 3 mức giá (Sách In lẻ, Ebook DRM lẻ, và Combo trọn gói).
+  - Tự động hiển thị widget tính ưu đãi Combo: So sánh `Tổng giá mua lẻ` vs `Giá Combo`, tính chính xác số tiền tiết kiệm và phần trăm giảm giá.
+
+#### 4. Bổ sung Bảng Dự Toán Dòng Tiền & Thực Nhận Ví Shop (Cash Flow Breakdown):
+- **File sửa:**
+  - [`web/src/ui/components/seller/SellerEditProductView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerEditProductView.tsx)
+  - [`web/src/ui/components/seller/SellerCreateProductView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerCreateProductView.tsx)
+- **Tính toán tài chính thời gian thực:**
+  - **Doanh Thu Bán Sách (100% GMV):** Tổng số tiền người mua thanh toán cho đơn hàng.
+  - **Phí Sàn HUKI Cố Định (5%):** Khấu trừ cho chi phí hạ tầng máy chủ, thanh toán trực tuyến và công nghệ mã hóa bản quyền DRM.
+  - **Thực Nhận Ví Shop (95%):** Số tiền thực tế đổ về Ví Doanh Thu của Shop.
+  - **Bảo chứng Escrow:** Chú thích rõ ràng doanh thu được giữ an toàn trong *Ký quỹ đổi trả* (2 phút trên UAT / 3 ngày Production) trước khi tự động chuyển sang *Khả dụng Ví* để rút tiền về ngân hàng.
+
+#### 5. Đảm bảo Đồng bộ Realtime từ Seller sang Buyer Storefront:
+- Buyer Storefront tại `web/src/app/book/[id]/page.tsx` đọc trực tiếp từ `catalogApi.getBookById(id)` các trường `realBook.pricePaper`, `realBook.priceEbook`, `realBook.priceCombo`.
+- Khi Seller cập nhật thành công, backend lưu đúng SSOT và trả về tức thì. Trang chi tiết sách của người mua hiển thị chính xác 100% từng mức giá đã thiết lập mà không bị rơi vào giá ước lượng fallback.

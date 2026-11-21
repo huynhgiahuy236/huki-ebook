@@ -590,6 +590,29 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
     return null;
   }, [selectedFormat, form.physicalPrice, form.ebookPrice, form.comboPrice]);
 
+  // Cash Flow Breakdown Helper (Dự toán dòng tiền thực nhận ví người bán)
+  const cashFlowPreview = useMemo(() => {
+    let sellingPrice = 0;
+    if (selectedFormat === 'BOTH' && form.comboPrice) {
+      sellingPrice = Number(form.comboPrice);
+    } else if (selectedFormat === 'PHYSICAL' && form.physicalPrice) {
+      sellingPrice = Number(form.physicalPrice);
+    } else if (selectedFormat === 'DIGITAL' && form.ebookPrice) {
+      sellingPrice = Number(form.ebookPrice);
+    } else {
+      sellingPrice = Number(form.physicalPrice || form.ebookPrice || form.comboPrice || 0);
+    }
+    const feeRate = 0.05; // 5% phí sàn cố định HUKI
+    const platformFee = Math.round(sellingPrice * feeRate);
+    const sellerNet = Math.max(0, sellingPrice - platformFee);
+    return {
+      sellingPrice,
+      platformFee,
+      sellerNet,
+      platformFeeRatePercent: 5,
+    };
+  }, [selectedFormat, form.physicalPrice, form.ebookPrice, form.comboPrice]);
+
   const scrollToSection = (id: string) => {
     setActiveSection(id);
     const element = document.getElementById(id);
@@ -2086,6 +2109,58 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                 <div className={`p-3 rounded-xl border text-xs flex items-center justify-between ${comboSavings.isDiscounted ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-300' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
                   <span>Tổng mua lẻ: <strong>{comboSavings.sum.toLocaleString('vi-VN')} ₫</strong></span>
                   <span>{comboSavings.isDiscounted ? `Tiết kiệm: ${comboSavings.saved.toLocaleString('vi-VN')} ₫ (${comboSavings.percent}%)` : 'Combo chưa có ưu đãi'}</span>
+                </div>
+              )}
+
+              {/* BẢNG DỰ TOÁN DÒNG TIỀN & VÍ DOANH THU (CASH FLOW PREVIEW) */}
+              {cashFlowPreview.sellingPrice > 0 && (
+                <div className="mt-3 p-4 rounded-xl bg-gradient-to-br from-emerald-50/60 to-slate-50 dark:from-emerald-950/20 dark:to-surface-container-lowest border border-emerald-200/80 dark:border-emerald-800/50 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-md bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 flex items-center justify-center font-bold text-xs">
+                        ₫
+                      </span>
+                      <span className="text-xs font-bold text-on-surface">
+                        Dự Toán Dòng Tiền &amp; Thực Nhận Ví Shop (Cash Flow Breakdown)
+                      </span>
+                    </div>
+                    <span className="text-[10.5px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100/60 dark:bg-emerald-900/40 px-2 py-0.5 rounded-full">
+                      Khấu trừ cố định 5%
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div className="p-3 bg-white dark:bg-surface-container-lowest rounded-lg border border-theme-border/80 shadow-2xs">
+                      <span className="text-[11px] text-on-surface-variant block mb-0.5">Doanh Thu Bán Sách (100% GMV)</span>
+                      <span className="text-sm font-bold font-mono text-on-surface">
+                        {cashFlowPreview.sellingPrice.toLocaleString('vi-VN')} ₫
+                      </span>
+                      <span className="text-[10px] text-on-surface-variant block mt-0.5">Giá khách thanh toán</span>
+                    </div>
+
+                    <div className="p-3 bg-white dark:bg-surface-container-lowest rounded-lg border border-theme-border/80 shadow-2xs">
+                      <span className="text-[11px] text-on-surface-variant block mb-0.5">Phí Sàn HUKI (5%)</span>
+                      <span className="text-sm font-bold font-mono text-rose-600">
+                        -{cashFlowPreview.platformFee.toLocaleString('vi-VN')} ₫
+                      </span>
+                      <span className="text-[10px] text-on-surface-variant block mt-0.5">Phí vận hành &amp; bản quyền DRM</span>
+                    </div>
+
+                    <div className="p-3 bg-white dark:bg-surface-container-lowest rounded-lg border border-emerald-300 dark:border-emerald-700 shadow-2xs bg-emerald-50/30 dark:bg-emerald-950/20">
+                      <span className="text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold block mb-0.5">Thực Nhận Ví Shop (95%)</span>
+                      <span className="text-sm font-bold font-mono text-emerald-700 dark:text-emerald-300">
+                        +{cashFlowPreview.sellerNet.toLocaleString('vi-VN')} ₫
+                      </span>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block mt-0.5">Doanh thu ròng của Shop</span>
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] text-on-surface-variant flex items-start gap-1.5 pt-1 border-t border-theme-border/60">
+                    <span className="material-symbols-outlined text-[15px] text-emerald-600 shrink-0 mt-0.5">verified_user</span>
+                    <span>
+                      <strong>Bảo chứng Escrow:</strong> Tiền sau khi bán sách được tạm giữ an toàn trong <em>Ký quỹ đổi trả</em> (2 phút trên UAT / 3 ngày Production) trước khi tự động giải ngân sang <em>Số dư Khả dụng Ví Shop</em> để rút về tài khoản ngân hàng.
+                    </span>
+                  </div>
                 </div>
               )}
             </section>

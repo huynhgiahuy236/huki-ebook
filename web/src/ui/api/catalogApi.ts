@@ -52,6 +52,9 @@ export interface BookData {
   cover?: string;
   price?: number;
   originalPrice?: number;
+  pricePaper?: number;
+  priceEbook?: number;
+  priceCombo?: number;
   format?: BookFormat;
   physicalDetails?: PhysicalDetails | null;
   digitalDetails?: DigitalDetails | null;
@@ -84,6 +87,10 @@ export interface CreateBookPayload {
   isbn?: string;
   description?: string;
   price?: number;
+  originalPrice?: number;
+  pricePaper?: number;
+  priceEbook?: number;
+  priceCombo?: number;
   format?: BookFormat;
   categoryId?: string;
   authorId?: string;
