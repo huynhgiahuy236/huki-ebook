@@ -655,3 +655,46 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 
 > **🛑 CỔNG KIỂM SOÁT BƯỚC 6 (QUALITY GATE): ĐẠT 100% TIÊU CHUẨN**  
 > Đã hoàn tất vệ sinh mã nguồn, biên dịch sạch 100%, commit checkpoint lưu lại lịch sử. Dừng lại chờ lệnh chỉ đạo từ Quản lý dự án để chuyển sang Bước 7.
+
+
+---
+
+### 7.8. BƯỚC 7: KÍCH HOẠT & THEO DÕI TIẾN TRÌNH CI/CD ĐẾN KHI HOÀN TẤT (CI/CD DEPLOYMENT GATE)
+- **Thời gian thực hiện:** 23:46 - 00:04 22/11/2026
+- **Trạng thái:** ✅ **THÀNH CÔNG 100% (DEPLOYMENT SUCCESSFUL & LIVE HEALTHY)**
+
+#### 1. Chi tiết thực thi Pipelines GitHub Actions:
+- **Nhánh triển khai:** `develop` (Fast-forward merged từ `fix-bug-local` tại commit `57131cd`).
+- **Pipeline 1 - CI Quality Gates:**
+  * **Run ID:** [`44926470092`](https://github.com/huynhgiahuy236/huki-ebook/actions/runs/44926470092)
+  * **Trạng thái:** `COMPLETED / SUCCESS` (Thời gian: 3m18s)
+  * Frontend Typecheck, Lint, Test & Build: ✅ SUCCESS (1m57s)
+  * Backend Build & Test Suite: ✅ SUCCESS (4m08s)
+  * Schema & Migration Integrity: ✅ SUCCESS (1m22s)
+- **Pipeline 2 - Deploy UAT Stack on VPS:**
+  * **Run ID:** [`44926470084`](https://github.com/huynhgiahuy236/huki-ebook/actions/runs/44926470084)
+  * **Trạng thái:** `COMPLETED / SUCCESS` (Thời gian: 17m05s)
+  * Build & Push Backend Platform (`huki-platform`): ✅ SUCCESS (3m49s)
+  * Build & Push Frontend Web (`huki-web`): ✅ SUCCESS (1m55s)
+  * Deploy UAT Stack on VPS (Pull, Prisma DB Push & Restart): ✅ SUCCESS (13m11s)
+
+#### 2. Kiểm chứng cổng kiểm soát (Quality Gate Verification):
+- **Health check live:** `https://huki-uat.duckdns.org/api/v1/health`
+- **Kết quả phản hồi:**
+  ```json
+  {
+    "status": "success",
+    "statusCode": 200,
+    "message": "Thành công",
+    "data": {
+      "status": "ok",
+      "timestamp": "2026-11-21T17:04:44.552Z",
+      "service": "api-gateway",
+      "version": "1.0.0"
+    }
+  }
+  ```
+- Toàn bộ cụm container trên máy chủ UAT (VPS) đã khởi động lại hoàn tất, hoạt động ổn định và ở trạng thái `Up (healthy)`.
+
+> **🛑 CỔNG KIỂM SOÁT BƯỚC 7 (QUALITY GATE): ĐẠT 100% TIÊU CHUẨN**  
+> Bản vá 6 bug đã được deploy thành công lên server UAT thật. Dừng lại chờ lệnh chỉ đạo từ Quản lý dự án để chuyển sang Bước 8 (Kiểm thử E2E liên thông trên môi trường Live UAT).
