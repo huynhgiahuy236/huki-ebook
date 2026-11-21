@@ -166,23 +166,25 @@ export default function ReviewCard({
 
   return (
     <div
-      className={`bg-theme-surface rounded-2xl border border-theme-border p-5 sm:p-6 shadow-2xs space-y-4 hover:border-theme-border-hover transition-colors ${className}`}
+      className={`bg-gradient-to-b from-white to-[#faf9f6]/40 dark:from-zinc-900 dark:to-zinc-900/60 rounded-3xl border border-slate-100 dark:border-zinc-800/80 p-5 sm:p-7 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_-6px_rgba(0,0,0,0.07)] hover:border-emerald-500/20 transition-all duration-300 space-y-4 relative group ${className}`}
     >
-      {/* Header: Author & Badges */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <UserAvatar
-            src={review.author?.avatar}
-            name={review.author?.fullName || 'Độc giả HUKI'}
-            size="w-10 h-10"
-          />
-          <div>
+      {/* Header: Author & Badges & Stars */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="relative shrink-0 ring-2 ring-emerald-500/10 rounded-full p-0.5">
+            <UserAvatar
+              src={review.author?.avatar}
+              name={review.author?.fullName || 'Độc giả HUKI'}
+              size="w-10 h-10 sm:w-11 sm:h-11"
+            />
+          </div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-xs sm:text-sm text-on-surface">
+              <span className="font-bold text-xs sm:text-sm text-slate-800 dark:text-zinc-100 truncate">
                 {review.author?.fullName || 'Độc giả HUKI'}
               </span>
               {isOwner && (
-                <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-200">
+                <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-[#006953] dark:text-emerald-300 text-[10px] font-bold border border-emerald-200/60 dark:border-emerald-800/50 shadow-2xs">
                   Đánh giá của bạn
                 </span>
               )}
@@ -193,7 +195,7 @@ export default function ReviewCard({
                 />
               )}
             </div>
-            <div className="text-[11px] text-[#6b7280] flex items-center gap-2 mt-0.5">
+            <div className="text-[11px] text-slate-400 dark:text-zinc-400 flex items-center gap-2 mt-0.5">
               <span>{formattedDate}</span>
               {review.format && (
                 <>
@@ -205,24 +207,14 @@ export default function ReviewCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
-          {onEdit && (
-            <button
-              type="button"
-              onClick={onEdit}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
-              title="Chỉnh sửa đánh giá của bạn"
-            >
-              <span className="material-symbols-outlined text-[15px]">edit_note</span>
-              <span>Sửa đánh giá</span>
-            </button>
-          )}
-          <div className="flex items-center gap-0.5">
+        {/* Rating Stars & Action on Right */}
+        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-zinc-800/60">
+          <div className="flex items-center gap-0.5 bg-amber-50/70 dark:bg-amber-950/20 px-2.5 py-1 rounded-full border border-amber-200/50 dark:border-amber-900/40 shadow-2xs">
             {[1, 2, 3, 4, 5].map((star) => (
               <span
                 key={star}
-                className={`material-symbols-outlined text-sm sm:text-base ${
-                  star <= review.rating ? 'text-[#fea619]' : 'text-slate-200'
+                className={`material-symbols-outlined text-[15px] sm:text-base ${
+                  star <= review.rating ? 'text-amber-500' : 'text-slate-200 dark:text-zinc-700'
                 }`}
                 style={{ fontVariationSettings: "'FILL' 1" }}
               >
@@ -230,35 +222,54 @@ export default function ReviewCard({
               </span>
             ))}
           </div>
+
+          {onEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-300/80 bg-emerald-50/80 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:border-emerald-700/60 text-[#006953] dark:text-emerald-300 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+              title="Chỉnh sửa đánh giá của bạn"
+            >
+              <span className="material-symbols-outlined text-[14px]">edit_note</span>
+              <span>Sửa đánh giá</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* Review Title & Content */}
-      <div className="space-y-1.5">
+      <div className="space-y-1.5 pt-0.5">
         {review.title && (
-          <h4 className="font-bold text-xs sm:text-sm text-on-surface leading-snug">
+          <h4 className="font-bold text-sm text-slate-800 dark:text-zinc-100 leading-snug">
             {review.title}
           </h4>
         )}
-        <p className="text-xs sm:text-sm text-on-surface-variant leading-relaxed whitespace-pre-line">
+        <p className="text-xs sm:text-sm text-slate-600 dark:text-zinc-300 leading-relaxed whitespace-pre-line font-normal">
           {review.content}
         </p>
       </div>
 
-      {/* Images Gallery */}
+      {/* Images Gallery with safe fallback against 403 / broken links */}
       {imageList.length > 0 && (
-        <div className="flex items-center gap-2.5 overflow-x-auto pb-1 pt-1">
+        <div className="flex items-center gap-2.5 overflow-x-auto pb-1 pt-1 scrollbar-none">
           {imageList.map((img, idx) => (
             <div
               key={idx}
               onClick={() => setSelectedImage(img)}
-              className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border border-theme-border shadow-2xs shrink-0 cursor-pointer hover:opacity-90 hover:scale-[1.03] transition-all"
+              className="relative w-18 h-18 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border border-slate-200/80 dark:border-zinc-700/80 shadow-2xs shrink-0 cursor-pointer hover:opacity-95 hover:scale-[1.04] transition-all bg-slate-50 dark:bg-zinc-800 group/img"
             >
               <img
                 src={img}
+                referrerPolicy="no-referrer"
                 alt="Ảnh chụp thực tế từ độc giả"
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover transition-transform duration-300 group-hover/img:scale-105"
+                onError={(e) => {
+                  (e.currentTarget.parentElement as HTMLElement)?.remove();
+                }}
               />
+              <div className="absolute inset-0 bg-black/10 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white">
+                <span className="material-symbols-outlined text-sm">zoom_in</span>
+              </div>
             </div>
           ))}
         </div>
@@ -270,18 +281,20 @@ export default function ReviewCard({
           {replies.map((reply) => (
             <div
               key={reply.id}
-              className="p-3.5 rounded-xl bg-theme-secondary-subtle border border-theme-border text-xs space-y-1"
+              className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/80 dark:bg-zinc-800/40 border border-slate-100 dark:border-zinc-800 text-xs space-y-1.5"
             >
-              <div className="flex items-center justify-between font-bold text-theme-primary">
-                <span className="flex items-center gap-1">
-                  <span className="material-symbols-outlined text-xs">storefront</span>
-                  Phản hồi từ {reply.business?.name || 'Nhà bán hàng'}
+              <div className="flex items-center justify-between font-bold text-slate-700 dark:text-zinc-200">
+                <span className="flex items-center gap-1.5 text-[#006953] dark:text-emerald-400">
+                  <span className="material-symbols-outlined text-sm">storefront</span>
+                  Phản hồi từ {reply.business?.name || 'Gian hàng'}
                 </span>
-                <span className="text-[10px] text-[#6b7280] font-normal">
-                  {new Date(reply.createdAt).toLocaleDateString('vi-VN')}
+                <span className="text-[10px] font-normal text-slate-400">
+                  {reply.createdAt ? new Date(reply.createdAt).toLocaleDateString('vi-VN') : ''}
                 </span>
               </div>
-              <p className="text-on-surface-variant leading-relaxed">{reply.content}</p>
+              <p className="text-slate-600 dark:text-zinc-300 leading-relaxed whitespace-pre-line pl-5">
+                {reply.content}
+              </p>
             </div>
           ))}
         </div>
@@ -294,19 +307,19 @@ export default function ReviewCard({
             <button
               type="button"
               onClick={() => setIsReplying(true)}
-              className="flex items-center gap-1.5 text-xs text-theme-primary font-bold hover:underline cursor-pointer"
+              className="flex items-center gap-1.5 text-xs text-[#006953] hover:text-[#00523c] dark:text-emerald-400 font-bold hover:underline cursor-pointer"
             >
               <span className="material-symbols-outlined text-sm">reply</span>
               Phản hồi đánh giá này
             </button>
           ) : (
-            <div className="p-3.5 rounded-xl bg-theme-bg border border-theme-border space-y-2.5">
-              <div className="flex items-center justify-between text-xs font-bold text-on-surface">
-                <span className="flex items-center gap-1">
-                  <span className="material-symbols-outlined text-sm text-theme-primary">storefront</span>
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700 space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-zinc-100">
+                <span className="flex items-center gap-1 text-[#006953] dark:text-emerald-400">
+                  <span className="material-symbols-outlined text-sm">storefront</span>
                   Phản hồi từ gian hàng
                 </span>
-                <span className={`text-[11px] font-normal ${replyText.length > 2000 ? 'text-red-500 font-bold' : 'text-[#6b7280]'}`}>
+                <span className={`text-[11px] font-normal ${replyText.length > 2000 ? 'text-rose-500 font-bold' : 'text-slate-400'}`}>
                   {replyText.length}/2.000 ký tự
                 </span>
               </div>
@@ -316,7 +329,7 @@ export default function ReviewCard({
                 placeholder="Nhập nội dung phản hồi khách hàng..."
                 rows={3}
                 disabled={isSubmittingReply}
-                className="w-full text-xs p-2.5 bg-theme-surface border border-theme-border rounded-lg text-on-surface placeholder:text-gray-400 focus:outline-none focus:border-theme-primary transition-colors resize-y"
+                className="w-full text-xs p-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl text-slate-800 dark:text-zinc-100 placeholder:text-slate-400 focus:outline-none focus:border-[#006953] transition-colors resize-y"
               />
               <div className="flex items-center justify-end gap-2 text-xs">
                 <button
@@ -326,7 +339,7 @@ export default function ReviewCard({
                     setReplyText('');
                   }}
                   disabled={isSubmittingReply}
-                  className="px-3 py-1.5 rounded-lg border border-theme-border text-on-surface-variant hover:bg-theme-surface cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-full border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-100 cursor-pointer"
                 >
                   Hủy
                 </button>
@@ -334,7 +347,7 @@ export default function ReviewCard({
                   type="button"
                   onClick={handleSendReply}
                   disabled={isSubmittingReply || !replyText.trim() || replyText.length > 2000}
-                  className="px-3 py-1.5 rounded-lg bg-theme-primary text-white font-bold hover:bg-theme-primary-hover disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
+                  className="px-4 py-1.5 rounded-full bg-[#003B2B] text-white font-bold hover:bg-[#00281d] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 shadow-2xs"
                 >
                   {isSubmittingReply && <span className="material-symbols-outlined text-xs animate-spin">progress_activity</span>}
                   Gửi phản hồi
@@ -346,21 +359,22 @@ export default function ReviewCard({
       )}
 
       {/* Footer / Reactions */}
-      <div className="flex items-center justify-between pt-2 border-t border-theme-border text-xs">
+      <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-zinc-800/80 text-xs">
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={handleToggleHelpful}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
               isHelpful
-                ? 'bg-[#006953]/10 text-[#006953] border-[#006953]/30 font-bold'
-                : 'bg-theme-bg text-[#6b7280] border-theme-border hover:text-on-surface'
+                ? 'bg-emerald-500/10 text-[#006953] dark:text-emerald-400 border border-emerald-500/30 font-bold shadow-2xs'
+                : 'bg-slate-50 dark:bg-zinc-800/60 text-slate-500 dark:text-zinc-400 border border-slate-200/60 dark:border-zinc-700/50 hover:bg-slate-100 hover:text-slate-700'
             }`}
           >
             <span
               className={`material-symbols-outlined text-sm ${
-                isHelpful ? 'text-[#006953]' : ''
+                isHelpful ? 'text-[#006953] dark:text-emerald-400' : ''
               }`}
+              style={isHelpful ? { fontVariationSettings: "'FILL' 1" } : {}}
             >
               thumb_up
             </span>
@@ -371,7 +385,7 @@ export default function ReviewCard({
             <button
               type="button"
               onClick={() => setIsReporting(true)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-transparent text-gray-400 hover:text-rose-600 hover:bg-rose-50 text-xs font-medium transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-transparent text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs font-medium transition-colors cursor-pointer"
               title="Báo cáo vi phạm tiêu chuẩn cộng đồng"
             >
               <span className="material-symbols-outlined text-sm">flag</span>

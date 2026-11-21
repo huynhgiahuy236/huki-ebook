@@ -56,9 +56,9 @@ interface TrackerConfig {
 }
 
 const DEFAULT_CONFIG: TrackerConfig = {
-  endpoint: '/api/analytics/events/batch',
-  flushIntervalMs: 3000,
-  maxBufferSize: 10,
+  endpoint: '/api/v1/events/batch',
+  flushIntervalMs: 15000,
+  maxBufferSize: 20,
   debounceMs: 500,
   throttleMs: 5000,
 };
@@ -71,6 +71,8 @@ class Tracker {
   private config: TrackerConfig;
   private lastViewTimes: Map<string, number> = new Map();
   private debounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private consecutiveFailures = 0;
+  private isSuspended = false;
 
   constructor(config: Partial<TrackerConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -244,7 +246,7 @@ class Tracker {
    * Flush buffer to server
    */
   async flush(): Promise<void> {
-    if (this.buffer.length === 0) return;
+    if (this.buffer.length === 0 || this.isSuspended) return;
 
     const events = [...this.buffer];
     this.buffer = [];
@@ -256,18 +258,37 @@ class Tracker {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ events }),
-        keepalive: false, // We'll use sendBeacon for keepalive
+        keepalive: false,
       });
 
       if (!response.ok) {
-        // Re-add events on failure
-        this.buffer = [...events, ...this.buffer];
-        console.warn('[Tracker] Failed to flush events, re-buffered:', events.length);
+        this.consecutiveFailures++;
+        // If 404/400/403 or repeated errors: drop buffer and enter cooldown to avoid endless 404 spam loops
+        if (response.status === 404 || response.status === 400 || response.status === 403 || this.consecutiveFailures >= 3) {
+          this.isSuspended = true;
+          setTimeout(() => {
+            this.isSuspended = false;
+            this.consecutiveFailures = 0;
+          }, 120000);
+          return;
+        }
+
+        // For temporary network glitches, preserve only recent 10 items
+        this.buffer = events.slice(-10);
+      } else {
+        this.consecutiveFailures = 0;
       }
-    } catch (error) {
-      // Re-add events on error
-      this.buffer = [...events, ...this.buffer];
-      console.warn('[Tracker] Error flushing events, re-buffered:', events.length);
+    } catch {
+      this.consecutiveFailures++;
+      if (this.consecutiveFailures >= 3) {
+        this.isSuspended = true;
+        setTimeout(() => {
+          this.isSuspended = false;
+          this.consecutiveFailures = 0;
+        }, 120000);
+        return;
+      }
+      this.buffer = events.slice(-10);
     }
   }
 

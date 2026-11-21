@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
     // Forward events through API Gateway
     const gatewayUrl = process.env.API_GATEWAY_URL || process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3000';
     if (events.length > 0) {
-      fetch(`${gatewayUrl}/api/v1/analytics/events/batch`, {
+      fetch(`${gatewayUrl}/api/v1/events/batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ events }),

@@ -671,30 +671,30 @@ export default function StoreHeader({
         </div>
 
         {/* Right Action Icons & User Account */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="flex items-center gap-0.5 sm:gap-1.5 shrink-0">
           {/* Mobile Search Toggle (BUG-022: Visible only on < md) */}
           <button
             type="button"
             onClick={() => setIsMobileSearchOpen((prev) => !prev)}
-            className="md:hidden w-9 h-9 rounded-xl border border-slate-200 dark:border-zinc-700 hover:border-[#00875A] bg-white dark:bg-zinc-900 flex items-center justify-center text-slate-700 dark:text-zinc-200 hover:text-[#00875A] active:scale-95 transition-all cursor-pointer shadow-2xs shrink-0"
+            className="md:hidden w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center justify-center text-slate-700 dark:text-zinc-200 hover:text-[#00875A] active:scale-90 transition-all cursor-pointer shrink-0"
             title="Tìm kiếm tác phẩm, tác giả..."
             aria-label="Tìm kiếm"
           >
-            <span className="material-symbols-outlined text-[19px]">
+            <span className="material-symbols-outlined text-[20px]">
               {isMobileSearchOpen ? 'close' : 'search'}
             </span>
           </button>
 
-          {/* Cart Icon - Standard 38x38 Form Factor */}
+          {/* Cart Icon - Standardized Ghost Icon */}
           <Link
             href="/cart"
             prefetch={false}
-            className="w-9 h-9 sm:w-9.5 sm:h-9.5 rounded-xl border border-slate-200 dark:border-zinc-700 hover:border-[#00875A] bg-white dark:bg-zinc-900 flex items-center justify-center text-slate-700 dark:text-zinc-200 hover:text-[#00875A] hover:bg-emerald-50/50 transition-all relative shrink-0 shadow-2xs active:scale-95"
+            className="w-9 h-9 sm:w-9.5 sm:h-9.5 rounded-full hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center justify-center text-slate-700 dark:text-zinc-200 hover:text-[#00875A] transition-all relative shrink-0 active:scale-90"
             title="Giỏ hàng HUKI"
           >
-            <span className="material-symbols-outlined text-[19px] sm:text-[20px]">shopping_cart</span>
+            <span className="material-symbols-outlined text-[20px] sm:text-[21px]">shopping_cart</span>
             {totalItemsCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[#00875A] text-white text-[9px] font-bold min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs ring-2 ring-white dark:ring-zinc-900 pointer-events-none">
+              <span className="absolute -top-0.5 -right-0.5 bg-[#00875A] text-white text-[9px] font-bold min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs ring-2 ring-white dark:ring-zinc-900 pointer-events-none">
                 {totalItemsCount > 99 ? '99+' : totalItemsCount}
               </span>
             )}
@@ -705,22 +705,22 @@ export default function StoreHeader({
             <UniversalNotificationBell variant="user" />
           )}
 
-          {/* Chat / Tin Nhắn - Standard 38x38 Form Factor (Opens in New Tab) */}
+          {/* Chat / Tin Nhắn - Standardized Ghost Icon */}
           {isMounted && isLoggedIn && (
             <Link
               href={chatUrl}
               prefetch={false}
               target="_blank"
               rel="noopener noreferrer"
-              className="relative flex items-center justify-center w-9 h-9 sm:w-9.5 sm:h-9.5 rounded-xl border border-slate-200 dark:border-zinc-700 hover:border-[#00875A] bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 hover:text-[#00875A] hover:bg-emerald-50/50 transition-all cursor-pointer shadow-2xs group shrink-0 active:scale-95"
+              className="relative flex items-center justify-center w-9 h-9 sm:w-9.5 sm:h-9.5 rounded-full hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:text-[#00875A] transition-all cursor-pointer group shrink-0 active:scale-90"
               title={isSeller ? "Hộp thư Chat Kênh Người Bán (Mở tab mới)" : "Tin nhắn của bạn (Mở tab mới)"}
               aria-label="Tin nhắn"
             >
-              <span className="material-symbols-outlined text-[19px] sm:text-[20px]">
+              <span className="material-symbols-outlined text-[20px] sm:text-[21px]">
                 chat
               </span>
               {unreadChatCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-rose-600 text-white text-[9px] font-bold min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs ring-2 ring-white dark:ring-zinc-900 pointer-events-none">
+                <span className="absolute -top-0.5 -right-0.5 bg-rose-600 text-white text-[9px] font-bold min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs ring-2 ring-white dark:ring-zinc-900 pointer-events-none">
                   {unreadChatCount > 99 ? '99+' : unreadChatCount}
                 </span>
               )}
@@ -729,12 +729,12 @@ export default function StoreHeader({
 
           {/* User Account / Auth Buttons - Standardized Profile Button */}
           {!isMounted || isLoading ? (
-            <div className="h-9 w-9 sm:w-24 bg-slate-100 dark:bg-zinc-800/60 animate-pulse rounded-xl shrink-0" />
+            <div className="h-9 w-9 sm:w-24 bg-slate-100 dark:bg-zinc-800/60 animate-pulse rounded-full shrink-0" />
           ) : isLoggedIn ? (
             <div ref={userMenuRef} className="relative shrink-0">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center gap-1.5 sm:gap-2 h-9 sm:h-9.5 p-1 sm:pl-1.5 sm:pr-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 hover:border-[#00875A] bg-white dark:bg-zinc-900 hover:bg-emerald-50/50 transition-all cursor-pointer shadow-2xs group shrink-0 active:scale-95"
+                className="flex items-center gap-1.5 sm:gap-2 h-9 sm:h-9.5 p-0.5 sm:pl-1 sm:pr-2.5 rounded-full hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all cursor-pointer group shrink-0 active:scale-95"
                 title="Tài khoản cá nhân"
               >
                 <UserAvatar user={user} size="sm" />

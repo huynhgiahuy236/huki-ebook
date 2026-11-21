@@ -20,6 +20,9 @@ describe('route-classification', () => {
       expect(classifyRoute('GET', '/health')).toBe('PUBLIC');
       expect(classifyRoute('GET', '/api/openapi.json')).toBe('PUBLIC');
       expect(classifyRoute('GET', '/api/docs')).toBe('PUBLIC');
+      expect(classifyRoute('GET', '/socket.io')).toBe('PUBLIC');
+      expect(classifyRoute('POST', '/api/v1/events/batch')).toBe('PUBLIC');
+      expect(classifyRoute('POST', '/api/v1/analytics/events/batch')).toBe('PUBLIC');
     });
 
     it('classifies public auth endpoints as PUBLIC', () => {

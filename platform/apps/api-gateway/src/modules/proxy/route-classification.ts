@@ -99,6 +99,16 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
     return 'PUBLIC';
   }
 
+  // Public client telemetry analytics events
+  if (
+    normPath === '/events' ||
+    normPath.startsWith('/events/') ||
+    normPath === '/analytics/events' ||
+    normPath.startsWith('/analytics/events/')
+  ) {
+    return 'PUBLIC';
+  }
+
   // 1. Health checks & Swagger documentation are always PUBLIC
   if (
     normPath === '/health' ||

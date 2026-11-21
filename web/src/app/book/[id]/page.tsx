@@ -1641,25 +1641,25 @@ export default function BookDetailPage() {
 
           {activeTab === 'reviews' && (
             <div className="p-6 sm:p-8 space-y-6">
-              {/* Header: Rating Breakdown Summary */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-gray-100">
-                <div className="flex items-center gap-6 sm:gap-8 flex-wrap">
+              {/* Header: Rating Breakdown Summary (Shopee Luxury Soft Design) */}
+              <div className="bg-gradient-to-br from-[#faf9f6] via-white to-[#f0f6f4] dark:from-zinc-900 dark:via-zinc-900/90 dark:to-zinc-800/80 rounded-3xl p-6 sm:p-8 border border-slate-100 dark:border-zinc-800 shadow-[0_4px_24px_-6px_rgba(0,0,0,0.04)] flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="flex items-center gap-6 sm:gap-10 flex-wrap">
                   <div className="text-center md:text-left shrink-0">
                     <div className="flex items-baseline gap-1.5 justify-center md:justify-start">
-                      <span className="text-4xl sm:text-5xl font-black text-gray-900 font-editorial leading-none">
+                      <span className="text-4xl sm:text-5xl font-black text-slate-900 dark:text-white font-editorial leading-none tracking-tight">
                         {reviewSummary && reviewSummary.totalReviews > 0
                           ? reviewSummary.averageRating.toFixed(1)
                           : '0.0'}
                       </span>
-                      <span className="text-sm text-gray-400 font-bold">/ 5.0</span>
+                      <span className="text-sm text-slate-400 font-bold">/ 5.0</span>
                     </div>
-                    <div className="flex text-[#fea619] justify-center md:justify-start mt-1.5 gap-0.5">
+                    <div className="flex text-amber-500 justify-center md:justify-start mt-2 gap-0.5">
                       {[1, 2, 3, 4, 5].map((i) => {
                         const avg = reviewSummary?.averageRating || 0;
                         return (
                           <span
                             key={i}
-                            className={`material-symbols-outlined text-lg ${i <= Math.round(avg) && avg > 0 ? 'text-[#fea619]' : 'text-slate-200'
+                            className={`material-symbols-outlined text-[19px] ${i <= Math.round(avg) && avg > 0 ? 'text-amber-500' : 'text-slate-200 dark:text-zinc-700'
                               }`}
                             style={{ fontVariationSettings: "'FILL' 1" }}
                           >
@@ -1668,27 +1668,27 @@ export default function BookDetailPage() {
                         );
                       })}
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">
+                    <div className="text-xs text-slate-500 dark:text-zinc-400 mt-1.5 font-medium">
                       {((reviewSummary?.totalReviews ?? reviewsList.length) || 0).toLocaleString('vi-VN')} đánh giá đã xác thực
                     </div>
                   </div>
 
                   {/* Rating distribution progress bars */}
-                  <div className="flex flex-col gap-1.5 border-l border-gray-200 pl-6 sm:pl-8 text-xs text-gray-600">
+                  <div className="flex flex-col gap-2 border-l border-slate-200/80 dark:border-zinc-700/80 pl-6 sm:pl-8 text-xs text-slate-600 dark:text-zinc-300">
                     {[5, 4, 3, 2, 1].map((stars) => {
                       const count = reviewSummary?.ratingDistribution?.[String(stars)] ?? 0;
                       const total = reviewSummary?.totalReviews || 0;
                       const pct = total > 0 ? Math.min(100, Math.round((count / total) * 100)) : 0;
                       return (
                         <div key={stars} className="flex items-center gap-2.5">
-                          <span className="w-9 font-semibold text-gray-700">{stars} sao</span>
-                          <div className="w-28 sm:w-44 bg-gray-100 rounded-full h-2 overflow-hidden shadow-inner">
+                          <span className="w-10 font-bold text-slate-700 dark:text-zinc-200 text-xs">{stars} sao</span>
+                          <div className="w-28 sm:w-48 bg-slate-100 dark:bg-zinc-800 rounded-full h-2.5 overflow-hidden shadow-inner">
                             <div
-                              className="bg-[#fea619] h-full rounded-full transition-all duration-500"
+                              className="bg-gradient-to-r from-amber-400 to-amber-500 h-full rounded-full transition-all duration-700 shadow-xs"
                               style={{ width: `${pct}%` }}
                             ></div>
                           </div>
-                          <span className="w-10 text-right text-[11px] text-gray-400 font-medium">{pct}%</span>
+                          <span className="w-10 text-right text-[11px] text-slate-400 font-bold">{pct}%</span>
                         </div>
                       );
                     })}
@@ -1696,12 +1696,12 @@ export default function BookDetailPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 shrink-0">
-                  <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-xl border border-gray-200/70">
+                  <div className="flex items-center gap-1 bg-slate-100/90 dark:bg-zinc-800/90 p-1 rounded-full border border-slate-200/60 dark:border-zinc-700/60">
                     <button
                       onClick={() => setReviewsFilterRating(undefined)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${reviewsFilterRating === undefined
-                          ? 'bg-[#006953] text-white shadow-xs'
-                          : 'text-gray-600 hover:text-gray-900'
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${reviewsFilterRating === undefined
+                          ? 'bg-[#003B2B] text-white shadow-xs'
+                          : 'text-slate-600 dark:text-zinc-300 hover:text-slate-900'
                         }`}
                     >
                       Tất cả
@@ -1710,9 +1710,9 @@ export default function BookDetailPage() {
                       <button
                         key={r}
                         onClick={() => setReviewsFilterRating(r)}
-                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${reviewsFilterRating === r
-                            ? 'bg-[#006953] text-white shadow-xs'
-                            : 'text-gray-600 hover:text-gray-900'
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${reviewsFilterRating === r
+                            ? 'bg-[#003B2B] text-white shadow-xs'
+                            : 'text-slate-600 dark:text-zinc-300 hover:text-slate-900'
                           }`}
                       >
                         {r}★
@@ -1723,8 +1723,7 @@ export default function BookDetailPage() {
                   <button
                     type="button"
                     onClick={handleOpenReviewModal}
-                    className={`px-4 py-2.5 rounded-xl text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${currentUserReview ? 'bg-[#004d3d] hover:bg-[#003c30]' : 'bg-[#006953] hover:bg-[#00523c]'
-                      }`}
+                    className={`px-5 py-2.5 rounded-full text-white text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap shrink-0 active:scale-95 bg-gradient-to-r from-[#003B2B] to-[#005a42] hover:from-[#002b1f] hover:to-[#004a37]`}
                   >
                     <span className="material-symbols-outlined text-base">
                       {isReviewModalOpen ? 'close' : currentUserReview ? 'edit_note' : 'rate_review'}
@@ -1788,10 +1787,10 @@ export default function BookDetailPage() {
               )}
 
               {/* Verified Purchase Info Banner */}
-              <div className="flex items-center gap-2 p-3 bg-[#006953]/5 border border-[#006953]/15 rounded-xl text-xs text-[#006953]">
-                <span className="material-symbols-outlined text-base font-bold shrink-0">verified_user</span>
+              <div className="flex items-center gap-2.5 p-3.5 bg-gradient-to-r from-emerald-50/80 via-[#f7faf8] to-emerald-50/50 dark:from-emerald-950/30 dark:via-zinc-900 dark:to-emerald-950/20 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl text-xs text-emerald-900 dark:text-emerald-300 shadow-2xs">
+                <span className="material-symbols-outlined text-base font-bold shrink-0 text-[#006953] dark:text-emerald-400">verified_user</span>
                 <span className="leading-snug font-medium">
-                  <strong>Cam kết minh bạch:</strong> Tất cả đánh giá có huy hiệu <VerifiedPurchaseBadge variant="compact" /> được xác thực từ khách hàng đã mua và hoàn tất đơn hàng trên HUKI theo chính sách POL-13.
+                  <strong className="font-bold text-[#006953] dark:text-emerald-300">Cam kết minh bạch:</strong> Tất cả đánh giá có huy hiệu <VerifiedPurchaseBadge variant="compact" /> được xác thực từ khách hàng đã mua và hoàn tất đơn hàng trên HUKI theo chính sách POL-13.
                 </span>
               </div>
 
