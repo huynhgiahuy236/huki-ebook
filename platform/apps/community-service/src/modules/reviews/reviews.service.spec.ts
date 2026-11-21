@@ -287,6 +287,7 @@ describe("ReviewsService", () => {
         "Bearer seller-token",
         sellerActor.sub,
         "store-123",
+        sellerActor,
       );
       expect(replies.create).toHaveBeenCalledWith({
         reviewId: mockReview._id,

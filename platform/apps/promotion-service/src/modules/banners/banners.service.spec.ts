@@ -124,10 +124,11 @@ describe('BannersService', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should throw NotFound when deleting non-existent banner', async () => {
+    it('should handle deleting non-existent banner idempotently without throwing', async () => {
       mockPrisma.banner.findUnique.mockResolvedValue(null);
 
-      await expect(service.delete('non-existent')).rejects.toThrow();
+      const result = await service.delete('non-existent');
+      expect(result.success).toBe(true);
     });
   });
 

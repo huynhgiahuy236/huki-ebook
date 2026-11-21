@@ -66,6 +66,9 @@ describe('UserController - Profile & Onboarding', () => {
         yearlyBooksTarget: 10,
         preferredReadingTime: 'morning',
         wishlist: [],
+        deletionCount: 0,
+        isPendingDeletion: false,
+        deletionScheduledAt: undefined,
       });
     });
   });
