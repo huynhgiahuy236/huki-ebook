@@ -33,6 +33,224 @@ interface ConfiguredBookItem {
   maxPerUser: number;
 }
 
+interface PlatformSlotCountdownCardProps {
+  platformSlot: any;
+  platformEligibility: any;
+  platformRegisteredMyItems: any[];
+  setViewPlatformDetailSlot: (slot: any) => void;
+  showToast: (msg: string, type: 'success' | 'error' | 'info' | 'warning') => void;
+  setPolicyActiveTab: (tab: any) => void;
+  setIsPolicyModalOpen: (open: boolean) => void;
+  handleOpenRegisterForSlot: (slotId: string) => void;
+  formatCountdown: (seconds: number) => string;
+}
+
+function PlatformSlotCountdownCard({
+  platformSlot,
+  platformEligibility,
+  platformRegisteredMyItems,
+  setViewPlatformDetailSlot,
+  showToast,
+  setPolicyActiveTab,
+  setIsPolicyModalOpen,
+  handleOpenRegisterForSlot,
+  formatCountdown,
+}: PlatformSlotCountdownCardProps) {
+  const [localNowMs, setLocalNowMs] = useState<number>(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setLocalNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const regStart = new Date(platformSlot.registrationStartsAt || platformSlot.startsAt).getTime();
+  const regEnd = new Date(platformSlot.registrationEndsAt || platformSlot.startsAt).getTime();
+  const startAt = new Date(platformSlot.startsAt).getTime();
+  const endAt = new Date(platformSlot.endsAt).getTime();
+
+  const isRegUpcoming = localNowMs < regStart;
+  const isRegOpen = localNowMs >= regStart && localNowMs <= regEnd;
+  const isTeaser = localNowMs > regEnd && localNowMs < startAt;
+  const isSaleLive = localNowMs >= startAt && localNowMs <= endAt;
+
+  const maxStores = platformSlot.maxStores || 10;
+  const minStores = platformSlot.minStores || 1;
+  const participatingCount = platformSlot.participatingStoresCount || 0;
+  const isStoreParticipating = Boolean(
+    platformSlot.isUserStoreParticipating || platformRegisteredMyItems.length > 0,
+  );
+  const isStoreFull = participatingCount >= maxStores && !isStoreParticipating;
+  const progressPct = Math.min(100, Math.round((participatingCount / maxStores) * 100));
+
+  const regRemainingSeconds = Math.max(0, Math.floor((regEnd - localNowMs) / 1000));
+  const startRemainingSeconds = Math.max(0, Math.floor((startAt - localNowMs) / 1000));
+
+  return (
+    <div className="bg-white/95 rounded-2xl p-5 border border-red-100 shadow-xs space-y-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="space-y-1.5 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-base font-extrabold text-gray-900 flex items-center gap-2">
+              <span className="material-symbols-outlined text-red-600 text-lg">bolt</span>
+              <span>{platformSlot.name}</span>
+            </h3>
+            {isRegOpen && !isStoreFull && (
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10.5px] font-bold flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
+                ĐANG MỞ ĐĂNG KÝ
+              </span>
+            )}
+            {isRegOpen && isStoreFull && (
+              <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 text-[10.5px] font-bold flex items-center gap-1">
+                <span className="material-symbols-outlined text-xs">lock</span>
+                ĐÃ ĐỦ SỐ LƯỢNG SHOP ({maxStores}/{maxStores})
+              </span>
+            )}
+            {isTeaser && (
+              <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10.5px] font-bold flex items-center gap-1">
+                <span className="material-symbols-outlined text-xs animate-spin">hourglass_top</span>
+                ĐÃ ĐÓNG ĐĂNG KÝ - ĐANG CÔNG BỐ TRƯỚC
+              </span>
+            )}
+            {isSaleLive && (
+              <span className="px-2.5 py-0.5 rounded-full bg-rose-600 text-white text-[10.5px] font-bold flex items-center gap-1 shadow-xs animate-pulse">
+                <span className="material-symbols-outlined text-xs">local_fire_department</span>
+                ĐANG MỞ BÁN 
+              </span>
+            )}
+            {isRegUpcoming && (
+              <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-300 text-[10.5px] font-bold">
+                SẮP MỞ ĐĂNG KÝ
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-600">
+            {platformSlot.description || 'Tham gia cùng hàng ngàn độc giả săn sách giá sốc trong sự kiện Flash Sale quy mô toàn sàn!'}
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+          {isRegOpen && (
+            <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-mono text-center">
+              <span className="text-[10px] text-amber-700 block uppercase font-sans font-bold">Hạn Chót Đăng Ký</span>
+              <span className="font-black text-sm text-red-600">{formatCountdown(regRemainingSeconds)}</span>
+            </div>
+          )}
+          {isTeaser && (
+            <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-mono text-center">
+              <span className="text-[10px] text-amber-700 block uppercase font-sans font-bold">Mở Bán Chính Thức Sau</span>
+              <span className="font-black text-sm text-red-600">{formatCountdown(startRemainingSeconds)}</span>
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            {isStoreParticipating ? (
+              <>
+                <button
+                  type="button"
+                  disabled
+                  className="px-4 py-2.5 rounded-xl font-bold text-xs bg-gray-100 text-gray-500 border border-gray-200 cursor-not-allowed shadow-none flex items-center justify-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-sm">lock</span>
+                  <span> Đã Đăng Ký Tham Gia</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewPlatformDetailSlot(platformSlot)}
+                  className="px-4 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer hover:scale-[1.02]"
+                >
+                  <span className="material-symbols-outlined text-sm">visibility</span>
+                  <span>🔍 Xem Chi Tiết ({platformRegisteredMyItems.length} Sách)</span>
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                disabled={!platformEligibility.eligible ? false : (!isRegOpen || isStoreFull)}
+                onClick={() => {
+                  if (!platformEligibility.eligible) {
+                    showToast(platformEligibility.reason || 'Gian hàng không đủ điều kiện tham gia Flash Sale Sàn do Sao Quả Tạ!', 'error');
+                    setPolicyActiveTab('APPEALS');
+                    setIsPolicyModalOpen(true);
+                    return;
+                  }
+                  handleOpenRegisterForSlot(platformSlot.id);
+                }}
+                className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs ${
+                  !platformEligibility.eligible
+                    ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 cursor-pointer animate-pulse'
+                    : !isRegOpen || isStoreFull
+                    ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
+                    : 'bg-[#ac2c19] hover:bg-[#8f2415] text-white cursor-pointer hover:scale-[1.02]'
+                }`}
+              >
+                <span className="material-symbols-outlined text-sm">
+                  {!platformEligibility.eligible ? 'gavel' : !isRegOpen || isStoreFull ? 'lock' : 'bolt'}
+                </span>
+                <span>
+                  {!platformEligibility.eligible
+                    ? ' Tạm Khóa (Sao Quả Tạ >= 3)'
+                    : isStoreFull
+                    ? `Đã Đủ Số Lượng Shop (${maxStores}/${maxStores})`
+                    : isTeaser
+                    ? 'Đã Đóng Cổng Đăng Ký'
+                    : isSaleLive
+                    ? 'Đã Hết Hạn Đăng Ký'
+                    : ' Đăng Ký Tham Gia Sàn Ngay'}
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Progress and Timelines */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-gray-100">
+        {/* Store Limit Quota Progress */}
+        <div className="p-3 bg-gray-50/80 rounded-xl border border-gray-200/70 space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-bold text-gray-700 flex items-center gap-1">
+              <span className="material-symbols-outlined text-sm text-emerald-700">storefront</span>
+              <span>Tiến Độ Cửa Hàng Tham Gia:</span>
+            </span>
+            <span className="font-mono font-black text-gray-900">
+              {participatingCount} / {maxStores} Shop (Tối thiểu: {minStores} Shop)
+            </span>
+          </div>
+          <div className="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className={`h-full transition-all duration-500 rounded-full ${
+                isStoreFull ? 'bg-rose-500' : progressPct >= 70 ? 'bg-amber-500' : 'bg-emerald-500'
+              }`}
+              style={{ width: `${progressPct}%` }}
+            ></div>
+          </div>
+          <div className="flex items-center justify-between text-[10.5px] text-gray-500">
+            <span>{isStoreFull ? 'Đã đạt giới hạn tối đa' : `Còn lại ${Math.max(0, maxStores - participatingCount)} suất đăng ký`}</span>
+            <span>{progressPct}% Quota</span>
+          </div>
+        </div>
+
+        {/* Timelines Info */}
+        <div className="p-3 bg-gray-50/80 rounded-xl border border-gray-200/70 text-xs space-y-1.5 font-mono">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-gray-500 font-sans font-medium">Thời gian mở đăng ký:</span>
+            <strong className="text-gray-800">
+              {new Date(regStart).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {new Date(regEnd).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+            </strong>
+          </div>
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-gray-500 font-sans font-medium">Thời gian mở bán:</span>
+            <strong className="text-red-700">
+              {new Date(startAt).toLocaleString('vi-VN')} - {new Date(endAt).toLocaleString('vi-VN')}
+            </strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SellerFlashSaleView() {
   const { user, activeBusinessId, setActiveBusinessId } = useAuth();
   const { showToast } = useToast();
@@ -152,23 +370,17 @@ export function SellerFlashSaleView() {
     return null;
   }, [slots, myItems]);
 
-  // Live timestamp ticker for accurate countdowns
-  const [nowMs, setNowMs] = useState<number>(Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   // Platform Flash Sale Slot currently active, registering or scheduled
   const platformSlot = useMemo(() => {
+    const curNow = Date.now();
     return (
       slots.find((s) => {
         const isPlatform = s.scope === 'PLATFORM' || !s.storeId;
         const endsAt = new Date(s.endsAt || 0).getTime();
-        return isPlatform && endsAt > nowMs && s.status !== 'ENDED' && s.status !== 'CANCELLED';
+        return isPlatform && endsAt > curNow && s.status !== 'ENDED' && s.status !== 'CANCELLED';
       }) || null
     );
-  }, [slots, nowMs]);
+  }, [slots]);
 
   // Conflict checker for each book based on active/scheduled sessions
   const bookConflictMap = useMemo(() => {
@@ -500,18 +712,11 @@ export function SellerFlashSaleView() {
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('focus', handleVisibility);
 
-    const heartbeat = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        loadData();
-      }
-    }, 6000);
-
     return () => {
       unsub();
       window.removeEventListener('huki_flash_sale_updated', handleDomUpdate);
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('focus', handleVisibility);
-      clearInterval(heartbeat);
     };
   }, [loadData]);
 
@@ -1131,13 +1336,19 @@ export function SellerFlashSaleView() {
 
   // Group My Items by Flash Sale Slot (High-Detail Session Grouping)
   const groupedSessions = useMemo(() => {
-    const currentBizId = user?.business?.id || activeBusinessId;
+    const currentBizId = user?.business?.id || (user as any)?.businessId || (user as any)?.storeId || activeBusinessId;
+    const currentUserId = user?.id || (user as any)?.sub;
     const slotMap = new Map<string, { slot: FlashSaleSlot | any; items: any[] }>();
+
+    const isStoreMatch = (storeId?: string | null) => {
+      if (!storeId || !currentBizId) return true;
+      return storeId === currentBizId || storeId === currentUserId || storeId === activeBusinessId;
+    };
 
     // 1. Initialize with all known SHOP slots belonging to current shop
     slots.forEach((s) => {
       if (s.scope === 'SHOP') {
-        if (currentBizId && s.storeId && s.storeId !== currentBizId) {
+        if (!isStoreMatch(s.storeId)) {
           return;
         }
         slotMap.set(s.id, { slot: s, items: [] });
@@ -1147,7 +1358,7 @@ export function SellerFlashSaleView() {
     // 2. Distribute items into their respective slots (including platform slots only if seller has items in it)
     myItems.forEach((item) => {
       const slotId = item.flashSaleId || item.flashSale?.id;
-      if (item.flashSale?.scope === 'SHOP' && currentBizId && item.flashSale?.storeId && item.flashSale?.storeId !== currentBizId) {
+      if (item.flashSale?.scope === 'SHOP' && !isStoreMatch(item.flashSale?.storeId || item.storeId)) {
         return;
       }
       if (slotId && slotMap.has(slotId)) {
@@ -1503,195 +1714,19 @@ export function SellerFlashSaleView() {
           </button>
         </div>
 
-        {platformSlot ? (() => {
-          const regStart = new Date(platformSlot.registrationStartsAt || platformSlot.startsAt).getTime();
-          const regEnd = new Date(platformSlot.registrationEndsAt || platformSlot.startsAt).getTime();
-          const startAt = new Date(platformSlot.startsAt).getTime();
-          const endAt = new Date(platformSlot.endsAt).getTime();
-
-          const isRegUpcoming = nowMs < regStart;
-          const isRegOpen = nowMs >= regStart && nowMs <= regEnd;
-          const isTeaser = nowMs > regEnd && nowMs < startAt;
-          const isSaleLive = nowMs >= startAt && nowMs <= endAt;
-
-          const maxStores = platformSlot.maxStores || 10;
-          const minStores = platformSlot.minStores || 1;
-          const participatingCount = platformSlot.participatingStoresCount || 0;
-          const isStoreParticipating = Boolean(
-            platformSlot.isUserStoreParticipating || platformRegisteredMyItems.length > 0,
-          );
-          const isStoreFull = participatingCount >= maxStores && !isStoreParticipating;
-          const progressPct = Math.min(100, Math.round((participatingCount / maxStores) * 100));
-
-          const regRemainingSeconds = Math.max(0, Math.floor((regEnd - nowMs) / 1000));
-          const startRemainingSeconds = Math.max(0, Math.floor((startAt - nowMs) / 1000));
-
-          return (
-            <div className="bg-white/95 rounded-2xl p-5 border border-red-100 shadow-xs space-y-4">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="space-y-1.5 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-base font-extrabold text-gray-900 flex items-center gap-2">
-                      <span className="material-symbols-outlined text-red-600 text-lg">bolt</span>
-                      <span>{platformSlot.name}</span>
-                    </h3>
-                    {isRegOpen && !isStoreFull && (
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10.5px] font-bold flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
-                        ĐANG MỞ ĐĂNG KÝ
-                      </span>
-                    )}
-                    {isRegOpen && isStoreFull && (
-                      <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 text-[10.5px] font-bold flex items-center gap-1">
-                        <span className="material-symbols-outlined text-xs">lock</span>
-                        ĐÃ ĐỦ SỐ LƯỢNG SHOP ({maxStores}/{maxStores})
-                      </span>
-                    )}
-                    {isTeaser && (
-                      <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10.5px] font-bold flex items-center gap-1">
-                        <span className="material-symbols-outlined text-xs animate-spin">hourglass_top</span>
-                        ĐÃ ĐÓNG ĐĂNG KÝ - ĐANG CÔNG BỐ TRƯỚC
-                      </span>
-                    )}
-                    {isSaleLive && (
-                      <span className="px-2.5 py-0.5 rounded-full bg-rose-600 text-white text-[10.5px] font-bold flex items-center gap-1 shadow-xs animate-pulse">
-                        <span className="material-symbols-outlined text-xs">local_fire_department</span>
-                        ĐANG MỞ BÁN 
-                      </span>
-                    )}
-                    {isRegUpcoming && (
-                      <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-300 text-[10.5px] font-bold">
-                        SẮP MỞ ĐĂNG KÝ
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-600">
-                    {platformSlot.description || 'Tham gia cùng hàng ngàn độc giả săn sách giá sốc trong sự kiện Flash Sale quy mô toàn sàn!'}
-                  </p>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
-                  {isRegOpen && (
-                    <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-mono text-center">
-                      <span className="text-[10px] text-amber-700 block uppercase font-sans font-bold">Hạn Chót Đăng Ký</span>
-                      <span className="font-black text-sm text-red-600">{formatCountdown(regRemainingSeconds)}</span>
-                    </div>
-                  )}
-                  {isTeaser && (
-                    <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-mono text-center">
-                      <span className="text-[10px] text-amber-700 block uppercase font-sans font-bold">Mở Bán Chính Thức Sau</span>
-                      <span className="font-black text-sm text-red-600">{formatCountdown(startRemainingSeconds)}</span>
-                    </div>
-                  )}
-
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                    {isStoreParticipating ? (
-                      <>
-                        <button
-                          type="button"
-                          disabled
-                          className="px-4 py-2.5 rounded-xl font-bold text-xs bg-gray-100 text-gray-500 border border-gray-200 cursor-not-allowed shadow-none flex items-center justify-center gap-1.5"
-                        >
-                          <span className="material-symbols-outlined text-sm">lock</span>
-                          <span> Đã Đăng Ký Tham Gia</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setViewPlatformDetailSlot(platformSlot)}
-                          className="px-4 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer hover:scale-[1.02]"
-                        >
-                          <span className="material-symbols-outlined text-sm">visibility</span>
-                          <span>🔍 Xem Chi Tiết ({platformRegisteredMyItems.length} Sách)</span>
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={!platformEligibility.eligible ? false : (!isRegOpen || isStoreFull)}
-                        onClick={() => {
-                          if (!platformEligibility.eligible) {
-                            showToast(platformEligibility.reason || 'Gian hàng không đủ điều kiện tham gia Flash Sale Sàn do Sao Quả Tạ!', 'error');
-                            setPolicyActiveTab('APPEALS');
-                            setIsPolicyModalOpen(true);
-                            return;
-                          }
-                          handleOpenRegisterForSlot(platformSlot.id);
-                        }}
-                        className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs ${
-                          !platformEligibility.eligible
-                            ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 cursor-pointer animate-pulse'
-                            : !isRegOpen || isStoreFull
-                            ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
-                            : 'bg-[#ac2c19] hover:bg-[#8f2415] text-white cursor-pointer hover:scale-[1.02]'
-                        }`}
-                      >
-                        <span className="material-symbols-outlined text-sm">
-                          {!platformEligibility.eligible ? 'gavel' : !isRegOpen || isStoreFull ? 'lock' : 'bolt'}
-                        </span>
-                        <span>
-                          {!platformEligibility.eligible
-                            ? ' Tạm Khóa (Sao Quả Tạ >= 3)'
-                            : isStoreFull
-                            ? `Đã Đủ Số Lượng Shop (${maxStores}/${maxStores})`
-                            : isTeaser
-                            ? 'Đã Đóng Cổng Đăng Ký'
-                            : isSaleLive
-                            ? 'Đã Hết Hạn Đăng Ký'
-                            : ' Đăng Ký Tham Gia Sàn Ngay'}
-                        </span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Progress and Timelines */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-gray-100">
-                {/* Store Limit Quota Progress */}
-                <div className="p-3 bg-gray-50/80 rounded-xl border border-gray-200/70 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-gray-700 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-sm text-emerald-700">storefront</span>
-                      <span>Tiến Độ Cửa Hàng Tham Gia:</span>
-                    </span>
-                    <span className="font-mono font-black text-gray-900">
-                      {participatingCount} / {maxStores} Shop (Tối thiểu: {minStores} Shop)
-                    </span>
-                  </div>
-                  <div className="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-500 rounded-full ${
-                        isStoreFull ? 'bg-rose-500' : progressPct >= 70 ? 'bg-amber-500' : 'bg-emerald-500'
-                      }`}
-                      style={{ width: `${progressPct}%` }}
-                    ></div>
-                  </div>
-                  <div className="flex items-center justify-between text-[10.5px] text-gray-500">
-                    <span>{isStoreFull ? 'Đã đạt giới hạn tối đa' : `Còn lại ${Math.max(0, maxStores - participatingCount)} suất đăng ký`}</span>
-                    <span>{progressPct}% Quota</span>
-                  </div>
-                </div>
-
-                {/* Timelines Info */}
-                <div className="p-3 bg-gray-50/80 rounded-xl border border-gray-200/70 text-xs space-y-1.5 font-mono">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-gray-500 font-sans font-medium">Thời gian mở đăng ký:</span>
-                    <strong className="text-gray-800">
-                      {new Date(regStart).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {new Date(regEnd).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
-                    </strong>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-gray-500 font-sans font-medium">Thời gian mở bán:</span>
-                    <strong className="text-red-700">
-                      {new Date(startAt).toLocaleString('vi-VN')} - {new Date(endAt).toLocaleString('vi-VN')}
-                    </strong>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })() : (
+        {platformSlot ? (
+          <PlatformSlotCountdownCard
+            platformSlot={platformSlot}
+            platformEligibility={platformEligibility}
+            platformRegisteredMyItems={platformRegisteredMyItems}
+            setViewPlatformDetailSlot={setViewPlatformDetailSlot}
+            showToast={showToast}
+            setPolicyActiveTab={setPolicyActiveTab}
+            setIsPolicyModalOpen={setIsPolicyModalOpen}
+            handleOpenRegisterForSlot={handleOpenRegisterForSlot}
+            formatCountdown={formatCountdown}
+          />
+        ) : (
           <div className="p-6 bg-white/80 rounded-2xl border border-amber-200/60 text-center space-y-1.5">
             <span className="material-symbols-outlined text-3xl text-amber-500">notifications_active</span>
             <h4 className="text-xs sm:text-sm font-bold text-gray-800">

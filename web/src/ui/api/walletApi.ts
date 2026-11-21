@@ -274,6 +274,7 @@ export interface SellerEscrowItem {
     scope: 'STORE' | 'PLATFORM';
   } | null;
   platformFee: number;
+  affiliateCommission?: number;
   sellerNet: number;
   escrowStatus: 'PENDING_PAYMENT' | 'HOLDING' | 'FROZEN' | 'RELEASED';
   remittanceInfo?: {

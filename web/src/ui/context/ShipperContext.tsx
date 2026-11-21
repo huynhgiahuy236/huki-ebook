@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from './ToastContext';
 import { useAuth } from './AuthContext';
 import { orderApi } from '@/ui/api/orderApi';
@@ -427,6 +427,8 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
     totalEarnings: 0,
   });
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
+  const updatingPickupIdsRef = useRef<Set<string>>(new Set());
+  const recentPickupsRef = useRef<Map<string, number>>(new Map());
 
   // Load real physical orders from database
   const refreshOrders = useCallback(async (isSilent?: boolean) => {
@@ -577,7 +579,11 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 });
               }
             }
-          } else if (o.status === 'IN_TRANSIT' || o.sellerOrderStatus === 'SHIPPED') {
+          } else if (
+            o.status === 'IN_TRANSIT' ||
+            o.sellerOrderStatus === 'SHIPPED' ||
+            (recentPickupsRef.current.has(item.id) && Date.now() - (recentPickupsRef.current.get(item.id) || 0) < 8000)
+          ) {
             active.push({ ...item, status: 'IN_TRANSIT' });
           } else if (isClaimedByMe || o.status === 'PICKING_UP') {
             active.push({ ...item, status: 'PICKING_UP' });
@@ -822,10 +828,18 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // 2. Shipper confirms picking up items from seller or buyer (calls DB PATCH pickup)
   const confirmPickup = async (orderId: string) => {
+    // 2.1 Double-click concurrency lock
+    if (updatingPickupIdsRef.current.has(orderId)) {
+      return;
+    }
+    updatingPickupIdsRef.current.add(orderId);
+    recentPickupsRef.current.set(orderId, Date.now());
+
     const target = activeDeliveries.find((o) => o.id === orderId);
     const isReturn = target?.orderType === 'RETURN';
     const nowStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
+    // 2.2 Optimistic status update
     setActiveDeliveries((prev) =>
       prev.map((o) =>
         o.id === orderId
@@ -838,6 +852,19 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
       )
     );
 
+    // Ensure the order is retained in active in-transit deliveries
+    saveClaimedId(orderId);
+
+    // 2.3 Call backend DB PATCH first
+    try {
+      await orderApi.shipperPickup(orderId);
+    } catch (err) {
+      console.error('Error updating pickup to DB:', err);
+    } finally {
+      updatingPickupIdsRef.current.delete(orderId);
+    }
+
+    // 2.4 ONLY publish Realtime event AFTER the DB PATCH has finished!
     if (isReturn) {
       realtimeSyncBus.publish('RETURN_PICKED_UP', {
         orderId: target?.orderId || orderId,
@@ -855,14 +882,6 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
         isReturn,
         trackingCode: target?.code,
       });
-    }
-
-    // Ensure the order is retained in active in-transit deliveries
-    saveClaimedId(orderId);
-    try {
-      await orderApi.shipperPickup(orderId);
-    } catch (err) {
-      console.error('Error updating pickup to DB:', err);
     }
 
     if (isReturn) {

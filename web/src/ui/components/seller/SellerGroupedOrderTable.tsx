@@ -326,6 +326,12 @@ export function SellerGroupedOrderTable({
                 <span>Khấu trừ phí sàn (5%):</span>
                 <span>-{formatVND(it.platformFee)}</span>
               </div>
+              {Number(it.affiliateCommission || 0) > 0 && (
+                <div className="flex justify-between text-purple-700 font-medium">
+                  <span>Trích hoa hồng CTV Affiliate:</span>
+                  <span>-{formatVND(it.affiliateCommission)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-[#00875A] font-bold border-t border-gray-200 pt-0.5">
                 <span>Thực nhận vào ví:</span>
                 <span>+{formatVND(it.sellerNet)}</span>

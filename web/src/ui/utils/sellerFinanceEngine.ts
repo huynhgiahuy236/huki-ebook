@@ -8,7 +8,8 @@ export interface SellerFinancialMetrics {
   totalGrossGMV: number;          // 100% Tổng giá trị đơn hàng (Gross Merchandise Value)
   platformFeePercent: number;     // Tỷ lệ phí sàn (Mặc định 5%)
   totalPlatformFee: number;       // 5% phí sàn khấu trừ
-  totalNetRevenue: number;        // 95% Tổng doanh thu thực nhận về Shop
+  totalAffiliateFee: number;      // Tổng hoa hồng CTV Affiliate đã trích
+  totalNetRevenue: number;        // Thực nhận về Shop (sau trừ phí sàn và trích hoa hồng CTV)
 
   // 2. 4 Giai đoạn chu trình dòng tiền chuẩn Shopee (Cash Flow Pipeline)
   // Giai đoạn 1: Đang vận chuyển (In-Transit)
@@ -95,6 +96,7 @@ export function calculateSellerFinancials(options: CalculateFinanceOptions): Sel
 
   let totalGrossGMV = 0;
   let totalPlatformFee = 0;
+  let totalAffiliateFee = 0;
   let totalNetRevenue = 0;
 
   let inTransitGross = 0;
@@ -123,11 +125,13 @@ export function calculateSellerFinancials(options: CalculateFinanceOptions): Sel
 
   validItems.forEach((it) => {
     const subtotal = Number(it.subtotal) || (Number(it.unitPrice) * Number(it.quantity)) || 0;
-    const fee = Number(it.platformFee) || Math.round(subtotal * platformFeeRate);
-    const net = Number(it.sellerNet) || Math.max(0, subtotal - fee);
+    const fee = Number(it.platformFee) !== undefined && !isNaN(Number(it.platformFee)) ? Number(it.platformFee) : Math.round(subtotal * platformFeeRate);
+    const affFee = Number((it as any).affiliateCommission || 0);
+    const net = (it.sellerNet !== undefined && !isNaN(Number(it.sellerNet))) ? Number(it.sellerNet) : Math.max(0, subtotal - fee - affFee);
 
     totalGrossGMV += subtotal;
     totalPlatformFee += fee;
+    totalAffiliateFee += affFee;
     totalNetRevenue += net;
 
     // Phân loại COD vs PayOS
@@ -203,6 +207,7 @@ export function calculateSellerFinancials(options: CalculateFinanceOptions): Sel
     totalGrossGMV,
     platformFeePercent: Math.round(platformFeeRate * 100),
     totalPlatformFee,
+    totalAffiliateFee,
     totalNetRevenue,
 
     inTransitAmount,

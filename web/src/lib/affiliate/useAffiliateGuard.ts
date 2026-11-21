@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { affiliateApi, type MyProfileResponse } from './affiliateApi';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import type { PartnerStatus } from '@/types/affiliate';
 
 export type AffiliateStep =
@@ -143,6 +144,18 @@ export function useAffiliateGuard(options: UseAffiliateGuardOptions = {}): Affil
 
   useEffect(() => {
     checkStatus();
+  }, [checkStatus]);
+
+  useEffect(() => {
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      if (
+        msg.type === 'AFFILIATE_STATUS_CHANGED' ||
+        msg.type === 'AFFILIATE_APPLICATION_UPDATED'
+      ) {
+        checkStatus();
+      }
+    });
+    return () => unsubscribe();
   }, [checkStatus]);
 
   return {

@@ -50,6 +50,7 @@ export interface EscrowTableItem {
   shippingFee?: number;
   platformVoucherDiscount?: number;
   platformFee?: number;
+  affiliateCommission?: number;
   sellerNet?: number;
   escrowStatus: 'HOLDING' | 'FROZEN' | 'RELEASED' | 'REFUNDED' | 'PENDING_PAYMENT';
   releasedAt?: string | null;
@@ -758,9 +759,12 @@ export function AdminEscrowView() {
     items.forEach((it) => {
       const itemAmount = (it.effectiveSubtotal !== undefined ? it.effectiveSubtotal : it.subtotal) || 0;
       const isCodUnremitted = it.paymentMethod === 'COD' && !it.remittanceInfo?.isRemitted && !it.isCodRemitted;
+      const netTransferred = it.sellerNet !== undefined && !isNaN(Number(it.sellerNet))
+        ? Number(it.sellerNet)
+        : Math.max(0, itemAmount - (it.platformFee || Math.round(itemAmount * 0.05)) - Number(it.affiliateCommission || 0));
 
       if (it.escrowStatus === 'RELEASED') {
-        totalReleased += itemAmount;
+        totalReleased += netTransferred;
         releasedCount += 1;
       } else if (it.escrowStatus === 'REFUNDED') {
         totalRefunded += itemAmount;
@@ -1147,10 +1151,23 @@ export function AdminEscrowView() {
 
                       {/* 4. Thành Tiền */}
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <div className="flex flex-col items-end">
-                          <span className="font-mono text-xs font-bold text-theme-text">
+                        <div className="flex flex-col items-end space-y-0.5">
+                          <span className="font-mono text-xs font-bold text-theme-text" title="Tiền hàng khách trả">
                             {(item.effectiveSubtotal !== undefined ? item.effectiveSubtotal : item.subtotal).toLocaleString('vi-VN')} đ
                           </span>
+                          <div className="text-[10.5px] space-y-0.5 text-right font-mono">
+                            <span className="text-amber-700 block">
+                              Phí sàn (5%): -{(item.platformFee !== undefined ? item.platformFee : Math.round(((item.effectiveSubtotal !== undefined ? item.effectiveSubtotal : item.subtotal)) * 0.05)).toLocaleString('vi-VN')} đ
+                            </span>
+                            {Number(item.affiliateCommission || 0) > 0 && (
+                              <span className="text-purple-700 block">
+                                Hoa hồng CTV: -{Number(item.affiliateCommission).toLocaleString('vi-VN')} đ
+                              </span>
+                            )}
+                            <span className="text-emerald-700 font-bold block border-t border-theme-border/60 pt-0.5">
+                              Thực chuyển Shop: {(item.sellerNet !== undefined ? item.sellerNet : ((item.effectiveSubtotal !== undefined ? item.effectiveSubtotal : item.subtotal) - (item.platformFee || 0) - (item.affiliateCommission || 0))).toLocaleString('vi-VN')} đ
+                            </span>
+                          </div>
                           {item.storeVoucherDiscount && item.storeVoucherDiscount > 0 ? (
                             <span className="text-[10px] text-rose-600 font-medium">
                               (Gốc: {item.subtotal.toLocaleString('vi-VN')}đ - Voucher Shop {item.storeVoucherDiscount.toLocaleString('vi-VN')}đ)

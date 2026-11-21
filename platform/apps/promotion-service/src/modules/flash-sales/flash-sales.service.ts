@@ -1568,6 +1568,20 @@ export class FlashSalesService
     return `http://${host}:${port}`;
   }
 
+  private bookCache = new Map<string, { book: any; expiresAt: number }>();
+
+  private async getCommerceBookCached(bookId: string) {
+    const cached = this.bookCache.get(bookId);
+    if (cached && Date.now() < cached.expiresAt) {
+      return cached.book;
+    }
+    const book = await this.getCommerceBook(bookId);
+    if (book) {
+      this.bookCache.set(bookId, { book, expiresAt: Date.now() + 60_000 });
+    }
+    return book;
+  }
+
   private async getCommerceBook(bookId: string) {
     try {
       const baseUrl = this.getCommerceBaseUrl();
@@ -2022,9 +2036,21 @@ export class FlashSalesService
       orderBy: { createdAt: "desc" },
     });
 
+    // Batch query unique books in parallel to eliminate N+1 latency & CPU choking
+    const uniqueBookIds = Array.from(new Set(allItems.map((it) => it.bookId)));
+    const bookMap = new Map<string, any>();
+    await Promise.all(
+      uniqueBookIds.map(async (bookId) => {
+        const book = await this.getCommerceBookCached(bookId);
+        if (book) {
+          bookMap.set(bookId, book);
+        }
+      })
+    );
+
     const results: any[] = [];
     for (const item of allItems) {
-      const book = await this.getCommerceBook(item.bookId);
+      const book = bookMap.get(item.bookId);
       const bookBizId = book?.businessId || book?.business?.id || book?.storeId;
       const bookOwnerId = book?.ownerUserId || book?.ownerId || book?.userId;
       

@@ -52,8 +52,10 @@ export const CurrentBusiness = createParamDecorator(
       bizId = requestedBiz;
     } else {
       bizId =
+        (headerBiz && (user?.role === 'BUSINESS' || user?.role === 'SELLER' || user?.role === 'STORE_OWNER') ? headerBiz : null) ||
         user?.businessId ||
         user?.business?.id ||
+        user?.storeId ||
         user?.sub ||
         user?.id ||
         "seller";

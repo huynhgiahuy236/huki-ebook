@@ -60,7 +60,7 @@ export class OrdersService {
     private readonly configService: ConfigService,
     private readonly voucherClient: VoucherClientService,
     @Optional() private readonly affiliateLifecycle?: AffiliateLifecycleService,
-  ) {}
+  ) { }
 
   async buyerList(userId: string, query: OrderQueryDto) {
     const where: any = { userId };
@@ -859,11 +859,11 @@ export class OrdersService {
     const whereClause: any = isAdmin
       ? { OR: [{ id }, { code: id }] }
       : {
-          AND: [
-            { OR: [{ id }, { code: id }] },
-            { userId },
-          ],
-        };
+        AND: [
+          { OR: [{ id }, { code: id }] },
+          { userId },
+        ],
+      };
 
     const order = await this.prisma.order.findFirst({
       where: whereClause,
@@ -1179,9 +1179,9 @@ export class OrdersService {
       dispatchDeadline:
         sellerOrder.confirmedAt && sellerOrder.requiresShipping
           ? new Date(
-              new Date(sellerOrder.confirmedAt).getTime() +
-                policyConfig.merchantDispatchDeadlineHours * 3600 * 1000,
-            )
+            new Date(sellerOrder.confirmedAt).getTime() +
+            policyConfig.merchantDispatchDeadlineHours * 3600 * 1000,
+          )
           : null,
       shippedAt: sellerOrder.shippedAt,
       completedAt: sellerOrder.completedAt,
@@ -1192,15 +1192,15 @@ export class OrdersService {
       items: sellerOrder.items,
       order: sellerOrder.order
         ? {
-            id: sellerOrder.order.id,
-            code: sellerOrder.order.code,
-            status: sellerOrder.order.status,
-            paymentMethod: sellerOrder.order.paymentMethod,
-            paymentStatus: sellerOrder.order.paymentStatus,
-            shippingAddress: sellerOrder.order.shippingAddress,
-            note: sellerOrder.order.note,
-            createdAt: sellerOrder.order.createdAt,
-          }
+          id: sellerOrder.order.id,
+          code: sellerOrder.order.code,
+          status: sellerOrder.order.status,
+          paymentMethod: sellerOrder.order.paymentMethod,
+          paymentStatus: sellerOrder.order.paymentStatus,
+          shippingAddress: sellerOrder.order.shippingAddress,
+          note: sellerOrder.order.note,
+          createdAt: sellerOrder.order.createdAt,
+        }
         : null,
     };
   }
@@ -1532,10 +1532,10 @@ export class OrdersService {
           r.status === ReturnRequestStatus.SELLER_DISPUTED
             ? 'DISPUTE_OPENED'
             : r.status === ReturnRequestStatus.ARBITRATED_BUYER_WINS
-            ? 'RULING_BUYER_WINS'
-            : r.status === ReturnRequestStatus.ARBITRATED_SELLER_WINS
-            ? 'RULING_SELLER_WINS'
-            : r.status;
+              ? 'RULING_BUYER_WINS'
+              : r.status === ReturnRequestStatus.ARBITRATED_SELLER_WINS
+                ? 'RULING_SELLER_WINS'
+                : r.status;
 
         disputeMap.set(r.id, {
           id: r.id,
@@ -1556,8 +1556,8 @@ export class OrdersService {
             ((r.reason as string) === 'NOT_AS_DESCRIBED'
               ? 'Hàng không đúng mô tả'
               : (r.reason as string) === 'DAMAGED_TORN' || (r.reason as string) === 'DAMAGED'
-              ? 'Hàng bị hỏng rách'
-              : 'Khác'),
+                ? 'Hàng bị hỏng rách'
+                : 'Khác'),
           resolution: (r.returnType as string) === 'REPLACE' || (r.returnType as string) === 'REPLACEMENT' ? 'REPLACEMENT' : 'REFUND',
           evidence: images,
           customerEvidence: custEv,
@@ -1570,8 +1570,8 @@ export class OrdersService {
             (r.status === ReturnRequestStatus.ARBITRATED_BUYER_WINS
               ? 'BUYER_WINS'
               : r.status === ReturnRequestStatus.ARBITRATED_SELLER_WINS
-              ? 'SELLER_WINS'
-              : null),
+                ? 'SELLER_WINS'
+                : null),
           rulingNotes: r.arbitrationNotes || null,
           refundPercentage: null,
           resolvedAt: r.arbitratedAt || null,
@@ -1722,10 +1722,10 @@ export class OrdersService {
         returnReq.status === ReturnRequestStatus.SELLER_DISPUTED
           ? 'DISPUTE_OPENED'
           : returnReq.status === ReturnRequestStatus.ARBITRATED_BUYER_WINS
-          ? 'RULING_BUYER_WINS'
-          : returnReq.status === ReturnRequestStatus.ARBITRATED_SELLER_WINS
-          ? 'RULING_SELLER_WINS'
-          : returnReq.status;
+            ? 'RULING_BUYER_WINS'
+            : returnReq.status === ReturnRequestStatus.ARBITRATED_SELLER_WINS
+              ? 'RULING_SELLER_WINS'
+              : returnReq.status;
 
       const isFinalized =
         returnReq.status === ReturnRequestStatus.ARBITRATED_BUYER_WINS ||
@@ -1749,25 +1749,25 @@ export class OrdersService {
         bookCoverUrl: returnReq.bookCoverUrl,
         targetSellerOrder: targetSellerOrder
           ? {
-              id: targetSellerOrder.id,
-              code: targetSellerOrder.code,
-              storeId: targetSellerOrder.storeId,
-              ownerUserId: targetSellerOrder.ownerUserId,
-              grandTotal: Number(targetSellerOrder.grandTotal),
-              status: targetSellerOrder.status,
-              carrier: targetSellerOrder.carrier,
-              trackingCode: targetSellerOrder.trackingCode,
-              items: targetSellerOrder.items.map((it) => ({
-                id: it.id,
-                bookId: it.bookId,
-                bookTitle: it.bookTitle,
-                bookCoverUrl: it.bookCoverUrl,
-                quantity: it.quantity,
-                unitPrice: Number(it.unitPrice),
-                subtotal: Number(it.subtotal),
-                format: it.format,
-              })),
-            }
+            id: targetSellerOrder.id,
+            code: targetSellerOrder.code,
+            storeId: targetSellerOrder.storeId,
+            ownerUserId: targetSellerOrder.ownerUserId,
+            grandTotal: Number(targetSellerOrder.grandTotal),
+            status: targetSellerOrder.status,
+            carrier: targetSellerOrder.carrier,
+            trackingCode: targetSellerOrder.trackingCode,
+            items: targetSellerOrder.items.map((it) => ({
+              id: it.id,
+              bookId: it.bookId,
+              bookTitle: it.bookTitle,
+              bookCoverUrl: it.bookCoverUrl,
+              quantity: it.quantity,
+              unitPrice: Number(it.unitPrice),
+              subtotal: Number(it.subtotal),
+              format: it.format,
+            })),
+          }
           : null,
         type: returnReq.reason,
         description:
@@ -1775,8 +1775,8 @@ export class OrdersService {
           ((returnReq.reason as string) === 'NOT_AS_DESCRIBED'
             ? 'Hàng không đúng mô tả'
             : (returnReq.reason as string) === 'DAMAGED_TORN' || (returnReq.reason as string) === 'DAMAGED'
-            ? 'Hàng bị hỏng rách'
-            : 'Khác'),
+              ? 'Hàng bị hỏng rách'
+              : 'Khác'),
         resolution: (returnReq.returnType as string) === 'REPLACE' || (returnReq.returnType as string) === 'REPLACEMENT' ? 'REPLACEMENT' : 'REFUND',
         evidence: allEvidence,
         customerEvidence: custEv,
@@ -1788,8 +1788,8 @@ export class OrdersService {
           (returnReq.status === ReturnRequestStatus.ARBITRATED_BUYER_WINS
             ? 'BUYER_WINS'
             : returnReq.status === ReturnRequestStatus.ARBITRATED_SELLER_WINS
-            ? 'SELLER_WINS'
-            : null),
+              ? 'SELLER_WINS'
+              : null),
         rulingNotes: returnReq.arbitrationNotes || null,
         refundPercentage: null,
         resolvedAt: returnReq.arbitratedAt ? returnReq.arbitratedAt.toISOString() : null,
@@ -1807,27 +1807,27 @@ export class OrdersService {
           },
           ...(returnReq.sellerEvidence
             ? [
-                {
-                  id: returnReq.id + '-2',
-                  toStatus: 'SELLER_DISPUTED',
-                  title: 'Cửa hàng gửi phản biện và từ chối đổi trả',
-                  description: (sellerEv.note as string) || 'Cửa hàng không đồng ý yêu cầu đổi trả',
-                  actorType: 'SELLER',
-                  createdAt: returnReq.updatedAt.toISOString(),
-                },
-              ]
+              {
+                id: returnReq.id + '-2',
+                toStatus: 'SELLER_DISPUTED',
+                title: 'Cửa hàng gửi phản biện và từ chối đổi trả',
+                description: (sellerEv.note as string) || 'Cửa hàng không đồng ý yêu cầu đổi trả',
+                actorType: 'SELLER',
+                createdAt: returnReq.updatedAt.toISOString(),
+              },
+            ]
             : []),
           ...(returnReq.arbitratedAt
             ? [
-                {
-                  id: returnReq.id + '-3',
-                  toStatus: returnReq.status,
-                  title: `Admin ra phán quyết: ${returnReq.arbitrationRuling === 'BUYER_WINS' ? 'Người mua thắng' : 'Người bán thắng'}`,
-                  description: returnReq.arbitrationNotes || '',
-                  actorType: 'ADMIN',
-                  createdAt: returnReq.arbitratedAt.toISOString(),
-                },
-              ]
+              {
+                id: returnReq.id + '-3',
+                toStatus: returnReq.status,
+                title: `Admin ra phán quyết: ${returnReq.arbitrationRuling === 'BUYER_WINS' ? 'Người mua thắng' : 'Người bán thắng'}`,
+                description: returnReq.arbitrationNotes || '',
+                actorType: 'ADMIN',
+                createdAt: returnReq.arbitratedAt.toISOString(),
+              },
+            ]
             : []),
         ],
       };
@@ -1905,25 +1905,25 @@ export class OrdersService {
       sellerOrderId: meta.sellerOrderId || openingHistory.sellerOrderId || null,
       targetSellerOrder: targetSellerOrder
         ? {
-            id: targetSellerOrder.id,
-            code: targetSellerOrder.code,
-            storeId: targetSellerOrder.storeId,
-            ownerUserId: targetSellerOrder.ownerUserId,
-            grandTotal: Number(targetSellerOrder.grandTotal),
-            status: targetSellerOrder.status,
-            carrier: targetSellerOrder.carrier,
-            trackingCode: targetSellerOrder.trackingCode,
-            items: targetSellerOrder.items.map((it) => ({
-              id: it.id,
-              bookId: it.bookId,
-              bookTitle: it.bookTitle,
-              bookCoverUrl: it.bookCoverUrl,
-              quantity: it.quantity,
-              unitPrice: Number(it.unitPrice),
-              subtotal: Number(it.subtotal),
-              format: it.format,
-            })),
-          }
+          id: targetSellerOrder.id,
+          code: targetSellerOrder.code,
+          storeId: targetSellerOrder.storeId,
+          ownerUserId: targetSellerOrder.ownerUserId,
+          grandTotal: Number(targetSellerOrder.grandTotal),
+          status: targetSellerOrder.status,
+          carrier: targetSellerOrder.carrier,
+          trackingCode: targetSellerOrder.trackingCode,
+          items: targetSellerOrder.items.map((it) => ({
+            id: it.id,
+            bookId: it.bookId,
+            bookTitle: it.bookTitle,
+            bookCoverUrl: it.bookCoverUrl,
+            quantity: it.quantity,
+            unitPrice: Number(it.unitPrice),
+            subtotal: Number(it.subtotal),
+            format: it.format,
+          })),
+        }
         : null,
       type: meta.disputeType || "OTHER",
       description: openingHistory.description || "",
@@ -2059,8 +2059,8 @@ export class OrdersService {
     const targetAmount = targetSellerOrder
       ? Number(targetSellerOrder.grandTotal)
       : order
-      ? Number(order.grandTotal)
-      : 0;
+        ? Number(order.grandTotal)
+        : 0;
     const split = this.escrow.calculateEscrowSplit(targetAmount);
 
     let routing = "SETTLE_SELLER";
@@ -2277,6 +2277,23 @@ export class OrdersService {
       voucherMap.get(u.orderId)!.push(u);
     }
 
+    const affiliateCommissions = await this.prisma.affiliateCommission.findMany({
+      where: {
+        orderId: { in: orderIds },
+        status: { in: ['PENDING', 'HOLDING', 'AVAILABLE', 'SETTLED'] as any },
+      },
+    });
+    const commissionMap = new Map<string, number>();
+    for (const comm of affiliateCommissions) {
+      if (comm.orderItemId) {
+        commissionMap.set(comm.orderItemId, Number(comm.commissionAmount || 0));
+      }
+      const orderBookKey = `${comm.orderId}_${comm.bookId}`;
+      if (!commissionMap.has(orderBookKey)) {
+        commissionMap.set(orderBookKey, Number(comm.commissionAmount || 0));
+      }
+    }
+
     const items: any[] = [];
 
     for (const order of orders) {
@@ -2375,8 +2392,8 @@ export class OrdersService {
               const deliveredTimestamp = sellerOrder.completedAt
                 ? new Date(sellerOrder.completedAt).getTime()
                 : (sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED')
-                ? new Date(sellerOrder.updatedAt || order.updatedAt).getTime()
-                : 0;
+                  ? new Date(sellerOrder.updatedAt || order.updatedAt).getTime()
+                  : 0;
               const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 2 * 60 * 1000 : false;
 
               if (isReturnWindowPassed || unfreezeEntry) {
@@ -2422,7 +2439,8 @@ export class OrdersService {
           const subtotal = Number(item.subtotal);
           const effectiveSubtotal = Math.max(0, subtotal - storeVoucherDiscount);
           const platformFee = Math.round(effectiveSubtotal * 0.05); // 5% fee on net revenue
-          const sellerNet = effectiveSubtotal - platformFee; // 95% net revenue
+          const affiliateCommission = commissionMap.get(item.id) || commissionMap.get(`${order.id}_${item.bookId}`) || 0;
+          const sellerNet = Math.max(0, effectiveSubtotal - platformFee - affiliateCommission); // Shopee standard: Tiền hàng - 5% phí sàn - Hoa hồng CTV
 
           const shippingAddressText = [
             shipping.address || shipping.street,
@@ -2461,6 +2479,7 @@ export class OrdersService {
               platformVoucherDiscount,
               effectiveSubtotal,
               platformFee,
+              affiliateCommission,
               sellerNet,
               voucherInfo: storeVoucherUsages.length > 0 ? {
                 code: storeVoucherUsages[0].voucher?.code || storeVoucherUsages[0].code,
@@ -2562,6 +2581,23 @@ export class OrdersService {
       voucherMap.get(u.orderId)!.push(u);
     }
 
+    const affiliateCommissions = await this.prisma.affiliateCommission.findMany({
+      where: {
+        orderId: { in: orderIds },
+        status: { in: ['PENDING', 'HOLDING', 'AVAILABLE', 'SETTLED'] as any },
+      },
+    });
+    const commissionMap = new Map<string, number>();
+    for (const comm of affiliateCommissions) {
+      if (comm.orderItemId) {
+        commissionMap.set(comm.orderItemId, Number(comm.commissionAmount || 0));
+      }
+      const orderBookKey = `${comm.orderId}_${comm.bookId}`;
+      if (!commissionMap.has(orderBookKey)) {
+        commissionMap.set(orderBookKey, Number(comm.commissionAmount || 0));
+      }
+    }
+
     const items: any[] = [];
 
     for (const order of orders) {
@@ -2645,8 +2681,8 @@ export class OrdersService {
               const deliveredTimestamp = sellerOrder.completedAt
                 ? new Date(sellerOrder.completedAt).getTime()
                 : (sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED')
-                ? new Date(sellerOrder.updatedAt || order.updatedAt).getTime()
-                : 0;
+                  ? new Date(sellerOrder.updatedAt || order.updatedAt).getTime()
+                  : 0;
               const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 2 * 60 * 1000 : false;
 
               if (isReturnWindowPassed || unfreezeEntry) {
@@ -2675,7 +2711,8 @@ export class OrdersService {
           const subtotal = Number(item.subtotal);
           const effectiveSubtotal = Math.max(0, subtotal - storeVoucherDiscount);
           const platformFee = Math.round(effectiveSubtotal * 0.05); // 5% fee on net revenue
-          const sellerNet = effectiveSubtotal - platformFee; // 95% net revenue
+          const affiliateCommission = commissionMap.get(item.id) || commissionMap.get(`${order.id}_${item.bookId}`) || 0;
+          const sellerNet = Math.max(0, effectiveSubtotal - platformFee - affiliateCommission); // Shopee standard: Tiền hàng - 5% phí sàn - Hoa hồng CTV
 
           const shippingAddressText = [
             shipping.address || shipping.street,
@@ -2700,8 +2737,8 @@ export class OrdersService {
               deliveredAt: sellerOrder.completedAt
                 ? sellerOrder.completedAt.toISOString()
                 : (sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED')
-                ? (sellerOrder.updatedAt || order.updatedAt).toISOString()
-                : null,
+                  ? (sellerOrder.updatedAt || order.updatedAt).toISOString()
+                  : null,
               requiresShipping: sellerOrder.requiresShipping,
               storeId: sellerOrder.storeId,
               storeName: sellerOrder.storeId,
@@ -2716,6 +2753,7 @@ export class OrdersService {
               storeVoucherDiscount,
               effectiveSubtotal,
               platformFee,
+              affiliateCommission,
               sellerNet,
               voucherInfo: storeVoucherUsages.length > 0 ? {
                 code: storeVoucherUsages[0].voucher?.code || storeVoucherUsages[0].code,
@@ -2776,10 +2814,10 @@ export class OrdersService {
       dto.status === 'FROZEN'
         ? 'ESCROW_FROZEN'
         : dto.status === 'RELEASED'
-        ? 'ESCROW_RELEASED'
-        : dto.status === 'REFUNDED'
-        ? 'ESCROW_REFUNDED'
-        : 'ESCROW_HOLDING';
+          ? 'ESCROW_RELEASED'
+          : dto.status === 'REFUNDED'
+            ? 'ESCROW_REFUNDED'
+            : 'ESCROW_HOLDING';
 
     // Lấy thông tin tài khoản ngân hàng và mã vận đơn hoàn nếu có
     let buyerBank: any = null;
@@ -3143,8 +3181,8 @@ export class OrdersService {
     const amount = targetItem?.subtotal
       ? targetItem.subtotal
       : dto.amount
-      ? new Prisma.Decimal(dto.amount)
-      : new Prisma.Decimal(0);
+        ? new Prisma.Decimal(dto.amount)
+        : new Prisma.Decimal(0);
     const quantity = targetItem?.quantity || dto.quantity || 1;
 
     // Check if there is an existing return request for this item
@@ -3762,8 +3800,8 @@ export class OrdersService {
       documents: Array.isArray(dto.evidenceDocuments)
         ? dto.evidenceDocuments
         : Array.isArray(dto.evidencePdfs)
-        ? dto.evidencePdfs
-        : dto.evidence?.documents || [],
+          ? dto.evidencePdfs
+          : dto.evidence?.documents || [],
       note: dto.reason || dto.evidence?.note || '',
     };
 
@@ -4035,9 +4073,9 @@ export class OrdersService {
     const validOrderIds = orderIds.filter(isUuid);
     const orders = validOrderIds.length > 0
       ? await this.prisma.order.findMany({
-          where: { id: { in: validOrderIds } },
-          select: { id: true, code: true, paymentMethod: true, paymentStatus: true, status: true },
-        })
+        where: { id: { in: validOrderIds } },
+        select: { id: true, code: true, paymentMethod: true, paymentStatus: true, status: true },
+      })
       : [];
     const orderMap = new Map(orders.map((o) => [o.id, o]));
 
@@ -4539,8 +4577,11 @@ export class OrdersService {
     const carrier = dto?.carrier || sellerOrder.carrier || 'HUKI_EXPRESS';
     const trackingCode = dto?.trackingCode || sellerOrder.trackingCode || `HUKI-EXP-${randomBytes(4).toString('hex').toUpperCase()}`;
 
-    // SH-003: Check if order already picked up or delivered by another driver
+    // SH-003: Check if order already picked up or delivered (Idempotent support)
     if (sellerOrder.status === SellerOrderStatus.SHIPPED || sellerOrder.status === SellerOrderStatus.DELIVERED) {
+      if (!sellerOrder.deliveryStaffId || sellerOrder.deliveryStaffId === actor?.sub || sellerOrder.deliveryStaffId === '507b69fc-a379-40cb-8e9f-5398fe67a531') {
+        return sellerOrder;
+      }
       throwConflict(ErrorCode.ORDER_ALREADY_CANCELLED, 'Đơn hàng này đã được một tài xế khác tiếp nhận trước đó!');
     }
 
@@ -4825,8 +4866,8 @@ export class OrdersService {
         const deliveredTime = so.completedAt
           ? new Date(so.completedAt).getTime()
           : (so.status === 'DELIVERED' || so.status === 'COMPLETED')
-          ? new Date(so.updatedAt || order.updatedAt).getTime()
-          : 0;
+            ? new Date(so.updatedAt || order.updatedAt).getTime()
+            : 0;
         const isReturnWindowPassed = deliveredTime > 0 ? (now.getTime() - deliveredTime) >= 2 * 60 * 1000 : false;
 
         if (isReturnWindowPassed) {

@@ -211,6 +211,18 @@ export default function AffiliateDashboardPage() {
               <span>Làm mới</span>
             </button>
 
+            {isSyncing ? (
+              <span className="inline-flex items-center gap-1 text-[11px] text-blue-600 font-medium px-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping" />
+                Đang đồng bộ
+              </span>
+            ) : (
+              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-emerald-600 font-medium px-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                Thời gian thực
+              </span>
+            )}
+
             {isLive && (
               <button
                 onClick={() => handleExport('csv')}
@@ -254,16 +266,6 @@ export default function AffiliateDashboardPage() {
           </div>
         </div>
 
-        {/* Syncing Banner (Decision 3: Stale UX feedback) */}
-        {isSyncing && (
-          <div className="py-2 px-3.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-xs flex items-center justify-between transition-all">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
-              <span>Đang đồng bộ dữ liệu thời gian thực mới nhất...</span>
-            </div>
-            <span className="text-[10px] text-blue-500 font-mono">Realtime SLA</span>
-          </div>
-        )}
 
         {/* Primary Status Banner for Inactive or Guidance */}
         {!isLive && (

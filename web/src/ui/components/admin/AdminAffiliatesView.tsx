@@ -155,6 +155,8 @@ export function AdminAffiliatesView() {
 
       if (res && res.success) {
         showToast('Thao tác thành công!', 'success');
+        realtimeSyncBus.publish('AFFILIATE_APPLICATION_UPDATED', { profileId: selectedId, actionType });
+        realtimeSyncBus.publish('AFFILIATE_STATUS_CHANGED', { profileId: selectedId, status: actionType === 'APPROVE' ? 'ACTIVE' : actionType });
         handleCloseDetail();
         fetchApplications();
       } else {
@@ -176,6 +178,8 @@ export function AdminAffiliatesView() {
       });
       if (res.success) {
         showToast(status === 'APPROVED' ? 'Đã duyệt KYC đối tác thành công!' : 'Đã từ chối hồ sơ KYC.', 'success');
+        realtimeSyncBus.publish('AFFILIATE_APPLICATION_UPDATED', { profileId, status });
+        realtimeSyncBus.publish('AFFILIATE_STATUS_CHANGED', { profileId, status: status === 'APPROVED' ? 'ACTIVE' : 'REJECTED' });
         if (selectedId) handleOpenDetail(selectedId);
       } else {
         showToast(res.error?.message || 'Không thể xử lý KYC', 'error');

@@ -473,126 +473,126 @@ export default function SellerFinancialReportsPage() {
         </div>
       </div>
 
-      {/* 4. 5 THẺ THỐNG KÊ DÒNG TIỀN THEO ĐÚNG YÊU CẦU NGƯỜI DÙNG */}
+      {/* 4. 5 THẺ THỐNG KÊ DÒNG TIỀN THEO ĐÚNG YÊU CẦU NGƯỜI DÙNG (CLEAN MINIMALIST CHUẨN SHOPEE) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         {/* Thẻ 1: Tiền lúc đang giao hàng (Dự kiến để kiểm soát đơn) */}
-        <div className="bg-white rounded-2xl border border-blue-200 p-4 shadow-xs relative overflow-hidden flex flex-col justify-between bg-gradient-to-b from-blue-50/40 to-white">
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-slate-200/80 dark:border-neutral-800 p-4 shadow-2xs relative overflow-hidden flex flex-col justify-between border-t-4 border-t-emerald-600">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-400 uppercase tracking-wider">
               1. Tiền Đang Giao (Dự Kiến)
             </span>
-            <span className="p-1.5 rounded-lg bg-blue-100 text-blue-700">
+            <span className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
               <span className="material-symbols-outlined text-[18px]">local_shipping</span>
             </span>
           </div>
           <div className="my-2.5">
-            <div className="text-xl sm:text-2xl font-black text-blue-700 font-mono">
+            <div className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white font-mono">
               {formatVND(stats.inTransitNet)}
             </div>
             <p className="text-[11px] text-gray-500 mt-0.5">
               {stats.inTransitCount} món đang được Shipper vận chuyển
             </p>
           </div>
-          <div className="pt-2 border-t border-blue-100 flex items-center justify-between text-[10.5px] text-blue-700 font-medium">
+          <div className="pt-2 border-t border-slate-100 dark:border-neutral-800 flex items-center justify-between text-[10.5px] text-emerald-700 dark:text-emerald-400 font-medium">
             <span>Giá trị gộp 100%:</span>
             <span className="font-bold">{formatVND(stats.inTransitGross)}</span>
           </div>
         </div>
 
         {/* Thẻ 2: Tiền Ký Quỹ Sàn Giữ (Đổi trả 2 phút) */}
-        <div className="bg-white rounded-2xl border border-amber-200 p-4 shadow-xs relative overflow-hidden flex flex-col justify-between bg-gradient-to-b from-amber-50/40 to-white">
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-slate-200/80 dark:border-neutral-800 p-4 shadow-2xs relative overflow-hidden flex flex-col justify-between border-t-4 border-t-blue-600">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-blue-800 dark:text-blue-400 uppercase tracking-wider">
               2. Tiền Ký Quỹ (Sàn Giữ)
             </span>
-            <span className="p-1.5 rounded-lg bg-amber-100 text-amber-700">
+            <span className="p-1.5 rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
               <span className="material-symbols-outlined text-[18px]">lock_clock</span>
             </span>
           </div>
           <div className="my-2.5">
-            <div className="text-xl sm:text-2xl font-black text-amber-700 font-mono">
+            <div className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white font-mono">
               {formatVND(stats.holdingNet)}
             </div>
             <p className="text-[11px] text-gray-500 mt-0.5">
               {stats.holdingCount} món đang đếm ngược hạn đổi trả ({ESCROW_CONFIG.DURATION_LABEL})
             </p>
           </div>
-          <div className="pt-2 border-t border-amber-100 flex items-center justify-between text-[10.5px] text-amber-700 font-medium">
+          <div className="pt-2 border-t border-slate-100 dark:border-neutral-800 flex items-center justify-between text-[10.5px] text-blue-700 dark:text-blue-400 font-medium">
             <span>Tự động chuyển:</span>
             <span className="font-bold">Vào ví khi hết hạn</span>
           </div>
         </div>
 
-        {/* Thẻ 3: Tiền Khả Dụng (Ví rút tiền) */}
-        <div className="bg-gradient-to-br from-[#003B2B] to-[#00694A] rounded-2xl p-4 shadow-xs relative overflow-hidden flex flex-col justify-between text-white border border-emerald-700">
+        {/* Thẻ 3: Tiền Khả Dụng (Ví rút tiền) - Chuẩn Clean White Minimalist */}
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-slate-200/80 dark:border-neutral-800 p-4 shadow-2xs relative overflow-hidden flex flex-col justify-between border-t-4 border-t-amber-500">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-emerald-200 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-amber-800 dark:text-amber-400 uppercase tracking-wider">
               3. Tiền Khả Dụng (Ví Rút)
             </span>
-            <span className="p-1.5 rounded-lg bg-white/20 text-emerald-200">
+            <span className="p-1.5 rounded-lg bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
               <span className="material-symbols-outlined text-[18px]">account_balance_wallet</span>
             </span>
           </div>
           <div className="my-2.5">
-            <div className="text-xl sm:text-2xl font-black text-white font-mono">
+            <div className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white font-mono">
               {formatVND(stats.availableBalance)}
             </div>
-            <div className="flex items-center justify-between text-[11px] text-emerald-200 mt-0.5">
+            <div className="flex items-center justify-between text-[11px] text-gray-500 mt-0.5">
               <span>Sẵn sàng rút về STK</span>
-              <Link href="/seller/finance" className="underline font-bold text-white hover:text-emerald-300">
+              <Link href="/seller/finance" className="underline font-bold text-[#00875A] hover:text-emerald-700">
                 Rút ngay &rarr;
               </Link>
             </div>
           </div>
-          <div className="pt-2 border-t border-white/20 flex items-center justify-between text-[10.5px] text-emerald-200">
+          <div className="pt-2 border-t border-slate-100 dark:border-neutral-800 flex items-center justify-between text-[10.5px] text-amber-800 dark:text-amber-400">
             <span>Đã rút về STK:</span>
-            <span className="font-bold text-white">{formatVND(stats.totalWithdrawn)}</span>
+            <span className="font-bold">{formatVND(stats.totalWithdrawn)}</span>
           </div>
         </div>
 
         {/* Thẻ 4: Tiền COD (Doanh thu tiền mặt) */}
-        <div className="bg-white rounded-2xl border border-orange-200 p-4 shadow-xs relative overflow-hidden flex flex-col justify-between bg-gradient-to-b from-orange-50/30 to-white">
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-slate-200/80 dark:border-neutral-800 p-4 shadow-2xs relative overflow-hidden flex flex-col justify-between border-t-4 border-t-slate-500">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-orange-800 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">
               4. Doanh Thu Tiền COD
             </span>
-            <span className="p-1.5 rounded-lg bg-orange-100 text-orange-700">
+            <span className="p-1.5 rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
               <span className="material-symbols-outlined text-[18px]">payments</span>
             </span>
           </div>
           <div className="my-2.5">
-            <div className="text-xl sm:text-2xl font-black text-orange-700 font-mono">
+            <div className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white font-mono">
               {formatVND(stats.codNet)}
             </div>
             <p className="text-[11px] text-gray-500 mt-0.5">
               {stats.codCount} đơn thanh toán tiền mặt qua Shipper
             </p>
           </div>
-          <div className="pt-2 border-t border-orange-100 flex items-center justify-between text-[10.5px] text-orange-700 font-medium">
+          <div className="pt-2 border-t border-slate-100 dark:border-neutral-800 flex items-center justify-between text-[10.5px] text-slate-700 dark:text-slate-400 font-medium">
             <span>Tỷ trọng thanh toán:</span>
             <span className="font-bold">{codPercent}%</span>
           </div>
         </div>
 
         {/* Thẻ 5: Tiền Chuyển Khoản (Doanh thu online) */}
-        <div className="bg-white rounded-2xl border border-indigo-200 p-4 shadow-xs relative overflow-hidden flex flex-col justify-between bg-gradient-to-b from-indigo-50/30 to-white">
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-slate-200/80 dark:border-neutral-800 p-4 shadow-2xs relative overflow-hidden flex flex-col justify-between border-t-4 border-t-purple-600">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-indigo-800 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-purple-800 dark:text-purple-400 uppercase tracking-wider">
               5. Tiền Chuyển Khoản
             </span>
-            <span className="p-1.5 rounded-lg bg-indigo-100 text-indigo-700">
+            <span className="p-1.5 rounded-lg bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400">
               <span className="material-symbols-outlined text-[18px]">qr_code_2</span>
             </span>
           </div>
           <div className="my-2.5">
-            <div className="text-xl sm:text-2xl font-black text-indigo-700 font-mono">
+            <div className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white font-mono">
               {formatVND(stats.payosNet)}
             </div>
             <p className="text-[11px] text-gray-500 mt-0.5">
               {stats.payosCount} đơn thanh toán VietQR / PayOS
             </p>
           </div>
-          <div className="pt-2 border-t border-indigo-100 flex items-center justify-between text-[10.5px] text-indigo-700 font-medium">
+          <div className="pt-2 border-t border-slate-100 dark:border-neutral-800 flex items-center justify-between text-[10.5px] text-purple-700 dark:text-purple-400 font-medium">
             <span>Tỷ trọng thanh toán:</span>
             <span className="font-bold">{payosPercent}%</span>
           </div>
