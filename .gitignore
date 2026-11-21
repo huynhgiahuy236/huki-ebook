@@ -242,6 +242,16 @@ web/.storage/
 /.agent/
 
 # ============================================
+# Sprint Backlogs, Bug Trackers & Developer Scratchpads
+# ============================================
+BUG.md
+BUG_*.md
+CODEX_HANDOFF.md
+MEMORY.md
+SOLUTION.md
+backup_full_snapshot.sql
+
+# ============================================
 # Office Documents & Runtime Logs
 # ============================================
 /ebook/
