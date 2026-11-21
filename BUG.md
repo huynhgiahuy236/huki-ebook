@@ -628,3 +628,30 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 
 > **🛑 CỔNG KIỂM SOÁT BƯỚC 5 (QUALITY GATE): ĐẠT 100% TIÊU CHUẨN**  
 > Hệ thống sạch 100% lỗi, 0 rò rỉ bảo mật, 0 spam traffic. Đã thực hiện commit checkpoint lưu lại lịch sử. Dừng lại chờ chỉ đạo để chuyển sang Bước 6.
+
+
+---
+
+### 7.7. BƯỚC 6: KIỂM TRA VỆ SINH MÃ NGUỒN & CHUẨN BỊ CI/CD (CLEAN CODE & STAGING GATE)
+- **Thời gian thực hiện:** 23:43 - 23:45 21/11/2026
+- **Trạng thái:** ✅ **THÔNG QUA 100% (QUALITY GATE PASSED)**
+
+#### Kết quả thực thi các quy chuẩn Bước 6:
+1. **Kiểm tra Vệ sinh Git (Git Hygiene Check):**
+   - Lệnh thực thi: `git status`
+   - Kết quả: `working tree clean`, không tồn đọng file rác, file `.env` cá nhân, thư mục build tạm hay file log.
+
+2. **Biên dịch Backend Microservices (Platform Build):**
+   - Lệnh thực thi: `npm --prefix platform run build:shared && npm --prefix platform run build:commerce && npm --prefix platform run build:promotion`
+   - Kết quả: **Exit code 0 (Thành công 100%)**.
+
+3. **Kiểm tra Toàn diện Frontend Web (Next.js Typecheck & ESLint):**
+   - Lệnh thực thi: `npm run check --prefix web` (`tsc --noEmit && eslint src --cache --quiet`)
+   - Kết quả: **Exit code 0 (0 TypeScript errors, 0 ESLint errors)**.
+
+4. **Trạng thái sẵn sàng cho Pipeline CI/CD:**
+   - Đã kiểm tra chéo toàn bộ 36 test cases E2E tự động từ Bước 4 và 15 tiêu chí kiểm toán từ Bước 5.
+   - Kho lưu trữ và nhánh `fix-bug-local` đã đạt trạng thái sẵn sàng để đẩy lên hệ thống CI/CD Staging/UAT (Bước 7).
+
+> **🛑 CỔNG KIỂM SOÁT BƯỚC 6 (QUALITY GATE): ĐẠT 100% TIÊU CHUẨN**  
+> Đã hoàn tất vệ sinh mã nguồn, biên dịch sạch 100%, commit checkpoint lưu lại lịch sử. Dừng lại chờ lệnh chỉ đạo từ Quản lý dự án để chuyển sang Bước 7.
