@@ -199,8 +199,14 @@ export class AuthController {
     @Res() res: Response,
     @Req() req: Request,
   ) {
+    const frontendBase =
+      process.env.FRONTEND_URL ||
+      process.env.WEB_URL ||
+      req.get('origin') ||
+      'http://localhost:3100';
+
     if (!code) {
-      return res.redirect('http://localhost:3100/auth/login?error=missing_code');
+      return res.redirect(`${frontendBase}/auth/login?error=missing_code`);
     }
     try {
       const clientId =
@@ -208,7 +214,7 @@ export class AuthController {
       const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
       const callbackUrl =
         process.env.GOOGLE_CALLBACK_URL ||
-        'http://localhost:3000/api/v1/auth/google/callback';
+        `${process.env.API_BASE_URL || 'http://localhost:3000'}/api/v1/auth/google/callback`;
 
       const client = new OAuth2Client(clientId, clientSecret, callbackUrl);
       const { tokens } = await client.getToken(code);
@@ -227,13 +233,13 @@ export class AuthController {
         }
 
         return res.redirect(
-          `http://localhost:3100/auth/login?token=${result.accessToken}`,
+          `${frontendBase}/auth/login?token=${result.accessToken}`,
         );
       }
-      return res.redirect('http://localhost:3100/auth/login?error=auth_failed');
+      return res.redirect(`${frontendBase}/auth/login?error=auth_failed`);
     } catch (err: any) {
       return res.redirect(
-        `http://localhost:3100/auth/login?error=${encodeURIComponent(
+        `${frontendBase}/auth/login?error=${encodeURIComponent(
           err?.message || 'google_auth_failed',
         )}`,
       );

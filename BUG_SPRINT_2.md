@@ -23,9 +23,9 @@ flowchart TD
 | **Chặng 1** | **BUG-017** | Lỗi 502 `Verification service unavailable: fetch failed` khi gửi phản hồi review & thiếu thông báo đánh giá mới cho Seller | `community-service`, `business-service`, `docker-compose.uat.yml` | CRITICAL | 🔍 Đã bóc tách nguyên nhân |
 | **Chặng 1** | **BUG-018** | Tin nhắn Chat không đồng bộ Realtime qua WebSocket (phải F5 reload mới thấy tin nhắn) | `community-service` (Gateway), `web` (`useChatSocket`), Nginx | HIGH | 🔍 Đã bóc tách nguyên nhân |
 | **Chặng 1** | **BUG-019** | Làm mờ và vô hiệu hóa nút Gọi thoại 📞 & Video 🎥 trong khung chat (chưa có WebRTC gateway) | `web/src/app/account/messages`, `SellerChatView.tsx` | MEDIUM | 🔍 Đã định vị chính xác |
-| **Chặng 2** | **BUG-020** | Thanh tìm kiếm Header ở Seller (`/seller/*`) và Admin (`/admin/*`) không tra cứu được mã đơn hàng (#ORD-...), tên sách hoặc SKU | `web/src/ui/components/layout` (`SellerHeader`, `AdminLayout`) | HIGH | 📋 Đã lên hồ sơ |
-| **Chặng 2** | **BUG-021** | Bóc tách dữ liệu thật từ DB cho 2 widget: "Chương Trình Khuyến Mãi & Voucher" và "Tin Nhắn Khách Đọc" trên Seller Dashboard | `web/src/app/seller/dashboard`, `promotion-service`, `community-service` | HIGH | 📋 Đã lên hồ sơ |
-| **Chặng 2** | **BUG-022** | Treo trắng màn hình tại `accounts.google.com` khi đăng nhập Google trên thiết bị di động & tối ưu responsive Header Home/Auth | `web/src/hooks/useGoogleAuth`, `identity-service`, Layouts | CRITICAL | 📋 Đã lên hồ sơ |
+| **Chặng 2** | **BUG-020** | Thanh tìm kiếm Header ở Seller (`/seller/*`) và Admin (`/admin/*`) không tra cứu được mã đơn hàng (#ORD-...), tên sách hoặc SKU | `web/src/ui/components/layout` (`SellerHeader`, `AdminLayout`) | HIGH | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
+| **Chặng 2** | **BUG-021** | Bóc tách dữ liệu thật từ DB cho 2 widget: "Chương Trình Khuyến Mãi & Voucher" và "Tin Nhắn Khách Đọc" trên Seller Dashboard | `web/src/app/seller/dashboard`, `promotion-service`, `community-service` | HIGH | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
+| **Chặng 2** | **BUG-022** | Treo trắng màn hình tại `accounts.google.com` khi đăng nhập Google trên thiết bị di động & tối ưu responsive Header Home/Auth | `web/src/hooks/useGoogleAuth`, `identity-service`, Layouts | CRITICAL | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
 | **Chặng 3** | **BUG-023** | Redesign Popup Ân hạn Xóa Tài Khoản sang tông trắng hiện đại; sửa lỗi không trừ số lượt xóa còn lại (giữ nguyên 3/3 lượt) | `identity-service` (`getProfile`, `cancelDeletion`), `AccountPendingDeletionModal` | MEDIUM | 📋 Đã lên hồ sơ |
 | **Chặng 3** | **BUG-024** | Thiết kế lại cụm nút trong Danh Sách Đơn Hàng người mua (`/orders`) mượt mà, phân cấp nút chính/phụ tinh tế theo chuẩn viền trên như Kênh Tài Chính | `web/src/app/orders/page.tsx` | MEDIUM | 📋 Đã lên hồ sơ |
 | **Chặng 4** | **BUG-025** | Bổ sung mục "Tôi / Hồ sơ cá nhân" vào Sidebar Người mua/Độc giả dẫn tới `/profile` (phân quyền chỉ dành riêng cho USER/BUYER) | `web/src/ui/components/layout/HierarchicalSidebar.tsx` | LOW | 📋 Đã lên hồ sơ |
@@ -354,4 +354,228 @@ Feature: Chặng 1 - Review Seller Reply & Notification, Chat Realtime, Dim Acti
   * `npm --prefix platform run build`: PASS (7/7 microservices, 0 compile errors).
 
 - **Trạng thái Chặng 1:** **HOÀN THÀNH (100% PASSED)**
+
+---
+
+## 🔬 BƯỚC 2: PHÂN TÍCH NGUYÊN NHÂN GỐC RỄ & MA TRẬN DOMINO (CHẶNG 2: BUG-020, BUG-021, BUG-022)
+
+### 1. Phân Tích 4 Tầng Kiến Trúc: BUG-020 (Thanh Tìm Kiếm Header Seller & Admin)
+- **Tầng 1 (Database):**
+  * PostgreSQL lưu `orders.order_code` (mã `#ORD-...`), `books.title`, `books.isbn`, `books.sku`. Sổ cái ký quỹ `escrow_ledger` liên kết trực tiếp với mã đơn hàng `orderCode`.
+- **Tầng 2 (Backend Services):**
+  * `commerce-service` (`orders.controller`, `books.controller`) và `admin-service` (`escrow.controller`) đã có sẵn API lọc theo mã đơn `search`/`q`/`orderCode` và tên sách.
+- **Tầng 3 (Gateway & Proxy):** Định tuyến bình thường.
+- **Tầng 4 (Frontend Client):**
+  * **Tại Seller Header (`web/src/ui/components/layout/SellerHeader.tsx` L171-179):**
+    Thẻ `<input placeholder="Tìm mã đơn, SKU, tựa sách..."/>` là một thẻ HTML hoàn toàn tĩnh (uncontrolled input). Không có `value`, không có `onChange`, không được bọc bởi thẻ `<form onSubmit={...}>` và không có sự kiện `onKeyDown` bắt phím Enter. Người bán gõ từ khóa vào không có bất kỳ phản hồi hay điều hướng nào!
+  * **Tại Admin Header (`web/src/ui/components/layout/AdminLayout.tsx` L299-304):**
+    Hàm submit form tìm kiếm `handleSearch` bị gắn cứng:
+    ```tsx
+    const handleSearch = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (searchQuery.trim()) {
+        router.push(`/admin/books?search=${encodeURIComponent(searchQuery)}`);
+      }
+    };
+    ```
+    Khi Admin paste một mã đơn hàng như `#ORD-MWQJ3A6P-6B874C51-S1` (trong ảnh `media_1795287318618_fdd39fca.png`), hệ thống ép điều hướng sang trang Sách (`/admin/books`), dẫn đến hiển thị bảng trống không tìm thấy sách!
+  * **Tại Danh Sách Sản Phẩm Người Bán (`web/src/app/seller/products/page.tsx` L87):**
+    State `const [searchQuery, setSearchQuery] = useState('')` khởi tạo chuỗi rỗng và không đọc tham số `useSearchParams()`. Khi được điều hướng tới `/seller/products?search=...`, trang không tự động lọc danh sách theo từ khóa từ Header.
+
+---
+
+### 2. Phân Tích 4 Tầng Kiến Trúc: BUG-021 (Bóc Tách Dữ Liệu Thật Cho 2 Widget Seller Dashboard)
+- **Tầng 1 (Database):**
+  * PostgreSQL `promotion-service` lưu trữ Flash Sale trong `flash_sale_slots` và `flash_sale_items`; lưu Voucher trong `vouchers`.
+  * MongoDB `community-service` lưu trữ tin nhắn khách đọc trong collections `conversations` và `messages`.
+- **Tầng 2 (Backend Services):**
+  * `promotion-service` cung cấp API `/promotions/flash-sale/seller/slots` và `/promotions/vouchers/seller`.
+  * `community-service` cung cấp API `/chat/conversations?storeId=...`.
+- **Tầng 3 (Gateway & Proxy):** Định tuyến API `/api/v1/promotions/*` và `/api/v1/chat/*` hoạt động chuẩn.
+- **Tầng 4 (Frontend Client):**
+  * **Tại Widget 1 - Khuyến Mãi & Voucher (`web/src/app/seller/dashboard/page.tsx` L215-221, L742-801):**
+    Hàm `fetchDashboardData` chỉ gọi `getSellerVouchers` mà hoàn toàn bỏ quên API `flashSaleApi.getSellerSlots()`. Do đó, ngay cả khi gian hàng đang có Flash Sale đang diễn ra hoặc sắp diễn ra (như trong ảnh `media_1795283890629_435227a2.jpg`), widget vẫn rơi vào trạng thái rỗng và hiển thị: "Chưa có khuyến mãi hoặc flash sale"!
+  * **Tại Widget 2 - Tin Nhắn Khách Đọc (`web/src/app/seller/dashboard/page.tsx` L803-835):**
+    Widget bị code tĩnh 100% chỉ để hiển thị minh họa: "Hộp thư chăm sóc bạn đọc... Mọi tin nhắn hỏi sách và hỗ trợ độc giả sẽ được kết nối trực tiếp tại đây", hoàn toàn không gọi `chatService.listConversations(storeId)` để lấy hội thoại thực tế của độc giả.
+
+---
+
+### 3. Phân Tích 4 Tầng Kiến Trúc: BUG-022 (Treo Trắng Màn Hình Đăng Nhập Google Trên Mobile & Responsive)
+- **Tầng 1 (Database):** Lưu thông tin tài khoản Google qua `google_id`, `email`, `role`.
+- **Tầng 2 (Backend Services):**
+  * `platform/apps/identity-service/src/modules/auth/auth.controller.ts`:
+    Hàm `googleCallback` chứa các fallback URL gắn cứng: `http://localhost:3100/auth/login?token=...`. Trên môi trường UAT hoặc production ngoài máy dev, redirect sẽ bị sai domain hoặc rơi vào lỗi 404/ECONNREFUSED.
+- **Tầng 3 (Gateway & Mạng):** Định tuyến OAuth qua Google Identity Services.
+- **Tầng 4 (Frontend Client):**
+  * **Tại Hook `useGoogleAuth.ts` (L78, L142):**
+    Hook sử dụng cơ chế Google Identity Services (GIS) dạng Popup: `google.accounts.oauth2.initTokenClient({...}).requestAccessToken()`.
+    Trên các trình duyệt di động (Chrome Android, Safari iOS, Samsung Internet, Webview Zalo/FB), hệ điều hành mở cửa sổ đăng nhập trong một tab riêng hoặc Custom Tab. Do chính sách bảo mật Cross-Origin-Opener-Policy (COOP) và việc tab cha bị trình duyệt tạm dừng (frozen) trong nền, tab `accounts.google.com` bị cắt đứt kênh `postMessage` trao đổi token và bị treo cứng ở màn hình trắng (`media_1795288155877_a76deea6.jpg`)!
+  * **Tại `StoreHeader.tsx`:**
+    Thanh tìm kiếm bị ẩn (`hidden md:block`) nhưng không có nút icon kính lúp để người dùng di động mở tìm kiếm. Cụm nút tài khoản bên phải ("Đăng Nhập" + "Đăng Ký" + Giỏ hàng + Chuông) chiếm trên 350px khiến header trên thiết bị < 380px bị tràn viền.
+  * **Tại `auth/login/page.tsx` & `auth/register/page.tsx`:**
+    Chưa có listener bắt `token` hoặc `#access_token=...` từ redirect OAuth của Google; padding `px-6` trên màn hình nhỏ thu hẹp vùng nhập liệu của form.
+
+---
+
+### 4. Ma Trận Rủi Ro Domino (Domino Matrix Chặng 2)
+
+```mermaid
+flowchart TD
+    subgraph D4["Sửa BUG-020 (Search Bar Header)"]
+        D4A["Seller Header bọc Form & Regex nhận diện #ORD-"] --> D4B["Điều hướng chuẩn xác: Mã đơn qua /seller/orders, Sách qua /seller/products"]
+        D4C["Admin Header phân luồng thông minh: #ORD- qua /admin/escrow, User qua /admin/users, Sách qua /admin/books"]
+        D4D["seller/products đọc searchParams khởi tạo"]
+    end
+
+    subgraph D5["Sửa BUG-021 (Un-mock Widgets Seller Dashboard)"]
+        D5A["fetchDashboardData gọi song song Voucher + Flash Sale"] --> D5B["Widget 1 hiển thị thẻ Flash Sale có đếm giờ + Voucher đang chạy"]
+        D5C["fetchDashboardData gọi chatService.listConversations"] --> D5D["Widget 2 hiển thị top 3 tin nhắn khách đọc kèm avatar, snippet, badge chưa đọc"]
+    end
+
+    subgraph D6["Sửa BUG-022 (Mobile Google Login & Responsive)"]
+        D6A["useGoogleAuth phát hiện thiết bị Mobile"] --> D6B["Chuyển sang luồng OAuth Redirect toàn trang (window.location.href)"]
+        D6C["LoginForm bắt Access Token từ URL callback an toàn"]
+        D6D["Tối ưu responsive Header Home & Form Auth"]
+    end
+```
+
+| Thành Phần Can Thiệp | Rủi Ro Tiềm Ẩn | Biện Pháp Kiểm Soát & Phòng Thủ |
+| :--- | :--- | :--- |
+| `SellerHeader.tsx` & `AdminLayout.tsx` | Nhập khoảng trắng hoặc ký tự đặc biệt gây lỗi URL | Trim chuỗi, chuẩn hóa regex bóc tách tiền tố `#`, dùng `encodeURIComponent` |
+| `seller/dashboard/page.tsx` | Một trong hai service (Khuyến mãi hoặc Chat) chậm hoặc lỗi mạng | Bọc từng lệnh fetch trong khối `try...catch` độc lập; giao diện hiển thị dữ liệu sẵn có, không chặn toàn bộ dashboard |
+| `useGoogleAuth.ts` | Trình duyệt chặn cookie bên thứ 3 hoặc mất session sau redirect | Sử dụng luồng Redirect tiêu chuẩn với tham số `state` lưu đích đến; fallback an toàn không làm đứt trải nghiệm |
+| `StoreHeader.tsx` & Auth Pages | Tối ưu responsive trên màn hình nhỏ làm vỡ bố cục desktop | Sử dụng các breakpoint chuẩn Tailwind (`hidden sm:inline`, `md:hidden`, `max-w-full`) kiểm tra chéo cả desktop và mobile |
+
+---
+
+## 🏛️ BƯỚC 3: PHƯƠNG ÁN KIẾN TRÚC CHUẨN SHOPEE & BỘ CÂU HỎI TƯƠNG TÁC (CHẶNG 2)
+
+### 1. Phương Án Kỹ Thuật Chi Tiết Cho Chặng 2
+
+#### A. Giải Pháp BUG-020: Thanh Tìm Kiếm Đa Năng Cho Kênh Bán & Kênh Quản Trị
+1. **Tại `SellerHeader.tsx`:**
+   - Quản lý state `searchQuery`. Bọc ô input trong thẻ `<form onSubmit={handleSearch}>`.
+   - Phân luồng điều hướng thông minh chuẩn sàn:
+     * Nếu query khớp định dạng mã đơn hàng (`/^#?ORD-/i`): Tự động cắt bỏ tiền tố `#` và chuyển hướng tới `/seller/orders?search=${encodeURIComponent(cleanCode)}`. (Trang `seller/orders` đã có sẵn logic cuộn và mở rộng đơn hàng khớp mã).
+     * Ngược lại (tên sách, tác giả, ISBN, SKU): Chuyển hướng tới `/seller/products?search=${encodeURIComponent(trimmedQuery)}`.
+2. **Tại `web/src/app/seller/products/page.tsx`:**
+   - Import `useSearchParams` từ `next/navigation`.
+   - Khởi tạo `searchQuery` từ `searchParams.get('search') || searchParams.get('q') || ''`, tự động đồng bộ khi URL thay đổi.
+3. **Tại `AdminLayout.tsx`:**
+   - Cập nhật hàm `handleSearch`:
+     * Nếu bắt đầu bằng `#ORD-` hoặc `ORD-`: Chuyển hướng tới `/admin/escrow?q=${encodeURIComponent(cleanCode)}` (Trang Sổ cái ký quỹ / Quản lý đơn hàng Admin đã có sẵn bộ lọc theo mã đơn).
+     * Nếu là email (chứa `@`) hoặc số điện thoại (chỉ chứa số dài >= 9 ký tự): Chuyển hướng tới `/admin/users?search=${encodeURIComponent(trimmedQuery)}`.
+     * Ngược lại: Chuyển hướng tới `/admin/books?search=${encodeURIComponent(trimmedQuery)}`.
+
+#### B. Giải Pháp BUG-021: Dữ Liệu Thật 100% Cho 2 Widget Seller Dashboard
+1. **Tại `web/src/app/seller/dashboard/page.tsx` (`fetchDashboardData`):**
+   - **Widget 1 (Khuyến Mãi & Flash Sale):**
+     * Gọi đồng thời `getSellerVouchers({ storeId: bizId })` và `flashSaleApi.getSellerSlots()`.
+     * Trích xuất các slot Flash Sale có trạng thái `ACTIVE` hoặc `UPCOMING`, kèm các voucher đang chạy (`status === 'ACTIVE'`).
+     * Hiển thị tối đa 3 chương trình tích cực nhất: Phân loại huy hiệu rõ ràng (`⚡ Flash Sale Giờ Vàng` với khung giờ & số sách đăng ký; `🎟️ Voucher Shop` với mã và mức giảm). Có nút "Quản lý" và link trực tiếp sang trang cấu hình tương ứng.
+   - **Widget 2 (Tin Nhắn Khách Đọc Thực Tế):**
+     * Gọi `chatService.listConversations(storeId)`.
+     * Lấy 3 hội thoại mới nhất: Hiển thị avatar người mua, tên khách hàng, trích đoạn tin nhắn gần nhất (`lastMessage.content`), badge số tin chưa đọc (nếu có), thời gian tương đối (`formatTimeAgo`).
+     * Click vào từng hội thoại sẽ mở trang chat `/seller/chat` tương ứng với khách hàng đó.
+
+#### C. Giải Pháp BUG-022: Khắc Phục Triệt Để Treo Trắng Đăng Nhập Google Trên Mobile & Responsive
+1. **Tại `web/src/hooks/useGoogleAuth.ts`:**
+   - Thêm bộ kiểm tra môi trường: `const isMobile = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent) || window.innerWidth < 768;`.
+   - Nếu là thiết bị di động:
+     * Không sử dụng popup `initTokenClient().requestAccessToken()`.
+     * Chuyển hướng toàn trang trực tiếp (`window.location.href`) đến luồng OAuth Redirect chính thức của Google:
+       `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token%20id_token&scope=email%20profile%20openid&prompt=select_account&nonce=${nonce}&state=${encodeURIComponent(redirectTarget)}`.
+     * Hoặc sử dụng server-side OAuth redirect an toàn của Gateway: `/api/v1/auth/google`.
+   - Trên desktop: Tiếp tục duy trì popup mượt mà.
+2. **Tại `web/src/app/auth/login/page.tsx`:**
+   - Trong `useEffect`, kiểm tra `window.location.hash` và `searchParams`: Nếu có `access_token` hoặc `token`, tự động kích hoạt `loginWithGoogle` để hoàn tất đăng nhập không gián đoạn.
+   - Tối ưu responsive form: Giảm padding trên mobile (`px-4 py-6 sm:px-10 sm:py-8`), căn giữa và co giãn linh hoạt trên mọi kích thước màn hình điện thoại (360px - 430px).
+3. **Tại `StoreHeader.tsx`:**
+   - Thêm nút icon kính lúp trên mobile (`md:hidden`) để mở thanh tìm kiếm trượt xuống (drawer/slide-down search).
+   - Tối ưu khu vực nút đăng nhập/đăng ký trên màn hình nhỏ để không bị vỡ hàng hay che lấp logo.
+
+---
+
+### 2. Tiêu Chuẩn Nghiệm Thu (Acceptance Criteria - Gherkin BDD)
+
+```gherkin
+Feature: Chặng 2 - Search Header Seller/Admin, Widget Dashboard DB Thật, Mobile Google Auth & Responsive
+
+  Scenario: Người bán tra cứu mã đơn hàng từ thanh tìm kiếm Header
+    Given Người bán đang ở bất kỳ trang nào thuộc /seller/*
+    When Nhập mã "#ORD-MWQJ3A6P-6B874C51-S1" vào ô tìm kiếm Header và nhấn Enter
+    Then Hệ thống điều hướng ngay tới "/seller/orders?search=ORD-MWQJ3A6P-6B874C51-S1"
+    And Danh sách đơn hàng tự động lọc và cuộn tới đơn hàng tương ứng
+
+  Scenario: Quản trị viên Admin tra cứu mã đơn hàng từ thanh tìm kiếm Header
+    Given Quản trị viên đang ở trang Admin
+    When Nhập mã "#ORD-MWQJ3A6P-6B874C51-S1" vào ô tìm kiếm Header và nhấn Enter
+    Then Hệ thống điều hướng tới "/admin/escrow?q=ORD-MWQJ3A6P-6B874C51-S1"
+    And Bảng Sổ cái ký quỹ / Đơn hàng hiển thị chính xác đơn hàng cần tìm
+
+  Scenario: Widget Khuyến Mãi và Tin Nhắn trên Seller Dashboard hiển thị dữ liệu thật từ DB
+    Given Gian hàng có Flash Sale đang tham gia và có tin nhắn từ khách hàng
+    When Người bán truy cập "/seller/dashboard"
+    Then Widget 1 hiển thị thẻ Flash Sale cùng các voucher đang hoạt động
+    And Widget 2 hiển thị danh sách hội thoại khách hàng mới nhất (tên, avatar, nội dung tin, badge chưa đọc)
+
+  Scenario: Đăng nhập Google mượt mà trên thiết bị di động không bị treo trắng màn hình
+    Given Người dùng truy cập bằng trình duyệt điện thoại (Android / iOS)
+    When Bấm nút "Đăng nhập với Google"
+    Then Trình duyệt điều hướng toàn trang tới trang đăng nhập Google chính thức mà không bị treo popup trắng
+    And Sau khi chọn tài khoản, người dùng được đăng nhập thành công và chuyển hướng về trang ban đầu
+```
+
+---
+
+### 3. CỔNG NGHIỆM THU & PHÊ DUYỆT (APPROVAL GATE CHẶNG 2 - ĐÃ ĐƯỢC DUYỆT)
+- Người dùng đã phê duyệt 100% phương án khuyến nghị [Chuẩn Sàn Shopee & Mobile Web] cho cả 3 bug của Chặng 2 vào ngày 22/11/2026.
+
+---
+
+## 🛠️ BƯỚC 4: SỬA TẬN GỐC & CHẠY E2E NGAY TỪNG BUG (CHẶNG 2: BUG-020, BUG-021, BUG-022)
+
+### 1. Chi Tiết Thực Thi Source Code (Fix Implementation)
+- **BUG-020 (Thanh Tìm Kiếm Header Seller & Admin):**
+  * `web/src/ui/components/layout/SellerHeader.tsx`: Bọc input trong `<form onSubmit={handleSearch}>`, lưu state `searchQuery`. Tự động nhận diện chuỗi regex `/^#?ORD-/i`: Nếu là mã đơn thì điều hướng tới `/seller/orders?search=${encodeURIComponent(cleanCode)}` (trang này có sẵn logic tự động scroll & highlight đơn hàng); nếu là tựa sách/SKU thì điều hướng sang `/seller/products?search=...`.
+  * `web/src/ui/components/layout/AdminLayout.tsx`: Phân luồng thông minh trong `handleSearch`: Nếu chuỗi khớp `/^#?ORD-/i` thì điều hướng tới Sổ cái ký quỹ / Quản lý đơn hàng `/admin/escrow?q=${encodeURIComponent(cleanCode)}`; nếu là email/SĐT thì điều hướng tới `/admin/users?search=...`; còn lại điều hướng tới `/admin/books?search=...`.
+  * `web/src/app/seller/products/page.tsx`: Import `useSearchParams` từ `next/navigation`, bọc Suspense boundary an toàn cho client component, đọc tham số `search` / `q` từ URL để tự động lọc đầu sách tương ứng.
+
+- **BUG-021 (Bóc Tách Dữ Liệu Thật 2 Widget Seller Dashboard):**
+  * `web/src/app/seller/dashboard/page.tsx`:
+    - Khởi tạo và cập nhật kiểu dữ liệu cho `stats.activeFlashSales: FlashSaleSlot[]` và `stats.recentConversations: ChatConversation[]`.
+    - Trong `fetchDashboardData`: Gọi song song `getSellerVouchers({ storeId: bizId })` và `flashSaleApi.getSellerSlots()`. Lọc các slot Flash Sale có trạng thái `ACTIVE` hoặc `SCHEDULED`.
+    - Trong `fetchDashboardData`: Gọi `chatService.listConversations(storeId)` để lấy các cuộc hội thoại gần nhất của khách hàng từ MongoDB.
+    - Render Widget 1 (Khuyến mãi & Flash Sale): Hiển thị đầy đủ các slot Flash Sale Giờ Vàng (thời gian diễn ra, trạng thái Đang chạy / Sắp diễn ra, số lượng sách tham gia) bên cạnh các Voucher đang hoạt động. Có nút điều hướng trực tiếp tới `/seller/promotions/flash-sale` và `/seller/vouchers`.
+    - Render Widget 2 (Tin Nhắn Khách Đọc): Hiển thị top 3 cuộc trò chuyện khách đọc gần nhất kèm avatar người mua, tên khách hàng (`conv.user?.name`), trích đoạn tin nhắn gần nhất (`lastMessage.content`), badge số tin chưa đọc (`unreadCount`), thời gian tương đối (`formatTimeAgo`), và click mở đúng cuộc hội thoại tại `/seller/chat?convId=...`.
+
+- **BUG-022 (Khắc Phục Treo Màn Hình Trắng Đăng Nhập Google Trên Mobile & Responsive):**
+  * `web/src/hooks/useGoogleAuth.ts`: Bổ sung kiểm tra thiết bị di động (`isMobile`). Trên mobile hoặc thiết bị có màn hình nhỏ, thay vì dùng popup `tokenClient.requestAccessToken()` vốn bị lỗi ngắt liên kết COOP/postMessage, hệ thống chuyển sang luồng OAuth2 Redirect tiêu chuẩn cấp cao (`window.location.href = https://accounts.google.com/o/oauth2/v2/auth?...`). Trên desktop, duy trì popup tiện lợi.
+  * `web/src/app/auth/login/page.tsx`: Bổ sung `useEffect` bắt mã token từ URL hash `#access_token=...` hoặc query param, tự động kích hoạt `loginWithGoogle` và dọn dẹp URL bằng `window.history.replaceState`. Tối ưu padding form trên màn hình nhỏ `px-4 py-6 sm:px-10`.
+  * `web/src/app/auth/register/page.tsx`: Tối ưu padding responsive tương tự.
+  * `web/src/ui/components/layout/StoreHeader.tsx`: Bổ sung nút kính lúp tìm kiếm dành riêng cho mobile (`md:hidden`) kèm thanh tìm kiếm trượt mở rộng mượt mà (`animate-fade-in-down`). Tinh chỉnh cụm nút đăng nhập/đăng ký trên màn hình nhỏ tránh tràn viền ngang.
+  * `platform/apps/identity-service/src/modules/auth/auth.controller.ts`: Thay thế các giá trị fallback gắn cứng `localhost:3100` bằng biến `frontendBase` phân giải động qua `FRONTEND_URL` / `WEB_URL` / `req.get('origin')`.
+
+---
+
+### 2. Kết Quả Kiểm Thử E2E Độc Lập (`scripts/test_e2e_sprint2_chang2.js`)
+- **Tập lệnh:** [`scripts/test_e2e_sprint2_chang2.js`](file:///e:/HuKi/scripts/test_e2e_sprint2_chang2.js)
+- **Kết quả:** 11/11 assertions **PASS (100%)**
+  * ✅ BUG-020: `SellerHeader.tsx` bọc Form và phân luồng điều hướng mã đơn vs tựa sách/SKU
+  * ✅ BUG-020: `AdminLayout.tsx` phân luồng thông minh mã đơn -> `/admin/escrow`, user -> `/admin/users`, sách -> `/admin/books`
+  * ✅ BUG-020: `seller/products/page.tsx` đọc `searchParams` và lọc tự động khi nhận query từ URL
+  * ✅ BUG-021: `seller/dashboard` gọi song song cả `flashSaleApi` và `voucherApi`
+  * ✅ BUG-021: `seller/dashboard` gọi `chatService.listConversations` lấy hội thoại khách đọc thực tế
+  * ✅ BUG-021: Widget 1 hiển thị cả Flash Sale (khung giờ, trạng thái, số sách) và Voucher đang chạy
+  * ✅ BUG-021: Widget 2 hiển thị danh sách hội thoại khách đọc với avatar, tên, snippet tin nhắn và badge chưa đọc
+  * ✅ BUG-022: `useGoogleAuth.ts` phát hiện Mobile và chuyển hướng OAuth2 URL toàn trang chống treo popup trắng
+  * ✅ BUG-022: `auth/login/page.tsx` bắt Access Token từ URL hash callback Google OAuth
+  * ✅ BUG-022: `StoreHeader.tsx` tích hợp nút tìm kiếm kính lúp và thanh tìm kiếm trượt trên Mobile
+  * ✅ BUG-022: `identity-service auth.controller.ts` xử lý callback redirect động theo `FRONTEND_URL`
+
+- **Kiểm tra biên dịch:**
+  * `npm --prefix web run build`: PASS (141 routes, 0 compile errors).
+  * `npm --prefix platform run build`: PASS (7/7 microservices, 0 compile errors).
+
+- **Trạng thái Chặng 2:** **HOÀN THÀNH (100% PASSED)**
 

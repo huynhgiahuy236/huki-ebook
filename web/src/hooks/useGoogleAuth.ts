@@ -61,6 +61,29 @@ export function useGoogleAuth(redirectTarget: string = '/') {
       return;
     }
 
+    // BUG-022: On Mobile devices, popup flow hangs at accounts.google.com with a blank white screen
+    // due to mobile browser popup isolation & COOP postMessage drops.
+    // Use top-level OAuth2 Redirect flow on mobile for 100% reliable login!
+    const isMobile =
+      typeof window !== 'undefined' &&
+      (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+        window.innerWidth < 768);
+
+    if (isMobile) {
+      setIsGoogleLoading(true);
+      const nonce = Math.random().toString(36).substring(2);
+      const redirectUri = window.location.origin + '/auth/login';
+      const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
+        clientId
+      )}&redirect_uri=${encodeURIComponent(
+        redirectUri
+      )}&response_type=token%20id_token&scope=email%20profile%20openid&prompt=select_account&nonce=${nonce}&state=${encodeURIComponent(
+        redirectTarget
+      )}`;
+      window.location.href = googleAuthUrl;
+      return;
+    }
+
     const google = (window as any).google;
     if (!google?.accounts?.oauth2) {
       showToast({

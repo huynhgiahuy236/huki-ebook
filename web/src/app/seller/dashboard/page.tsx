@@ -7,6 +7,8 @@ import { catalogApi } from '@/ui/api/catalogApi';
 import { orderApi } from '@/ui/api/orderApi';
 import { walletApi, type WalletTransactionItem } from '@/ui/api/walletApi';
 import { getSellerVouchers, type Voucher, formatDiscountValue } from '@/ui/api/sellerVoucherApi';
+import { flashSaleApi, type FlashSaleSlot } from '@/ui/api/flashSaleApi';
+import { chatService, type ChatConversation } from '@/ui/services/chatService';
 import { useAuth } from '@/ui/context/AuthContext';
 import { can, PERMISSIONS } from '@/ui/utils/permissions';
 
@@ -50,6 +52,8 @@ export default function SellerDashboardPage() {
     recentOrders: OrderItem[];
     recentTransactions: WalletTransactionItem[];
     activeVouchers: Voucher[];
+    activeFlashSales: FlashSaleSlot[];
+    recentConversations: ChatConversation[];
   }>({
     storeName: '',
     businessName: '',
@@ -68,6 +72,8 @@ export default function SellerDashboardPage() {
     recentOrders: [],
     recentTransactions: [],
     activeVouchers: [],
+    activeFlashSales: [],
+    recentConversations: [],
   });
   const [loadingStats, setLoadingStats] = useState(true);
 
@@ -107,6 +113,8 @@ export default function SellerDashboardPage() {
       recentOrders: [] as OrderItem[],
       recentTransactions: [] as WalletTransactionItem[],
       activeVouchers: [] as Voucher[],
+      activeFlashSales: [] as FlashSaleSlot[],
+      recentConversations: [] as ChatConversation[],
     };
 
     // Helper for unpacking API response lists
@@ -212,11 +220,28 @@ export default function SellerDashboardPage() {
       }
     } catch { /* ignore */ }
 
-    // 5. Fetch seller vouchers / promotions (real DB)
+    // 5. Fetch seller vouchers / promotions & flash sales (real DB)
     try {
       const vRes = await getSellerVouchers(bizId ? { storeId: bizId } : undefined);
       if (vRes.success && vRes.data?.items) {
         result.activeVouchers = vRes.data.items.filter((v: Voucher) => v.status === 'ACTIVE');
+      }
+    } catch { /* ignore */ }
+
+    // BUG-021: Fetch seller flash sale slots (real DB)
+    try {
+      const fsRes = await flashSaleApi.getSellerSlots();
+      if (fsRes.success && Array.isArray(fsRes.data)) {
+        result.activeFlashSales = fsRes.data.filter((s: FlashSaleSlot) => s.status === 'ACTIVE' || s.status === 'SCHEDULED');
+      }
+    } catch { /* ignore */ }
+
+    // BUG-021: Fetch recent customer conversations (real DB / MongoDB)
+    try {
+      const storeId = user?.business?.id || bizId || undefined;
+      const convRes = await chatService.listConversations(storeId);
+      if (convRes.success && Array.isArray(convRes.data)) {
+        result.recentConversations = convRes.data.slice(0, 3);
       }
     } catch { /* ignore */ }
 
@@ -746,18 +771,51 @@ export default function SellerDashboardPage() {
                 <span className="material-symbols-outlined text-amber-500 text-[18px]">bolt</span>
                 <span>Chương Trình Khuyến Mãi &amp; Voucher</span>
               </h2>
-              <Link href="/seller/vouchers" className="text-xs font-bold text-[#00875A] hover:underline">
-                Quản lý
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link href="/seller/promotions/flash-sale" className="text-xs font-bold text-orange-600 hover:underline">
+                  Flash Sale
+                </Link>
+                <span className="text-gray-300">·</span>
+                <Link href="/seller/vouchers" className="text-xs font-bold text-[#00875A] hover:underline">
+                  Voucher
+                </Link>
+              </div>
             </div>
 
-            {stats.activeVouchers && stats.activeVouchers.length > 0 ? (
+            {(stats.activeFlashSales && stats.activeFlashSales.length > 0) || (stats.activeVouchers && stats.activeVouchers.length > 0) ? (
               <div className="space-y-2.5 text-xs">
-                {stats.activeVouchers.slice(0, 3).map((v) => (
+                {/* 1. Flash Sale Slots */}
+                {stats.activeFlashSales?.slice(0, 2).map((fs) => (
+                  <Link
+                    key={fs.id}
+                    href="/seller/promotions/flash-sale"
+                    className="p-2.5 rounded-xl bg-orange-50/70 border border-orange-200/80 hover:bg-orange-100/70 transition-colors flex items-center justify-between block group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="w-8 h-8 rounded-lg bg-orange-500 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                        <span className="material-symbols-outlined text-[17px]">bolt</span>
+                      </span>
+                      <div className="min-w-0">
+                        <div className="font-bold text-gray-900 group-hover:text-orange-900 transition-colors truncate">
+                          {fs.name || 'Flash Sale Giờ Vàng'}
+                        </div>
+                        <span className="text-[10.5px] text-gray-500 block truncate">
+                          {fs.startsAt ? new Date(fs.startsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : ''} - {fs.endsAt ? new Date(fs.endsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : ''} · {fs.totalItems || fs.items?.length || 0} sách
+                        </span>
+                      </div>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ml-2 ${fs.status === 'ACTIVE' ? 'bg-orange-500 text-white' : 'bg-amber-100 text-amber-800'}`}>
+                      {fs.status === 'ACTIVE' ? 'Đang chạy' : 'Sắp diễn ra'}
+                    </span>
+                  </Link>
+                ))}
+
+                {/* 2. Vouchers */}
+                {stats.activeVouchers?.slice(0, 2).map((v) => (
                   <Link
                     key={v.id}
                     href="/seller/vouchers"
-                    className="p-3 rounded-xl bg-amber-50/60 border border-amber-200/80 hover:bg-amber-100/60 transition-colors flex items-center justify-between block group"
+                    className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-200/80 hover:bg-amber-100/60 transition-colors flex items-center justify-between block group"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <span className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
@@ -789,18 +847,27 @@ export default function SellerDashboardPage() {
                     Gian hàng hiện chưa tạo chương trình khuyến mãi nào. Hãy tạo mã giảm giá để thu hút bạn đọc.
                   </p>
                 </div>
-                <Link
-                  href="/seller/vouchers"
-                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition-colors inline-flex items-center gap-1 shadow-2xs"
-                >
-                  <span>Tạo Khuyến Mãi / Voucher</span>
-                  <span className="material-symbols-outlined text-sm">add</span>
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href="/seller/promotions/flash-sale"
+                    className="px-3 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs transition-colors inline-flex items-center gap-1 shadow-2xs"
+                  >
+                    <span>Flash Sale</span>
+                    <span className="material-symbols-outlined text-sm">bolt</span>
+                  </Link>
+                  <Link
+                    href="/seller/vouchers"
+                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition-colors inline-flex items-center gap-1 shadow-2xs"
+                  >
+                    <span>Voucher</span>
+                    <span className="material-symbols-outlined text-sm">add</span>
+                  </Link>
+                </div>
               </div>
             )}
           </div>
 
-          {/* Widget 2: TIN NHẮN KHÁCH ĐỌC (KHÔNG MOCK ẢO) */}
+          {/* Widget 2: TIN NHẮN KHÁCH ĐỌC (TỪ DB THỰC TẾ) */}
           <div className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between mb-3.5 pb-2 border-b border-gray-100">
               <h2 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
@@ -812,26 +879,71 @@ export default function SellerDashboardPage() {
               </Link>
             </div>
 
-            <div className="py-6 flex flex-col items-center justify-center text-center space-y-2.5 border border-dashed border-slate-200 rounded-xl">
-              <div className="w-11 h-11 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <span className="material-symbols-outlined text-2xl">mark_chat_read</span>
+            {stats.recentConversations && stats.recentConversations.length > 0 ? (
+              <div className="space-y-2 text-xs">
+                {stats.recentConversations.slice(0, 3).map((conv) => {
+                  const customerName = conv.user?.name || 'Khách đọc';
+                  const lastMsgText = conv.lastMessage?.content || 'Đã gửi một tin nhắn...';
+                  const timeStr = formatTimeAgo(conv.lastMessage?.createdAt || conv.updatedAt);
+                  return (
+                    <Link
+                      key={conv.id}
+                      href={`/seller/chat?convId=${conv.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 hover:bg-emerald-50/60 hover:border-emerald-200 transition-all flex items-center justify-between block group"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden border border-emerald-300">
+                          {conv.user?.avatar ? (
+                            <img src={conv.user.avatar} alt={customerName} className="w-full h-full object-cover" />
+                          ) : (
+                            customerName.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-gray-900 group-hover:text-emerald-800 transition-colors truncate">
+                            {customerName}
+                          </div>
+                          <p className="text-[11px] text-gray-500 truncate max-w-[150px] sm:max-w-[190px]">
+                            {lastMsgText}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end shrink-0 ml-2">
+                        <span className="text-[10px] text-gray-400 whitespace-nowrap">{timeStr}</span>
+                        {(conv.unreadCount || 0) > 0 && (
+                          <span className="mt-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-500 text-white">
+                            {conv.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
-              <div>
-                <p className="text-xs font-bold text-gray-800">Hộp thư chăm sóc bạn đọc</p>
-                <p className="text-[11px] text-gray-500 max-w-[220px] mx-auto mt-0.5">
-                  Mọi tin nhắn hỏi sách và hỗ trợ độc giả sẽ được kết nối trực tiếp tại đây.
-                </p>
+            ) : (
+              <div className="py-6 flex flex-col items-center justify-center text-center space-y-2.5 border border-dashed border-slate-200 rounded-xl">
+                <div className="w-11 h-11 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-2xl">mark_chat_read</span>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-gray-800">Hộp thư chăm sóc bạn đọc</p>
+                  <p className="text-[11px] text-gray-500 max-w-[220px] mx-auto mt-0.5">
+                    Mọi tin nhắn hỏi sách và hỗ trợ độc giả sẽ được kết nối trực tiếp tại đây.
+                  </p>
+                </div>
+                <Link
+                  href="/seller/chat"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 font-bold text-xs transition-colors inline-flex items-center gap-1"
+                >
+                  <span>Mở Hộp Thư Chat</span>
+                  <span className="material-symbols-outlined text-sm">open_in_new</span>
+                </Link>
               </div>
-              <Link
-                href="/seller/chat"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 font-bold text-xs transition-colors inline-flex items-center gap-1"
-              >
-                <span>Mở Hộp Thư Chat</span>
-                <span className="material-symbols-outlined text-sm">open_in_new</span>
-              </Link>
-            </div>
+            )}
           </div>
 
           {/* Widget 3: HOẠT ĐỘNG GIAN HÀNG (NHẬT KÝ THAO TÁC THỰC TẾ) */}

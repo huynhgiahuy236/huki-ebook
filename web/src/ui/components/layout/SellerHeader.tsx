@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { soundEffects } from '@/ui/utils/soundEffects';
@@ -18,6 +18,7 @@ export interface SellerHeaderProps {
 
 export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggleMobileSidebar }: SellerHeaderProps) {
   const pathname = usePathname() || '';
+  const router = useRouter();
   const { user } = useAuth();
   const { showToast } = useToast();
   const sellerName = user?.business?.name || user?.fullName || user?.name || "NXB Doanh Nghiệp";
@@ -25,6 +26,20 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
 
   const [isMuted, setIsMuted] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // BUG-020: Search Header Routing (Mã đơn -> /seller/orders; Sách/SKU -> /seller/products)
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    if (!q) return;
+    if (/^#?ORD-/i.test(q)) {
+      const cleanCode = q.replace(/^#/, '');
+      router.push(`/seller/orders?search=${encodeURIComponent(cleanCode)}`);
+    } else {
+      router.push(`/seller/products?search=${encodeURIComponent(q)}`);
+    }
+  };
 
   useEffect(() => {
     setIsMuted(soundEffects.getIsMuted());
@@ -169,14 +184,16 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
       </div>
 
       {/* Center Search */}
-      <div className="hidden md:flex items-center bg-surface-container-low/80 border border-theme-border rounded-full px-3 py-1 w-40 lg:w-52 xl:w-64 text-xs text-on-surface-variant focus-within:border-theme-primary focus-within:ring-2 focus-within:ring-theme-primary/10 transition-all shrink-0">
+      <form onSubmit={handleSearch} className="hidden md:flex items-center bg-surface-container-low/80 border border-theme-border rounded-full px-3 py-1 w-40 lg:w-52 xl:w-64 text-xs text-on-surface-variant focus-within:border-theme-primary focus-within:ring-2 focus-within:ring-theme-primary/10 transition-all shrink-0">
         <span className="material-symbols-outlined text-[15px] mr-1.5 text-on-surface-variant shrink-0">search</span>
         <input
           type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Tìm mã đơn, SKU, tựa sách..."
           className="bg-transparent border-none outline-none w-full text-xs text-on-surface placeholder:text-on-surface-variant/70 min-w-0"
         />
-      </div>
+      </form>
 
       {/* Right Actions */}
       <div className="flex items-center gap-1.5 sm:gap-2.5 md:gap-3 shrink-0">

@@ -12,11 +12,49 @@ import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, user, isLoggedIn } = useAuth();
+  const { login, loginWithGoogle, user, isLoggedIn } = useAuth();
   const { showToast } = useToast();
 
   const redirectTarget = searchParams.get('redirect') || searchParams.get('from') || '/';
   const { triggerGoogleLogin, isGoogleLoading } = useGoogleAuth(redirectTarget);
+
+  // BUG-022: Handle Mobile Google OAuth redirect return (from URL hash / query)
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // 1. Check URL hash (e.g., #access_token=...&id_token=...&state=...)
+    const hash = window.location.hash.substring(1);
+    if (hash) {
+      const hashParams = new URLSearchParams(hash);
+      const accessToken = hashParams.get('access_token');
+      const idToken = hashParams.get('id_token');
+      const stateParam = hashParams.get('state');
+
+      if (accessToken || idToken) {
+        setIsLoading(true);
+        // Clean URL hash immediately from browser URL bar for clean UX
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        loginWithGoogle({ accessToken: accessToken || undefined, idToken: idToken || undefined }).then((res) => {
+          setIsLoading(false);
+          if (res.success && res.user) {
+            showToast({
+              title: 'Đăng nhập Google thành công',
+              message: `Chào mừng ${res.user.fullName || res.user.email} đến với HUKI EBOOK!`,
+              type: 'success',
+            });
+            const target = stateParam ? decodeURIComponent(stateParam) : redirectTarget;
+            router.replace(target);
+          } else {
+            showToast({
+              title: 'Đăng nhập thất bại',
+              message: res.error || 'Không thể xác thực tài khoản Google.',
+              type: 'warning',
+            });
+          }
+        });
+      }
+    }
+  }, [loginWithGoogle, redirectTarget, router, showToast]);
 
   React.useEffect(() => {
     if (isLoggedIn && (user?.role === 'DELIVERY_STAFF' || user?.role === 'SHIPPER')) {
@@ -216,7 +254,7 @@ function LoginForm() {
         </section>
 
         {/* Right Column: Authentication Form */}
-        <section className="flex min-h-dvh flex-col justify-between bg-white px-6 py-8 sm:px-12 sm:py-10 lg:col-span-7 lg:px-14 xl:px-20 2xl:px-28">
+        <section className="flex min-h-dvh flex-col justify-between bg-white px-4 py-6 sm:px-10 sm:py-10 lg:col-span-7 lg:px-14 xl:px-20 2xl:px-28">
           <div className="max-w-xl mx-auto w-full my-auto py-2">
             {/* Header */}
             <div className="flex items-start justify-between mb-6 pb-3 border-b border-slate-100">

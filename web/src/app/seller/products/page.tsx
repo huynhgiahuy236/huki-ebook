@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { catalogApi, BookFormat } from '@/ui/api/catalogApi';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 import { businessApi } from '@/ui/api/businessApi';
@@ -76,15 +76,24 @@ interface CategoryOption {
   name: string;
 }
 
-export default function SellerProductsPage() {
+function SellerProductsContent() {
   const { user, activeBusinessId, setActiveBusinessId } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [books, setBooks] = useState<SellerBookItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(() => searchParams?.get('search') || searchParams?.get('q') || '');
+
+  // BUG-020: Sync search query from URL query params
+  useEffect(() => {
+    const q = searchParams?.get('search') || searchParams?.get('q');
+    if (q !== null && q !== undefined) {
+      setSearchQuery(q);
+    }
+  }, [searchParams]);
   const [selectedFormat, setSelectedFormat] = useState('ALL');
   const [selectedAffiliateFilter, setSelectedAffiliateFilter] = useState<'ALL' | 'AFFILIATE_ON' | 'AFFILIATE_OFF'>('ALL');
   const [selectedStockFilter, setSelectedStockFilter] = useState<'ALL' | 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK'>('ALL');
@@ -1364,5 +1373,24 @@ export default function SellerProductsPage() {
         className="w-full"
       />
     </div>
+  );
+}
+
+export default function SellerProductsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-[50vh] flex items-center justify-center">
+          <div className="text-center">
+            <span className="material-symbols-outlined text-4xl text-[#00875A] animate-spin">
+              refresh
+            </span>
+            <p className="mt-2 text-xs text-slate-500 font-medium">Đang tải danh sách sách...</p>
+          </div>
+        </div>
+      }
+    >
+      <SellerProductsContent />
+    </Suspense>
   );
 }

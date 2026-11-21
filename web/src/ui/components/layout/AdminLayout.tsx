@@ -298,8 +298,15 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      router.push(`/admin/books?search=${encodeURIComponent(searchQuery)}`);
+    const q = searchQuery.trim();
+    if (!q) return;
+    if (/^#?ORD-/i.test(q)) {
+      const cleanCode = q.replace(/^#/, '');
+      router.push(`/admin/escrow?q=${encodeURIComponent(cleanCode)}`);
+    } else if (q.includes('@') || /^\+?[0-9]{9,12}$/.test(q)) {
+      router.push(`/admin/users?search=${encodeURIComponent(q)}`);
+    } else {
+      router.push(`/admin/books?search=${encodeURIComponent(q)}`);
     }
   };
 

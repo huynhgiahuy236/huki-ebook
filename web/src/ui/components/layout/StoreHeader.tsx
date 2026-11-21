@@ -42,6 +42,7 @@ export default function StoreHeader({
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const isAdmin = Boolean(
@@ -671,6 +672,19 @@ export default function StoreHeader({
 
         {/* Right Action Icons & User Account */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Mobile Search Toggle (BUG-022: Visible only on < md) */}
+          <button
+            type="button"
+            onClick={() => setIsMobileSearchOpen((prev) => !prev)}
+            className="md:hidden w-9 h-9 rounded-xl border border-slate-200 dark:border-zinc-700 hover:border-[#00875A] bg-white dark:bg-zinc-900 flex items-center justify-center text-slate-700 dark:text-zinc-200 hover:text-[#00875A] active:scale-95 transition-all cursor-pointer shadow-2xs shrink-0"
+            title="Tìm kiếm tác phẩm, tác giả..."
+            aria-label="Tìm kiếm"
+          >
+            <span className="material-symbols-outlined text-[19px]">
+              {isMobileSearchOpen ? 'close' : 'search'}
+            </span>
+          </button>
+
           {/* Cart Icon - Standard 38x38 Form Factor */}
           <Link
             href="/cart"
@@ -942,25 +956,50 @@ export default function StoreHeader({
               )}
             </div>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
               <Link
                 href="/auth/login"
-                className="px-3 py-1.5 rounded-xl text-xs font-bold text-[var(--theme-primary,#003b2b)] border border-[var(--theme-primary,#003b2b)]/30 hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all flex items-center gap-1"
+                className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs font-bold text-[var(--theme-primary,#003b2b)] border border-[var(--theme-primary,#003b2b)]/30 hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all flex items-center gap-1 shrink-0"
               >
-                <span className="material-symbols-outlined text-base">login</span>
-                <span>Đăng Nhập</span>
+                <span className="material-symbols-outlined text-[17px] sm:text-base">login</span>
+                <span className="text-[11px] sm:text-xs">Đăng Nhập</span>
               </Link>
               <Link
                 href="/auth/register"
-                className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-[#003b2b] hover:bg-[#00281d] transition-all shadow-xs flex items-center gap-1"
+                className="hidden xs:flex px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs font-bold text-white bg-[#003b2b] hover:bg-[#00281d] transition-all shadow-xs items-center gap-1 shrink-0"
               >
-                <span className="material-symbols-outlined text-base">person_add</span>
+                <span className="material-symbols-outlined text-[17px] sm:text-base">person_add</span>
                 <span className="hidden sm:inline">Đăng Ký</span>
               </Link>
             </div>
           )}
         </div>
       </div>
+
+      {/* Mobile Search Expandable Bar (BUG-022) */}
+      {isMobileSearchOpen && (
+        <div className="md:hidden px-3 py-2 bg-[var(--theme-surface,#ffffff)] border-b border-[var(--theme-border,#e8e5df)] shadow-sm animate-fade-in-down">
+          <form onSubmit={(e) => { handleSearch(e); setIsMobileSearchOpen(false); }}>
+            <div className="flex items-center bg-[var(--theme-surface-subtle,#f8f6f1)] border border-[var(--theme-border,#e8e5df)] rounded-lg px-2.5 py-1.5 focus-within:border-[var(--theme-primary,#003b2b)] focus-within:ring-1 focus-within:ring-[var(--theme-primary,#003b2b)]/20">
+              <span className="material-symbols-outlined text-[var(--theme-text-muted,#6b7280)] text-sm mr-1.5 shrink-0">search</span>
+              <input
+                type="text"
+                placeholder="Tìm tác phẩm, tác giả, ISBN, chủ đề..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                autoFocus
+                className="w-full bg-transparent border-none outline-none text-xs text-[var(--theme-text,#17201f)]"
+              />
+              <button
+                type="submit"
+                className="bg-[#003b2b] text-white px-2.5 py-1 rounded text-xs font-semibold shrink-0 ml-1 cursor-pointer"
+              >
+                Tìm
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </header>
   );
 }

@@ -235,7 +235,7 @@ export default function RegisterPage() {
         </section>
 
         {/* Right Column: Registration Form (7 cols) */}
-        <section className="flex min-h-dvh flex-col justify-between bg-white px-6 py-8 sm:px-12 sm:py-10 lg:col-span-7 lg:px-14 xl:px-20 2xl:px-28">
+        <section className="flex min-h-dvh flex-col justify-between bg-white px-4 py-6 sm:px-10 sm:py-10 lg:col-span-7 lg:px-14 xl:px-20 2xl:px-28">
           <div className="max-w-xl mx-auto w-full my-auto py-2">
             {/* Header: Title + Switch to Login */}
             <div className="flex items-start justify-between mb-6 pb-3 border-b border-slate-100">
