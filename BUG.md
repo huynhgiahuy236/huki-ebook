@@ -820,4 +820,35 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
   * Lấy đúng `storeId` thật của sách.
   * Khi điều hướng sang `/cart`: Tự động uncheck hoặc dọn dẹp các món hàng thuộc các store khác, gom và chỉ chọn các ấn phẩm cùng store của cuốn sách đó để người dùng tiến hành thanh toán ngay mà không bị lộn xộn đa store.
 
+---
+
+### 7.13. BÁO CÁO PHÂN TÍCH NHÓM 3: LỖI CONSOLE, LAG GIẬT TRÌNH DUYỆT & TRANG FLASH SALE
+- **Ảnh chụp Console & Trang:** `https://huki-uat.duckdns.org/seller/promotions/flash-sale`
+
+#### 1. Nguyên nhân gây LAG nặng nhất: Vòng lặp WebSocket Handshake 502 (Loop Reconnection):
+- **Hiện tượng:** Console báo đỏ liên tục hàng chục lần:
+  `WebSocket connection to 'wss://huki-uat.duckdns.org/socket.io/?EIO=4&transport=websocket' failed: Unexpected response code: 502`.
+- **Nguyên nhân cốt lõi:**
+  - `useChatSocket.ts` và `useRealtimeNotifications.ts` tự động trỏ `socketUrl` về `https://huki-uat.duckdns.org`.
+  - NGINX trên VPS UAT chưa cấu hình khối `location /socket.io/` với header `Upgrade` và `Connection "upgrade"` chuyển tiếp về cổng WebSocket của `community-service` (cổng 3005).
+  - NGINX trả về **HTTP 502 Bad Gateway**.
+  - Client Socket.IO retry liên tục mỗi 2 giây (`reconnectionDelay: 2000`) trên nhiều hook $\rightarrow$ Treo luồng mạng, ngốn CPU trình duyệt gây lag giật nghiêm trọng.
+
+#### 2. Lỗi 404 Not Found hàng loạt (`/api/seller/feature-flags`, `/api/system/maintenance`, `/api/seller/penalties`):
+- **Nguyên nhân:**
+  - Frontend gọi `fetch('/api/seller/feature-flags')` và `fetch('/api/system/maintenance')`.
+  - Các route này được viết trong Next.js App Router (`web/src/app/api/...`).
+  - Tuy nhiên NGINX trên VPS UAT cấu hình chuyển tiếp toàn bộ URL bắt đầu bằng `/api/*` về NestJS API Gateway (cổng 3000).
+  - API Gateway chỉ hỗ trợ chuẩn `/api/v1/...` nên trả về lỗi `Cannot GET /api/seller/feature-flags` (HTTP 404). Các route của Next.js bị che khuất hoàn toàn.
+
+#### 3. Lỗi 403 Forbidden ảnh bìa sách (`56379564.jpg`, `23692271.jpg`...):
+- **Nguyên nhân:** Một số sách (ví dụ: *Cây Cam Ngọt Của Tôi*) có `coverUrl` trỏ đến CDN của Amazon/Goodreads (`images-na.ssl-images-amazon.com`).
+- CDN của Amazon có cơ chế Anti-Hotlinking chặn request có header `Referer` từ domain lạ $\rightarrow$ Trả về HTTP 403.
+- **Khắc phục:** Thêm `referrerPolicy="no-referrer"` vào component hiển thị ảnh sách để trình duyệt không gửi Referer.
+
+#### 4. Vấn đề Flash Sale "Tạo nó hết xuất lỗi này tới lỗi kia":
+- **Nút Tạo bị Khóa (Lock Icon):** Hệ thống có ràng buộc `Mỗi shop chỉ được tạo tối đa 1 đợt Flash Sale cùng lúc` (`existingShopSlot`).
+  - Trong ảnh: Shop đã có đợt *"Flash Sale Giờ Vàng Shop (SẮP DIỄN RA)"*. Do đó nút Tạo bị disable để tránh đè đợt. Muốn tạo đợt mới, Seller phải bấm `[Xóa đợt]` của đợt cũ.
+  - Khi đăng ký sách vào Flash Sale, backend `promotion-service` yêu cầu: Giảm tối thiểu 10%, tối đa 90%, tồn kho > 0, giá flash sale < giá gốc. Nếu không thỏa mãn, hệ thống báo lỗi từng sách.
+
 
