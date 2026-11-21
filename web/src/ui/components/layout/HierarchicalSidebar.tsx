@@ -187,6 +187,12 @@ export default function HierarchicalSidebar({
       id: 'personal',
       title: 'TIỆN ÍCH',
       items: [
+        ...(isLoggedIn && !isAdmin && !isSeller && !isShipper ? [{
+          id: 'user-profile',
+          title: 'Hồ Sơ Của Tôi',
+          to: '/profile',
+          icon: 'person',
+        }] : []),
         {
           id: 'messages',
           title: 'Tin Nhắn & Chat',

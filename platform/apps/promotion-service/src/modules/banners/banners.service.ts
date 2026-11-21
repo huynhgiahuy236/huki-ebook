@@ -82,7 +82,10 @@ export class BannersService {
 
   async delete(id: string) {
     const banner = await this.prisma.banner.findUnique({ where: { id } });
-    if (!banner) throwNotFound(ErrorCode.BANNER_NOT_FOUND);
+    if (!banner) {
+      // Idempotent delete: if already removed or not found, return success cleanly
+      return { success: true };
+    }
 
     await this.prisma.banner.delete({ where: { id } });
     return { success: true };

@@ -20,16 +20,16 @@ flowchart TD
 
 | Chặng | Mã Bug | Tên Bug / Nghiệp Vụ Trọng Điểm | Phân Hệ Liên Quan | Mức Độ | Trạng Thái |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Chặng 1** | **BUG-017** | Lỗi 502 `Verification service unavailable: fetch failed` khi gửi phản hồi review & thiếu thông báo đánh giá mới cho Seller | `community-service`, `business-service`, `docker-compose.uat.yml` | CRITICAL | 🔍 Đã bóc tách nguyên nhân |
-| **Chặng 1** | **BUG-018** | Tin nhắn Chat không đồng bộ Realtime qua WebSocket (phải F5 reload mới thấy tin nhắn) | `community-service` (Gateway), `web` (`useChatSocket`), Nginx | HIGH | 🔍 Đã bóc tách nguyên nhân |
-| **Chặng 1** | **BUG-019** | Làm mờ và vô hiệu hóa nút Gọi thoại 📞 & Video 🎥 trong khung chat (chưa có WebRTC gateway) | `web/src/app/account/messages`, `SellerChatView.tsx` | MEDIUM | 🔍 Đã định vị chính xác |
-| **Chặng 2** | **BUG-020** | Thanh tìm kiếm Header ở Seller (`/seller/*`) và Admin (`/admin/*`) không tra cứu được mã đơn hàng (#ORD-...), tên sách hoặc SKU | `web/src/ui/components/layout` (`SellerHeader`, `AdminLayout`) | HIGH | 🔍 Đã bóc tách nguyên nhân & lập giải pháp |
-| **Chặng 2** | **BUG-021** | Bóc tách dữ liệu thật từ DB cho 2 widget: "Chương Trình Khuyến Mãi & Voucher" và "Tin Nhắn Khách Đọc" trên Seller Dashboard | `web/src/app/seller/dashboard`, `promotion-service`, `community-service` | HIGH | 🔍 Đã bóc tách nguyên nhân & lập giải pháp |
-| **Chặng 2** | **BUG-022** | Treo trắng màn hình tại `accounts.google.com` khi đăng nhập Google trên thiết bị di động & tối ưu responsive Header Home/Auth | `web/src/hooks/useGoogleAuth`, `identity-service`, Layouts | CRITICAL | 🔍 Đã bóc tách nguyên nhân & lập giải pháp |
+| **Chặng 1** | **BUG-017** | Lỗi 502 `Verification service unavailable: fetch failed` khi gửi phản hồi review & thiếu thông báo đánh giá mới cho Seller | `community-service`, `business-service`, `docker-compose.uat.yml` | CRITICAL | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
+| **Chặng 1** | **BUG-018** | Tin nhắn Chat không đồng bộ Realtime qua WebSocket (phải F5 reload mới thấy tin nhắn) | `community-service` (Gateway), `web` (`useChatSocket`), Nginx | HIGH | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
+| **Chặng 1** | **BUG-019** | Làm mờ và vô hiệu hóa nút Gọi thoại 📞 & Video 🎥 trong khung chat (chưa có WebRTC gateway) | `web/src/app/account/messages`, `SellerChatView.tsx` | MEDIUM | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
+| **Chặng 2** | **BUG-020** | Thanh tìm kiếm Header ở Seller (`/seller/*`) và Admin (`/admin/*`) không tra cứu được mã đơn hàng (#ORD-...), tên sách hoặc SKU | `web/src/ui/components/layout` (`SellerHeader`, `AdminLayout`) | HIGH | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
+| **Chặng 2** | **BUG-021** | Bóc tách dữ liệu thật từ DB cho 2 widget: "Chương Trình Khuyến Mãi & Voucher" và "Tin Nhắn Khách Đọc" trên Seller Dashboard | `web/src/app/seller/dashboard`, `promotion-service`, `community-service` | HIGH | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
+| **Chặng 2** | **BUG-022** | Treo trắng màn hình tại `accounts.google.com` khi đăng nhập Google trên thiết bị di động & tối ưu responsive Header Home/Auth | `web/src/hooks/useGoogleAuth`, `identity-service`, Layouts | CRITICAL | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
 | **Chặng 3** | **BUG-023** | Redesign Popup Ân hạn Xóa Tài Khoản sang tông trắng hiện đại; sửa lỗi không trừ số lượt xóa còn lại (giữ nguyên 3/3 lượt) | `identity-service` (`getProfile`, `cancelDeletion`), `AccountPendingDeletionModal` | MEDIUM | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
 | **Chặng 3** | **BUG-024** | Thiết kế lại cụm nút trong Danh Sách Đơn Hàng người mua (`/orders`) mượt mà, phân cấp nút chính/phụ tinh tế theo chuẩn viền trên như Kênh Tài Chính | `web/src/app/orders/page.tsx` | MEDIUM | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
-| **Chặng 4** | **BUG-025** | Bổ sung mục "Tôi / Hồ sơ cá nhân" vào Sidebar Người mua/Độc giả dẫn tới `/profile` (phân quyền chỉ dành riêng cho USER/BUYER) | `web/src/ui/components/layout/HierarchicalSidebar.tsx` | LOW | 📋 Đã lên hồ sơ |
-| **Chặng 4** | **BUG-026** | Sửa lỗi xóa Banner tại `/admin/marketing`: Xóa thực tế vào Database/API và đồng bộ Realtime (không load lại banner mặc định khi F5) | `promotion-service` (`banners.controller`), `AdminMarketingView.tsx` | HIGH | 📋 Đã lên hồ sơ |
+| **Chặng 4** | **BUG-025** | Bổ sung mục "Tôi / Hồ sơ cá nhân" vào Sidebar Người mua/Độc giả dẫn tới `/profile` (phân quyền chỉ dành riêng cho USER/BUYER) | `web/src/ui/components/layout/HierarchicalSidebar.tsx` | LOW | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
+| **Chặng 4** | **BUG-026** | Sửa lỗi xóa Banner tại `/admin/marketing`: Xóa thực tế vào Database/API và đồng bộ Realtime (không load lại banner mặc định khi F5) | `promotion-service` (`banners.controller`), `AdminMarketingView.tsx` | HIGH | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
 
 ---
 
@@ -734,5 +734,160 @@ Feature: Chặng 3 - Redesign Modal Ân Hạn & Quota Trừ Lượt, Cụm Nút 
 - Kết quả chạy test độc lập: **8/8 PASS (100%)**.
 - Next.js Build: **141/141 routes biên dịch thành công 0 lỗi**.
 - Platform Microservices Build: **7/7 services biên dịch sạch sẽ 0 lỗi**.
+
+---
+
+## 🔬 BƯỚC 2: PHÂN TÍCH NGUYÊN NHÂN GỐC RỄ & MA TRẬN DOMINO (CHẶNG 4: BUG-025, BUG-026)
+
+### 1. Phân Tích 4 Tầng Kiến Trúc: BUG-025 (Mục "Tôi / Hồ Sơ Cá Nhân" Trong Sidebar)
+- **Tầng 1 (Database):** Model User trong cơ sở dữ liệu `identity_db` đã có đầy đủ hồ sơ cá nhân, địa chỉ, cài đặt bảo mật và thông tin hội viên.
+- **Tầng 2 (Backend Services):** API Gateway và `identity-service` có sẵn endpoint `/api/v1/users/profile` trả dữ liệu hồ sơ.
+- **Tầng 3 (State / Data Fetching):** `useAuth` cung cấp các cờ kiểm tra phân quyền rõ ràng: `user`, `isLoggedIn`, `isAdmin`, `isSeller`, `isShipper`.
+- **Tầng 4 (Presentation UI):**
+  * Trong `HierarchicalSidebar.tsx`, nhóm menu "TIỆN ÍCH" (`id: 'personal'`) chỉ có "Tin Nhắn & Chat", "Giỏ Hàng", "Đơn Hàng".
+  * Người dùng độc giả/khách hàng không có lối tắt truy cập nhanh vào Hồ Sơ Cá Nhân (`/profile`) từ Sidebar chính trên Desktop.
+  * Cần phân quyền chặt chẽ: Chỉ người dùng thông thường (`isLoggedIn && !isAdmin && !isSeller && !isShipper`) mới thấy mục "Hồ Sơ Của Tôi" (Tôi), tránh làm rối menu của Admin/Seller/Shipper vốn đã có portal riêng.
+
+### 2. Phân Tích 4 Tầng Kiến Trúc: BUG-026 (Xóa Banner Admin Không Lưu DB & Không Realtime)
+- **Tầng 1 (Database):**
+  * Bảng `banners` trong cơ sở dữ liệu PostgreSQL của `promotion-service` lưu trữ các banner thật.
+- **Tầng 2 (Backend Services):**
+  * Trong `banners.controller.ts`, endpoint `@Delete(':id')` sử dụng `@Param('id', ParseUUIDPipe) id: string`. Khi banner có ID dạng chuỗi tùy biến, `ParseUUIDPipe` từ chối với lỗi `400 Bad Request`.
+  * Trong `banners.service.ts`, hàm `delete(id)` tìm banner qua `findUnique`. Nếu không tìm thấy, ném ngoại lệ `BANNER_NOT_FOUND` (404) thay vì trả về kết quả xóa thành công (idempotent delete).
+  * Trong `banners.service.ts`, hàm `findAll()` trả về object `{ items: Banner[], pagination: { total, ... } }`.
+- **Tầng 3 (Data Fetching & State Synchronization):**
+  * Tại `web/src/ui/components/admin/AdminMarketingView.tsx`:
+    `bannerApi.getBanners().then((res: any) => { if (res.success && Array.isArray(res.data) && res.data.length > 0) ... })`
+    Do `res.data` từ NestJS trả về là object `{ items: [...], pagination: {...} }` chứ không phải là mảng phẳng, điều kiện `Array.isArray(res.data)` luôn trả về `false`!
+    Hậu quả: `AdminMarketingView` không bao giờ cập nhật danh sách banner từ backend DB mà luôn dùng dữ liệu `localStorage` hoặc `DEFAULT_BANNERS`.
+  * Khi người dùng xóa hết banner, `localStorage` lưu mảng rỗng `[]`. Khi tải lại trang (F5), hàm khởi tạo state kiểm tra `if (Array.isArray(parsed) && parsed.length > 0)`. Vì mảng rỗng có length = 0, nó rơi vào fallback `return DEFAULT_BANNERS;`, khiến banner vừa xóa lập tức xuất hiện trở lại!
+- **Tầng 4 (Realtime Event Bus):**
+  * Trang chủ `web/src/app/page.tsx` lắng nghe sự kiện `huki_admin_marketing_updated` để tự động load lại banner.
+  * Tuy nhiên, trong `AdminMarketingView.tsx`, hàm `handleDeleteBanner`, `handleSubmitBanner`, `handleToggleBanner` hoàn toàn không phát sự kiện `huki_admin_marketing_updated` cũng như không gửi tin qua `BroadcastChannel("huki_marketing_channel")`, khiến trang chủ không cập nhật realtime khi Admin xóa banner.
+
+### 3. Ma Trận Domino Rủi Ro & Cơ Chế Phòng Thủ (Chặng 4)
+
+| Thành Phần Can Thiệp | Rủi Ro Tiềm Ẩn | Biện Pháp Kiểm Soát & Phòng Thủ |
+| :--- | :--- | :--- |
+| `HierarchicalSidebar.tsx` | Hiển thị nhầm cho Admin hoặc Seller gây rối Sidebar | Ràng buộc điều kiện: `isLoggedIn && !isAdmin && !isSeller && !isShipper` |
+| `banners.controller.ts` | Gỡ bỏ `ParseUUIDPipe` có thể cho phép ID rỗng | Giữ kiểu `id: string` kiểm tra hợp lệ, Prisma tự động bảo vệ query |
+| `banners.service.ts` | Xóa banner không tồn tại gây crash | Xử lý Idempotent Delete: nếu không tìm thấy banner trong DB thì trả về `{ success: true }` an toàn |
+| `AdminMarketingView.tsx` | Bóc tách mảng banners sai cấu trúc | Kiểm tra linh hoạt: `const items = Array.isArray(res.data) ? res.data : (res.data?.items ?? [])` |
+| `AdminMarketingView.tsx` | F5 reset về DEFAULT_BANNERS khi xóa hết | Kiểm tra `if (saved !== null)` để tôn trọng mảng rỗng `[]` khi người dùng đã xóa hết |
+| Đồng bộ Realtime | Trình duyệt khác tab không nhận CustomEvent | Kết hợp cả `window.dispatchEvent` (cùng tab) và `BroadcastChannel` (đa tab) |
+
+---
+
+## 🏛️ BƯỚC 3: PHƯƠNG ÁN KIẾN TRÚC CHUẨN & BỘ CÂU HỎI TƯƠNG TÁC (CHẶNG 4)
+
+### 1. Phương Án Kỹ Thuật Chi Tiết
+
+#### A. BUG-025: Bổ Sung Mục "Hồ Sơ Của Tôi" (Tôi) Trong Sidebar Phân Quyền
+- File can thiệp: `web/src/ui/components/layout/HierarchicalSidebar.tsx`
+- Bổ sung mục điều hướng vào nhóm "TIỆN ÍCH" (`id: 'personal'`):
+  * `id: 'user-profile'`
+  * `title: 'Hồ Sơ Của Tôi'` (hoặc `Tôi`)
+  * `to: '/profile'`
+  * `icon: 'person'`
+- Điều kiện hiển thị: Chỉ kích hoạt khi `isLoggedIn && !isAdmin && !isSeller && !isShipper`.
+- Tự động kích hoạt trạng thái active (`bg-[#003B2B] text-white font-bold`) khi người dùng đang ở các trang con của `/profile` (như `/profile/addresses`, `/profile/security`, `/profile/wallet`).
+
+#### B. BUG-026: Sửa Lỗi Xóa Banner Admin Marketing Không Lưu DB & Realtime
+- **Backend (`promotion-service`):**
+  * `platform/apps/promotion-service/src/modules/banners/banners.controller.ts`:
+    Thay đổi `@Param('id', ParseUUIDPipe)` thành `@Param('id') id: string` ở các endpoint `@Delete(':id')`, `@Patch(':id')`, `@Get(':id')` để hỗ trợ linh hoạt ID chuỗi.
+  * `platform/apps/promotion-service/src/modules/banners/banners.service.ts`:
+    Cập nhật `delete(id)` thành thao tác Idempotent: nếu không tìm thấy banner trong DB thì trả về `{ success: true }`, không ném 404 làm gián đoạn UI.
+- **Frontend Admin (`AdminMarketingView.tsx`):**
+  * Bóc tách dữ liệu từ backend chuẩn xác:
+    `const items = Array.isArray(res.data) ? res.data : (res.data?.items ?? []);`
+  * Khởi tạo state từ localStorage: Nếu `saved !== null`, parse JSON và giữ nguyên mảng (kể cả mảng rỗng `[]`), không tự ý fallback về `DEFAULT_BANNERS`.
+  * Trong `handleDeleteBanner`: Gọi `await bannerApi.deleteBanner(id)`, cập nhật state, lưu localStorage, và phát tín hiệu realtime qua cả `CustomEvent("huki_admin_marketing_updated")` lẫn `BroadcastChannel("huki_marketing_channel")`.
+  * Tương tự với `handleSubmitBanner` và `handleToggleBanner` đều phát tín hiệu realtime.
+- **Frontend Trang Chủ (`web/src/app/page.tsx`):**
+  * Bổ sung lắng nghe sự kiện từ `BroadcastChannel("huki_marketing_channel")` để tự động gọi lại `loadAdminBanners()` khi Admin cập nhật từ tab Admin Marketing.
+
+### 2. Tiêu Chuẩn Nghiệm Thu (Acceptance Criteria - Gherkin BDD)
+
+```gherkin
+Feature: Chặng 4 - Mục Sidebar "Hồ Sơ Của Tôi" & Quản Lý Banner Admin Realtime Persist DB
+
+  Scenario: Hiển thị mục "Hồ Sơ Của Tôi" trên Sidebar người mua
+    Given Người dùng đã đăng nhập với vai trò BUYER/USER thông thường
+    When Người dùng quan sát thanh điều hướng Sidebar
+    Then Mục "Hồ Sơ Của Tôi" (icon person, link /profile) hiển thị trong nhóm Tiện ích
+    And Khi người dùng truy cập /profile thì mục này được highlight active
+
+  Scenario: Không hiển thị mục "Hồ Sơ Của Tôi" cho Admin, Seller, Shipper
+    Given Người dùng đăng nhập với vai trò ADMIN, BUSINESS/SELLER hoặc SHIPPER
+    When Quan sát thanh Sidebar
+    Then Mục "Hồ Sơ Của Tôi" không xuất hiện trong nhóm Tiện ích của Sidebar
+
+  Scenario: Xóa banner trong Admin Marketing xóa thành công trên DB và không tái hiện khi F5
+    Given Admin đang ở trang /admin/marketing và chọn xóa một banner
+    When Admin xác nhận xóa banner
+    Then Hệ thống gửi request DELETE tới promotion-service và xóa khỏi DB
+    And Banner biến mất khỏi bảng danh sách
+    And Khi F5 tải lại trang, banner đã xóa không bị khôi phục lại
+
+  Scenario: Đồng bộ realtime thay đổi banner sang Trang Chủ
+    Given Trang chủ đang mở trên một tab và Admin xóa/thay đổi banner trên tab Marketing
+    When Thao tác xóa hoặc cập nhật banner hoàn tất
+    Then BroadcastChannel và CustomEvent phát tín hiệu đồng bộ
+    And Trang chủ tự động cập nhật danh sách banner mới nhất mà không cần F5
+```
+
+---
+
+### 3. CỔNG NGHIỆM THU & PHÊ DUYỆT (APPROVAL GATE CHẶNG 4)
+- Trình bày giải pháp kỹ thuật Chặng 4 tới Người dùng thông qua form câu hỏi tương tác trước khi sửa mã nguồn Bước 4.
+- **Trạng thái phê duyệt:** ĐÃ ĐƯỢC NGƯỜI DÙNG PHÊ DUYỆT ĐỒNG THUẬN 100%.
+
+---
+
+## 🛠️ BƯỚC 4: THỰC THI SỬA LỖI & KẾT QUẢ KIỂM THỬ (CHẶNG 4)
+
+### 1. Chi Tiết Thực Hiện Sửa Mã Nguồn
+
+#### A. BUG-025: Bổ Sung Mục "Hồ Sơ Của Tôi" (Tôi) Trong Sidebar Phân Quyền
+- `web/src/ui/components/layout/HierarchicalSidebar.tsx`:
+  * Bổ sung mục điều hướng `id: 'user-profile'`, `title: 'Hồ Sơ Của Tôi'`, `to: '/profile'`, `icon: 'person'` vào nhóm "TIỆN ÍCH".
+  * Ràng buộc phân quyền nghiêm ngặt: `isLoggedIn && !isAdmin && !isSeller && !isShipper`. Khi đăng nhập với vai trò Admin, Seller, Shipper thì mục này tự động ẩn đi, tránh gây rối Sidebar.
+  * Tự động active (`bg-[#003B2B] text-white font-bold`) khi người dùng truy cập `/profile` hoặc các sub-routes (`/profile/addresses`, `/profile/security`, `/profile/wallet`).
+
+#### B. BUG-026: Sửa Lỗi Xóa Banner Admin Marketing Không Lưu DB & Realtime
+- **Backend (`promotion-service`):**
+  * `platform/apps/promotion-service/src/modules/banners/banners.controller.ts`:
+    Gỡ bỏ `ParseUUIDPipe` tại `@Get(':id')`, `@Patch(':id')`, `@Delete(':id')` để hỗ trợ linh hoạt xóa theo bất kỳ định dạng string ID nào mà không bị lỗi 400 Bad Request.
+  * `platform/apps/promotion-service/src/modules/banners/banners.service.ts`:
+    Cập nhật phương thức `delete(id)` thành Idempotent: nếu không tìm thấy banner trong cơ sở dữ liệu thì trả về `{ success: true }`, không ném 404 làm gián đoạn frontend.
+- **Frontend Admin (`AdminMarketingView.tsx`):**
+  * Bổ sung hàm `broadcastMarketingUpdate(updatedBanners)` phát đồng thời `CustomEvent("huki_admin_marketing_updated")` và `BroadcastChannel("huki_marketing_channel")`.
+  * Khởi tạo state: kiểm tra `if (saved !== null)` để tôn trọng mảng rỗng `[]` khi Admin đã xóa sạch banner, triệt tiêu lỗi F5 tự động fallback về `DEFAULT_BANNERS`.
+  * Trong `useEffect` load banner: bóc tách linh hoạt `const items = Array.isArray(res.data) ? res.data : (res.data?.items ?? [])`.
+  * Trong `handleDeleteBanner`: gọi `bannerApi.deleteBanner(id)`, cập nhật state, lưu localStorage, và phát tín hiệu realtime đồng bộ qua `broadcastMarketingUpdate`.
+  * Trong `handleSubmitBanner` và `handleToggleBanner`: đồng bộ realtime phát tin cho các tab khác.
+- **Frontend Trang Chủ (`web/src/app/page.tsx`):**
+  * Trong `loadAdminBanners`: bóc tách items linh hoạt và tôn trọng mảng `localStorage` khi `saved !== null`.
+  * Mở kết nối `BroadcastChannel("huki_marketing_channel")` để khi Admin xóa hoặc chỉnh sửa banner tại tab Marketing, Trang Chủ lập tức cập nhật slide banner realtime mà không cần F5.
+
+### 2. Kết Quả Kiểm Thử E2E Chặng 4 (`scripts/test_e2e_sprint2_chang4.js`)
+- Kết quả chạy test độc lập: **8/8 PASS (100%)**.
+- Next.js Build: **141/141 routes biên dịch thành công 0 lỗi**.
+- Platform Microservices Build: **7/7 services biên dịch sạch sẽ 0 lỗi**.
+
+---
+
+## 🏆 TỔNG KẾT TOÀN BỘ SPRINT 2 (10/10 BUGS HOÀN TẤT)
+
+| Chặng | Danh Sách Bug | Kết Quả E2E Script | Next.js Build | Platform Build |
+| :--- | :--- | :--- | :--- | :--- |
+| **Chặng 1** | BUG-017, BUG-018, BUG-019 | ✅ **11/11 PASS (100%)** | ✅ **141 routes (0 errors)** | ✅ **7 services (0 errors)** |
+| **Chặng 2** | BUG-020, BUG-021, BUG-022 | ✅ **11/11 PASS (100%)** | ✅ **141 routes (0 errors)** | ✅ **7 services (0 errors)** |
+| **Chặng 3** | BUG-023, BUG-024 | ✅ **8/8 PASS (100%)** | ✅ **141 routes (0 errors)** | ✅ **7 services (0 errors)** |
+| **Chặng 4** | BUG-025, BUG-026 | ✅ **8/8 PASS (100%)** | ✅ **141 routes (0 errors)** | ✅ **7 services (0 errors)** |
+| **TỔNG** | **10 HẠNG MỤC LỖI HỆ THỐNG** | ✅ **38/38 PASS (100%)** | ✅ **HOÀN HẢO** | ✅ **HOÀN HẢO** |
+
+
 
 

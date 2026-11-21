@@ -143,6 +143,19 @@ export function recordBannerClick(bannerId: string) {
   window.dispatchEvent(new CustomEvent("huki_banner_clicked", { detail: { bannerId } }));
 }
 
+// Helper phát sự kiện đồng bộ banner realtime ra cùng tab và toàn bộ các tab khác (Trang chủ)
+export function broadcastMarketingUpdate(updatedBanners?: MarketingBanner[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new CustomEvent("huki_admin_marketing_updated", { detail: { banners: updatedBanners } }));
+  } catch {}
+  try {
+    const channel = new BroadcastChannel("huki_marketing_channel");
+    channel.postMessage({ type: "BANNER_UPDATED", banners: updatedBanners });
+    channel.close();
+  } catch {}
+}
+
 export function AdminMarketingView() {
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -153,9 +166,9 @@ export function AdminMarketingView() {
     if (typeof window !== "undefined") {
       try {
         const saved = localStorage.getItem("huki_admin_marketing_banners");
-        if (saved) {
+        if (saved !== null) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed)) {
             // Xóa triệt để các số mock ảo cũ (14280, 9840, 18450) về số lượt click thực tế
             return parsed.map((b: MarketingBanner) => ({
               ...b,
@@ -190,22 +203,34 @@ export function AdminMarketingView() {
     }
   }, [banners]);
 
-  // BUG-03-015: Đồng bộ dữ liệu Banner thật từ promotion-service backend
+  // BUG-03-015 & BUG-026: Đồng bộ dữ liệu Banner thật từ promotion-service backend
   useEffect(() => {
     bannerApi.getBanners().then((res: any) => {
-      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-        const backendBanners: MarketingBanner[] = res.data.map((b: BannerData, idx: number) => ({
-          id: b.id,
-          title: b.title,
-          subtitle: '',
-          badge: 'NỔI BẬT',
-          link: b.link || '/books',
-          bgImage: b.image || '/banners/hero-library.jpg',
-          status: b.isActive ? 'active' : 'hidden',
-          clicks: b.clicks || 0,
-          order: b.position || idx + 1,
-        }));
-        setBanners(backendBanners);
+      const items = Array.isArray(res.data) ? res.data : (res.data?.items ?? []);
+      if (res.success && Array.isArray(items)) {
+        if (items.length > 0) {
+          const backendBanners: MarketingBanner[] = items.map((b: BannerData, idx: number) => ({
+            id: b.id,
+            title: b.title,
+            subtitle: '',
+            badge: 'NỔI BẬT',
+            link: b.link || '/books',
+            bgImage: b.image || '/banners/hero-library.jpg',
+            status: b.isActive ? 'active' : 'hidden',
+            clicks: b.clicks || 0,
+            order: b.position || idx + 1,
+          }));
+          setBanners(backendBanners);
+        } else {
+          // Khi backend trả về mảng rỗng (đã xóa hết banner), không fallback về DEFAULT_BANNERS
+          const saved = typeof window !== 'undefined' ? localStorage.getItem("huki_admin_marketing_banners") : null;
+          if (saved !== null) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) setBanners(parsed);
+            } catch {}
+          }
+        }
       }
     }).catch(() => {});
   }, []);
@@ -327,9 +352,11 @@ export function AdminMarketingView() {
     if (target) {
       bannerApi.updateBanner(id, { isActive: target.status !== "active" }).catch(() => {});
     }
-    setBanners((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, status: b.status === "active" ? "hidden" : "active" } : b)),
+    const updated: MarketingBanner[] = banners.map((b) =>
+      b.id === id ? { ...b, status: b.status === "active" ? "hidden" : "active" } : b
     );
+    setBanners(updated);
+    broadcastMarketingUpdate(updated);
     showToast?.("Đã cập nhật trạng thái hiển thị banner.", "info");
   };
 
@@ -343,30 +370,28 @@ export function AdminMarketingView() {
 
     if (editingBannerId) {
       // CẬP NHẬT BANNER HIỆN TẠI
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editingBannerId);
-      if (isUuid) {
-        bannerApi.updateBanner(editingBannerId, {
-          title: bannerForm.title.trim(),
-          image: bannerForm.bgImage.trim() || "/banners/hero-library.jpg",
-          link: bannerForm.link.trim(),
-          position: Number(bannerForm.order),
-        }).catch(() => {});
-      }
-      setBanners((prev) =>
-        prev.map((b) =>
-          b.id === editingBannerId
-            ? {
-              ...b,
-              title: bannerForm.title.trim(),
-              subtitle: bannerForm.subtitle.trim(),
-              badge: bannerForm.badge.trim(),
-              link: bannerForm.link.trim(),
-              bgImage: bannerForm.bgImage.trim() || "/banners/hero-library.jpg",
-              order: Number(bannerForm.order) || b.order,
-            }
-            : b,
-        ),
+      bannerApi.updateBanner(editingBannerId, {
+        title: bannerForm.title.trim(),
+        image: bannerForm.bgImage.trim() || "/banners/hero-library.jpg",
+        link: bannerForm.link.trim(),
+        position: Number(bannerForm.order),
+      }).catch(() => {});
+
+      const updated: MarketingBanner[] = banners.map((b) =>
+        b.id === editingBannerId
+          ? {
+            ...b,
+            title: bannerForm.title.trim(),
+            subtitle: bannerForm.subtitle.trim(),
+            badge: bannerForm.badge.trim(),
+            link: bannerForm.link.trim(),
+            bgImage: bannerForm.bgImage.trim() || "/banners/hero-library.jpg",
+            order: Number(bannerForm.order) || b.order,
+          }
+          : b,
       );
+      setBanners(updated);
+      broadcastMarketingUpdate(updated);
       showToast?.(" Cập nhật thông tin banner thành công!", "success");
       setIsAddFormOpen(false);
       setEditingBannerId(null);
@@ -395,21 +420,36 @@ export function AdminMarketingView() {
         scope: 'HOMEPAGE',
       }).then((res: any) => {
         if (res.success && res.data?.id) {
-          setBanners(curr => curr.map(b => b.id === newBanner.id ? { ...b, id: res.data!.id } : b));
+          setBanners(curr => {
+            const next = curr.map(b => b.id === newBanner.id ? { ...b, id: res.data!.id } : b);
+            broadcastMarketingUpdate(next);
+            return next;
+          });
         }
       }).catch(() => {});
 
-      setBanners([newBanner, ...banners]);
+      const updated = [newBanner, ...banners];
+      setBanners(updated);
+      broadcastMarketingUpdate(updated);
       setIsAddFormOpen(false);
       showToast?.(" Đã xuất bản banner mới lên trang chủ thành công!", "success");
     }
   };
 
-  // Xóa banner
+  // Xóa banner (Persist Database & Realtime Broadcast)
   const handleDeleteBanner = (id: string) => {
     if (!window.confirm("Bạn có chắc chắn muốn xóa vĩnh viễn banner này?")) return;
-    bannerApi.deleteBanner(id).catch(() => {});
-    setBanners(banners.filter((b) => b.id !== id));
+    bannerApi.deleteBanner(id).catch((err) => {
+      console.warn("[AdminMarketing] Delete API warning:", err);
+    });
+    const updated = banners.filter((b) => b.id !== id);
+    setBanners(updated);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("huki_admin_marketing_banners", JSON.stringify(updated));
+      } catch {}
+    }
+    broadcastMarketingUpdate(updated);
     if (editingBannerId === id) {
       setIsAddFormOpen(false);
       setEditingBannerId(null);

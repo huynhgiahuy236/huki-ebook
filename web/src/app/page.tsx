@@ -371,13 +371,14 @@ export default function HomePage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Load Custom Banners from Admin Marketing Hub (API Backend with LocalStorage & Default fallback)
+  // Load Custom Banners from Admin Marketing Hub (API Backend with LocalStorage & Realtime BroadcastChannel)
   useEffect(() => {
     const loadAdminBanners = async () => {
       try {
         const res = await bannerApi.getActiveBanners('HOMEPAGE');
-        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-          const mapped = res.data.map((b: any, idx: number) => ({
+        const items = Array.isArray(res.data) ? res.data : (res.data as any)?.items;
+        if (res.success && Array.isArray(items) && items.length > 0) {
+          const mapped = items.map((b: any, idx: number) => ({
             id: b.id,
             title: b.title,
             subtitle: b.subtitle || 'Khám phá bộ sưu tập sách bản quyền đặc sắc tại HuKi',
@@ -395,15 +396,13 @@ export default function HomePage() {
       }
 
       try {
-        const saved = localStorage.getItem("huki_admin_marketing_banners");
-        if (saved) {
+        const saved = typeof window !== 'undefined' ? localStorage.getItem("huki_admin_marketing_banners") : null;
+        if (saved !== null) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed)) {
             const activeOnly = parsed.filter((b: any) => b.status === "active");
-            if (activeOnly.length > 0) {
-              setCustomBanners(activeOnly);
-              return;
-            }
+            setCustomBanners(activeOnly);
+            return;
           }
         }
       } catch {}
@@ -413,9 +412,21 @@ export default function HomePage() {
     loadAdminBanners();
     window.addEventListener("storage", loadAdminBanners);
     window.addEventListener("huki_admin_marketing_updated", loadAdminBanners);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel("huki_marketing_channel");
+      bc.onmessage = () => {
+        loadAdminBanners();
+      };
+    } catch {}
+
     return () => {
       window.removeEventListener("storage", loadAdminBanners);
       window.removeEventListener("huki_admin_marketing_updated", loadAdminBanners);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
     };
   }, []);
 

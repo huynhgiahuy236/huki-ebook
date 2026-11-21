@@ -55,7 +55,7 @@ export class BannersController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get banner by ID' })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
+  findOne(@Param('id') id: string) {
     return this.banners.findOne(id);
   }
 
@@ -65,7 +65,7 @@ export class BannersController {
   @Roles('PLATFORM_ADMIN', 'BUSINESS')
   @ApiOperation({ summary: 'Update banner' })
   update(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Body() dto: UpdateBannerDto,
   ) {
     return this.banners.update(id, dto);
@@ -76,7 +76,7 @@ export class BannersController {
   @UseGuards(RolesGuard)
   @Roles('PLATFORM_ADMIN', 'BUSINESS')
   @ApiOperation({ summary: 'Delete banner' })
-  delete(@Param('id', ParseUUIDPipe) id: string) {
+  delete(@Param('id') id: string) {
     return this.banners.delete(id);
   }
 }
