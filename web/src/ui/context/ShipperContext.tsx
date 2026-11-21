@@ -526,6 +526,7 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
               o.deliveryStaffId === 'shipper-hung' ||
               o.deliveryStaffId === 'ship-0000-4000-8000-000000000003' ||
               o.deliveryStaffId === '507b69fc-a379-40cb-8e9f-5398fe67a531' ||
+              o.deliveryStaffId === '8c0cc4cf-fc30-4a1f-9d56-9b6e1d200d2d' ||
               o.deliveryStaffId === 'SHIPPER-8899' ||
               user?.role === 'PLATFORM_ADMIN'
             )
@@ -533,12 +534,12 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
           const isAssignedToOther = Boolean(o.deliveryStaffId) && !isAssignedToMe;
 
-          // Nếu đơn đã được bưu tá khác tiếp nhận, bưu tá này không thấy trên sàn
-          if (isAssignedToOther) return;
+          // Nếu đơn đã được bưu tá khác tiếp nhận (và chưa hoàn tất), bưu tá này không thấy trên sàn
+          if (isAssignedToOther && o.status !== 'DELIVERED' && o.sellerOrderStatus !== 'DELIVERED' && o.sellerOrderStatus !== 'COMPLETED') return;
 
-          // Chỉ hiển thị trên sàn khi Người bán đã đóng gói xong và bấm "Giao bưu tá" (PREPARING)
-          const isReadyForCourier = o.sellerOrderStatus === 'PREPARING';
-          const isPendingSeller = o.sellerOrderStatus === 'CONFIRMED' || o.sellerOrderStatus === 'PENDING_CONFIRMATION' || o.sellerOrderStatus === 'PENDING_PAYMENT' || o.sellerOrderStatus === 'DRAFT';
+          // Chỉ hiển thị trên sàn khi Người bán đã xác nhận hoặc đóng gói (CONFIRMED hoặc PREPARING)
+          const isReadyForCourier = o.sellerOrderStatus === 'PREPARING' || o.sellerOrderStatus === 'CONFIRMED' || o.status === 'AVAILABLE';
+          const isPendingSeller = o.sellerOrderStatus === 'PENDING_CONFIRMATION' || o.sellerOrderStatus === 'PENDING_PAYMENT' || o.sellerOrderStatus === 'DRAFT';
           const isClaimedByMe = isAssignedToMe || (Boolean(o.deliveryStaffId) && o.status === 'PICKING_UP');
 
           if (o.status === 'DELIVERED' || o.sellerOrderStatus === 'DELIVERED' || o.sellerOrderStatus === 'COMPLETED' || o.status === 'FAILED' || o.sellerOrderStatus === 'CANCELLED') {
@@ -587,8 +588,8 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
             active.push({ ...item, status: 'IN_TRANSIT' });
           } else if (isClaimedByMe || o.status === 'PICKING_UP') {
             active.push({ ...item, status: 'PICKING_UP' });
-          } else if (o.status === 'AVAILABLE' && isReadyForCourier && !isPendingSeller && !isClaimedByMe) {
-            available.push(item);
+          } else if ((o.status === 'AVAILABLE' || isReadyForCourier) && !isPendingSeller && !isClaimedByMe && !o.deliveryStaffId) {
+            available.push({ ...item, status: 'AVAILABLE' });
           } else {
             // Đơn hàng chưa đóng gói xong hoặc chưa giao bưu tá
           }

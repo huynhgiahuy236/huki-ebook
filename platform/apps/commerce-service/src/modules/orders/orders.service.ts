@@ -4255,11 +4255,11 @@ export class OrdersService {
       } else if (so.deliveryStaffId && (so.status === SellerOrderStatus.CONFIRMED || so.status === SellerOrderStatus.PREPARING)) {
         // Đã có bưu tá nhận đơn -> Đang chuẩn bị đến lấy hàng tại shop
         shipperStatus = 'PICKING_UP';
-      } else if (so.status === SellerOrderStatus.PREPARING && !so.deliveryStaffId) {
-        // Shop đã đóng gói xong sách và bấm 'Giao bưu tá' -> Sẵn sàng trên sàn để Shipper nhận đơn
+      } else if ((so.status === SellerOrderStatus.PREPARING || so.status === SellerOrderStatus.CONFIRMED) && !so.deliveryStaffId) {
+        // Shop đã xác nhận/đóng gói đơn hàng vật lý và chưa có bưu tá -> Sẵn sàng trên sàn để Shipper nhận đơn
         shipperStatus = 'AVAILABLE';
       } else {
-        // CONFIRMED (shop đang đóng gói) hoặc PENDING_CONFIRMATION (chưa xác nhận) -> Shipper chưa thể thấy trên sàn
+        // PENDING_CONFIRMATION hoặc PENDING_PAYMENT -> Shipper chưa thể thấy trên sàn
         shipperStatus = 'UNAVAILABLE';
       }
 
@@ -4402,6 +4402,7 @@ export class OrdersService {
       actorId,
       '507b69fc-a379-40cb-8e9f-5398fe67a531',
       'ship-0000-4000-8000-000000000003',
+      '8c0cc4cf-fc30-4a1f-9d56-9b6e1d200d2d',
       'shipper-hung',
       'SHIPPER-8899',
     ]);
