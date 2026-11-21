@@ -1067,17 +1067,19 @@ function MessengerContent() {
                 {/* Action Icons */}
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
-                    onClick={() => setActiveCallModal('voice')}
-                    className="p-2 text-gray-500 hover:text-[#006953] hover:bg-gray-100 rounded-full transition-colors"
-                    title="Bắt đầu gọi thoại"
+                    disabled
+                    aria-disabled="true"
+                    className="p-2 text-gray-400 opacity-40 cursor-not-allowed pointer-events-none rounded-full transition-colors"
+                    title="Tính năng gọi thoại trực tiếp đang trong lộ trình phát triển"
                   >
                     <span className="material-symbols-outlined text-xl">call</span>
                   </button>
 
                   <button
-                    onClick={() => setActiveCallModal('video')}
-                    className="p-2 text-gray-500 hover:text-[#006953] hover:bg-gray-100 rounded-full transition-colors"
-                    title="Bắt đầu gọi video"
+                    disabled
+                    aria-disabled="true"
+                    className="p-2 text-gray-400 opacity-40 cursor-not-allowed pointer-events-none rounded-full transition-colors"
+                    title="Tính năng gọi video trực tiếp đang trong lộ trình phát triển"
                   >
                     <span className="material-symbols-outlined text-xl">videocam</span>
                   </button>

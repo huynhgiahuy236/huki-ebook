@@ -250,19 +250,20 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
         socketUrl = window.location.origin;
       }
     }
-    let failCount = 0;
     const socket = io(`${socketUrl}/notifications`, {
       transports: ['websocket', 'polling'],
       auth: { token },
-      reconnectionAttempts: 2,
-      reconnectionDelay: 5000,
-      timeout: 5000,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 3000,
+      reconnectionDelayMax: 30000,
+      randomizationFactor: 0.5,
+      timeout: 10000,
     });
 
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      failCount = 0;
       setIsConnected(true);
       // RF-002: Auto-sync inbox & unread badge on connect/reconnect to prevent offline drops
       fetchUnreadCount();
@@ -271,17 +272,16 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
       }
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
       setIsConnected(false);
+      if (reason === 'io server disconnect') {
+        socket.connect();
+      }
     });
 
-    socket.on('connect_error', () => {
+    socket.on('connect_error', (err) => {
       setIsConnected(false);
-      failCount++;
-      if (failCount >= 2) {
-        // Dừng thử lại vô tận khi gateway 502 để bảo vệ CPU và tránh lag giật trình duyệt
-        socket.disconnect();
-      }
+      console.warn('[useRealtimeNotifications] Kết nối socket thông báo đang chờ thử lại:', err?.message || err);
     });
 
     const handleFocusOrOnline = () => {

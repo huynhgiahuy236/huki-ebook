@@ -1158,22 +1158,20 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                 <div className="flex items-center gap-1.5 text-slate-600">
                   <button
                     type="button"
-                    onClick={() => {
-                      showToast('Tổng đài hỗ trợ 1900 8866 (8:00 - 21:00) hỗ trợ kết nối thoại bảo mật giữa Shop và Khách hàng.', 'info');
-                    }}
-                    className="w-9 h-9 rounded-xl hover:bg-slate-100 text-slate-600 hover:text-emerald-700 flex items-center justify-center transition-colors cursor-pointer"
-                    title="Gọi thoại hỗ trợ khách hàng (Qua tổng đài 1900 8866)"
+                    disabled
+                    aria-disabled="true"
+                    className="w-9 h-9 rounded-xl text-slate-400 opacity-40 cursor-not-allowed pointer-events-none flex items-center justify-center transition-colors"
+                    title="Tính năng gọi thoại trực tiếp đang trong lộ trình phát triển"
                   >
                     <span className="material-symbols-outlined text-lg">call</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => {
-                      showToast('Kênh hỗ trợ video tư vấn sách trực tiếp sẽ được kích hoạt khi Khách hàng gửi yêu cầu xem sách thật.', 'info');
-                    }}
-                    className="w-9 h-9 rounded-xl hover:bg-slate-100 text-slate-600 hover:text-emerald-700 flex items-center justify-center transition-colors cursor-pointer"
-                    title="Gọi video tư vấn sách"
+                    disabled
+                    aria-disabled="true"
+                    className="w-9 h-9 rounded-xl text-slate-400 opacity-40 cursor-not-allowed pointer-events-none flex items-center justify-center transition-colors"
+                    title="Tính năng gọi video trực tiếp đang trong lộ trình phát triển"
                   >
                     <span className="material-symbols-outlined text-lg">videocam</span>
                   </button>
@@ -1712,10 +1710,12 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
               <div className="flex items-center justify-center gap-4 pt-2 text-slate-600">
                 <button
                   type="button"
-                  onClick={() => showToast?.(`Đang gọi đến khách ${currentCustomer.name}...`, 'info')}
-                  className="flex flex-col items-center gap-1 text-[10px] hover:text-emerald-800 cursor-pointer"
+                  disabled
+                  aria-disabled="true"
+                  className="flex flex-col items-center gap-1 text-[10px] text-slate-400 opacity-40 cursor-not-allowed pointer-events-none"
+                  title="Tính năng gọi thoại trực tiếp đang trong lộ trình phát triển"
                 >
-                  <div className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
+                  <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center">
                     <span className="material-symbols-outlined text-base">call</span>
                   </div>
                   <span>Gọi Khách</span>

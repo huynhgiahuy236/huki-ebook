@@ -218,9 +218,10 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
         }
         break;
       case "review.created":
-        if (payload.storeOwnerId) {
+        const sellerRecipientId = payload.storeOwnerId || payload.storeId;
+        if (sellerRecipientId) {
           targets.push({
-            recipientId: payload.storeOwnerId,
+            recipientId: sellerRecipientId,
             recipientType: "BUSINESS",
             type: "NEW_REVIEW",
             title: "Có đánh giá mới",

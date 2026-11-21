@@ -40,8 +40,8 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
 
   const port = process.env.COMMUNITY_SERVICE_PORT || 3005;
-  await app.listen(port);
-  console.log(`🚀 Community Service running on: http://localhost:${port}`);
+  await app.listen(port, '0.0.0.0');
+  console.log(`🚀 Community Service running on: http://0.0.0.0:${port}`);
 }
 
 bootstrap();

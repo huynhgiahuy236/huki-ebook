@@ -203,6 +203,18 @@ export class ReviewsService {
     let storeId: string | undefined = purchase?.storeId;
     let storeOwnerId: string | undefined = purchase?.storeOwnerId;
 
+    if (!storeOwnerId || !storeId) {
+      try {
+        const bookStore = await this.verification.lookupBookStore(bookId);
+        if (bookStore) {
+          if (!storeId && bookStore.storeId) storeId = bookStore.storeId;
+          if (!storeOwnerId && bookStore.ownerUserId) storeOwnerId = bookStore.ownerUserId;
+        }
+      } catch {
+        // ignore lookup errors
+      }
+    }
+
     return this.create(actor, {
       targetType: "BOOK",
       targetId: bookId,
@@ -337,6 +349,7 @@ export class ReviewsService {
       authorization,
       actor.sub,
       storeId,
+      actor,
     );
     const effectiveStoreId = storeId || business.storeId;
     try {

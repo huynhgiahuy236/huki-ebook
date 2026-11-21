@@ -57,19 +57,20 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
         socketUrl = window.location.origin;
       }
     }
-    let failCount = 0;
     const socket = io(`${socketUrl}/chat`, {
       transports: ['websocket', 'polling'],
       auth: { token },
-      reconnectionAttempts: 2,
-      reconnectionDelay: 5000,
-      timeout: 5000,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 3000,
+      reconnectionDelayMax: 30000,
+      randomizationFactor: 0.5,
+      timeout: 10000,
     });
 
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      failCount = 0;
       setIsConnected(true);
       // Nếu là seller trực chat cho shop, tự động join room của shop
       if (storeId) {
@@ -77,17 +78,17 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
       }
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
       setIsConnected(false);
+      // Tự động kết nối lại nếu bị server disconnect đột ngột
+      if (reason === 'io server disconnect') {
+        socket.connect();
+      }
     });
 
-    socket.on('connect_error', () => {
+    socket.on('connect_error', (err) => {
       setIsConnected(false);
-      failCount++;
-      if (failCount >= 2) {
-        // Dừng thử lại vô tận khi gateway trả về lỗi 502 để bảo vệ CPU và tránh lag giật trình duyệt
-        socket.disconnect();
-      }
+      console.warn('[useChatSocket] Kết nối socket chat đang chờ thử lại:', err?.message || err);
     });
 
     // Lắng nghe tin nhắn mới (dedup nếu server phát cả message:new và new_message)
@@ -134,7 +135,21 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
       callbacksRef.current.onConversationClosed?.(data);
     });
 
+    const handleFocusOrOnline = () => {
+      if (typeof window !== 'undefined' && socketRef.current && !socketRef.current.connected) {
+        socketRef.current.connect();
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', handleFocusOrOnline);
+      window.addEventListener('online', handleFocusOrOnline);
+    }
+
     return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', handleFocusOrOnline);
+        window.removeEventListener('online', handleFocusOrOnline);
+      }
       if (storeId) {
         socket.emit('shop:leave', { storeId });
       }

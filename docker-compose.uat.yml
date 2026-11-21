@@ -274,6 +274,8 @@ services:
       NODE_ENV: staging
       MONGODB_URI: mongodb://mongo:27017/community_uat_db
       COMMERCE_SERVICE_URL: http://commerce-service-uat:3003
+      BUSINESS_SERVICE_URL: http://business-service-uat:3002
+      SOCKET_CORS_ORIGIN: "*"
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
