@@ -717,10 +717,10 @@ export default function OrderDetailPage() {
                     <button
                       type="button"
                       onClick={() => setShowDispatchModal(true)}
-                      className="px-3 py-1.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-gray-50 border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
+                      className="h-9 px-3.5 py-1.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-slate-50 border border-slate-200 dark:border-neutral-700 text-slate-700 dark:text-gray-200 text-xs font-medium inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
                       title="Gửi tin nhắn dặn dò đóng gói, giao sớm tới người bán"
                     >
-                      <span className="material-symbols-outlined text-[15px] text-gray-500">edit_note</span>
+                      <span className="material-symbols-outlined text-[15px] text-slate-400">edit_note</span>
                       <span>Dặn Dò Shop</span>
                     </button>
                   );
@@ -1043,7 +1043,7 @@ export default function OrderDetailPage() {
                         <button
                           type="button"
                           onClick={() => setCancelSubOrderModal({ open: true, subOrder: so, reason: '' })}
-                          className="px-3 py-1.5 rounded-xl text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200 dark:border-red-900 text-xs font-semibold inline-flex items-center gap-1 transition-all cursor-pointer"
+                          className="h-8 px-3 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-medium inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                         >
                           <span className="material-symbols-outlined text-sm">cancel</span>
                           <span>Hủy Kiện Này</span>
@@ -1054,14 +1054,14 @@ export default function OrderDetailPage() {
 
                   {/* Pure Digital Banner */}
                   {isDigitalPackage && (
-                    <div className="mb-4 p-3.5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-900/40 flex items-center justify-between gap-3 flex-wrap">
-                      <div className="flex items-center gap-2.5 text-indigo-900 dark:text-indigo-200 text-xs">
-                        <span className="material-symbols-outlined text-lg text-indigo-600">verified</span>
+                    <div className="mb-4 p-3.5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-900/30 flex items-center justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-2.5 text-emerald-900 dark:text-emerald-200 text-xs">
+                        <span className="material-symbols-outlined text-lg text-emerald-700">verified</span>
                         <span>Ấn phẩm Ebook số bản quyền DRM đã được kích hoạt trực tiếp vào Tủ sách của bạn.</span>
                       </div>
                       <Link
                         href="/library"
-                        className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all"
+                        className="h-8 px-3.5 rounded-xl bg-[#003B2B] hover:bg-[#002b1f] text-white text-xs font-medium inline-flex items-center gap-1.5 shadow-2xs transition-all"
                       >
                         <span className="material-symbols-outlined text-sm">auto_stories</span>
                         <span>Mở Tủ Sách</span>
@@ -1210,12 +1210,12 @@ export default function OrderDetailPage() {
                                     </div>
 
                                     <div className="flex items-center gap-2 shrink-0">
-                                      <span className="font-bold text-sm text-indigo-700 dark:text-indigo-400 mr-1">
+                                      <span className="font-bold text-sm text-slate-900 dark:text-slate-100 mr-1">
                                         {itSubtotal.toLocaleString('vi-VN')}đ
                                       </span>
                                       <Link
                                         href={`/reader/${item.bookId}`}
-                                        className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold inline-flex items-center gap-1 shadow-xs transition-colors"
+                                        className="h-8 px-3 rounded-xl bg-[#003B2B] hover:bg-[#002b1f] text-white text-xs font-medium inline-flex items-center gap-1.5 shadow-2xs transition-colors"
                                       >
                                         <span className="material-symbols-outlined text-sm">chrome_reader_mode</span>
                                         <span>Đọc Ngay</span>
@@ -1225,7 +1225,7 @@ export default function OrderDetailPage() {
                                           <button
                                             type="button"
                                             disabled
-                                            className="px-2.5 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 text-xs font-bold inline-flex items-center gap-1 opacity-90 cursor-not-allowed select-none"
+                                            className="h-8 px-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-xs font-medium inline-flex items-center gap-1.5 opacity-90 cursor-not-allowed select-none"
                                             title="Món hàng này đã gửi yêu cầu đổi trả và đang chờ xử lý"
                                           >
                                             <span className="material-symbols-outlined text-[15px]">assignment_turned_in</span>
@@ -1235,7 +1235,7 @@ export default function OrderDetailPage() {
                                           <button
                                             type="button"
                                             disabled
-                                            className="px-2.5 py-1.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/60 text-gray-400 dark:text-gray-500 text-xs font-semibold inline-flex items-center gap-1 opacity-60 cursor-not-allowed"
+                                            className="h-8 px-3 rounded-xl border border-slate-200 bg-slate-100 text-slate-400 text-xs font-medium inline-flex items-center gap-1.5 opacity-60 cursor-not-allowed select-none"
                                             title="Đã hết thời hạn yêu cầu đổi trả cho Ebook này"
                                           >
                                             <span className="material-symbols-outlined text-[15px]">assignment_return</span>
@@ -1252,7 +1252,7 @@ export default function OrderDetailPage() {
                                                 subOrderId: so.id,
                                               })
                                             }
-                                            className="px-2.5 py-1.5 rounded-xl border border-indigo-300 dark:border-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200 text-xs font-bold inline-flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                                            className="h-8 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                                             title="Yêu cầu đổi trả cho Ebook này"
                                           >
                                             <span className="material-symbols-outlined text-[15px]">assignment_return</span>
@@ -1422,7 +1422,7 @@ export default function OrderDetailPage() {
                                           <button
                                             type="button"
                                             disabled
-                                            className="px-2.5 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 text-xs font-bold inline-flex items-center gap-1 opacity-90 cursor-not-allowed select-none"
+                                            className="h-8 px-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-xs font-medium inline-flex items-center gap-1.5 opacity-90 cursor-not-allowed select-none"
                                             title="Món hàng này đã gửi yêu cầu đổi trả và đang chờ xử lý"
                                           >
                                             <span className="material-symbols-outlined text-[15px]">assignment_turned_in</span>
@@ -1432,7 +1432,7 @@ export default function OrderDetailPage() {
                                           <button
                                             type="button"
                                             disabled
-                                            className="px-2.5 py-1.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/60 text-gray-400 dark:text-gray-500 text-xs font-semibold inline-flex items-center gap-1 opacity-60 cursor-not-allowed"
+                                            className="h-8 px-3 rounded-xl border border-slate-200 bg-slate-100 text-slate-400 text-xs font-medium inline-flex items-center gap-1.5 opacity-60 cursor-not-allowed select-none"
                                             title="Đã hết thời hạn yêu cầu đổi trả cho sản phẩm này"
                                           >
                                             <span className="material-symbols-outlined text-[15px]">assignment_return</span>
@@ -1449,7 +1449,7 @@ export default function OrderDetailPage() {
                                                 subOrderId: so.id,
                                               })
                                             }
-                                            className="px-2.5 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 text-xs font-bold inline-flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                                            className="h-8 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                                             title="Yêu cầu đổi trả cho sản phẩm này"
                                           >
                                             <span className="material-symbols-outlined text-[15px]">assignment_return</span>
@@ -1734,7 +1734,7 @@ export default function OrderDetailPage() {
                   {(isDelivered || isPaid) && (
                     <Link
                       href="/library"
-                      className="w-full mt-2 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs"
+                      className="w-full mt-2 h-9 px-4 rounded-xl bg-[#003B2B] hover:bg-[#002b1f] text-white font-medium text-xs flex items-center justify-center gap-2 transition-all shadow-2xs"
                     >
                       <span className="material-symbols-outlined text-sm">auto_stories</span>
                       <span>Mở Tủ Sách Cá Nhân</span>

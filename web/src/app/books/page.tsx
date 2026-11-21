@@ -19,6 +19,9 @@ export interface CatalogBookItem {
   author: string;
   publisher: string;
   category: string;
+  categoryId?: string;
+  categorySlug?: string;
+  categoryName?: string;
   format: string;
   formatType: 'ebook' | 'physical' | 'hybrid';
   hasEbook?: boolean;
@@ -57,11 +60,17 @@ function CatalogPageContent() {
   const [minPriceInput, setMinPriceInput] = useState(minPriceParam);
   const [maxPriceInput, setMaxPriceInput] = useState(maxPriceParam);
   const [realBooks, setRealBooks] = useState<BookData[]>([]);
+  const [realCategories, setRealCategories] = useState<{ id: string; name: string; slug: string }[]>([]);
   const [, setIsLoadingRealBooks] = useState(true);
   const [reviewsTick, setReviewsTick] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
+    catalogApi.getCategories().then((res) => {
+      if (isMounted && res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setRealCategories(res.data);
+      }
+    }).catch(() => {});
     async function loadBooks() {
       try {
         let res = await catalogApi.getPublicBooks({ limit: 1000 });
@@ -114,7 +123,13 @@ function CatalogPageContent() {
 
   const updateParam = (key: string, value: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (value === 'all' || !value || (key === 'page' && value === '1')) {
+    if (key === 'cat' || key === 'category') {
+      params.delete('cat');
+      params.delete('category');
+      if (value && value !== 'all') {
+        params.set('category', value);
+      }
+    } else if (value === 'all' || !value || (key === 'page' && value === '1')) {
       params.delete(key);
     } else {
       params.set(key, value);
@@ -164,22 +179,27 @@ function CatalogPageContent() {
       const hasPa = Boolean(rawRb.hasPaper || rawRb.pricePaper || rb.physicalDetails?.physicalEnabled || rb.format === 'PHYSICAL' || rb.format === 'BOTH');
       const fmt = hasEb && hasPa ? 'Combo' : hasEb ? 'Ebook' : 'Sách giấy';
       const fmtType: 'ebook' | 'physical' | 'hybrid' = hasEb && hasPa ? 'hybrid' : hasEb ? 'ebook' : 'physical';
-      let catSlug = 'selfhelp';
+      const rawCat: any = rb.category;
+      const catId = (rawCat && typeof rawCat === 'object' ? rawCat.id : '') || rawRb.categoryId || rawRb.category_id || '';
+      const catSlug = (rawCat && typeof rawCat === 'object' ? rawCat.slug : '') || '';
+      const catName = (rawCat && typeof rawCat === 'object' ? rawCat.name : (typeof rawCat === 'string' ? rawCat : '')) || '';
+
+      let legacyCatSlug = 'selfhelp';
       if (rb.category) {
         const catStr = (typeof rb.category === 'object' ? rb.category?.slug || rb.category?.name : String(rb.category)).toLowerCase();
-        if (catStr.includes('kinh-te') || catStr.includes('business') || catStr.includes('kinh-doanh') || catStr.includes('tai-chinh')) catSlug = 'business';
-        else if (catStr.includes('cong-nghe') || catStr.includes('tech') || catStr.includes('khoa-hoc') || catStr.includes('tri-thuc')) catSlug = 'technology';
-        else if (catStr.includes('van-hoc') || catStr.includes('literature') || catStr.includes('tieu-thuyet') || catStr.includes('truyen')) catSlug = 'literature';
-        else if (catStr.includes('thieu-nhi') || catStr.includes('children') || catStr.includes('kids')) catSlug = 'children';
-        else if (catStr.includes('ky-nang') || catStr.includes('selfhelp') || catStr.includes('tam-ly')) catSlug = 'selfhelp';
-        else catSlug = catStr;
+        if (catStr.includes('kinh-te') || catStr.includes('business') || catStr.includes('kinh-doanh') || catStr.includes('tai-chinh')) legacyCatSlug = 'business';
+        else if (catStr.includes('cong-nghe') || catStr.includes('tech') || catStr.includes('khoa-hoc') || catStr.includes('tri-thuc')) legacyCatSlug = 'technology';
+        else if (catStr.includes('van-hoc') || catStr.includes('literature') || catStr.includes('tieu-thuyet') || catStr.includes('truyen')) legacyCatSlug = 'literature';
+        else if (catStr.includes('thieu-nhi') || catStr.includes('children') || catStr.includes('kids')) legacyCatSlug = 'children';
+        else if (catStr.includes('ky-nang') || catStr.includes('selfhelp') || catStr.includes('tam-ly')) legacyCatSlug = 'selfhelp';
+        else legacyCatSlug = catStr;
       } else {
         const text = `${rb.title || ''} ${rb.description || ''}`.toLowerCase();
-        if (text.includes('kinh doanh') || text.includes('kinh tế') || text.includes('tài chính') || text.includes('đầu tư')) catSlug = 'business';
-        else if (text.includes('công nghệ') || text.includes('ai') || text.includes('lập trình') || text.includes('khoa học') || text.includes('tri thức')) catSlug = 'technology';
-        else if (text.includes('tiểu thuyết') || text.includes('truyện') || text.includes('thơ') || text.includes('văn học')) catSlug = 'literature';
-        else if (text.includes('thiếu nhi') || text.includes('trẻ em') || text.includes('cổ tích')) catSlug = 'children';
-        else if (text.includes('kỹ năng') || text.includes('tâm lý') || text.includes('phát triển bản thân')) catSlug = 'selfhelp';
+        if (text.includes('kinh doanh') || text.includes('kinh tế') || text.includes('tài chính') || text.includes('đầu tư')) legacyCatSlug = 'business';
+        else if (text.includes('công nghệ') || text.includes('ai') || text.includes('lập trình') || text.includes('khoa học') || text.includes('tri thức')) legacyCatSlug = 'technology';
+        else if (text.includes('tiểu thuyết') || text.includes('truyện') || text.includes('thơ') || text.includes('văn học')) legacyCatSlug = 'literature';
+        else if (text.includes('thiếu nhi') || text.includes('trẻ em') || text.includes('cổ tích')) legacyCatSlug = 'children';
+        else if (text.includes('kỹ năng') || text.includes('tâm lý') || text.includes('phát triển bản thân')) legacyCatSlug = 'selfhelp';
       }
       const authorName = rb.author?.name || (typeof rb.author === 'string' ? rb.author : null) || rawRb.authorName || 'Tác giả HUKI';
       const publisherName = rb.publisher?.name || (typeof rb.publisher === 'string' ? rb.publisher : null) || rawRb.publisherName || rawRb.shopName || 'HUKI Publisher';
@@ -201,7 +221,10 @@ function CatalogPageContent() {
         title: rb.title,
         author: authorName,
         publisher: publisherName,
-        category: catSlug,
+        category: catSlug || legacyCatSlug,
+        categoryId: catId,
+        categorySlug: catSlug,
+        categoryName: catName,
         hasEbook: hasEb,
         hasPaper: hasPa,
         format: fmt,
@@ -223,27 +246,38 @@ function CatalogPageContent() {
     const maxP = maxPriceParam ? Number(maxPriceParam) : null;
 
     const matches = allBooks.filter((book) => {
-      // Category filter
+      // Category filter (SSOT: Matching by slug, id, categoryName and aliases)
       if (selectedCat !== 'all') {
-        const catMap: Record<string, string> = {
-          'van-hoc': 'literature',
-          'literature': 'literature',
-          'kinh-te': 'business',
-          'kinh-doanh': 'business',
-          'business': 'business',
-          'ky-nang': 'selfhelp',
-          'selfhelp': 'selfhelp',
-          'cong-nghe': 'technology',
-          'technology': 'technology',
-          'khoa-hoc': 'technology',
-          'tri-thuc': 'technology',
-          'thieu-nhi': 'children',
-          'children': 'children',
-          'tam-ly': 'selfhelp',
-          'giao-duc': 'education',
+        const selNorm = normalizeVietnameseText(selectedCat).toLowerCase();
+        const bookCatNorm = normalizeVietnameseText(book.categoryName || book.category || '').toLowerCase();
+        const bookSlugNorm = normalizeVietnameseText(book.categorySlug || '').toLowerCase();
+
+        // 1. Direct match with id or slug
+        const directMatch = book.categoryId === selectedCat ||
+                            book.categorySlug === selectedCat ||
+                            bookSlugNorm === selNorm ||
+                            book.category === selectedCat;
+
+        // 2. Flexible cross-alias mapping between old slugs and DB slugs
+        const aliasMap: Record<string, string[]> = {
+          'kinh-doanh-tech': ['kinh-doanh', 'tech', 'cong-nghe', 'business', 'tai-chinh', 'kinh-te', 'technology'],
+          'business': ['kinh-doanh-tech', 'kinh-doanh', 'tai-chinh', 'kinh-te'],
+          'manga-comic-khac': ['manga', 'comic', 'khac', 'truyen-tranh'],
+          'tri-thuc': ['tri-thuc', 'khoa-hoc', 'technology', 'cong-nghe'],
+          'technology': ['tri-thuc', 'cong-nghe', 'khoa-hoc'],
+          'tam-ly-ky-nang': ['tam-ly', 'ky-nang', 'selfhelp', 'phat-trien'],
+          'selfhelp': ['tam-ly-ky-nang', 'tam-ly', 'ky-nang'],
+          'van-hoc': ['van-hoc', 'literature', 'tieu-thuyet', 'truyen'],
+          'literature': ['van-hoc', 'tieu-thuyet', 'truyen'],
         };
-        const normalizedSelected = catMap[selectedCat] || selectedCat;
-        if (book.category !== normalizedSelected && !book.category?.includes(normalizedSelected) && !normalizedSelected.includes(book.category || '')) return false;
+        const aliases = aliasMap[selectedCat] || [selectedCat];
+        const aliasMatch = aliases.some((a) =>
+          bookSlugNorm.includes(a) ||
+          bookCatNorm.includes(a) ||
+          (book.category && book.category.toLowerCase().includes(a))
+        );
+
+        if (!directMatch && !aliasMatch) return false;
       }
       // Format filter
       if (selectedFormat === 'ebook' && !book.hasEbook) return false;
@@ -493,37 +527,57 @@ function CatalogPageContent() {
             </div>
           </div>
 
-          {/* 2. Thể loại / Chủ đề */}
+          {/* 2. Thể loại / Chủ đề (Đồng bộ SSOT từ Database & Trang chủ) */}
           <div className="py-3 border-b border-gray-100">
             <h4 className="font-bold text-xs text-gray-900 mb-2">Chủ Đề &amp; Thể Loại</h4>
             <div className="space-y-1.5 text-xs text-gray-700">
-              {[
-                { id: 'all', label: 'Tất cả chủ đề', count: counts.categories.all },
-                { id: 'business', label: 'Kinh doanh & Đầu tư', count: counts.categories.business },
-                { id: 'selfhelp', label: 'Phát triển bản thân', count: counts.categories.selfhelp },
-                { id: 'technology', label: 'Công nghệ & AI', count: counts.categories.technology },
-                { id: 'literature', label: 'Văn học & Tiểu thuyết', count: counts.categories.literature },
-              ].map((cat) => (
-                <label
-                  key={cat.id}
-                  onClick={() => updateParam('cat', cat.id)}
-                  className={`flex items-center justify-between cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
-                    selectedCat === cat.id ? 'text-[#003b2b] font-bold' : ''
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="cat_filter"
-                      checked={selectedCat === cat.id}
-                      onChange={() => {}}
-                      className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
-                    />
-                    <span>{cat.label}</span>
-                  </div>
-                  {cat.count > 0 && <span className="text-[11px] text-gray-400">({cat.count})</span>}
-                </label>
-              ))}
+              {(realCategories.length > 0
+                ? [
+                    { id: 'all', label: 'Tất cả chủ đề', count: allBooks.length },
+                    ...realCategories.map((c) => ({
+                      id: c.slug,
+                      label: c.name,
+                      count: allBooks.filter(
+                        (b) =>
+                          b.categoryId === c.id ||
+                          b.categorySlug === c.slug ||
+                          (b.category && b.category.toLowerCase().includes(c.slug)) ||
+                          (b.categoryName && b.categoryName.toLowerCase().includes(c.name.toLowerCase()))
+                      ).length,
+                    })),
+                  ]
+                : [
+                    { id: 'all', label: 'Tất cả chủ đề', count: allBooks.length },
+                    { id: 'kinh-doanh-tech', label: 'Kinh doanh & Tech', count: allBooks.filter((b) => (b.categorySlug || b.category)?.includes('kinh-doanh')).length },
+                    { id: 'manga-comic-khac', label: 'Manga & Khác', count: allBooks.filter((b) => (b.categorySlug || b.category)?.includes('manga')).length },
+                    { id: 'tri-thuc', label: 'Tri thức & Khoa học', count: allBooks.filter((b) => (b.categorySlug || b.category)?.includes('tri-thuc')).length },
+                    { id: 'tam-ly-ky-nang', label: 'Tâm lý & Kỹ năng', count: allBooks.filter((b) => (b.categorySlug || b.category)?.includes('tam-ly')).length },
+                    { id: 'van-hoc', label: 'Văn học', count: allBooks.filter((b) => (b.categorySlug || b.category)?.includes('van-hoc')).length },
+                  ]
+              ).map((cat) => {
+                const isChecked = selectedCat === cat.id || (cat.id !== 'all' && (selectedCat.includes(cat.id) || cat.id.includes(selectedCat)));
+                return (
+                  <label
+                    key={cat.id}
+                    onClick={() => updateParam('category', cat.id)}
+                    className={`flex items-center justify-between cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
+                      isChecked ? 'text-[#003b2b] font-bold' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="cat_filter"
+                        checked={isChecked}
+                        onChange={() => {}}
+                        className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
+                      />
+                      <span>{cat.label}</span>
+                    </div>
+                    {cat.count > 0 && <span className="text-[11px] text-gray-400">({cat.count})</span>}
+                  </label>
+                );
+              })}
             </div>
           </div>
 

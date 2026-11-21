@@ -397,17 +397,22 @@ export default function HomePage() {
       try {
         const res = await bannerApi.getActiveBanners('HOMEPAGE');
         const items = Array.isArray(res.data) ? res.data : (res.data as any)?.items;
-        if (res.success && Array.isArray(items) && items.length > 0) {
-          const mapped = items.map((b: any, idx: number) => ({
-            id: b.id,
-            title: b.title,
-            subtitle: b.subtitle || 'Khám phá bộ sưu tập sách bản quyền đặc sắc tại HuKi',
-            bgImage: b.image || '/banners/hero-library.jpg',
-            badge: b.badge || 'NỔI BẬT',
-            link: b.link || '/catalog',
-            status: 'active',
-            order: b.position || idx + 1,
-          }));
+        if (res.success && Array.isArray(items)) {
+          const mapped = items.map((b: any, idx: number) => {
+            const pos = b.position || idx + 1;
+            const slot = pos === 101 ? 'SUB_TOP' : pos === 102 ? 'SUB_BOTTOM' : 'HERO_SLIDER';
+            return {
+              id: b.id,
+              title: b.title,
+              subtitle: b.subtitle || '',
+              bgImage: b.image || '/banners/hero-library.jpg',
+              badge: b.badge || (pos === 101 ? 'SÁCH BÁN CHẠY' : pos === 102 ? 'EBOOK BẢN QUYỀN' : 'CHIẾN DỊCH HUKI'),
+              link: b.link || '/books',
+              status: b.isActive ? 'active' : 'hidden',
+              order: pos,
+              slot,
+            };
+          });
           setCustomBanners(mapped);
           return;
         }
@@ -426,7 +431,8 @@ export default function HomePage() {
           }
         }
       } catch {}
-      setCustomBanners(ADMIN_DEFAULT_BANNERS);
+      // Khi đã xóa hết banner, không phục hồi ADMIN_DEFAULT_BANNERS làm banner ma
+      setCustomBanners([]);
     };
 
     loadAdminBanners();
@@ -556,9 +562,33 @@ export default function HomePage() {
     }));
   }, [realCategories, realBooks]);
 
-  // 2. Hero Slides: 100% Gắn Với Banner Bên Admin (Không lấy ngẫu nhiên sách test)
+  // 2. Banner Hero & 2 Banner Phụ (Đồng bộ trực tiếp từ Admin Marketing theo Slot)
+  const heroBanners = useMemo(() => {
+    return customBanners.filter((b: any) => (b.slot === 'HERO_SLIDER' || (!b.slot && b.order < 100)) && b.status === 'active');
+  }, [customBanners]);
+
+  const subTopBanner = useMemo(() => {
+    return customBanners.find((b: any) => (b.slot === 'SUB_TOP' || b.order === 101) && b.status === 'active');
+  }, [customBanners]);
+
+  const subBottomBanner = useMemo(() => {
+    return customBanners.find((b: any) => (b.slot === 'SUB_BOTTOM' || b.order === 102) && b.status === 'active');
+  }, [customBanners]);
+
   const heroSlides = useMemo(() => {
-    const bannerSource = customBanners.length > 0 ? customBanners : ADMIN_DEFAULT_BANNERS;
+    const bannerSource = heroBanners.length > 0 ? heroBanners : [];
+    if (bannerSource.length === 0) {
+      return [{
+        id: "hero-welcome",
+        badge: "HỆ SINH THÁI HUKI",
+        title: "Tuần Lễ Sách Tri Thức Bản Quyền 2026",
+        desc: "Khám phá hàng chục ngàn tựa sách chọn lọc từ các Nhà xuất bản hàng đầu.",
+        bgImage: "/banners/hero-library.jpg",
+        overlay: "linear-gradient(to right, rgba(0, 36, 26, 0.88) 0%, rgba(0, 36, 26, 0.55) 55%, rgba(0, 36, 26, 0.12) 100%)",
+        primaryBtn: { text: "Khám Phá Ngay", to: "/books" },
+        secondaryBtn: { text: "Sách Bán Chạy", to: "/books?sort=bestseller" },
+      }];
+    }
 
     return bannerSource.map((cb: any, idx: number) => ({
       id: cb.id || `hero-${idx}`,
@@ -571,7 +601,7 @@ export default function HomePage() {
       primaryBtn: { text: "Khám Phá Ngay", to: cb.link || cb.targetUrl || "/books" },
       secondaryBtn: { text: "Sách Bán Chạy", to: "/books?sort=bestseller" },
     }));
-  }, [customBanners]);
+  }, [heroBanners]);
 
   // Auto rotate Hero Slider
   useEffect(() => {
@@ -1275,12 +1305,12 @@ export default function HomePage() {
             )}
           </div>
 
-          {/* 1.3 CỘT PHẢI: 2 BANNER PHỤ (ẢNH SẮC NÉT, KHÔNG LỚP TRẮNG MỜ ĐỤC) */}
+          {/* 1.3 CỘT PHẢI: 2 BANNER PHỤ (ĐỒNG BỘ THEO SLOT ADMIN MARKETING) */}
           <div className="col-span-12 lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2.5">
             <Link
-              href="/books?sort=bestseller"
+              href={subTopBanner?.link || "/books?sort=bestseller"}
               style={{
-                backgroundImage: `linear-gradient(to right, rgba(0, 36, 26, 0.88) 0%, rgba(0, 36, 26, 0.5) 65%, rgba(0, 36, 26, 0.1) 100%), url('/banners/hero-podium.jpg')`,
+                backgroundImage: `linear-gradient(to right, rgba(0, 36, 26, 0.88) 0%, rgba(0, 36, 26, 0.5) 65%, rgba(0, 36, 26, 0.1) 100%), url('${subTopBanner?.bgImage || '/banners/hero-podium.jpg'}')`,
                 backgroundSize: "cover",
                 backgroundPosition: "center",
               }}
@@ -1288,13 +1318,13 @@ export default function HomePage() {
             >
               <div className="relative z-10 max-w-[210px]">
                 <span className="bg-amber-400 text-[#003B2B] text-[8.5px] uppercase font-black px-2 py-0.5 rounded shadow-xs">
-                  SÁCH BÁN CHẠY
+                  {subTopBanner?.badge || "SÁCH BÁN CHẠY"}
                 </span>
-                <h3 className="text-xs sm:text-sm font-bold mt-1.5 leading-snug text-white font-editorial drop-shadow-xs">
-                  Tuyển Tập Được Đọc Nhiều Nhất
+                <h3 className="text-xs sm:text-sm font-bold mt-1.5 leading-snug text-white font-editorial drop-shadow-xs line-clamp-2">
+                  {subTopBanner?.title || "Tuyển Tập Được Đọc Nhiều Nhất"}
                 </h3>
                 <p className="text-[10.5px] text-emerald-100 mt-1 line-clamp-2 font-normal">
-                  Khám phá các ấn phẩm bán chạy hàng đầu tuần này.
+                  {subTopBanner?.subtitle || "Khám phá các ấn phẩm bán chạy hàng đầu tuần này."}
                 </p>
               </div>
 
@@ -1304,9 +1334,9 @@ export default function HomePage() {
             </Link>
 
             <Link
-              href="/books?format=ebook"
+              href={subBottomBanner?.link || "/books?format=ebook"}
               style={{
-                backgroundImage: `linear-gradient(to right, rgba(15, 23, 42, 0.9) 0%, rgba(15, 23, 42, 0.52) 65%, rgba(15, 23, 42, 0.1) 100%), url('/banners/sub-hybrid.jpg')`,
+                backgroundImage: `linear-gradient(to right, rgba(15, 23, 42, 0.9) 0%, rgba(15, 23, 42, 0.52) 65%, rgba(15, 23, 42, 0.1) 100%), url('${subBottomBanner?.bgImage || '/banners/sub-hybrid.jpg'}')`,
                 backgroundSize: "cover",
                 backgroundPosition: "center",
               }}
@@ -1314,13 +1344,13 @@ export default function HomePage() {
             >
               <div className="relative z-10 max-w-[210px]">
                 <span className="bg-emerald-400 text-slate-900 text-[8.5px] uppercase font-black px-2 py-0.5 rounded shadow-xs">
-                  EBOOK BẢN QUYỀN
+                  {subBottomBanner?.badge || "EBOOK BẢN QUYỀN"}
                 </span>
-                <h3 className="text-xs sm:text-sm font-bold mt-1.5 leading-snug text-white font-editorial drop-shadow-xs">
-                  Đọc Mọi Lúc Mọi Nơi
+                <h3 className="text-xs sm:text-sm font-bold mt-1.5 leading-snug text-white font-editorial drop-shadow-xs line-clamp-2">
+                  {subBottomBanner?.title || "Đọc Mọi Lúc Mọi Nơi"}
                 </h3>
                 <p className="text-[10.5px] text-slate-200 mt-1 line-clamp-2 font-normal">
-                  Sách điện tử DRM bản quyền đọc tiện lợi trên mọi thiết bị.
+                  {subBottomBanner?.subtitle || "Sách điện tử DRM bản quyền đọc tiện lợi trên mọi thiết bị."}
                 </p>
               </div>
 

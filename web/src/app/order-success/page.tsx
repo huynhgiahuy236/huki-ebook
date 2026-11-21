@@ -141,7 +141,7 @@ function OrderSuccessContent() {
   };
 
   return (
-    <div className="w-full bg-[#f8fafc] text-on-surface font-body-md min-h-screen py-8">
+    <div className="w-full bg-[#f8fafc] text-slate-800 font-sans min-h-screen py-8">
       <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-8">
         {/* Progress Stepper */}
         <nav aria-label="Tiến trình thanh toán" className="w-full bg-white border border-slate-200/80 rounded-2xl px-6 sm:px-8 py-5 shadow-xs">
@@ -449,7 +449,7 @@ function OrderSuccessContent() {
         )}
 
         <div className="flex items-center justify-center -mt-2">
-          <Link className="font-body-md text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors" href="/">
+          <Link className="text-xs text-slate-500 hover:text-emerald-800 flex items-center gap-1 transition-colors" href="/">
             <span className="material-symbols-outlined text-[18px]" data-icon="west">west</span>
             Tiếp tục mua sắm các tựa sách khác trên HUKI
           </Link>
@@ -458,12 +458,12 @@ function OrderSuccessContent() {
         {/* Real Order Items by Seller and Payment Summary */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-8 flex flex-col gap-6">
-            <div className="flex items-center justify-between border-b border-surface-variant pb-3">
-              <h2 className="font-headline-sm text-headline-sm text-on-surface flex items-center gap-2">
-                <span className="material-symbols-outlined text-tertiary text-[24px]" data-icon="inventory_2">inventory_2</span>
+            <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                <span className="material-symbols-outlined text-emerald-800 text-[24px]" data-icon="inventory_2">inventory_2</span>
                 Chi Tiết Đơn Hàng Theo Nhà Xuất Bản &amp; Đối Tác
               </h2>
-              <span className="font-body-sm text-on-surface-variant">
+              <span className="text-xs text-slate-500">
                 {order?.sellerOrders?.length ? `${order.sellerOrders.length} kiện hàng` : "Chi tiết kiện hàng"}
               </span>
             </div>
@@ -471,50 +471,50 @@ function OrderSuccessContent() {
             {/* Dynamic Seller Orders / Items */}
             {order?.sellerOrders && order.sellerOrders.length > 0 ? (
               order.sellerOrders.map((so: any) => (
-                <div key={so.id} className="bg-surface-container-lowest border border-outline-variant/60 rounded-xl overflow-hidden shadow-sm">
-                  <div className="bg-surface-container-low px-5 py-3.5 border-b border-surface-variant flex flex-wrap items-center justify-between gap-3">
+                <div key={so.id} className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-2xs">
+                  <div className="bg-slate-50/80 px-5 py-3 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
-                      <span className="material-symbols-outlined text-primary text-[20px]" data-icon="store">store</span>
-                      <span className="font-title-md text-body-md text-on-surface">Nhà Sách Đối Tác HUKI</span>
-                      <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-label-sm">Chính Hãng</span>
-                      <span className="text-surface-dim">•</span>
-                      <span className="font-body-sm text-on-surface-variant">Mã kiện: {so.code}</span>
+                      <span className="material-symbols-outlined text-emerald-800 text-[20px]" data-icon="store">store</span>
+                      <span className="text-xs sm:text-sm font-bold text-slate-800">Nhà Sách Đối Tác HUKI</span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200/60 text-[11px] font-semibold">Chính Hãng</span>
+                      <span className="text-slate-300">•</span>
+                      <span className="text-xs text-slate-500">Mã kiện: {so.code}</span>
                     </div>
-                    <span className="px-2.5 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-sm flex items-center gap-1 font-semibold">
+                    <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-xs flex items-center gap-1 font-semibold">
                       <span className="material-symbols-outlined text-[14px]" data-icon="hourglass_top">hourglass_top</span>
                       {so.status || "Đang chuẩn bị hàng"}
                     </span>
                   </div>
 
-                  <div className="p-5 flex flex-col divide-y divide-surface-variant">
+                  <div className="p-5 flex flex-col divide-y divide-slate-100">
                     {so.items?.map((item: any) => (
                       <div key={item.id || item.bookId} className="py-4 first:pt-0 last:pb-0 flex items-start gap-4">
-                        <div className="w-16 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-surface-container border border-surface-variant shadow-sm flex items-center justify-center">
+                        <div className="w-16 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-slate-50 border border-slate-200 shadow-2xs flex items-center justify-center">
                           {item.coverImage || item.coverUrl ? (
                             <img className="w-full h-full object-cover" alt={item.title} src={item.coverImage || item.coverUrl} />
                           ) : (
-                            <span className="material-symbols-outlined text-[28px] text-on-surface-variant">menu_book</span>
+                            <span className="material-symbols-outlined text-[28px] text-slate-400">menu_book</span>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">
                             <div>
-                              <h4 className="font-title-md text-body-md text-on-surface">{item.title}</h4>
-                              <p className="font-body-sm text-on-surface-variant mt-0.5">Mã sách: {item.bookId}</p>
+                              <h4 className="text-xs sm:text-sm font-bold text-slate-900">{item.title}</h4>
+                              <p className="text-[11px] text-slate-500 mt-0.5">Mã sách: {item.bookId}</p>
                             </div>
-                            <span className="font-title-md text-body-md text-on-surface flex-shrink-0">
+                            <span className="text-xs sm:text-sm font-bold text-slate-900 flex-shrink-0">
                               {(item.price || 0).toLocaleString("vi-VN")}đ
                             </span>
                           </div>
-                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-body-sm">
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
                             <div className="flex items-center gap-2">
-                              <span className="px-2 py-0.5 rounded bg-surface-container text-on-surface font-label-sm">
+                              <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-medium">
                                 {item.format === "DIGITAL" ? "Ebook số" : "Sách giấy vật lý"}
                               </span>
-                              <span className="text-on-surface-variant">Số lượng: x{item.quantity || 1}</span>
+                              <span className="text-slate-500">Số lượng: x{item.quantity || 1}</span>
                             </div>
-                            <span className="inline-flex items-center gap-1 text-on-surface-variant font-label-sm">
-                              <span className="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+                            <span className="inline-flex items-center gap-1 text-slate-500 text-[11px]">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                               Đang chuẩn bị tại kho
                             </span>
                           </div>
@@ -523,50 +523,50 @@ function OrderSuccessContent() {
                     ))}
                   </div>
 
-                  <div className="bg-surface-container-low/50 px-5 py-3 border-t border-surface-variant flex items-center justify-between text-body-sm">
-                    <span className="text-on-surface-variant flex items-center gap-1.5">
+                  <div className="bg-slate-50/50 px-5 py-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <span className="text-slate-500 flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[18px]" data-icon="local_shipping">local_shipping</span>
                       Phí vận chuyển kiện hàng:
                     </span>
-                    <span className="font-title-md text-on-surface">{(so.shippingFee || 0).toLocaleString("vi-VN")}đ</span>
+                    <span className="font-bold text-slate-800">{(so.shippingFee || 0).toLocaleString("vi-VN")}đ</span>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-xl overflow-hidden shadow-sm">
-                <div className="bg-surface-container-low px-5 py-3.5 border-b border-surface-variant flex flex-wrap items-center justify-between gap-3">
+              <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-2xs">
+                <div className="bg-slate-50/80 px-5 py-3 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
-                    <span className="material-symbols-outlined text-primary text-[20px]" data-icon="store">store</span>
-                    <span className="font-title-md text-body-md text-on-surface">Nhà Sách HUKI Official</span>
-                    <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-label-sm">Chính Hãng</span>
-                    <span className="text-surface-dim">•</span>
-                    <span className="font-body-sm text-on-surface-variant">Mã đơn: #{orderCode}</span>
+                    <span className="material-symbols-outlined text-emerald-800 text-[20px]" data-icon="store">store</span>
+                    <span className="text-xs sm:text-sm font-bold text-slate-800">Nhà Sách HUKI Official</span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200/60 text-[11px] font-semibold">Chính Hãng</span>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-xs text-slate-500">Mã đơn: #{orderCode}</span>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-sm flex items-center gap-1 font-semibold">
+                  <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-xs flex items-center gap-1 font-semibold">
                     <span className="material-symbols-outlined text-[14px]" data-icon="hourglass_top">hourglass_top</span>
                     Đang chuẩn bị hàng
                   </span>
                 </div>
 
-                <div className="p-5 flex flex-col divide-y divide-surface-variant">
+                <div className="p-5 flex flex-col divide-y divide-slate-100">
                   <div className="py-4 first:pt-0 last:pb-0 flex items-start gap-4">
-                    <div className="w-16 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-surface-container border border-surface-variant shadow-sm flex items-center justify-center">
-                      <span className="material-symbols-outlined text-[28px] text-on-surface-variant">auto_stories</span>
+                    <div className="w-16 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-slate-50 border border-slate-200 shadow-2xs flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[28px] text-slate-400">auto_stories</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <h4 className="font-title-md text-body-md text-on-surface">Đơn Hàng Sách Đã Được Xác Nhận</h4>
-                          <p className="font-body-sm text-on-surface-variant mt-0.5">Các tựa sách trong đơn hàng đang được chuẩn bị đóng gói.</p>
+                          <h4 className="text-xs sm:text-sm font-bold text-slate-900">Đơn Hàng Sách Đã Được Xác Nhận</h4>
+                          <p className="text-[11px] text-slate-500 mt-0.5">Các tựa sách trong đơn hàng đang được chuẩn bị đóng gói.</p>
                         </div>
-                        <span className="font-title-md text-body-md text-on-surface flex-shrink-0">
+                        <span className="text-xs sm:text-sm font-bold text-slate-900 flex-shrink-0">
                           {grandTotal > 0 ? `${grandTotal.toLocaleString("vi-VN")}đ` : "461.000đ"}
                         </span>
                       </div>
-                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-body-sm">
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
                         <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded bg-surface-container text-on-surface font-label-sm">Giao tận nơi</span>
-                          <span className="text-on-surface-variant">Số lượng: 1 kiện</span>
+                          <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-medium">Giao tận nơi</span>
+                          <span className="text-slate-500">Số lượng: 1 kiện</span>
                         </div>
                       </div>
                     </div>
@@ -578,22 +578,22 @@ function OrderSuccessContent() {
 
           {/* Payment Summary Sidebar */}
           <div className="lg:col-span-4 flex flex-col gap-6">
-            <div className="border-b border-surface-variant pb-3">
-              <h2 className="font-headline-sm text-headline-sm text-on-surface flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[24px]" data-icon="receipt">receipt</span>
+            <div className="border-b border-slate-200/80 pb-3">
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                <span className="material-symbols-outlined text-emerald-800 text-[24px]" data-icon="receipt">receipt</span>
                 Tóm Tắt Thanh Toán
               </h2>
             </div>
 
-            <div className="bg-surface-container-lowest border border-outline-variant/70 rounded-xl p-6 shadow-sm flex flex-col gap-4">
-              <div className="flex items-center justify-between text-body-md">
-                <span className="text-on-surface-variant">Tổng tiền hàng:</span>
-                <span className="font-body-md text-on-surface font-semibold">
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-2xs flex flex-col gap-4">
+              <div className="flex items-center justify-between text-xs sm:text-sm">
+                <span className="text-slate-500">Tổng tiền hàng:</span>
+                <span className="text-slate-900 font-bold">
                   {itemSubtotal > 0 ? `${itemSubtotal.toLocaleString("vi-VN")}đ` : `${grandTotal.toLocaleString("vi-VN")}đ`}
                 </span>
               </div>
               {discountAmount > 0 && (
-                <div className="flex items-center justify-between text-body-md text-emerald-600 dark:text-emerald-400">
+                <div className="flex items-center justify-between text-xs sm:text-sm text-emerald-700">
                   <span className="flex items-center gap-1">
                     <span>Voucher &amp; Giảm giá:</span>
                     <span className="material-symbols-outlined text-[16px]">confirmation_number</span>
@@ -601,32 +601,32 @@ function OrderSuccessContent() {
                   <span className="font-bold">-{discountAmount.toLocaleString("vi-VN")}đ</span>
                 </div>
               )}
-              <div className="flex items-center justify-between text-body-md">
-                <span className="text-on-surface-variant">Phí vận chuyển:</span>
-                <span className="font-body-md text-on-surface font-semibold">
+              <div className="flex items-center justify-between text-xs sm:text-sm">
+                <span className="text-slate-500">Phí vận chuyển:</span>
+                <span className="text-slate-900 font-bold">
                   {shippingFee > 0 ? `${shippingFee.toLocaleString("vi-VN")}đ` : (hasPhysical ? "MIỄN PHÍ" : "0đ")}
                 </span>
               </div>
-              <div className="h-[1px] bg-surface-variant my-1"></div>
+              <div className="h-[1px] bg-slate-100 my-1"></div>
               <div className="flex items-baseline justify-between">
                 <div>
-                  <span className="font-title-lg text-title-lg text-on-surface block font-bold">
+                  <span className="text-xs sm:text-sm text-slate-900 block font-bold">
                     {isCod ? "Tổng Cần Thanh Toán" : "Tổng Đã Thanh Toán"}
                   </span>
-                  <span className="font-label-sm text-tertiary">
+                  <span className="text-[11px] text-slate-500">
                     {isCod ? "COD • Thanh toán khi nhận hàng" : "PayOS • Giao dịch hoàn tất"}
                   </span>
                 </div>
-                <span className="font-headline-md text-headline-md font-bold text-primary text-xl text-emerald-700 dark:text-emerald-400">
+                <span className="font-bold text-xl text-[#003B2B]">
                   {grandTotal.toLocaleString("vi-VN")}đ
                 </span>
               </div>
 
-              <div className="mt-4 p-3.5 rounded-lg bg-surface-container-low border border-surface-variant text-body-sm flex items-start gap-2.5">
-                <span className="material-symbols-outlined text-tertiary text-[20px] flex-shrink-0 mt-0.5" data-icon="description">description</span>
+              <div className="mt-4 p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 text-xs flex items-start gap-2.5">
+                <span className="material-symbols-outlined text-slate-500 text-[20px] flex-shrink-0 mt-0.5" data-icon="description">description</span>
                 <div>
-                  <strong className="text-on-surface font-title-md">Thông tin đơn hàng:</strong>
-                  <p className="text-on-surface-variant text-[12px] mt-0.5">
+                  <strong className="text-slate-800">Thông tin đơn hàng:</strong>
+                  <p className="text-slate-500 text-[11.5px] mt-0.5">
                     Hóa đơn và thông tin cập nhật lộ trình giao hàng được đồng bộ tự động vào tài khoản của bạn.
                   </p>
                 </div>
@@ -635,14 +635,14 @@ function OrderSuccessContent() {
               <div className="mt-3 flex flex-col gap-2">
                 <button
                   onClick={() => typeof window !== "undefined" && window.print()}
-                  className="w-full h-10 rounded-lg bg-surface-container hover:bg-surface-variant text-on-surface font-title-md text-body-sm flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  className="w-full h-9 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-medium text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-2xs"
                 >
                   <span className="material-symbols-outlined text-[18px]" data-icon="print">print</span>
                   In Biên Lai Đơn Hàng
                 </button>
                 <Link
                   href="/policy"
-                  className="w-full h-10 rounded-lg text-tertiary hover:bg-tertiary/5 font-title-md text-body-sm flex items-center justify-center gap-1 transition-colors"
+                  className="w-full h-9 rounded-xl text-slate-600 hover:bg-slate-50 border border-slate-200 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
                 >
                   <span className="material-symbols-outlined text-[18px]" data-icon="support_agent">support_agent</span>
                   Cần hỗ trợ về đơn hàng này?
@@ -650,86 +650,86 @@ function OrderSuccessContent() {
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-surface-container-low/60 border border-surface-variant flex items-center gap-3">
-              <span className="material-symbols-outlined text-tertiary text-[28px]" data-icon="security">security</span>
-              <div className="text-body-sm">
-                <span className="font-title-md text-on-surface block">Cam Kết Độc Quyền HUKI</span>
-                <span className="text-on-surface-variant text-[12px]">Đổi trả sách giấy trong 7 ngày nếu lỗi in ấn. Ebook cam kết bản quyền chính chủ 100%.</span>
+            <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 flex items-center gap-3">
+              <span className="material-symbols-outlined text-emerald-800 text-[26px]" data-icon="security">security</span>
+              <div className="text-xs">
+                <span className="font-bold text-slate-900 block">Cam Kết Độc Quyền HUKI</span>
+                <span className="text-slate-500 text-[11.5px]">Đổi trả sách giấy trong 7 ngày nếu lỗi in ấn. Ebook cam kết bản quyền chính chủ 100%.</span>
               </div>
             </div>
           </div>
         </section>
 
         {/* Ecosystem promo */}
-        <section className="bg-surface-container-lowest border border-outline-variant/70 rounded-2xl p-8 shadow-sm">
+        <section className="bg-white border border-slate-200/80 rounded-2xl p-6 sm:p-8 shadow-2xs">
           <div className="max-w-2xl">
-            <span className="font-label-sm uppercase tracking-wider text-tertiary font-semibold">Hệ sinh thái đọc HUKI</span>
-            <h2 className="font-headline-md text-headline-md text-on-surface mt-1">
+            <span className="text-xs uppercase tracking-wider text-emerald-800 font-bold">Hệ sinh thái đọc HUKI</span>
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
               Hành Trình Đọc Của Bạn Bắt Đầu Từ Đây
             </h2>
-            <p className="font-body-md text-on-surface-variant mt-1.5">
+            <p className="text-xs sm:text-sm text-slate-600 mt-1.5 leading-relaxed">
               Dù đọc ebook tức thì hay đón chờ sách giấy về tận tay, bạn đã là một phần của cộng đồng yêu sách HUKI.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-            <div className="p-5 rounded-xl bg-surface-container-low border border-surface-variant flex flex-col justify-between">
+            <div className="p-5 rounded-xl bg-white border border-slate-200/80 hover:border-emerald-300 flex flex-col justify-between shadow-2xs transition-colors">
               <div>
-                <div className="w-10 h-10 rounded-lg bg-tertiary/10 text-tertiary flex items-center justify-center font-bold mb-4 font-headline-sm">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#003B2B] border border-emerald-200/80 flex items-center justify-center font-bold text-sm mb-3">
                   1
                 </div>
-                <h3 className="font-title-lg text-title-md text-on-surface">Mở Ebook Đọc Ngay</h3>
-                <p className="font-body-sm text-on-surface-variant mt-2">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900">Mở Ebook Đọc Ngay</h3>
+                <p className="text-xs text-slate-600 mt-2 leading-relaxed">
                   Trải nghiệm trình đọc hiện đại Huki Reader trên trình duyệt web hoặc ứng dụng di động iOS/Android không cần tải file nặng.
                 </p>
               </div>
-              <Link className="mt-4 font-title-md text-body-sm text-tertiary hover:underline flex items-center gap-1" href="/reader">
+              <Link className="mt-4 text-xs font-semibold text-[#003B2B] hover:underline flex items-center gap-1" href="/reader">
                 Khám phá Web Reader
                 <span className="material-symbols-outlined text-[16px]" data-icon="arrow_forward">arrow_forward</span>
               </Link>
             </div>
 
-            <div className="p-5 rounded-xl bg-surface-container-low border border-surface-variant flex flex-col justify-between">
+            <div className="p-5 rounded-xl bg-white border border-slate-200/80 hover:border-emerald-300 flex flex-col justify-between shadow-2xs transition-colors">
               <div>
-                <div className="w-10 h-10 rounded-lg bg-tertiary/10 text-tertiary flex items-center justify-center font-bold mb-4 font-headline-sm">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#003B2B] border border-emerald-200/80 flex items-center justify-center font-bold text-sm mb-3">
                   2
                 </div>
-                <h3 className="font-title-lg text-title-md text-on-surface">Đồng Bộ &amp; Ghi Chú</h3>
-                <p className="font-body-sm text-on-surface-variant mt-2">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900">Đồng Bộ &amp; Ghi Chú</h3>
+                <p className="text-xs text-slate-600 mt-2 leading-relaxed">
                   Highlight các đoạn văn tâm đắc, lưu trích dẫn và đồng bộ trang đang đọc liền mạch giữa điện thoại, máy tính bảng và laptop.
                 </p>
               </div>
-              <Link className="mt-4 font-title-md text-body-sm text-tertiary hover:underline flex items-center gap-1" href="/library">
+              <Link className="mt-4 text-xs font-semibold text-[#003B2B] hover:underline flex items-center gap-1" href="/library">
                 Xem Tủ Sách Cá Nhân
                 <span className="material-symbols-outlined text-[16px]" data-icon="arrow_forward">arrow_forward</span>
               </Link>
             </div>
 
-            <div className="p-5 rounded-xl bg-surface-container-low border border-surface-variant flex flex-col justify-between">
+            <div className="p-5 rounded-xl bg-white border border-slate-200/80 hover:border-emerald-300 flex flex-col justify-between shadow-2xs transition-colors">
               <div>
-                <div className="w-10 h-10 rounded-lg bg-tertiary/10 text-tertiary flex items-center justify-center font-bold mb-4 font-headline-sm">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#003B2B] border border-emerald-200/80 flex items-center justify-center font-bold text-sm mb-3">
                   3
                 </div>
-                <h3 className="font-title-lg text-title-md text-on-surface">Thảo Luận &amp; Viết Review</h3>
-                <p className="font-body-sm text-on-surface-variant mt-2">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900">Thảo Luận &amp; Viết Review</h3>
+                <p className="text-xs text-slate-600 mt-2 leading-relaxed">
                   Tham gia phòng đọc ảo cùng 48.000+ thành viên mê sách, trao đổi góc nhìn và nhận điểm thưởng cho mỗi bài review chất lượng.
                 </p>
               </div>
-              <Link className="mt-4 font-title-md text-body-sm text-tertiary hover:underline flex items-center gap-1" href="/orders">
+              <Link className="mt-4 text-xs font-semibold text-[#003B2B] hover:underline flex items-center gap-1" href="/orders">
                 Xem Đơn Hàng &amp; Đánh Giá
                 <span className="material-symbols-outlined text-[16px]" data-icon="arrow_forward">arrow_forward</span>
               </Link>
             </div>
           </div>
 
-          <div className="mt-8 p-4 rounded-xl bg-surface-container flex flex-wrap items-center justify-between gap-4">
+          <div className="mt-8 p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-primary text-[28px]" data-icon="celebration">celebration</span>
+              <span className="material-symbols-outlined text-emerald-800 text-[26px]" data-icon="celebration">celebration</span>
               <div>
-                <span className="font-title-md text-body-md text-on-surface block">Chia sẻ cuốn sách mới bạn vừa sở hữu</span>
-                <span className="font-body-sm text-on-surface-variant">Lan tỏa cảm hứng đọc sách cùng bạn bè trên Mạng xã hội HUKI</span>
+                <span className="text-xs sm:text-sm font-bold text-slate-900 block">Chia sẻ cuốn sách mới bạn vừa sở hữu</span>
+                <span className="text-xs text-slate-500">Lan tỏa cảm hứng đọc sách cùng bạn bè trên Mạng xã hội HUKI</span>
               </div>
             </div>
-            <Link href={communityShareHref} className="h-10 px-5 rounded-lg bg-primary hover:bg-[#922313] text-on-primary font-title-md text-body-sm flex items-center gap-2 transition-colors shadow-sm">
+            <Link href={communityShareHref} className="h-9 px-4 rounded-xl bg-[#003B2B] hover:bg-[#00281d] text-white font-medium text-xs flex items-center gap-2 transition-colors shadow-2xs">
               <span className="material-symbols-outlined text-[18px]" data-icon="share">share</span>
               Đăng Lên Bảng Tin Huki
             </Link>

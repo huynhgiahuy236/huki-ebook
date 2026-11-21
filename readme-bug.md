@@ -63,7 +63,7 @@ flowchart TD
     subgraph PHASE_2["PHASE II: KHẮC PHỤC & KIỂM TOÁN LOCAL"]
         S3 -->|"User/Lead Phê Duyệt"| S4["Bước 4: Sửa & Chạy E2E Từng Bug"]
         S4 --> S5["Bước 5: Kiểm Toán Toàn Diện Local"]
-        S5 --> S6["Bước 6: Vệ Sinh Code & Chuẩn Bị CI/CD"]
+        S5 --> S6["Bước 6: Mô Phỏng Cổng CI/CD & Vệ Sinh Code"]
     end
 
     subgraph PHASE_3["PHASE III: TRIỂN KHAI & NGHIỆM THU STAGING"]
@@ -97,7 +97,7 @@ flowchart TD
      - **What (Expected vs Actual):** Mô tả rõ ràng hành vi kỳ vọng vs hành vi lỗi thực tế.
      - **Evidence (Bằng chứng):** Ảnh chụp màn hình, video thao tác, payload Request/Response, HTTP status code (400, 403, 404, 500, 503).
   2. Ghi nhận tập trung vào tài liệu backlog [`BUG.md`](file:///e:/HuKi/BUG.md) theo mã chuẩn `BUG-XXX`.
-* **Sản phẩm đầu ra (Deliverable):** Hồ sơ lỗi được chuẩn hóa và ghi nhận đầy đủ vào tài liệu backlog/sprint hiện hành của dự án (ví dụ: [BUG.md](file:///e:/HuKi/BUG.md) hoặc file .md quản lý task mới).
+* **Sản phẩm đầu ra (Deliverable):**Hồ sơ lỗi được chuẩn hóa và ghi nhận đầy đủ vào tài liệu backlog/sprint hiện hành của dự án (ví dụ: [BUG.md](file:///e:/HuKi/BUG.md) hoặc file .md quản lý task mới).
 * **Cổng kiểm soát (Quality Gate):** Người dùng / Lead rà soát và xác nhận đúng 100% phạm vi lỗi trước khi chuyển bước.
 
 ---
@@ -122,7 +122,7 @@ flowchart TD
      * *Tầng 4 - Frontend Client:* State synchronization, race conditions, hydration mismatch giữa SSR và Client, thiếu cache invalidation.
   2. **Lập Ma trận Rủi ro Domino (Cross-Impact Assessment):**
      * Đánh giá tác động dây chuyền: Sửa đổi tại một service ảnh hưởng thế nào đến các luồng khác (ví dụ: sửa công thức Escrow ảnh hưởng đến Ví người bán, Lệnh rút tiền, Báo cáo thuế, Đối soát Shipper và Hoa hồng Affiliate).
-* **Sản phẩm đầu ra (Deliverable):** Báo cáo phân tích nguyên nhân gốc rễ và ma trận rủi ro trong tài liệu kỹ thuật.
+* **Sản phẩm đầu ra (Deliverable):**Báo cáo phân tích nguyên nhân gốc rễ và ma trận rủi ro trong tài liệu kỹ thuật.
 * **Cổng kiểm soát (Quality Gate):** Xác định chính xác 100% dòng mã / truy vấn lỗi và các rủi ro lan truyền.
 
 ---
@@ -139,7 +139,7 @@ flowchart TD
   3. **Thiết lập Tiêu chuẩn Nghiệm thu (Acceptance Criteria - AC):**
      - Viết theo chuẩn BDD / Gherkin (`Given ... When ... Then`).
      - Đặt ngưỡng định lượng: Thời gian phản hồi < 500ms, 0 lỗi console, HTTP 200, DB khớp số liệu 100%.
-* **Sản phẩm đầu ra (Deliverable):** Kế hoạch giải pháp chi tiết đính kèm bộ câu hỏi lựa chọn và tiêu chuẩn nghiệm thu rõ ràng.
+* **Sản phẩm đầu ra (Deliverable):**Kế hoạch giải pháp chi tiết đính kèm bộ câu hỏi lựa chọn và tiêu chuẩn nghiệm thu rõ ràng.
 * **Cổng kiểm soát (Quality Gate):** **DỪNG LẠI (HALT)** — Người dùng bấm chọn phương án và chính thức bấm xác nhận phê duyệt giải pháp thì mới được phép sang Bước 4 (chạm vào source code).
 
 ---
@@ -156,7 +156,7 @@ flowchart TD
      - Toàn bộ script kiểm thử bắt buộc lưu trong [`scripts/`](file:///e:/HuKi/scripts/) (định dạng `scripts/test_e2e_bugXXX_<mota>.js`).
      - **Tuyệt đối không chèn mã test tạm bợ, mock data vào thư mục `src/`** để giữ sạch source code.
   4. Thực hiện kiểm thử trên môi trường thật: Frontend (`:3100`), Backend (`:3000`), Database PostgreSQL thật.
-* **Sản phẩm đầu ra (Deliverable):** 
+* **Sản phẩm đầu ra (Deliverable):**
   - Mã nguồn đã được sửa tận gốc.
   - Script test E2E độc lập chạy thành công (Exit code 0, 100% assertions PASS).
 * **Cổng kiểm soát (Quality Gate):** Toàn bộ kịch bản của từng bug chạy thực tế không lỗi, đáp ứng 100% Acceptance Criteria của Bước 3.
@@ -176,30 +176,51 @@ flowchart TD
      - Quét Git status/diff: Tuyệt đối không để lộ key, secrets, token, value `.env` vào commit.
      - Chống các lỗ hổng Injection, IDOR, phân quyền sai (RBAC), privilege escalation.
   5. **Hiệu năng & Tài nguyên:** Không có background worker / hot retry loop làm CPU tăng vọt 100%; mọi Prisma connection đều có timeout và giải phóng kết nối đúng cách.
-* **Sản phẩm đầu ra (Deliverable):** Báo cáo kiểm toán nội bộ sạch (0 errors, 0 leak, 0 spam).
+* **Sản phẩm đầu ra (Deliverable):**Báo cáo kiểm toán nội bộ sạch (0 errors, 0 leak, 0 spam).
 * **Cổng kiểm soát (Quality Gate):** Môi trường Local vận hành mượt mà, yên tĩnh, không spam console/terminal.
 
 ---
 
-#### 📌 Bước 6: Kiểm Tra Vệ Sinh Mã Nguồn & Chuẩn Bị CI/CD (Clean Code & Staging Gate)
-* **Mục tiêu:** Đảm bảo toàn bộ repository sạch sẽ, biên dịch chuẩn xác trước khi đưa lên hệ thống tự động hóa.
+#### 📌 Bước 6: Bộ Cổng Kiểm Soát Chất Lượng Mô Phỏng CI/CD & Vệ Sinh Mã Nguồn (Local CI/CD Quality Gates & Clean Code)
+* **Mục tiêu:** Mô phỏng chính xác 100% các tiêu chuẩn kiểm thử của GitHub Actions CI/CD (`.github/workflows/ci.yml`) tại môi trường nội bộ trước khi tạo Pull Request hoặc Push code lên remote; đảm bảo khi code đẩy lên CI luôn đạt trạng thái XANH TUYỆT ĐỐI (100% PASS), loại trừ triệt để tình trạng lệch contract, lệch unit test hay gãy build.
 * **Điều kiện kích hoạt:** Bước 5 đã hoàn tất không còn lỗi tồn đọng.
-* **Quy chuẩn thực thi:**
-  1. Kiểm tra vệ sinh git:
+* **Quy chuẩn thực thi (4 Cổng Kiểm Soát Nghiêm Ngặt - 4 Local CI/CD Gates):**
+  1. **Gate 1 - Vệ sinh Git & Rà soát Bí mật (Git Hygiene & Secrets Scan):**
      ```bash
      git status
      git diff --check
      ```
-     Đảm bảo không có tệp rác, file tạm `.tmp`, whitespace thừa hoặc log debug vương vãi.
-  2. Chạy Build TypeScript toàn bộ các phân hệ:
+     - Đảm bảo Working tree sạch sẽ (`working tree clean`).
+     - Tuyệt đối không còn file rác `.tmp`, logs vương vãi, khoảng trắng lỗi cú pháp hoặc thông tin nhạy cảm / token / secret bị lộ.
+  2. **Gate 2 - Toàn vẹn Lược đồ & Prisma Schema (Schema & Migration Integrity):**
      ```bash
+     # Kiểm tra format và tính hợp lệ của toàn bộ schema Prisma đa dịch vụ
+     powershell -Command "Get-ChildItem -Path platform/apps/*/prisma/schema.prisma | ForEach-Object { npx prisma validate --schema $_.FullName }"
+     ```
+     - 100% file `schema.prisma` phải hợp lệ cú pháp, không có xung đột enum hay quan hệ quan hệ model.
+  3. **Gate 3 - Bộ Kiểm Thử Đơn Vị & Khế Ước Dịch Vụ Backend (Backend Build & Contract Test Suite):**
+     ```bash
+     # Biên dịch shared và các service liên quan
      npm --prefix platform run build:shared
      npm --prefix platform run build:commerce
+
+     # Chạy toàn bộ Unit & Contract Tests của các service có thay đổi mã nguồn
+     npm --prefix platform test -- --runInBand --forceExit
+     # Hoặc chỉ định rõ các file spec của service vừa sửa (ví dụ: reviews.service.spec, banners.service.spec, user.controller.spec)
+     ```
+     - **Tiêu chuẩn vàng:** 100% Unit Tests & Contract Tests phải đạt kết quả PASS (mã thoát 0).
+     - **Nguyên tắc cập nhật contract:** Nếu việc sửa bug dẫn đến thay đổi DTO response (ví dụ: thêm trường trả về, chuyển endpoint sang idempotent, đổi chữ ký hàm), BẮT BUỘC phải cập nhật lại assertions trong các file `.spec.ts` tương ứng và xác nhận `PASS` 100% ở bước này trước khi commit. Tuyệt đối không để xảy ra lệch signature giữa code thực tế và unit test.
+  4. **Gate 4 - Kiểm Tra Kiểu Dữ Liệu & Bản Dựng Frontend (Frontend Typecheck, Lint & Production Build):**
+     ```bash
+     npm --prefix web run typecheck
      npm --prefix web run build
      ```
-     **Tiêu chuẩn:** 100% các lệnh build phải hoàn tất thành công với mã thoát 0.
-* **Sản phẩm đầu ra (Deliverable):** Bản commit sạch sẽ, đầy đủ chú thích nghiệp vụ, sẵn sàng đẩy lên kho lưu trữ.
-* **Cổng kiểm soát (Quality Gate):** Lệnh build không có lỗi, git tree sạch.
+     - **Tiêu chuẩn:** `web run typecheck` đạt 0 TypeScript errors.
+     - `web run build` phải biên dịch thành công 100% các trang tĩnh/SSR Next.js, không phát sinh lỗi hydration mismatch, 0 lỗi JSX parser.
+* **Sản phẩm đầu ra (Deliverable):**
+  - Toàn bộ 4 Cổng kiểm soát cục bộ đạt mã thoát 0 (Exit code 0).
+  - Bản commit sạch sẽ, đầy đủ commit message nghiệp vụ, đồng bộ khế ước kiểm thử.
+* **Cổng kiểm soát (Quality Gate):** **BLOCK NẾU BẤT KỲ CỔNG NÀO BỊ FAIL** — Chỉ khi cả 4 Gate đều vượt qua (100% pass) thì mới được phép merge vào `develop` và kích hoạt Bước 7 (CI/CD Pipeline).
 
 ---
 
@@ -216,7 +237,7 @@ flowchart TD
      - Quá trình tự động chạy database migration (`npx prisma db push`).
      - Quá trình restart cụm container.
   3. Bám sát tiến trình cho đến khi Pipeline kết thúc thành công (báo xanh).
-* **Sản phẩm đầu ra (Deliverable):** Pipeline CI/CD hoàn thành với trạng thái `SUCCESS`.
+* **Sản phẩm đầu ra (Deliverable):**Pipeline CI/CD hoàn thành với trạng thái `SUCCESS`.
 * **Cổng kiểm soát (Quality Gate):** Toàn bộ container trên máy chủ UAT khởi động lại thành công và ở trạng thái `Up (healthy)`.
 
 ---
@@ -232,7 +253,7 @@ flowchart TD
      - Kịch bản Shipper nhận & chuyển trạng thái giao hàng.
      - Kịch bản Đối soát Escrow, trừ phí sàn 5% và trích hoa hồng CTV.
      - Kịch bản Thống kê số liệu sổ cái giữa 3 màn hình.
-* **Sản phẩm đầu ra (Deliverable):** Nhật ký chạy E2E trên UAT với 100% test cases đạt kết quả PASS.
+* **Sản phẩm đầu ra (Deliverable):**Nhật ký chạy E2E trên UAT với 100% test cases đạt kết quả PASS.
 * **Cổng kiểm soát (Quality Gate):** Không còn bất kỳ assertion nào bị fail trên môi trường UAT thật.
 
 ---
@@ -249,7 +270,7 @@ flowchart TD
   2. **Soi chiếu Nhật ký Container VPS (Server Container Logs):**
      - Chạy `docker logs --tail=200 <container>` trên các dịch vụ: `api-gateway`, `commerce-service`, `shipping-service`, `identity-service`, `web`.
      - **Tiêu chuẩn:** Không có ngoại lệ `500 Internal Server Error`, không có `ECONNREFUSED` lặp lại, không có unhandled promise rejections.
-* **Sản phẩm đầu ra (Deliverable):** Bằng chứng logs sạch từ DevTools Network và Docker Container Logs.
+* **Sản phẩm đầu ra (Deliverable):**Bằng chứng logs sạch từ DevTools Network và Docker Container Logs.
 * **Cổng kiểm soát (Quality Gate):** Hệ thống ở trạng thái tĩnh không tiêu tốn request thừa, logs sạch bóng lỗi.
 
 ---
@@ -265,7 +286,7 @@ flowchart TD
      - RabbitMQ: Hàng đợi `huki.events` có lag count = 0, Dead Letter Queue (`*.dlq`) không bị tồn đọng thông điệp lỗi.
   3. **Kiểm toán Cơ sở Dữ liệu (Database Health):**
      - Đảm bảo connection pool của PostgreSQL ổn định, không bị connection leak, không có truy vấn chạy ngầm bị treo khóa (`idle in transaction`).
-* **Sản phẩm đầu ra (Deliverable):** Bản chụp thông số tài nguyên hệ thống (`docker stats`, RabbitMQ status, DB connection metrics).
+* **Sản phẩm đầu ra (Deliverable):**Bản chụp thông số tài nguyên hệ thống (`docker stats`, RabbitMQ status, DB connection metrics).
 * **Cổng kiểm soát (Quality Gate):** Tất cả chỉ số tài nguyên nằm trong ngưỡng an toàn tuyệt đối.
 
 ---
@@ -278,7 +299,7 @@ flowchart TD
 * **Quy chuẩn thực thi:**
   - Nếu có bất kỳ điều chỉnh code/style nhỏ nào: Tiến hành commit, push và tiếp tục theo dõi pipeline CI/CD đến khi deploy hoàn tất, lặp lại các kiểm tra trọng yếu.
   - Nếu hệ thống đã hoàn hảo từ Bước 10: Tự động ghi nhận thông qua để tiến thẳng sang Bước 12.
-* **Sản phẩm đầu ra (Deliverable):** Lịch sử commit và pipeline deploy sạch sẽ, hoàn chỉnh.
+* **Sản phẩm đầu ra (Deliverable):**Lịch sử commit và pipeline deploy sạch sẽ, hoàn chỉnh.
 * **Cổng kiểm soát (Quality Gate):** Mọi thay đổi phát sinh đều được kiểm chứng đầy đủ.
 
 ---
@@ -296,7 +317,7 @@ flowchart TD
      - [x] **Zero CPU Spikes:** Hạ tầng vận hành êm ái, CPU idle thấp, RAM ổn định.
      - [x] **Full E2E Live Passed:** Toàn bộ nghiệp vụ kiểm thử thực tế đạt 100% pass.
   4. Tạo Pull Request chính thức hợp nhất nhánh `fix-bug-local` vào nhánh chính (`develop` / `main`).
-* **Sản phẩm đầu ra (Deliverable):** 
+* **Sản phẩm đầu ra (Deliverable):**
   - Báo cáo tổng kết nghiệm thu hoàn chỉnh.
   - Pull Request sẵn sàng Release.
 * **Cổng kiểm soát (Quality Gate):** Ký duyệt chính thức đóng task: **DONE RELEASE**.

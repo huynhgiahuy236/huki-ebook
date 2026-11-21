@@ -648,12 +648,12 @@ export default function OrdersPage() {
                               href={chatShopUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-2 py-0.5 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-semibold border border-rose-200 flex items-center gap-1 transition-colors"
+                              className="px-2.5 py-1 rounded-lg bg-emerald-50/80 hover:bg-emerald-100 text-[#003B2B] text-xs font-semibold border border-emerald-200 flex items-center gap-1 transition-colors"
                               title="Nhắn tin với Shop (Mở tab mới)"
                             >
-                              <span className="material-symbols-outlined text-[13px]">chat</span>
+                              <span className="material-symbols-outlined text-[13px] text-emerald-700">chat</span>
                               <span>Chat</span>
-                              <span className="material-symbols-outlined text-[10px] -ml-0.5 opacity-70">open_in_new</span>
+                              <span className="material-symbols-outlined text-[10px] -ml-0.5 opacity-70 text-emerald-700">open_in_new</span>
                             </Link>
 
                             {/* View Shop Link */}
