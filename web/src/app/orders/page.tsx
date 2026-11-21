@@ -746,108 +746,101 @@ export default function OrdersPage() {
                             </span>
                           </div>
 
-                          {/* Right: Grand Total & Action Buttons */}
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 w-full sm:w-auto min-w-0">
-                            <div className="flex items-center gap-1.5 sm:justify-end">
-                              <span className="text-xs text-gray-600 font-medium">
-                                Thành tiền ({totalItemsCount} món):
-                              </span>
-                              <span className="text-sm sm:text-base font-bold text-[#003b2b]">
-                                {Number(ord.grandTotal || ord.totalAmount || 0).toLocaleString('vi-VN')} ₫
-                              </span>
-                            </div>
-
-                            {/* Buttons Group */}
-                            {(() => {
-                              const effectiveStatus = (ord.sellerOrders?.[0]?.status || ord.status || '').toUpperCase();
-                              const isOnlinePayment = ord.paymentMethod !== 'COD';
-                              const isPendingPayment = isOnlinePayment &&
-                                (effectiveStatus === 'PENDING_PAYMENT' || ord.paymentStatus === 'PENDING');
-                              const isPendingConfirmation = effectiveStatus === 'PENDING_CONFIRMATION' || effectiveStatus === 'PENDING';
-                              const isCompleted = effectiveStatus === 'COMPLETED' || effectiveStatus === 'DELIVERED';
-                              const isCancelled = effectiveStatus === 'CANCELLED';
-                              const firstDigitalItem = allItems.find((it: any) => it.format === 'DIGITAL' || it.format === 'EBOOK');
-
-                              return (
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  {/* 1. Nút Thanh Toán Ngay (chỉ khi đơn chưa thanh toán online) */}
-                                  {isPendingPayment && (
-                                    <Link
-                                      href={`/checkout/payment/${ord.id}`}
-                                      className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors text-xs font-bold shadow-2xs inline-flex items-center gap-1 cursor-pointer"
-                                    >
-                                      <span className="material-symbols-outlined text-[14px]">payments</span>
-                                      <span>Thanh Toán Ngay</span>
-                                    </Link>
-                                  )}
-
-                                  {/* 2. Nút Hủy Đơn (khi đơn đang Chờ xác nhận hoặc Chờ thanh toán) */}
-                                  {(isPendingConfirmation || isPendingPayment) && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setCancelModal({ open: true, orderId: ord.id, orderCode: ord.code, reason: '' })}
-                                      className="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 transition-colors text-xs font-semibold cursor-pointer inline-flex items-center gap-1"
-                                    >
-                                      <span className="material-symbols-outlined text-[14px]">cancel</span>
-                                      <span>Hủy Đơn</span>
-                                    </button>
-                                  )}
-
-                                  {/* 3. Nút Đọc Sách Ngay (nếu đơn hoàn tất và có sách số Ebook) */}
-                                  {isCompleted && firstDigitalItem && (
-                                    <Link
-                                      href={`/reader/${firstDigitalItem.bookId || firstDigitalItem.id}`}
-                                      className="px-3.5 py-1.5 rounded-lg border border-indigo-600 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 transition-colors text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
-                                    >
-                                      <span className="material-symbols-outlined text-[14px]">menu_book</span>
-                                      <span>Đọc Sách Ngay</span>
-                                    </Link>
-                                  )}
-
-                                  {/* 4. Nút Đánh Giá (nếu đơn hàng đã hoàn tất) */}
-                                  {isCompleted && (
-                                    <Link
-                                      href={`/orders/${ord.id}/review`}
-                                      className="px-3.5 py-1.5 rounded-lg border border-[#006953] bg-[#006953]/10 text-[#006953] hover:bg-[#006953] hover:text-white transition-colors text-xs font-bold inline-flex items-center gap-1 cursor-pointer shadow-2xs"
-                                    >
-                                      <span className="material-symbols-outlined text-[15px]">rate_review</span>
-                                      <span>Đánh Giá</span>
-                                    </Link>
-                                  )}
-
-                                  {/* 5. Nút Mua Lại: CHỈ HIỂN THỊ KHI ĐƠN ĐÃ HOÀN TẤT HOẶC ĐÃ HỦY */}
-                                  {(isCompleted || isCancelled) && (
-                                    <button
-                                      type="button"
-                                      onClick={() => router.push('/books')}
-                                      className="px-3.5 py-1.5 rounded-lg border border-[#003b2b] text-[#003b2b] hover:bg-[#003b2b] hover:text-white transition-colors text-xs font-semibold cursor-pointer inline-flex items-center gap-1"
-                                    >
-                                      <span className="material-symbols-outlined text-[14px]">replay</span>
-                                      <span>Mua Lại</span>
-                                    </button>
-                                  )}
-
-                                  {/* 6. Nút Liên Hệ Người Bán (Shop Chat) */}
-                                  <Link
-                                    href={chatShopUrl}
-                                    className="px-3.5 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700 transition-colors text-xs font-semibold cursor-pointer"
-                                  >
-                                    Liên Hệ Người Bán
-                                  </Link>
-
-                                  {/* 7. Nút Chi Tiết & Tiến Trình */}
-                                  <Link
-                                    href={`/orders/${ord.id}`}
-                                    className="px-3.5 py-1.5 rounded-lg bg-[#003B2B] hover:bg-[#00241A] text-white transition-colors text-xs font-bold shadow-2xs inline-flex items-center gap-1 cursor-pointer"
-                                  >
-                                    <span>Chi Tiết &amp; Tiến Trình</span>
-                                    <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                                  </Link>
-                                </div>
-                              );
-                            })()}
+                          {/* Right: Grand Total */}
+                          <div className="flex items-center gap-1.5 sm:justify-end">
+                            <span className="text-xs text-gray-600 font-medium">
+                              Thành tiền ({totalItemsCount} món):
+                            </span>
+                            <span className="text-sm sm:text-base font-bold text-[#003b2b]">
+                              {Number(ord.grandTotal || ord.totalAmount || 0).toLocaleString('vi-VN')} ₫
+                            </span>
                           </div>
                         </div>
+
+                        {/* BUG-024: Card Action Buttons Row - Border-top like Seller Finance */}
+                        {(() => {
+                          const effectiveStatus = (ord.sellerOrders?.[0]?.status || ord.status || '').toUpperCase();
+                          const isOnlinePayment = ord.paymentMethod !== 'COD';
+                          const isPendingPayment = isOnlinePayment &&
+                            (effectiveStatus === 'PENDING_PAYMENT' || ord.paymentStatus === 'PENDING');
+                          const isPendingConfirmation = effectiveStatus === 'PENDING_CONFIRMATION' || effectiveStatus === 'PENDING';
+                          const isCompleted = effectiveStatus === 'COMPLETED' || effectiveStatus === 'DELIVERED';
+                          const isCancelled = effectiveStatus === 'CANCELLED';
+                          const firstDigitalItem = allItems.find((it: any) => it.format === 'DIGITAL' || it.format === 'EBOOK');
+
+                          return (
+                            <div className="px-4 py-2.5 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between sm:justify-end gap-2 flex-wrap text-xs">
+                              {/* Secondary Action 1: Hủy Đơn */}
+                              {(isPendingConfirmation || isPendingPayment) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setCancelModal({ open: true, orderId: ord.id, orderCode: ord.code, reason: '' })}
+                                  className="h-9 px-3.5 py-1.5 rounded-xl border border-slate-200 text-slate-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-colors text-xs font-medium cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                                >
+                                  <span className="material-symbols-outlined text-[15px]">cancel</span>
+                                  <span>Hủy Đơn</span>
+                                </button>
+                              )}
+
+                              {/* Secondary Action 2: Nhắn Shop */}
+                              <Link
+                                href={chatShopUrl}
+                                className="h-9 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-slate-50 text-slate-700 dark:text-slate-300 transition-colors text-xs font-medium cursor-pointer inline-flex items-center gap-1.5 shadow-2xs"
+                              >
+                                <span className="material-symbols-outlined text-[15px] text-slate-400">chat</span>
+                                <span>Nhắn Shop</span>
+                              </Link>
+
+                              {/* Secondary Action 3: Mua Lại (khi đã xong hoặc hủy) */}
+                              {(isCompleted || isCancelled) && (
+                                <button
+                                  type="button"
+                                  onClick={() => router.push('/books')}
+                                  className="h-9 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-slate-50 text-slate-700 dark:text-slate-300 transition-colors text-xs font-medium cursor-pointer inline-flex items-center gap-1.5 shadow-2xs"
+                                >
+                                  <span className="material-symbols-outlined text-[15px]">replay</span>
+                                  <span>Mua Lại</span>
+                                </button>
+                              )}
+
+                              {/* Secondary Action 4: Xem Chi Tiết */}
+                              <Link
+                                href={`/orders/${ord.id}`}
+                                className="h-9 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-slate-50 text-slate-700 dark:text-slate-300 transition-colors text-xs font-medium cursor-pointer inline-flex items-center gap-1.5 shadow-2xs"
+                              >
+                                <span>Chi Tiết</span>
+                                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                              </Link>
+
+                              {/* Primary Action Button (1 Nút Nổi Bật Duy Nhất) */}
+                              {isPendingPayment ? (
+                                <Link
+                                  href={`/checkout/payment/${ord.id}`}
+                                  className="h-9 px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white transition-colors text-xs font-bold shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <span className="material-symbols-outlined text-[15px]">payments</span>
+                                  <span>Thanh Toán Ngay</span>
+                                </Link>
+                              ) : isCompleted && firstDigitalItem ? (
+                                <Link
+                                  href={`/reader/${firstDigitalItem.bookId || firstDigitalItem.id}`}
+                                  className="h-9 px-4 py-1.5 rounded-xl bg-[#003B2B] hover:bg-[#00241A] text-white transition-colors text-xs font-bold shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <span className="material-symbols-outlined text-[15px]">menu_book</span>
+                                  <span>Đọc Sách Ngay</span>
+                                </Link>
+                              ) : isCompleted ? (
+                                <Link
+                                  href={`/orders/${ord.id}/review`}
+                                  className="h-9 px-4 py-1.5 rounded-xl bg-[#003B2B] hover:bg-[#00241A] text-white transition-colors text-xs font-bold shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <span className="material-symbols-outlined text-[15px]">rate_review</span>
+                                  <span>Đánh Giá Sản Phẩm</span>
+                                </Link>
+                              ) : null}
+                            </div>
+                          );
+                        })()}
                       </article>
                     );
                   })}

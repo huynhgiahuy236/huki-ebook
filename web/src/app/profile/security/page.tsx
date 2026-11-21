@@ -176,8 +176,8 @@ export default function UserSecurityPage() {
     }
   };
 
-  // Remaining deletion requests
-  const deletionCount = profile?.deletionCount || 0;
+  // Remaining deletion requests (BUG-023: Single source of truth from profile/user session)
+  const deletionCount = profile?.deletionCount ?? (user as any)?.deletionCount ?? 0;
   const maxDeletionCount = 3;
   const remainingDeletions = Math.max(0, maxDeletionCount - deletionCount);
 

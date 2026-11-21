@@ -23,11 +23,11 @@ flowchart TD
 | **Chặng 1** | **BUG-017** | Lỗi 502 `Verification service unavailable: fetch failed` khi gửi phản hồi review & thiếu thông báo đánh giá mới cho Seller | `community-service`, `business-service`, `docker-compose.uat.yml` | CRITICAL | 🔍 Đã bóc tách nguyên nhân |
 | **Chặng 1** | **BUG-018** | Tin nhắn Chat không đồng bộ Realtime qua WebSocket (phải F5 reload mới thấy tin nhắn) | `community-service` (Gateway), `web` (`useChatSocket`), Nginx | HIGH | 🔍 Đã bóc tách nguyên nhân |
 | **Chặng 1** | **BUG-019** | Làm mờ và vô hiệu hóa nút Gọi thoại 📞 & Video 🎥 trong khung chat (chưa có WebRTC gateway) | `web/src/app/account/messages`, `SellerChatView.tsx` | MEDIUM | 🔍 Đã định vị chính xác |
-| **Chặng 2** | **BUG-020** | Thanh tìm kiếm Header ở Seller (`/seller/*`) và Admin (`/admin/*`) không tra cứu được mã đơn hàng (#ORD-...), tên sách hoặc SKU | `web/src/ui/components/layout` (`SellerHeader`, `AdminLayout`) | HIGH | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
-| **Chặng 2** | **BUG-021** | Bóc tách dữ liệu thật từ DB cho 2 widget: "Chương Trình Khuyến Mãi & Voucher" và "Tin Nhắn Khách Đọc" trên Seller Dashboard | `web/src/app/seller/dashboard`, `promotion-service`, `community-service` | HIGH | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
-| **Chặng 2** | **BUG-022** | Treo trắng màn hình tại `accounts.google.com` khi đăng nhập Google trên thiết bị di động & tối ưu responsive Header Home/Auth | `web/src/hooks/useGoogleAuth`, `identity-service`, Layouts | CRITICAL | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
-| **Chặng 3** | **BUG-023** | Redesign Popup Ân hạn Xóa Tài Khoản sang tông trắng hiện đại; sửa lỗi không trừ số lượt xóa còn lại (giữ nguyên 3/3 lượt) | `identity-service` (`getProfile`, `cancelDeletion`), `AccountPendingDeletionModal` | MEDIUM | 📋 Đã lên hồ sơ |
-| **Chặng 3** | **BUG-024** | Thiết kế lại cụm nút trong Danh Sách Đơn Hàng người mua (`/orders`) mượt mà, phân cấp nút chính/phụ tinh tế theo chuẩn viền trên như Kênh Tài Chính | `web/src/app/orders/page.tsx` | MEDIUM | 📋 Đã lên hồ sơ |
+| **Chặng 2** | **BUG-020** | Thanh tìm kiếm Header ở Seller (`/seller/*`) và Admin (`/admin/*`) không tra cứu được mã đơn hàng (#ORD-...), tên sách hoặc SKU | `web/src/ui/components/layout` (`SellerHeader`, `AdminLayout`) | HIGH | 🔍 Đã bóc tách nguyên nhân & lập giải pháp |
+| **Chặng 2** | **BUG-021** | Bóc tách dữ liệu thật từ DB cho 2 widget: "Chương Trình Khuyến Mãi & Voucher" và "Tin Nhắn Khách Đọc" trên Seller Dashboard | `web/src/app/seller/dashboard`, `promotion-service`, `community-service` | HIGH | 🔍 Đã bóc tách nguyên nhân & lập giải pháp |
+| **Chặng 2** | **BUG-022** | Treo trắng màn hình tại `accounts.google.com` khi đăng nhập Google trên thiết bị di động & tối ưu responsive Header Home/Auth | `web/src/hooks/useGoogleAuth`, `identity-service`, Layouts | CRITICAL | 🔍 Đã bóc tách nguyên nhân & lập giải pháp |
+| **Chặng 3** | **BUG-023** | Redesign Popup Ân hạn Xóa Tài Khoản sang tông trắng hiện đại; sửa lỗi không trừ số lượt xóa còn lại (giữ nguyên 3/3 lượt) | `identity-service` (`getProfile`, `cancelDeletion`), `AccountPendingDeletionModal` | MEDIUM | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
+| **Chặng 3** | **BUG-024** | Thiết kế lại cụm nút trong Danh Sách Đơn Hàng người mua (`/orders`) mượt mà, phân cấp nút chính/phụ tinh tế theo chuẩn viền trên như Kênh Tài Chính | `web/src/app/orders/page.tsx` | MEDIUM | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
 | **Chặng 4** | **BUG-025** | Bổ sung mục "Tôi / Hồ sơ cá nhân" vào Sidebar Người mua/Độc giả dẫn tới `/profile` (phân quyền chỉ dành riêng cho USER/BUYER) | `web/src/ui/components/layout/HierarchicalSidebar.tsx` | LOW | 📋 Đã lên hồ sơ |
 | **Chặng 4** | **BUG-026** | Sửa lỗi xóa Banner tại `/admin/marketing`: Xóa thực tế vào Database/API và đồng bộ Realtime (không load lại banner mặc định khi F5) | `promotion-service` (`banners.controller`), `AdminMarketingView.tsx` | HIGH | 📋 Đã lên hồ sơ |
 
@@ -556,8 +556,6 @@ Feature: Chặng 2 - Search Header Seller/Admin, Widget Dashboard DB Thật, Mob
   * `web/src/ui/components/layout/StoreHeader.tsx`: Bổ sung nút kính lúp tìm kiếm dành riêng cho mobile (`md:hidden`) kèm thanh tìm kiếm trượt mở rộng mượt mà (`animate-fade-in-down`). Tinh chỉnh cụm nút đăng nhập/đăng ký trên màn hình nhỏ tránh tràn viền ngang.
   * `platform/apps/identity-service/src/modules/auth/auth.controller.ts`: Thay thế các giá trị fallback gắn cứng `localhost:3100` bằng biến `frontendBase` phân giải động qua `FRONTEND_URL` / `WEB_URL` / `req.get('origin')`.
 
----
-
 ### 2. Kết Quả Kiểm Thử E2E Độc Lập (`scripts/test_e2e_sprint2_chang2.js`)
 - **Tập lệnh:** [`scripts/test_e2e_sprint2_chang2.js`](file:///e:/HuKi/scripts/test_e2e_sprint2_chang2.js)
 - **Kết quả:** 11/11 assertions **PASS (100%)**
@@ -576,6 +574,165 @@ Feature: Chặng 2 - Search Header Seller/Admin, Widget Dashboard DB Thật, Mob
 - **Kiểm tra biên dịch:**
   * `npm --prefix web run build`: PASS (141 routes, 0 compile errors).
   * `npm --prefix platform run build`: PASS (7/7 microservices, 0 compile errors).
-
+- **Commit Checkpoint Chặng 2:** `9cd8984`
 - **Trạng thái Chặng 2:** **HOÀN THÀNH (100% PASSED)**
+
+---
+
+## 🔬 BƯỚC 2: PHÂN TÍCH NGUYÊN NHÂN GỐC RỄ & MA TRẬN DOMINO (CHẶNG 3: BUG-023, BUG-024)
+
+### 1. Phân Tích 4 Tầng Kiến Trúc: BUG-023 (Redesign Modal Ân Hạn Xóa Tài Khoản & Lỗi Quota Không Giảm)
+- **Tầng 1 (Database):**
+  * PostgreSQL model `User` trong `identity-service` có trường `deletionCount: Int @default(0)`.
+  * Khi người dùng xác nhận xóa tài khoản, hàm `confirmDeletion` đã cập nhật `deletionCount = nextCount` (+1 lượt) vào cơ sở dữ liệu.
+- **Tầng 2 (Backend Services):**
+  * Tại `platform/apps/identity-service/src/modules/user/user.controller.ts`:
+    Trong phương thức `getProfile(@CurrentUser('id') userId: string)`:
+    Hàm trả về data object nhưng **HOÀN TOÀN BỎ QUÊN TRƯỜNG `deletionCount`**!
+    Do đó, khi Client gọi `userApi.getProfile()`, trường `deletionCount` luôn là `undefined`.
+  * Tại `user.service.ts` hàm `cancelDeletion`:
+    Sau khi cập nhật `status = ACTIVE`, hàm trả về object không chứa `deletionCount` mới, khiến Client không thể cập nhật ngay số lượt còn lại nếu không gọi lại API profile.
+- **Tầng 3 (Gateway & Auth Session):**
+  * Session `UserSession` trong `AuthContext` và `tokenStorage` cũng không lưu trường `deletionCount`.
+- **Tầng 4 (Frontend Client):**
+  * **Tại `AccountPendingDeletionModal.tsx`:**
+    Modal hiện tại đang sử dụng bộ CSS màu xanh đen AI u ám (`bg-[#031510]`, `bg-[#00261C]`, `from-amber-950/60`, `text-emerald-100/80`), tạo cảm giác nặng nề, khó chịu cho người dùng.
+    Khi người dùng bấm "Khôi phục tài khoản & Sử dụng", hàm `handleRestoreAccount` chỉ set `status = ACTIVE` mà không cập nhật số lượt xóa còn lại vào state hoặc reload profile.
+  * **Tại `/profile/security`:**
+    State `const deletionCount = profile?.deletionCount || 0;` nhận `0` vì API `getProfile` không trả trường này, dẫn đến công thức `remainingDeletions = Math.max(0, 3 - deletionCount)` luôn luôn hiển thị `3/3 lượt` mặc dù trong DB đã là `1` hoặc `2`!
+
+---
+
+### 2. Phân Tích 4 Tầng Kiến Trúc: BUG-024 (Thiết Kế Lại Cụm Nút Đơn Hàng Chuẩn Bảng Kê Tài Chính)
+- **Tầng 1 & Tầng 2:**
+  * Dữ liệu đơn hàng có đầy đủ thông tin: `status`, `paymentMethod`, `paymentStatus`, `format`, danh sách sản phẩm.
+- **Tầng 3 (Gateway):** Định tuyến bình thường.
+- **Tầng 4 (Frontend Client):**
+  * **Tại `web/src/app/orders/page.tsx` (L750-845) & `web/src/app/orders/[id]/page.tsx` (L730-785):**
+    Các nút bấm thao tác (Thanh Toán Ngay, Hủy Đơn, Đọc Sách, Đánh Giá, Mua Lại, Liên Hệ Shop, Xem Chi Tiết) nằm chen chúc cùng dòng với Thành Tiền, mỗi nút một màu sắc lổm chổm (vàng, đỏ, tím, lục, xám, xanh đậm), chiều cao và icon không đồng nhất, không có đường phân cách chuẩn mực, gây cảm giác lộn xộn và thiếu chuyên nghiệp.
+    Cần thiết kế lại theo đúng chuẩn giao diện Bảng Kê Tài Chính Người Bán:
+    * Bố cục nút nằm trên một dải riêng ở đáy card đơn hàng, ngăn cách bằng đường kẻ mờ: `border-t border-slate-100 dark:border-neutral-800 pt-3 mt-3 w-full flex items-center justify-between sm:justify-end gap-2.5 flex-wrap`.
+    * Phân cấp nút rõ ràng: 1 nút hành động chính (Primary Action) duy nhất (chữ trắng nền xanh thương hiệu `#003B2B`), các nút phụ (Secondary Actions) đồng bộ viền mỏng xám mờ tinh tế (`border border-slate-200 text-slate-700 bg-white hover:bg-slate-50`), nút hủy đơn tối giản màu xám thanh lịch.
+    * Chiều cao nút đồng bộ chuẩn 36px (`h-9`), bo góc `rounded-xl`, icon kích thước vừa phải `text-[16px]`.
+
+---
+
+### 3. Ma Trận Rủi Ro Domino (Domino Matrix Chặng 3)
+
+```mermaid
+flowchart TD
+    subgraph D7["Sửa BUG-023 (Modal Ân Hạn & Quota)"]
+        D7A["Backend getProfile trả deletionCount từ DB"] --> D7B["/profile/security hiển thị chính xác số lượt còn lại (2/3, 1/3, 0/3)"]
+        D7C["Redesign Modal sang tông trắng tối giản"] --> D7D["Trải nghiệm người dùng sáng sủa, thanh lịch, chuẩn mực"]
+        D7E["cancelDeletion cập nhật deletionCount vào session"] --> D7F["Đồng bộ ngay lập tức sau khi khôi phục"]
+    end
+
+    subgraph D8["Sửa BUG-024 (Cụm Nút Đơn Hàng)"]
+        D8A["Thêm dải border-t phân cách riêng ở đáy card"] --> D8B["Bố cục phẳng, gọn gàng, không bị lồi lõm"]
+        D8C["Chuẩn hóa phân cấp: 1 Nút Primary + Các Nút Secondary xám mờ"] --> D8D["Giao diện thanh thoát giống Kênh Tài Chính Người Bán"]
+    end
+```
+
+| Thành Phần Can Thiệp | Rủi Ro Tiềm Ẩn | Biện Pháp Kiểm Soát & Phòng Thủ |
+| :--- | :--- | :--- |
+| `user.controller.ts` (`getProfile`) | Thiếu trường hoặc kiểu dữ liệu null khi user mới | Sử dụng `user.deletionCount ?? 0` đảm bảo luôn trả số nguyên an toàn |
+| `AccountPendingDeletionModal.tsx` | Đổi giao diện làm mất tính năng khôi phục hoặc đăng xuất | Giữ nguyên 100% logic nghiệp vụ `userApi.cancelDeletion()` và `logout()`, chỉ thay đổi toàn bộ visual CSS |
+| `orders/page.tsx` & `orders/[id]/page.tsx` | Nhầm lẫn thứ tự ưu tiên nút chính khi trạng thái đơn thay đổi | Xây dựng logic phân cấp đơn giản: Nếu cần thanh toán -> Nút chính là "Thanh Toán Ngay"; nếu đã hoàn tất -> Nút chính là "Đánh Giá"; nếu có ebook -> "Đọc Sách"; các nút còn lại là Secondary |
+
+---
+
+## 🏛️ BƯỚC 3: PHƯƠNG ÁN KIẾN TRÚC CHUẨN SHOPEE & BỘ CÂU HỎI TƯƠNG TÁC (CHẶNG 3)
+
+### 1. Phương Án Kỹ Thuật Chi Tiết Cho Chặng 3
+
+#### A. Giải Pháp BUG-023: Redesign Modal Ân Hạn Nền Trắng & Khắc Phục Lỗi Quota
+1. **Backend (`identity-service`):**
+   - Trong `user.controller.ts` hàm `getProfile`: Bổ sung `deletionCount: user.deletionCount ?? 0`, `deletionScheduledAt: user.deletionScheduledAt`, `isPendingDeletion: user.status === 'PENDING_DELETION'`.
+   - Trong `user.service.ts` hàm `cancelDeletion`: Bổ sung `deletionCount: updated.deletionCount` trong object trả về.
+2. **Frontend Redesign (`AccountPendingDeletionModal.tsx`):**
+   - Thay thế toàn bộ tông màu đen xanh AI u ám (`bg-[#031510]`, `bg-[#00261C]`) bằng tông nền trắng tinh khiết (`bg-white`), bóng mờ sâu (`shadow-2xl`), bo góc mềm mại (`rounded-2xl`).
+   - Header: Icon đồng hồ cát màu hổ phách nhẹ, tiêu đề chữ đậm sắc nét (`text-slate-900 font-bold font-editorial`), huy hiệu `Ân hạn 7 ngày` với nền `bg-amber-50 text-amber-700 border border-amber-200`.
+   - Card thông tin thời hạn: Nền `bg-slate-50 border border-slate-200/80`, ngày dự kiến thanh lọc font mono nổi bật.
+   - Nút thao tác:
+     * Nút phụ: "Tiếp tục xóa (Đăng xuất)" - `border border-slate-300 text-slate-700 hover:bg-slate-50`.
+     * Nút chính: "Khôi phục tài khoản & Sử dụng" - `bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20`.
+   - Sau khi khôi phục thành công: Cập nhật `deletionCount` vào session và kích hoạt refresh thông tin người dùng.
+
+#### B. Giải Pháp BUG-024: Thiết Kế Lại Cụm Nút Đơn Hàng Chuẩn Bảng Kê Tài Chính
+1. **Tại `web/src/app/orders/page.tsx`:**
+   - Đưa cụm nút xuống dòng riêng bên dưới thông tin tổng tiền, phân cách bằng đường viền trên thanh thoát:
+     `<div className="border-t border-slate-100 dark:border-neutral-800 pt-3 mt-3 w-full flex items-center justify-between sm:justify-end gap-2.5 flex-wrap">`
+   - Chuẩn hóa phân cấp nút theo chuẩn TMĐT chuyên nghiệp:
+     * **1 Nút Primary (Hành động chính):** Nền xanh thương hiệu `bg-[#003b2b] text-white hover:bg-[#00261c] font-bold text-xs px-4 py-2 rounded-xl shadow-2xs` (Ví dụ: "Đánh Giá Sản Phẩm" khi đơn hoàn tất, hoặc "Thanh Toán Ngay" khi chưa thanh toán).
+     * **Các Nút Secondary (Hành động phụ):** Dạng Outline xám mờ đồng nhất (`border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 text-xs font-medium px-3.5 py-2 rounded-xl transition-all shadow-2xs`) cho: "In Biên Lai", "Mua Lại", "Chat Với Shop", "Chi Tiết".
+     * **Nút Hủy Đơn:** Viền xám mờ nhẹ nhàng (`border border-slate-200 text-slate-500 hover:text-rose-600 hover:bg-rose-50 text-xs px-3.5 py-2 rounded-xl`), không dùng màu đỏ chói chang gây cảm giác lổm chổm.
+     * Chiều cao đồng bộ chuẩn 36px, icon kích thước vừa vặn `text-[16px]`.
+2. **Tại `web/src/app/orders/[id]/page.tsx`:**
+   - Căn chỉnh hàng nút thao tác trên đầu trang chi tiết đơn hàng tương tự: đồng bộ kích thước `h-9`, phân cấp nút chính ("Đánh Giá Sản Phẩm" / "In Biên Lai") và nút phụ ("Chat Hỗ Trợ", "Hủy Đơn") tinh tế, mượt mà.
+
+---
+
+### 2. Tiêu Chuẩn Nghiệm Thu (Acceptance Criteria - Gherkin BDD)
+
+```gherkin
+Feature: Chặng 3 - Redesign Modal Ân Hạn & Quota Trừ Lượt, Cụm Nút Đơn Hàng Chuẩn Kênh Tài Chính
+
+  Scenario: Modal ân hạn xóa tài khoản hiển thị giao diện trắng sáng tinh tế
+    Given Người dùng có tài khoản đang trong trạng thái chờ xóa PENDING_DELETION
+    When Người dùng truy cập hoặc đăng nhập vào hệ thống
+    Then Modal ân hạn xuất hiện với tông nền trắng sạch sẽ, viền xám tinh tế, không có màu xanh đen AI
+    And Hiển thị chính xác số ngày ân hạn còn lại và thời điểm thanh lọc dự kiến
+
+  Scenario: Trừ lượt xóa còn lại chính xác sau khi yêu cầu xóa và khôi phục
+    Given Người dùng có hạn mức xóa tài khoản ban đầu là 3/3 lượt
+    When Người dùng xác nhận yêu cầu xóa tài khoản rồi bấm "Khôi phục tài khoản"
+    Then API getProfile trả về deletionCount = 1
+    And Trang /profile/security hiển thị chính xác "Số lượt yêu cầu xóa còn lại: 2/3 lượt"
+
+  Scenario: Cụm nút thao tác đơn hàng hiển thị viền trên mượt mà và phân cấp tinh tế
+    Given Người dùng xem danh sách đơn hàng tại /orders
+    When Quan sát hàng nút thao tác của từng đơn hàng
+    Then Cụm nút nằm gọn gàng bên dưới đường kẻ viền trên (border-t border-slate-100)
+    And Chỉ có 1 nút hành động chính (Primary) nổi bật, các nút phụ sử dụng viền mỏng xám mờ đồng bộ
+    And Không còn hiện tượng lổm chổm màu sắc hay lồi lõm không đều
+```
+
+---
+
+### 3. CỔNG NGHIỆM THU & PHÊ DUYỆT (APPROVAL GATE CHẶNG 3)
+- Trình bày giải pháp kỹ thuật Chặng 3 tới Người dùng thông qua form câu hỏi tương tác trước khi sửa mã nguồn Bước 4.
+- **Trạng thái phê duyệt:** ĐÃ ĐƯỢC NGƯỜI DÙNG PHÊ DUYỆT ĐỒNG THUẬN 100%.
+
+---
+
+## 🛠️ BƯỚC 4: THỰC THI SỬA LỖI & KẾT QUẢ KIỂM THỬ (CHẶNG 3)
+
+### 1. Chi Tiết Thực Hiện Sửa Mã Nguồn
+
+#### A. BUG-023: Redesign Modal Ân Hạn Nền Trắng & Khắc Phục Lỗi Quota Xóa
+- **Backend (`identity-service`):**
+  * `platform/apps/identity-service/src/modules/user/user.controller.ts`:
+    Bổ sung trường `deletionCount: user.deletionCount ?? 0`, `deletionScheduledAt`, `isPendingDeletion` vào phản hồi của endpoint `getProfile`.
+  * `platform/apps/identity-service/src/modules/user/user.service.ts`:
+    Trong phương thức `cancelDeletion`, trả về đầy đủ `deletionCount: updated.deletionCount ?? 0` để frontend đồng bộ tức thì.
+- **Frontend (`AccountPendingDeletionModal.tsx` & `/profile/security`):**
+  * `web/src/ui/components/common/AccountPendingDeletionModal.tsx`:
+    Loại bỏ hoàn toàn phong cách xanh đen AI u ám (`#031510`), chuyển sang giao diện nền trắng cao cấp (`bg-white border border-slate-200 shadow-2xl rounded-2xl`), huy hiệu ân hạn hổ phách nhẹ, nút phụ xám viền mỏng và nút chính màu xanh lá thương hiệu nổi bật.
+    Sau khi khôi phục thành công, cập nhật `deletionCount` vào session người dùng và phát sự kiện đồng bộ.
+  * `web/src/app/profile/security/page.tsx`:
+    Chuẩn hóa việc tính hạn mức xóa tài khoản: `deletionCount = profile?.deletionCount ?? (user as any)?.deletionCount ?? 0`, hiển thị chính xác "Số lượt yêu cầu xóa còn lại: 2/3 lượt" sau khi khôi phục.
+
+#### B. BUG-024: Thiết Kế Lại Cụm Nút Đơn Hàng Chuẩn Bảng Kê Tài Chính
+- **Frontend (`orders/page.tsx` & `orders/[id]/page.tsx`):**
+  * `web/src/app/orders/page.tsx`:
+    Tách biệt thông tin "Thành tiền" và hàng nút thao tác. Bổ sung dải phân cách trên `border-t border-slate-100 dark:border-neutral-800 pt-3 mt-3` chuẩn Bảng Kê Tài Chính Người Bán.
+    Chuẩn hóa kích thước nút `h-9` đồng đều, phân cấp 1 nút chính Primary (`bg-[#003B2B] text-white font-bold`) và các nút phụ Secondary (`border border-slate-200 bg-white text-slate-700 font-medium hover:bg-slate-50`).
+  * `web/src/app/orders/[id]/page.tsx`:
+    Đồng bộ cụm nút trên đầu trang chi tiết đơn hàng: chiều cao `h-9 rounded-xl`, nút In Biên Lai và Chat Hỗ Trợ viền xám tinh tế, nút Đánh Giá Sản Phẩm nổi bật màu xanh chủ đạo.
+
+### 2. Kết Quả Kiểm Thử E2E Chặng 3 (`scripts/test_e2e_sprint2_chang3.js`)
+- Kết quả chạy test độc lập: **8/8 PASS (100%)**.
+- Next.js Build: **141/141 routes biên dịch thành công 0 lỗi**.
+- Platform Microservices Build: **7/7 services biên dịch sạch sẽ 0 lỗi**.
+
 

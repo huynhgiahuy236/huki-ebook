@@ -52,6 +52,7 @@ export default function AccountPendingDeletionModal() {
           isPendingDeletion: false,
           deletionScheduledAt: null,
           remainingDays: null,
+          deletionCount: (res.data as any)?.deletionCount ?? ((user as any).deletionCount || 1),
         };
         setUser(updatedUser);
         tokenStorage.setUserSession(updatedUser);
@@ -71,32 +72,32 @@ export default function AccountPendingDeletionModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in font-sans">
+    <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in font-sans">
       <div
-        className="w-full max-w-lg bg-[#031510] border border-amber-500/30 rounded-3xl shadow-2xl overflow-hidden flex flex-col text-slate-100 animate-scale-up"
+        className="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-slate-800 animate-scale-up"
         role="dialog"
         aria-modal="true"
         aria-labelledby="pending-deletion-title"
       >
-        {/* Header Banner */}
-        <div className="bg-gradient-to-r from-amber-950/60 via-amber-900/40 to-slate-900/60 p-6 border-b border-amber-500/20 flex items-start gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0 shadow-inner">
-            <span className="material-symbols-outlined text-[28px] text-amber-400 animate-pulse">
-              history_toggle_off
+        {/* Header Banner - Clean White with subtle Amber accent */}
+        <div className="bg-white p-5 sm:p-6 border-b border-slate-100 flex items-start gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0 shadow-2xs">
+            <span className="material-symbols-outlined text-[24px] text-amber-600">
+              hourglass_top
             </span>
           </div>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="bg-amber-500 text-slate-950 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full tracking-wider font-mono">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span className="bg-amber-100 text-amber-800 text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full font-mono tracking-wider">
                 Ân hạn {displayDays} ngày
               </span>
-              <span className="text-[11px] text-amber-400 font-medium">
+              <span className="text-[11px] text-slate-500 font-medium">
                 Nghị định 13/2023/NĐ-CP
               </span>
             </div>
             <h3
               id="pending-deletion-title"
-              className="text-lg font-bold text-white leading-snug tracking-tight font-editorial"
+              className="text-base sm:text-lg font-bold text-slate-900 leading-snug tracking-tight font-editorial"
             >
               Tài Khoản Đang Chờ Xóa Vĩnh Viễn
             </h3>
@@ -104,52 +105,52 @@ export default function AccountPendingDeletionModal() {
         </div>
 
         {/* Content Body */}
-        <div className="p-6 space-y-4 text-xs leading-relaxed text-emerald-100/80">
+        <div className="p-5 sm:p-6 space-y-4 text-xs leading-relaxed text-slate-600">
           <p>
-            Xin chào <strong className="text-white font-semibold">{user.fullName || user.email}</strong>, tài khoản của bạn trước đó đã gửi yêu cầu xóa vĩnh viễn khỏi hệ sinh thái HuKi Ebook.
+            Xin chào <strong className="text-slate-900 font-semibold">{user.fullName || user.email}</strong>, tài khoản của bạn trước đó đã gửi yêu cầu xóa vĩnh viễn khỏi hệ sinh thái HuKi Ebook.
           </p>
 
-          <div className="p-4 rounded-2xl bg-[#00261C] border border-amber-500/25 space-y-2">
-            <div className="flex items-center justify-between text-amber-300 font-semibold text-xs">
-              <span className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-sm">hourglass_top</span>
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5">
+            <div className="flex items-center justify-between text-slate-800 font-semibold text-xs">
+              <span className="flex items-center gap-1.5 text-slate-700">
+                <span className="material-symbols-outlined text-sm text-amber-600">history_toggle_off</span>
                 Thời gian ân hạn còn lại:
               </span>
-              <span className="font-mono text-sm font-bold bg-amber-500/20 px-2.5 py-0.5 rounded-lg border border-amber-500/30">
+              <span className="font-mono text-xs font-bold bg-amber-100/80 text-amber-800 px-2.5 py-0.5 rounded-lg border border-amber-200">
                 {displayDays} ngày
               </span>
             </div>
             {formattedScheduledDate && (
-              <p className="text-[11px] text-emerald-200/60">
-                Thời điểm thanh lọc dự kiến: <span className="font-mono text-emerald-300 font-medium">{formattedScheduledDate}</span>
+              <p className="text-[11px] text-slate-500">
+                Thời điểm thanh lọc dự kiến: <span className="font-mono text-slate-800 font-semibold">{formattedScheduledDate}</span>
               </p>
             )}
-            <p className="text-[11px] text-emerald-200/70 border-t border-emerald-800/40 pt-2 mt-2">
+            <p className="text-[11.5px] text-slate-600 border-t border-slate-200/60 pt-2 mt-1">
               Trong thời gian này, dữ liệu đơn hàng, tủ sách số và thông tin cá nhân của bạn vẫn được lưu giữ an toàn. Bạn có thể chọn tiếp tục sử dụng để kích hoạt lại tài khoản ngay lập tức.
             </p>
           </div>
 
           {errorMessage && (
-            <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-300 flex items-center gap-2">
-              <span className="material-symbols-outlined text-base shrink-0">error</span>
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 flex items-center gap-2">
+              <span className="material-symbols-outlined text-base shrink-0 text-rose-500">error</span>
               <span>{errorMessage}</span>
             </div>
           )}
 
-          <p className="text-[11px] text-white/50 italic">
+          <p className="text-[11px] text-slate-400 italic">
             * Nếu bạn chọn tiếp tục xóa, hệ thống sẽ tự động đăng xuất và duy trì lịch hẹn thanh lọc như dự kiến.
           </p>
         </div>
 
         {/* Actions Footer */}
-        <div className="p-6 bg-black/30 border-t border-emerald-900/40 flex flex-col sm:flex-row items-center justify-end gap-3">
+        <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-end gap-2.5">
           <button
             type="button"
             disabled={isRestoring}
             onClick={handleContinueDeletion}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-white/20 text-white/70 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full sm:w-auto px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
           >
-            <span className="material-symbols-outlined text-base">logout</span>
+            <span className="material-symbols-outlined text-[16px] text-slate-500">logout</span>
             <span>Tiếp tục xóa (Đăng xuất)</span>
           </button>
 
@@ -157,17 +158,17 @@ export default function AccountPendingDeletionModal() {
             type="button"
             disabled={isRestoring}
             onClick={handleRestoreAccount}
-            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-bold shadow-lg shadow-emerald-950/50 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full sm:w-auto px-5 py-2 rounded-xl bg-[#003B2B] hover:bg-[#00281d] text-white text-xs font-bold shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
           >
             {isRestoring ? (
               <>
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 <span>Đang khôi phục...</span>
               </>
             ) : (
               <>
-                <span className="material-symbols-outlined text-base">verified</span>
-                <span>Khôi phục tài khoản & Sử dụng</span>
+                <span className="material-symbols-outlined text-[16px]">verified</span>
+                <span>Khôi phục tài khoản &amp; Sử dụng</span>
               </>
             )}
           </button>

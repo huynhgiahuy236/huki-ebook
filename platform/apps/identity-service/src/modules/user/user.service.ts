@@ -677,6 +677,7 @@ export class UserService {
       message: 'Đã hủy yêu cầu xóa tài khoản thành công! Tài khoản của bạn đã được khôi phục hoạt động bình thường.',
       data: {
         status: updated.status,
+        deletionCount: updated.deletionCount ?? 0,
       },
     };
   }

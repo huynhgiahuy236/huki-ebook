@@ -731,11 +731,11 @@ export default function OrderDetailPage() {
                     <button
                       type="button"
                       onClick={() => setShowDispatchModal(true)}
-                      className="px-3 py-1.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-gray-50 border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
+                      className="h-9 px-3.5 py-1.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-slate-50 border border-slate-200 dark:border-neutral-700 text-slate-700 dark:text-gray-200 text-xs font-medium inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
                       title="Gửi tin nhắn hỗ trợ sau bán tới người bán"
                     >
-                      <span className="material-symbols-outlined text-[15px] text-gray-500">support_agent</span>
-                      <span>Chat Hỗ Trợ Sau Bán</span>
+                      <span className="material-symbols-outlined text-[15px] text-slate-400">support_agent</span>
+                      <span>Nhắn Shop</span>
                     </button>
                   );
                 }
@@ -746,9 +746,9 @@ export default function OrderDetailPage() {
               <button
                 type="button"
                 onClick={handlePrint}
-                className="px-3 py-1.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-gray-50 border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
+                className="h-9 px-3.5 py-1.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-slate-50 border border-slate-200 dark:border-neutral-700 text-slate-700 dark:text-gray-200 text-xs font-medium inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
               >
-                <span className="material-symbols-outlined text-[15px] text-gray-500">print</span>
+                <span className="material-symbols-outlined text-[15px] text-slate-400">print</span>
                 <span>In Biên Lai</span>
               </button>
 
@@ -756,7 +756,7 @@ export default function OrderDetailPage() {
                 isOrderReviewed ? (
                   <Link
                     href={`/orders/${order.id}/review`}
-                    className="px-3.5 py-1.5 rounded-xl border border-emerald-600/40 text-emerald-700 dark:text-emerald-400 bg-emerald-50/60 dark:bg-emerald-950/20 text-xs font-semibold hover:bg-emerald-100/60 transition-all shadow-2xs inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                    className="h-9 px-3.5 py-1.5 rounded-xl border border-emerald-300 text-emerald-800 bg-emerald-50 text-xs font-medium hover:bg-emerald-100 transition-all shadow-2xs inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                     title="Bạn đã gửi đánh giá cho sản phẩm này"
                   >
                     <span className="material-symbols-outlined text-[15px] text-emerald-600">verified</span>
@@ -765,7 +765,7 @@ export default function OrderDetailPage() {
                 ) : (
                   <Link
                     href={`/orders/${order.id}/review`}
-                    className="px-3.5 py-1.5 rounded-xl bg-[#00875A] text-white text-xs font-bold hover:bg-[#00704A] transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                    className="h-9 px-4 py-1.5 rounded-xl bg-[#003B2B] hover:bg-[#00241A] text-white text-xs font-bold transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                   >
                     <span className="material-symbols-outlined text-[15px]">rate_review</span>
                     <span>Đánh Giá Sản Phẩm</span>
@@ -777,7 +777,7 @@ export default function OrderDetailPage() {
                 <button
                   type="button"
                   onClick={() => setCancelOrderModal({ open: true, reason: '' })}
-                  className="px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-900 text-xs font-bold hover:bg-rose-100 transition-all inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                  className="h-9 px-3.5 py-1.5 rounded-xl border border-slate-200 text-slate-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 text-xs font-medium transition-all inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                 >
                   <span className="material-symbols-outlined text-[15px]">cancel</span>
                   <span>Hủy Đơn</span>
