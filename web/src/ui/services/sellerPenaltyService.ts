@@ -502,7 +502,7 @@ class SellerPenaltyService {
       const token = tokenStorage.getAccessToken();
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch('/api/seller/penalties', { headers, cache: 'no-store' });
+      const res = await fetch('/api/v1/seller/penalties', { headers, cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data && typeof json.data === 'object') {
@@ -553,7 +553,7 @@ class SellerPenaltyService {
       const token = tokenStorage.getAccessToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      fetch('/api/seller/penalties', {
+      fetch('/api/v1/seller/penalties', {
         method: 'POST',
         headers,
         body: JSON.stringify({ profiles: this.profiles }),

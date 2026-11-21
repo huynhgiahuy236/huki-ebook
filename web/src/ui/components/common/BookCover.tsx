@@ -74,6 +74,7 @@ export default function BookCover({
     <img
       src={src}
       alt={title || ''}
+      referrerPolicy="no-referrer"
       onError={() => setHasError(true)}
       className={`w-full h-full object-cover ${className}`}
       loading="lazy"

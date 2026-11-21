@@ -1559,9 +1559,26 @@ export function SellerFlashSaleView() {
             </button>
           </div>
           {existingShopSlot && !isFormOpen && (
-            <div className="text-[11px] font-semibold text-rose-600 flex items-center gap-1 sm:text-right max-w-sm">
-              <span className="material-symbols-outlined text-xs shrink-0">error</span>
-              <span>Shop đang có 1 đợt Flash Sale hoạt động ("{existingShopSlot.name}"). Vui lòng đợi kết thúc hoặc xóa đợt cũ.</span>
+            <div className="text-[11px] font-semibold text-rose-600 flex flex-col sm:flex-row items-start sm:items-center gap-1.5 sm:text-right max-w-md bg-rose-50/80 p-2 rounded-xl border border-rose-200/80">
+              <div className="flex items-center gap-1">
+                <span className="material-symbols-outlined text-xs shrink-0 text-rose-600">error</span>
+                <span>Shop đang có đợt ("{existingShopSlot.name}").</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetElem = document.getElementById(`slot-card-${existingShopSlot.id}`) || document.querySelector(`[data-slot-id="${existingShopSlot.id}"]`);
+                  if (targetElem) {
+                    targetElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  } else {
+                    handleDeleteSlot(existingShopSlot.id);
+                  }
+                }}
+                className="text-[10px] font-bold text-rose-700 bg-rose-100 hover:bg-rose-200 px-2 py-0.5 rounded-md cursor-pointer transition-colors inline-flex items-center gap-0.5"
+              >
+                <span>Xem & Xóa đợt cũ</span>
+                <span className="material-symbols-outlined text-[11px]">arrow_downward</span>
+              </button>
             </div>
           )}
         </div>
@@ -2275,6 +2292,7 @@ export function SellerFlashSaleView() {
                                 <img
                                   src={book.coverImage || book.coverUrl || (book as any).cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=200&q=80'}
                                   alt={book.title}
+                                  referrerPolicy="no-referrer"
                                   className="w-8 h-11 object-cover rounded-md border border-gray-200 shadow-2xs shrink-0"
                                 />
                                 <div className="min-w-0">
@@ -2773,6 +2791,7 @@ export function SellerFlashSaleView() {
                                     <img
                                       src={item.book?.coverImage || item.book?.coverUrl || (item.book as any)?.cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=200&q=80'}
                                       alt={item.book?.title || 'Book'}
+                                      referrerPolicy="no-referrer"
                                       className="w-9 h-12 object-cover rounded-lg border border-gray-200 shadow-2xs shrink-0"
                                     />
                                     <div className="min-w-0">
@@ -3136,6 +3155,7 @@ export function SellerFlashSaleView() {
                                 <img
                                   src={item.book?.coverImage || item.book?.coverUrl || (item.book as any)?.cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=200&q=80'}
                                   alt={item.book?.title || 'Book'}
+                                  referrerPolicy="no-referrer"
                                   className="w-10 h-14 object-cover rounded-lg border border-gray-200 shadow-2xs shrink-0"
                                 />
                                 <div className="min-w-0 max-w-[220px]">

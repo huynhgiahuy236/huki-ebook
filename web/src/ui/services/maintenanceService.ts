@@ -115,7 +115,7 @@ class MaintenanceService {
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch('/api/system/maintenance', { headers, cache: 'no-store' });
+      const res = await fetch('/api/v1/system/maintenance', { headers, cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
         const confData = json.data;
@@ -204,7 +204,7 @@ class MaintenanceService {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      fetch('/api/system/maintenance', {
+      fetch('/api/v1/system/maintenance', {
         method: 'POST',
         headers,
         body: JSON.stringify(this.config),

@@ -329,7 +329,7 @@ class FeatureFlagsService {
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const query = businessId ? `?businessId=${encodeURIComponent(businessId)}` : '';
-      const res = await fetch(`/api/seller/feature-flags${query}`, {
+      const res = await fetch(`/api/v1/seller/feature-flags${query}`, {
         headers,
         cache: 'no-store',
       });
@@ -446,7 +446,7 @@ class FeatureFlagsService {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      fetch('/api/seller/feature-flags', {
+      fetch('/api/v1/seller/feature-flags', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -547,7 +547,7 @@ class FeatureFlagsService {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      fetch('/api/seller/feature-flags', {
+      fetch('/api/v1/seller/feature-flags', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -617,7 +617,7 @@ class FeatureFlagsService {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      fetch('/api/seller/feature-flags', {
+      fetch('/api/v1/seller/feature-flags', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -734,7 +734,7 @@ class FeatureFlagsService {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      fetch('/api/seller/feature-flags', {
+      fetch('/api/v1/seller/feature-flags', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -773,7 +773,7 @@ class FeatureFlagsService {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      fetch('/api/seller/feature-flags', {
+      fetch('/api/v1/seller/feature-flags', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -815,7 +815,7 @@ class FeatureFlagsService {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      fetch('/api/seller/feature-flags', {
+      fetch('/api/v1/seller/feature-flags', {
         method: 'POST',
         headers,
         body: JSON.stringify({

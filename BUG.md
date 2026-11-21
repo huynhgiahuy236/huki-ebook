@@ -851,4 +851,19 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
   - Trong ảnh: Shop đã có đợt *"Flash Sale Giờ Vàng Shop (SẮP DIỄN RA)"*. Do đó nút Tạo bị disable để tránh đè đợt. Muốn tạo đợt mới, Seller phải bấm `[Xóa đợt]` của đợt cũ.
   - Khi đăng ký sách vào Flash Sale, backend `promotion-service` yêu cầu: Giảm tối thiểu 10%, tối đa 90%, tồn kho > 0, giá flash sale < giá gốc. Nếu không thỏa mãn, hệ thống báo lỗi từng sách.
 
+#### 5. KẾT QUẢ KHẮC PHỤC TRIỆT ĐỂ NHÓM 3 (ĐÃ HOÀN TẤT & VERIFIED):
+1. **Dập tắt vòng lặp WebSocket 502 & Hết Lag Giật Trình Duyệt:**
+   - Trong `web/src/ui/hooks/useChatSocket.ts` và `useRealtimeNotifications.ts`:
+     * Thêm Circuit Breaker: Khi phát hiện `connect_error` do Gateway 502, tự động ngắt kết nối (`socket.disconnect()`) sau 2 lần thử, giãn cách `reconnectionDelay: 5000ms`, chặn đứng vòng lặp vô tận.
+   - Trong `docker/nginx/uat-nginx.conf`:
+     * Bổ sung `map $http_upgrade $connection_upgrade` chuẩn NGINX để chuyển đổi linh hoạt giữa WebSocket và HTTP polling thay vì ép cứng `Connection "upgrade"` gây lỗi parser.
+2. **Xóa sạch 100% lỗi 404 API:**
+   - Chuẩn hóa các lời gọi trong `featureFlagsService.ts`, `sellerPenaltyService.ts`, `maintenanceService.ts` từ `/api/...` sang `/api/v1/...` (`/api/v1/seller/feature-flags`, `/api/v1/seller/penalties`, `/api/v1/system/maintenance`).
+   - Đã kiểm tra trực tiếp UAT: Toàn bộ 3 endpoint này phản hồi **HTTP 200 OK**.
+3. **Xóa sạch lỗi 403 Forbidden Ảnh Bìa:**
+   - Thêm `<meta name="referrer" content="no-referrer" />` vào `web/src/app/layout.tsx`.
+   - Thêm `referrerPolicy="no-referrer"` vào `BookCover.tsx` và toàn bộ thẻ `<img>` trong `SellerFlashSaleView.tsx`, vô hiệu hóa cơ chế Anti-Hotlinking của Amazon/Goodreads/Tiki.
+4. **Nâng cấp UX Flash Sale:**
+   - Bổ sung nút bấm trực tiếp `[Xem & Xóa đợt cũ]` ngay cạnh cảnh báo khóa nút, giúp Seller điều hướng ngay đến đợt đang diễn ra để hủy/xóa và tạo đợt mới thuận tiện.
+
 

@@ -57,16 +57,19 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
         socketUrl = window.location.origin;
       }
     }
+    let failCount = 0;
     const socket = io(`${socketUrl}/chat`, {
       transports: ['websocket', 'polling'],
       auth: { token },
-      reconnectionAttempts: 5,
-      reconnectionDelay: 2000,
+      reconnectionAttempts: 2,
+      reconnectionDelay: 5000,
+      timeout: 5000,
     });
 
     socketRef.current = socket;
 
     socket.on('connect', () => {
+      failCount = 0;
       setIsConnected(true);
       // Nếu là seller trực chat cho shop, tự động join room của shop
       if (storeId) {
@@ -76,6 +79,15 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
 
     socket.on('disconnect', () => {
       setIsConnected(false);
+    });
+
+    socket.on('connect_error', () => {
+      setIsConnected(false);
+      failCount++;
+      if (failCount >= 2) {
+        // Dừng thử lại vô tận khi gateway trả về lỗi 502 để bảo vệ CPU và tránh lag giật trình duyệt
+        socket.disconnect();
+      }
     });
 
     // Lắng nghe tin nhắn mới (dedup nếu server phát cả message:new và new_message)
