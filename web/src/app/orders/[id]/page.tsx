@@ -16,6 +16,8 @@ import { realtimeSyncBus, type SyncMessage } from '@/ui/services/realtimeSyncBus
 import { playChatChimeSound } from '@/ui/utils/chatSound';
 import QuickDispatchNotificationModal from '@/ui/components/common/QuickDispatchNotificationModal';
 import { ESCROW_CONFIG } from '@/ui/constants/escrowConfig';
+import { reviewStorage } from '@/ui/lib/reviewStorage';
+import { reviewApi } from '@/ui/api/reviewApi';
 
 export default function OrderDetailPage() {
   const params = useParams();
@@ -41,6 +43,7 @@ export default function OrderDetailPage() {
   const [returnModal, setReturnModal] = useState<{ open: boolean; item: any; storeName: string; subOrderId?: string }>({ open: false, item: null, storeName: '' });
   const [showDispatchModal, setShowDispatchModal] = useState(false);
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
+  const [isOrderReviewed, setIsOrderReviewed] = useState(false);
 
   const fetchOrderDetail = useCallback(async (isSilent?: boolean) => {
     if (!id) return;
@@ -137,6 +140,46 @@ export default function OrderDetailPage() {
     }, 30000);
     return () => clearInterval(timer);
   }, [fetchOrderDetail]);
+
+  // Synchronize and determine if products in this order have been reviewed
+  useEffect(() => {
+    if (!order) return;
+    const allItemBookIds: string[] = (order.sellerOrders || []).flatMap((so: any) =>
+      (so.items || []).map((it: any) => it.bookId)
+    );
+
+    // Check reviewStorage
+    const hasLocal = allItemBookIds.some((bId) => reviewStorage.hasUserReviewed(bId, user?.id));
+    if (hasLocal) {
+      setIsOrderReviewed(true);
+    } else if (user?.id) {
+      reviewApi
+        .getMyReviews()
+        .then((res) => {
+          if (res?.success && Array.isArray(res.data)) {
+            const reviewedTargetIds = new Set(res.data.map((r: any) => r.targetId || (r as any).bookId));
+            const isRev = allItemBookIds.some((bId) => reviewedTargetIds.has(bId));
+            if (isRev) setIsOrderReviewed(true);
+          }
+        })
+        .catch(() => {});
+    }
+
+    const handleReviewCreated = (e: any) => {
+      const createdBookId = e.detail?.bookId;
+      const createdOrderId = e.detail?.orderId;
+      if (
+        createdOrderId === order.id ||
+        createdOrderId === order.code ||
+        (createdBookId && allItemBookIds.includes(createdBookId))
+      ) {
+        setIsOrderReviewed(true);
+      }
+    };
+
+    window.addEventListener('huki_review_created', handleReviewCreated);
+    return () => window.removeEventListener('huki_review_created', handleReviewCreated);
+  }, [order, user]);
 
   useEffect(() => {
     const unsubscribe = realtimeSyncBus.subscribe((msg: SyncMessage<any>) => {
@@ -658,15 +701,47 @@ export default function OrderDetailPage() {
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={() => setShowDispatchModal(true)}
-                className="px-3 py-1.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-gray-50 border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
-                title="Gửi tin nhắn dặn dò đơn hàng tới người bán"
-              >
-                <span className="material-symbols-outlined text-[15px] text-gray-500">chat</span>
-                <span>Nhắn Shop</span>
-              </button>
+              {/* Dynamic Lifecycle Shop Messaging: Dặn dò đóng gói khi đơn đang xử lý; Chat sau bán khi đang đổi trả; Ẩn khi đã hết hạn */}
+              {(() => {
+                const isOrderActive = order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && order.status !== 'DELIVERED';
+                const isCompletedOrDelivered = order.status === 'COMPLETED' || order.status === 'DELIVERED';
+                const isDisputeOpen = isCompletedOrDelivered && (() => {
+                  const rawTime = primarySellerOrder?.completedAt || (order as any).deliveredAt;
+                  if (!rawTime) return false;
+                  const elapsed = (Date.now() - new Date(rawTime).getTime()) / 1000;
+                  return elapsed < 120; // 2 minutes window on UAT / standard return window
+                })();
+
+                if (isOrderActive) {
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setShowDispatchModal(true)}
+                      className="px-3 py-1.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-gray-50 border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
+                      title="Gửi tin nhắn dặn dò đóng gói, giao sớm tới người bán"
+                    >
+                      <span className="material-symbols-outlined text-[15px] text-gray-500">edit_note</span>
+                      <span>Dặn Dò Shop</span>
+                    </button>
+                  );
+                }
+
+                if (isDisputeOpen) {
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setShowDispatchModal(true)}
+                      className="px-3 py-1.5 rounded-xl bg-white dark:bg-neutral-800 hover:bg-gray-50 border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
+                      title="Gửi tin nhắn hỗ trợ sau bán tới người bán"
+                    >
+                      <span className="material-symbols-outlined text-[15px] text-gray-500">support_agent</span>
+                      <span>Chat Hỗ Trợ Sau Bán</span>
+                    </button>
+                  );
+                }
+
+                return null;
+              })()}
 
               <button
                 type="button"
@@ -678,13 +753,24 @@ export default function OrderDetailPage() {
               </button>
 
               {(order.status === 'COMPLETED' || order.status === 'DELIVERED') && (
-                <Link
-                  href={`/orders/${order.id}/review`}
-                  className="px-3.5 py-1.5 rounded-xl bg-[#00875A] text-white text-xs font-bold hover:bg-[#00704A] transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-                >
-                  <span className="material-symbols-outlined text-[15px]">rate_review</span>
-                  <span>Đánh Giá Sản Phẩm</span>
-                </Link>
+                isOrderReviewed ? (
+                  <Link
+                    href={`/orders/${order.id}/review`}
+                    className="px-3.5 py-1.5 rounded-xl border border-emerald-600/40 text-emerald-700 dark:text-emerald-400 bg-emerald-50/60 dark:bg-emerald-950/20 text-xs font-semibold hover:bg-emerald-100/60 transition-all shadow-2xs inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                    title="Bạn đã gửi đánh giá cho sản phẩm này"
+                  >
+                    <span className="material-symbols-outlined text-[15px] text-emerald-600">verified</span>
+                    <span>Xem Đánh Giá</span>
+                  </Link>
+                ) : (
+                  <Link
+                    href={`/orders/${order.id}/review`}
+                    className="px-3.5 py-1.5 rounded-xl bg-[#00875A] text-white text-xs font-bold hover:bg-[#00704A] transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">rate_review</span>
+                    <span>Đánh Giá Sản Phẩm</span>
+                  </Link>
+                )
               )}
 
               {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && order.status !== 'SHIPPED' && order.status !== 'DELIVERED' && (
@@ -858,6 +944,28 @@ export default function OrderDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* LEFT COLUMN: ORDER ITEMS & PACKAGE DETAILS */}
           <div className="lg:col-span-8 space-y-6">
+            {/* Lời dặn dò của Người Mua tới Người Bán (PostgreSQL SSOT) */}
+            {order.note && (
+              <div className="p-4 sm:p-5 rounded-3xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 flex items-start gap-3 shadow-2xs">
+                <span className="material-symbols-outlined text-[22px] text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
+                  sticky_note_2
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="font-bold text-xs uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                      <span>Lời Dặn Của Bạn Tới Người Bán</span>
+                    </span>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800">
+                      Đã lưu vào đơn hàng
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-950 dark:text-amber-100 whitespace-pre-line leading-relaxed font-medium">
+                    {order.note}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {order.sellerOrders?.map((so: any, sIdx: number) => {
               const isDigitalPackage = !so.requiresShipping || so.items?.every((item: any) => item.format?.toUpperCase().includes('DIGITAL') || item.format?.toLowerCase().includes('ebook'));
               const isSubOrderCancelled = so.status === 'CANCELLED';
@@ -2062,10 +2170,14 @@ export default function OrderDetailPage() {
           onClose={() => setShowDispatchModal(false)}
           senderRole="USER"
           targetRole="SELLER"
-          targetId={primarySellerOrder?.storeId || primarySellerOrder?.businessId || 'seller_channel'}
+          targetId={primarySellerOrder?.ownerUserId || primarySellerOrder?.storeId || primarySellerOrder?.businessId || 'seller_channel'}
           targetName={primarySellerOrder?.storeName || 'Nhà Sách / Người Bán'}
           orderCode={order.code}
           orderId={order.id}
+          orderStatus={order.status}
+          onSuccess={() => {
+            fetchOrderDetail(true);
+          }}
         />
       )}
     </div>

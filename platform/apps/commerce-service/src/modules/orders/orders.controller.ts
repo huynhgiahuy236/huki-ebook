@@ -33,7 +33,7 @@ import {
 } from '@nestjs/swagger';
 import { AuthenticatedGuard, BookActor, BookWriteGuard, OptionalBookAuthGuard } from '../../common/book-auth.guard';
 import { CurrentBookActor } from '../../common/current-book-actor.decorator';
-import { CancelOrderDto } from './dto/checkout.dto';
+import { CancelOrderDto, AddOrderNoteDto } from './dto/checkout.dto';
 import {
   CreateDisputeDto,
   ArbitrateDisputeDto,
@@ -380,6 +380,26 @@ export class OrdersController {
     @Param('id') id: string,
   ) {
     return this.orders.tracking(actor?.sub, id, actor);
+  }
+
+  @Patch([':id/notes', ':id/note'])
+  @ApiOperation({
+    summary: 'Add note or dispatch message to an order',
+    description: 'Buyer attaches packaging note or instructions directly to the order.',
+  })
+  @ApiParam({ name: 'id', description: 'Order ID or Order Code' })
+  @ApiResponse({ status: 200, description: 'Note added to order successfully' })
+  @ApiNotFoundResponse({ description: 'Order not found' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  addNote(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id') id: string,
+    @Body() dto: AddOrderNoteDto,
+  ) {
+    if (!actor?.sub) {
+      throwUnauthorized(ErrorCode.AUTH_TOKEN_MISSING, 'Vui lòng đăng nhập để đính kèm ghi chú đơn hàng');
+    }
+    return this.orders.addNoteBuyer(actor.sub, id, dto);
   }
 
   @Post(':id/cancel')

@@ -148,3 +148,11 @@ export class ShipOrderDto {
   @ApiProperty() @IsString() @MinLength(2) @MaxLength(100) carrier: string;
   @ApiProperty() @IsString() @MinLength(2) @MaxLength(100) trackingCode: string;
 }
+
+export class AddOrderNoteDto {
+  @ApiProperty({ description: 'Nội dung dặn dò hoặc ghi chú đơn hàng' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1000)
+  note: string;
+}

@@ -540,6 +540,15 @@ export const orderApi = {
     });
   },
 
+  /**
+   * Khách hàng đính kèm lời dặn dò đóng gói hoặc ghi chú vào đơn hàng (PostgreSQL)
+   */
+  addOrderNote: async (orderId: string, note: string): Promise<ApiResponse<BuyerOrder>> => {
+    return apiClient<BuyerOrder>(`/orders/${orderId}/notes`, {
+      method: 'PATCH',
+      body: JSON.stringify({ note }),
+    });
+  },
 
   /**
    * Lấy toàn bộ lịch sử trạng thái (Audit trail / Ledger timeline) của đơn hàng

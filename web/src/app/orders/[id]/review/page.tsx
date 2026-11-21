@@ -9,6 +9,7 @@ import { orderApi, BuyerOrder, OrderItem } from '@/ui/api/orderApi';
 import { reviewApi, ReviewItemData } from '@/ui/api/reviewApi';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import VerifiedPurchaseBadge from '@/ui/components/review/VerifiedPurchaseBadge';
+import { reviewStorage } from '@/ui/lib/reviewStorage';
 
 interface DisplayReviewItem {
   bookId: string;
@@ -130,6 +131,12 @@ export default function OrderReviewPage() {
     status: orderDetail?.status || 'COMPLETED',
   };
 
+  const existingReview = useMemo(() => {
+    if (!currentItem?.bookId) return null;
+    const list = reviewStorage.getByBookId(currentItem.bookId);
+    return list.find((r) => !user?.id || r.author?.id === user.id) || null;
+  }, [currentItem?.bookId, user?.id]);
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -202,6 +209,29 @@ export default function OrderReviewPage() {
 
       if (res?.success) {
         showToast('Đã gửi đánh giá thành công! Bạn nhận được +50 HUKI Xu thưởng.', 'success');
+        reviewStorage.saveReview({
+          id: res?.data?.id || `rev-${Date.now()}`,
+          targetId: bookId,
+          targetType: 'BOOK',
+          author: {
+            id: user?.id || 'me',
+            fullName: user?.fullName || 'Độc giả HuKi',
+            avatar: user?.avatar ?? undefined,
+          },
+          rating,
+          title: autoTitle,
+          content: reviewContent.trim(),
+          images: images.map((u) => ({ url: u })),
+          format,
+          verifiedPurchase: true,
+          orderId,
+          replies: [],
+          status: 'PUBLISHED',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          helpfulCount: 0,
+          isHelpful: false,
+        });
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('huki_review_created', { detail: { bookId, orderId } }));
           localStorage.setItem('huki_review_sync', String(Date.now()));
@@ -210,6 +240,32 @@ export default function OrderReviewPage() {
         router.push(`/orders/${orderId}`);
       } else if (res?.error?.code === 'REVIEW_ALREADY_EXISTS') {
         showToast('Bạn đã gửi đánh giá cho sản phẩm này rồi.', 'info');
+        reviewStorage.saveReview({
+          id: `rev-existing-${bookId}`,
+          targetId: bookId,
+          targetType: 'BOOK',
+          author: {
+            id: user?.id || 'me',
+            fullName: user?.fullName || 'Độc giả HuKi',
+            avatar: user?.avatar ?? undefined,
+          },
+          rating: 5,
+          title: autoTitle,
+          content: reviewContent.trim(),
+          images: images.map((u) => ({ url: u })),
+          format,
+          verifiedPurchase: true,
+          orderId,
+          replies: [],
+          status: 'PUBLISHED',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          helpfulCount: 0,
+          isHelpful: false,
+        });
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('huki_review_created', { detail: { bookId, orderId } }));
+        }
         router.push(`/orders/${orderId}`);
       } else if (res?.error?.code === 'REVIEW_PURCHASE_REQUIRED') {
         showToast('Hệ thống chỉ cho phép đánh giá khi đơn hàng đã hoàn tất hoặc giao thành công (POL-13).', 'error');
@@ -360,10 +416,82 @@ export default function OrderReviewPage() {
             </div>
           </div>
 
-          {/* Right Column: Review Submission Form */}
+          {/* Right Column: Review Submission Form or Existing Review View */}
           <div className="col-span-12 lg:col-span-8">
             <div className="bg-white p-6 sm:p-8 rounded-2xl border border-[#e8e5df] shadow-xs">
-              <form onSubmit={handleSubmit} className="space-y-6 text-xs">
+              {existingReview ? (
+                <div className="space-y-6">
+                  <div className="p-5 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-center space-y-2">
+                    <span className="material-symbols-outlined text-4xl text-emerald-600">verified</span>
+                    <h3 className="font-bold text-base text-emerald-900">
+                      Bạn đã gửi đánh giá cho ấn phẩm này
+                    </h3>
+                    <p className="text-xs text-emerald-700">
+                      Cảm ơn bạn đã đóng góp đánh giá hữu ích cho cộng đồng độc giả HuKi!
+                    </p>
+                  </div>
+
+                  <div className="p-5 rounded-2xl bg-[#faf9f6] border border-gray-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1 text-[#fea619]">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <span
+                            key={s}
+                            className={`material-symbols-outlined text-xl ${
+                              s <= existingReview.rating ? 'text-[#fea619]' : 'text-gray-300'
+                            }`}
+                            style={{ fontVariationSettings: "'FILL' 1" }}
+                          >
+                            star
+                          </span>
+                        ))}
+                      </div>
+                      <span className="text-xs text-gray-400">
+                        {existingReview.createdAt ? new Date(existingReview.createdAt).toLocaleDateString('vi-VN') : 'Đã gửi'}
+                      </span>
+                    </div>
+
+                    {existingReview.title && (
+                      <h4 className="font-bold text-sm text-gray-900">{existingReview.title}</h4>
+                    )}
+                    <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-line">
+                      {existingReview.content}
+                    </p>
+
+                    {existingReview.images && existingReview.images.length > 0 && (
+                      <div className="flex gap-2 flex-wrap pt-2">
+                        {existingReview.images.map((img, i) => (
+                          <img
+                            key={i}
+                            src={typeof img === 'string' ? img : (img as any)?.url || ''}
+                            alt=""
+                            className="w-16 h-16 rounded-xl object-cover border border-gray-200"
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <Link
+                      href={`/orders/${orderId}`}
+                      className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-base">arrow_back</span>
+                      <span>Quay lại chi tiết đơn hàng</span>
+                    </Link>
+
+                    <Link
+                      href={`/book/${currentItem.bookId}`}
+                      className="px-5 py-2.5 rounded-xl bg-[#006953] text-white hover:bg-[#005442] text-xs font-bold inline-flex items-center gap-1.5 transition-colors shadow-xs"
+                    >
+                      <span>Xem sách tại gian hàng</span>
+                      <span className="material-symbols-outlined text-base">menu_book</span>
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmit} className="space-y-6 text-xs">
                 {/* 1. Star Rating */}
                 <div className="p-5 rounded-2xl bg-[#faf9f6] border border-gray-200 text-center space-y-2">
                   <span className="block font-bold text-sm text-gray-800">
@@ -545,6 +673,7 @@ export default function OrderReviewPage() {
                   </button>
                 </div>
               </form>
+              )}
             </div>
           </div>
         </div>

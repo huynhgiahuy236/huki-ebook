@@ -954,3 +954,125 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 #### 5. Tự động gợi ý sách cùng thể loại & Điều hướng mục Gợi ý cho bạn:
 - Khi người dùng tìm kiếm 1 cuốn sách bất kỳ, bot tự động tìm thêm 2-3 cuốn sách nổi bật cùng thể loại (`category`) trong kho và đính kèm vào `suggestedBooks`.
 - Bổ sung các Quick Prompts: `'Gợi ý cho bạn'`, `'Sách cùng thể loại'`, `'Xem mục gợi ý cho bạn'` dẫn thẳng tới trang danh mục cá nhân hóa (`/books?filter=for-you`).
+---
+
+### 7.14. BÁO CÁO TOÀN DIỆN VÀ GIẢI PHÁP TRIỆT ĐỂ NHÓM 1: ĐIỀN DỮ LIỆU SỬA SÁCH, GIÁ NIÊM YẾT / GIÁ BÌA GỐC, DÒNG TIỀN VÀ ĐỒNG BỘ REALTIME
+
+- **Trang kiểm tra:** `https://huki-uat.duckdns.org/seller/product/af0462bc-9c7b-4848-8451-22dc37eb6ab2/edit` & `/seller/product/create`
+- **Tình trạng trước fix:**
+  1. Khi sửa sách: Dữ liệu kích thước bị chia cắt chuỗi (`dimStr.split('x')`) gây hỏng dữ liệu khi `dimensions` chứa JSON.
+  2. Bị mất hoàn toàn các trường giá `pricePaper` (sách in), `priceEbook` (ebook), `priceCombo` (combo) do backend `update()` trong `books.service.ts` ghi đè `dimensions = "${length}x${width}x${height}"` làm xóa sạch JSON lưu giá.
+  3. Giao diện chỉnh sửa chỉ có 2 ô "Giá Bán Niêm Yết" và "Giá Bìa Gốc", không cho phép xem và sửa giá riêng lẻ của Sách In, Ebook DRM, và Combo khi sách ở định dạng `BOTH`.
+  4. Thiếu hoàn toàn Bảng Dự Toán Dòng Tiền & Thực Nhận Ví Shop (Cash Flow Breakdown).
+  5. Sự nhập nhằng giữa "Giá Niêm Yết" và "Giá Bìa Gốc" khiến người dùng bối rối so với thực tế bán sách tại Việt Nam.
+
+#### 1. Nguyên nhân cốt lõi và Khắc phục Backend SSOT:
+- **File sửa:** [`platform/apps/commerce-service/src/modules/books/books.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/books.service.ts)
+  - Khi gọi `update(id, dto, actor)`:
+    * Include `physicalDetails: true, digitalDetails: true` khi lấy bản ghi hiện tại `existing`.
+    * Đọc an toàn `existingPhysical.dimensions`: nếu là JSON, trích xuất và bảo lưu toàn bộ giá trị `pricePaper`, `priceEbook`, `priceCombo`.
+    * Hợp nhất với các giá trị mới từ `dto.physicalDetails` và `dto.pricePaper`, `dto.priceEbook`, `dto.priceCombo`.
+    * Lưu trữ trở lại dưới dạng JSON hợp lệ vào `dimensions`, ngăn chặn 100% tình trạng mất dữ liệu sub-format khi cập nhật.
+
+#### 2. Chuẩn hóa API Contract Frontend:
+- **File sửa:** [`web/src/ui/api/catalogApi.ts`](file:///e:/HuKi/web/src/ui/api/catalogApi.ts)
+  - Bổ sung `pricePaper?: number`, `priceEbook?: number`, `priceCombo?: number` vào cả `BookData` và `CreateBookPayload`.
+
+#### 3. Làm rõ Khái niệm & Nghiệp vụ Giá Thương Mại Điện Tử (TMĐT Sách Việt Nam):
+- **"Giá Bìa Niêm Yết NXB (MSRP / Giá Gốc)" (`originalPrice`):**
+  - Là giá in cố định ở bìa sau của cuốn sách do Nhà xuất bản (NXB Trẻ, Kim Đồng, Nhã Nam...) ấn định.
+  - Sàn HUKI hiển thị gạch ngang mức giá này để người đọc thấy rõ mức chiết khấu khi mua lẻ.
+- **"Giá Bán Thực Tế Cho Khách Hàng" (`price` / `pricePaper` / `priceEbook` / `priceCombo`):**
+  - Là số tiền thực tế người mua phải thanh toán cho Shop.
+  - Sách In lẻ: Nhập giá bán sách in (`physicalPrice`).
+  - Ebook DRM lẻ: Nhập giá bán ebook DRM (`ebookPrice`).
+  - Combo Hybrid (BOTH): Nhập đủ 3 mức giá (Sách In lẻ, Ebook DRM lẻ, và Combo trọn gói).
+  - Tự động hiển thị widget tính ưu đãi Combo: So sánh `Tổng giá mua lẻ` vs `Giá Combo`, tính chính xác số tiền tiết kiệm và phần trăm giảm giá.
+
+#### 4. Bổ sung Bảng Dự Toán Dòng Tiền & Thực Nhận Ví Shop (Cash Flow Breakdown):
+- **File sửa:**
+  - [`web/src/ui/components/seller/SellerEditProductView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerEditProductView.tsx)
+  - [`web/src/ui/components/seller/SellerCreateProductView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerCreateProductView.tsx)
+- **Tính toán tài chính thời gian thực:**
+  - **Doanh Thu Bán Sách (100% GMV):** Tổng số tiền người mua thanh toán cho đơn hàng.
+  - **Phí Sàn HUKI Cố Định (5%):** Khấu trừ cho chi phí hạ tầng máy chủ, thanh toán trực tuyến và công nghệ mã hóa bản quyền DRM.
+  - **Thực Nhận Ví Shop (95%):** Số tiền thực tế đổ về Ví Doanh Thu của Shop.
+  - **Bảo chứng Escrow:** Chú thích rõ ràng doanh thu được giữ an toàn trong *Ký quỹ đổi trả* (2 phút trên UAT / 3 ngày Production) trước khi tự động chuyển sang *Khả dụng Ví* để rút tiền về ngân hàng.
+
+#### 5. Đảm bảo Đồng bộ Realtime từ Seller sang Buyer Storefront:
+- Buyer Storefront tại `web/src/app/book/[id]/page.tsx` đọc trực tiếp từ `catalogApi.getBookById(id)` các trường `realBook.pricePaper`, `realBook.priceEbook`, `realBook.priceCombo`.
+- Khi Seller cập nhật thành công, backend lưu đúng SSOT và trả về tức thì. Trang chi tiết sách của người mua hiển thị chính xác 100% từng mức giá đã thiết lập mà không bị rơi vào giá ước lượng fallback.
+---
+
+### 7.15. BÁO CÁO TOÀN DIỆN VÀ GIẢI PHÁP TRIỆT ĐỂ NHÓM 2: CHATBOX AI, GỢI Ý ĐA ĐỊNH DẠNG, XÓA THÔNG BÁO KÉP VÀ GOM ĐƠN MUA NGAY 1 STORE
+
+- **Trang kiểm tra:** `https://huki-uat.duckdns.org/cart` & Chatbox AI Bé Cáo
+- **Bằng chứng lỗi trên UAT:** Ảnh chụp màn hình `media_1795283376563_2c87e542.jpg` (Xuất hiện 2 toast thông báo cùng lúc, giỏ hàng bị xé lẻ thành First News và Gian Hàng HUKI chứa cùng 1 cuốn sách *Làm Chủ Tư Duy Thay Đổi Vận Mệnh*).
+
+#### 1. Khắc phục lỗi 2 thông báo cùng lúc (Double Toast Notification):
+- **File sửa:** [`web/src/ui/components/ai/FloatingAIChatbox.tsx`](file:///e:/HuKi/web/src/ui/components/ai/FloatingAIChatbox.tsx)
+- **Nguyên nhân:** Khi click "+ Giỏ hàng" hoặc "Mua ngay", hàm `handleAddToCartItem` gọi `addToCart()` từ `CartContext.tsx`. Bản thân `CartContext.tsx` đã tự động phát thông báo toast màu xanh *"Đã thêm vào giỏ hàng: Ấn phẩm '...' đã được thêm vào giỏ của bạn."*. Tuy nhiên `FloatingAIChatbox.tsx` lại gọi thêm `showToast()` thứ 2 $\rightarrow$ 2 thông báo đè lên nhau.
+- **Khắc phục:** Loại bỏ hoàn toàn lệnh gọi `showToast` dư thừa trong `FloatingAIChatbox.tsx`, chỉ giữ lại duy nhất thông báo SSOT từ `CartContext.tsx`.
+
+#### 2. Khắc phục lỗi Xé lẻ Store & Cùng cuốn sách rơi vào 2 gian hàng khác nhau:
+- **Nguyên nhân cốt lõi:**
+  * Trong `FloatingAIChatbox.tsx`, dòng 186 trước đây **hardcode cứng** `storeId: 'huki-official'`. Khi sách trong DB thuộc gian hàng đối tác (như *First News - Trí Việt*), nhưng thêm từ chatbox lại bị ép sang `huki-official`.
+  * Trong `ai-chat.service.ts`, `getCatalogBooks()` không map `storeId`, `storeName`, `rating` từ DB của `commerce-service`.
+- **Khắc phục:**
+  * Bổ sung đầy đủ `storeId`, `storeName`, `category`, `categoryId`, `rating` vào cả `BookCatalogItem` và `SuggestedBookItem` trong [`ai-chat.service.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/chat/ai-chat.service.ts).
+  * Trong `FloatingAIChatbox.tsx`, truyền chính xác `book.storeId` và `book.storeName` vào giỏ hàng, hiển thị badge gian hàng `🏪 {book.storeName}` trực quan trên thẻ sách gợi ý.
+
+#### 3. Gom đơn "Mua Ngay" về 1 Store duy nhất (`selectStoreExclusive`):
+- **File sửa:**
+  * [`web/src/ui/context/CartContext.tsx`](file:///e:/HuKi/web/src/ui/context/CartContext.tsx)
+  * [`web/src/ui/components/ai/FloatingAIChatbox.tsx`](file:///e:/HuKi/web/src/ui/components/ai/FloatingAIChatbox.tsx)
+- **Cơ chế hoạt động:**
+  * Bổ sung phương thức `selectStoreExclusive(storeId: string, targetItemId?: string)` vào `CartContext`.
+  * Khi người mua bấm "Mua ngay" tại Chatbox AI: Thêm ấn phẩm vào giỏ hàng, tự động đánh dấu chọn (`checked = true`) cho sản phẩm/store này và **BỎ CHỌN TOÀN BỘ (`checked = false`)** các sản phẩm thuộc các store khác.
+  * Khi chuyển sang `/cart`: Giỏ hàng chỉ tập trung thanh toán đúng 1 store duy nhất vừa mua ngay, chuẩn trải nghiệm sàn TMĐT Shopee/Tiki.
+
+#### 4. Sắp xếp thông minh theo Giá tiền, Đánh giá và Lượt mua:
+- **File sửa:** [`platform/apps/community-service/src/modules/chat/ai-chat.service.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/chat/ai-chat.service.ts)
+- **Logic xếp hạng ứng biến:**
+  * Nếu người dùng quan tâm về tiền / ngân sách ("rẻ", "tiết kiệm", "dưới 100k"): Tự động sắp xếp theo **Giá thấp nhất (`price ASC`)**.
+  * Mặc định: Ưu tiên theo **Đánh giá cao nhất (`rating DESC`)**, **Lượt mua nhiều nhất (`soldCount DESC`)**, rồi đến **Giá tốt nhất (`price ASC`)**.
+  * Chống trùng lặp (Deduplication): Nếu cùng một tựa sách có mặt ở nhiều shop khác nhau, bot tự động chọn lọc phiên bản của shop tối ưu nhất để tư vấn, không làm loãng kết quả.
+
+#### 5. Tự động gợi ý sách cùng thể loại & Điều hướng mục Gợi ý cho bạn:
+- Khi người dùng tìm kiếm 1 cuốn sách bất kỳ, bot tự động tìm thêm 2-3 cuốn sách nổi bật cùng thể loại (`category`) trong kho và đính kèm vào `suggestedBooks`.
+- Bổ sung các Quick Prompts: `'Gợi ý cho bạn'`, `'Sách cùng thể loại'`, `'Xem mục gợi ý cho bạn'` dẫn thẳng tới trang danh mục cá nhân hóa (`/books?filter=for-you`).
+
+
+---
+
+### 7.16. BÁO CÁO TOÀN DIỆN VÀ GIẢI PHÁP TRIỆT ĐỂ NHÓM 4: TRẠNG THÁI NÚT ĐÁNH GIÁ SẢN PHẨM, VÒNG ĐỜI NÚT DẶN DÒ SHOP & LƯU TRỮ TIN NHẮN DẶN DÒ THẬT VÀO ĐƠN HÀNG (POSTGRESQL + SELLER REALTIME NOTIFICATION)
+
+- **Trang kiểm tra:** `https://huki-uat.duckdns.org/orders/[id]` (Chi tiết đơn hàng), `/orders/[id]/review` (Đánh giá) & Chi tiết đơn người bán `OrderDetailDrawer.tsx`
+- **Bằng chứng lỗi trên UAT:**
+  * Ảnh `media_1795286794238_1645d974.jpg`: Đơn hàng `#ORD-MWQJ3A6P-6B874C51` đã giao thành công và hết hạn đổi trả, nhưng nút `[ Đánh Giá Sản Phẩm ]` màu xanh lá vẫn hiện nguyên trạng thái sau khi đã đánh giá; nút `[ Nhắn Shop ]` vẫn hiển thị cố định.
+  * Ảnh `media_1795286818567_bc613bfd.jpg`: Popup "Gửi Thông Báo Tương Tác" hiển thị các mẫu câu "Dặn dò đóng gói sách", "Cần sách sớm trước cuối tuần" trong khi đơn đã giao xong nhiều ngày; khi gửi thì nội dung này hoàn toàn không được lưu vào đơn hàng (PostgreSQL) và người bán không xem được trong chi tiết đơn hàng.
+
+#### 1. Bóc tách 4 tầng kiến trúc (Root Cause Analysis):
+- **Tầng 1 - Database (PostgreSQL):** Bảng `orders` có trường `note`, nhưng khi người mua gửi tin nhắn dặn dò qua popup sau khi đặt hàng, hệ thống chỉ gọi `POST /api/v1/notifications/dispatch` lưu vào MongoDB `notifications`, **hoàn toàn không cập nhật vào `orders.note` hoặc `order_status_histories`**. Do đó đơn hàng không hề kèm nội dung dặn dò này.
+- **Tầng 2 - Backend Services (Commerce & Community):**
+  * `commerce-service` thiếu endpoint `PATCH /orders/:id/notes` cho phép người mua cập nhật hoặc đính kèm lời dặn dò vào đơn hàng.
+  * `community-service`: Khi dispatch notification với `targetRole: SELLER`, frontend truyền `targetId = primarySellerOrder?.storeId`. Tuy nhiên khi Seller đăng nhập, JWT token của chủ shop có `sub = ownerUserId`. Do chuông thông báo lọc theo `recipientId = actor.sub`, thông báo bị lạc địa chỉ và chủ shop không nhận được.
+- **Tầng 3 - Gateway & Realtime Bus:** WebSocket chỉ phát tới room cá nhân của `ownerUserId`. Nếu truyền storeId không phân giải, socket không kích hoạt popup chuông thông báo cho Seller.
+- **Tầng 4 - Frontend Client (Web):**
+  * `web/src/app/orders/[id]/page.tsx` chỉ kiểm tra cứng `order.status === 'COMPLETED' || order.status === 'DELIVERED'` để hiện nút xanh `[ Đánh Giá Sản Phẩm ]`, không kiểm tra `reviewStorage` hay `reviewApi.getMyReviews()`. Sau khi người dùng đánh giá xong trở lại trang đơn, nút vẫn xanh lè như chưa đánh giá.
+  * Nút `[ Nhắn Shop ]` hiển thị vô điều kiện ở mọi giai đoạn, không phân biệt đơn đang đóng gói hay đã hoàn tất/hết hạn khiếu nại.
+  * Chi tiết đơn người bán `OrderDetailDrawer.tsx` không làm nổi bật lời dặn của khách.
+
+#### 2. Giải pháp Chuẩn Shopee đã được Người dùng Phê duyệt (Approval Gate A1, A2, A3):
+1. **Trạng thái Đánh Giá (A1):**
+   - Sau khi gửi đánh giá thành công, lưu vào `reviewStorage` và kích hoạt event `huki_review_created`.
+   - Trang `/orders/[id]` tự động chuyển đổi nút sang **"Xem Đánh Giá"** dạng outline xám/xanh nhạt kèm badge `verified`, bấm vào để xem lại đánh giá, ngăn chặn gửi trùng lặp `REVIEW_ALREADY_EXISTS`.
+2. **Vòng đời Nút Nhắn Shop / Dặn Dò (A2):**
+   - Đơn đang xử lý (`PENDING`, `CONFIRMED`, `PREPARING`, `SHIPPED`): Hiển thị nút **"Dặn Dò Shop"** (mở popup dặn đóng gói, giao sớm, xuất hóa đơn).
+   - Đơn đã giao (`DELIVERED`/`COMPLETED`):
+     * Nếu trong thời gian khiếu nại/đổi trả: Chuyển thành **"Chat Hỗ Trợ Sau Bán"** (mẫu câu hỏi kích hoạt ebook, bảo hành, kiểm tra sản phẩm).
+     * Nếu đã hết hạn đổi trả (Dispute Window Closed): **Ẩn hoàn toàn nút dặn dò** theo đúng chuẩn UX sàn TMĐT.
+3. **Lưu trữ Thật & Chuyển phát Notification tới Chủ Shop (A3):**
+   - Bổ sung endpoint `PATCH /api/v1/orders/:id/notes` trong `commerce-service` để lưu nội dung dặn dò trực tiếp vào `Order.note` và ghi log `OrderStatusHistory`.
+   - Trong `QuickDispatchNotificationModal.tsx`, khi người mua gửi dặn dò: vừa gọi `addOrderNote` lưu vào DB đơn hàng, vừa dispatch notification tới chính xác `ownerUserId` của gian hàng.
+   - Hiển thị mục **"Lời Dặn Của Khách Hàng"** nổi bật trong cả trang chi tiết đơn của Người Mua và Ngăn kéo Chi Tiết Đơn của Người Bán (`OrderDetailDrawer.tsx`).

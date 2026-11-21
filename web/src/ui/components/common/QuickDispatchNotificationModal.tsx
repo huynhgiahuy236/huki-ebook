@@ -6,6 +6,7 @@ import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { playNotificationChime } from '@/ui/utils/soundEffects';
 import { tokenStorage } from '@/ui/api/tokenStorage';
+import { orderApi } from '@/ui/api/orderApi';
 
 export type DispatchSenderRole = 'SELLER' | 'SHIPPER' | 'USER' | 'ADMIN';
 export type DispatchTargetRole = 'SELLER' | 'SHIPPER' | 'USER' | 'ADMIN';
@@ -19,6 +20,7 @@ export interface QuickDispatchModalProps {
   targetName: string;
   orderCode?: string;
   orderId?: string;
+  orderStatus?: string;
   onSuccess?: (dispatched: any) => void;
 }
 
@@ -28,7 +30,7 @@ interface PresetOption {
   priority: 'NORMAL' | 'HIGH';
 }
 
-function getPresetTemplates(sender: DispatchSenderRole, target: DispatchTargetRole, orderCode?: string): PresetOption[] {
+function getPresetTemplates(sender: DispatchSenderRole, target: DispatchTargetRole, orderCode?: string, orderStatus?: string): PresetOption[] {
   const code = orderCode ? `#${orderCode}` : '';
 
   if (sender === 'SELLER' && target === 'SHIPPER') {
@@ -112,6 +114,26 @@ function getPresetTemplates(sender: DispatchSenderRole, target: DispatchTargetRo
   }
 
   if (sender === 'USER' && target === 'SELLER') {
+    if (orderStatus === 'DELIVERED' || orderStatus === 'COMPLETED') {
+      return [
+        {
+          title: `Hỏi kích hoạt bản Ebook / Tài liệu kèm đơn ${code}`,
+          message: `Mình đã nhận được kiện sách giấy của đơn ${code}, nhờ Shop hướng dẫn cách mở khoá bản đọc Ebook hoặc tài liệu đính kèm nhé!`,
+          priority: 'NORMAL',
+        },
+        {
+          title: `Phản ánh tình trạng ấn phẩm khi nhận đơn ${code}`,
+          message: `Mình vừa nhận bưu phẩm đơn ${code} và muốn nhờ Shop hỗ trợ kiểm tra lại tình trạng ấn phẩm bên trong nhé.`,
+          priority: 'HIGH',
+        },
+        {
+          title: `Xuất hóa đơn điện tử / Phiếu bảo hành đơn ${code}`,
+          message: `Shop gửi kèm hóa đơn VAT hoặc thông tin phiếu bảo hành của đơn ${code} qua email tài khoản của mình nhé. Cảm ơn Shop!`,
+          priority: 'NORMAL',
+        },
+      ];
+    }
+
     return [
       {
         title: `Dặn dò đóng gói đơn ${code}: Sách làm quà tặng`,
@@ -150,13 +172,14 @@ export default function QuickDispatchNotificationModal({
   targetName,
   orderCode,
   orderId,
+  orderStatus,
   onSuccess,
 }: QuickDispatchModalProps) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const titleId = useId();
 
-  const presets = getPresetTemplates(senderRole, targetRole, orderCode);
+  const presets = getPresetTemplates(senderRole, targetRole, orderCode, orderStatus);
 
   const [title, setTitle] = useState(presets[0]?.title || '');
   const [message, setMessage] = useState(presets[0]?.message || '');
@@ -185,7 +208,16 @@ export default function QuickDispatchNotificationModal({
 
     setIsSubmitting(true);
     try {
-      // Resolve authorization token
+      // 1. Nếu là Người Mua dặn dò Người Bán trên đơn hàng, lưu trực tiếp vào cơ sở dữ liệu Order (PostgreSQL)
+      if (orderId && senderRole === 'USER' && targetRole === 'SELLER') {
+        try {
+          await orderApi.addOrderNote(orderId, `${title.trim()}: ${message.trim()}`);
+        } catch (dbErr) {
+          console.warn('Lỗi ghi dặn dò vào Order record:', dbErr);
+        }
+      }
+
+      // 2. Resolve authorization token và phát thông báo Realtime tới Người Bán
       let token = '';
       if (typeof window !== 'undefined') {
         token = tokenStorage.getAccessToken() || '';
@@ -233,7 +265,7 @@ export default function QuickDispatchNotificationModal({
       playNotificationChime(priority);
       showToast({
         type: 'success',
-        message: `Đã gửi thông báo thành công tới ${targetName}!`,
+        message: `Đã gửi lời dặn thành công tới ${targetName} và lưu vào đơn hàng!`,
       });
 
       if (onSuccess) onSuccess(result);

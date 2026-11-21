@@ -106,9 +106,30 @@ export default function OrderDetailDrawer({
                 <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-3">Thanh toán</h3>
                 <p className="font-bold text-slate-900 dark:text-white">{order?.order?.paymentMethod || 'COD'}</p>
                 <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">Trạng thái: {order?.order?.paymentStatus || 'PENDING'}</p>
-                {order?.order?.note && <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">Ghi chú: {order.order.note}</p>}
               </div>
             </section>
+
+            {/* Lời dặn dò của khách hàng (PostgreSQL SSOT) */}
+            {(order?.order?.note || order?.note) && (
+              <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-4 flex items-start gap-3">
+                <span className="material-symbols-outlined text-amber-600 text-[20px] shrink-0 mt-0.5">
+                  mark_chat_unread
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                      Lời Dặn / Ghi Chú Của Khách Hàng:
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800">
+                      Ghi chú đơn
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-950 dark:text-amber-100 whitespace-pre-line leading-relaxed font-medium">
+                    {order?.order?.note || order?.note}
+                  </p>
+                </div>
+              </div>
+            )}
 
             <section className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
               <h3 className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 bg-slate-50 dark:bg-slate-900">Sản phẩm</h3>

@@ -5,7 +5,7 @@ import { randomBytes, randomUUID } from "crypto";
 import { PrismaService } from "../../prisma/prisma.service";
 import { BookActor } from "../../common/book-auth.guard";
 import { getSellerScope, resolveStoreAndBusinessIds } from "../../common/seller-scope.util";
-import { CancelOrderDto, ShipOrderDto } from "./dto/checkout.dto";
+import { CancelOrderDto, ShipOrderDto, AddOrderNoteDto } from "./dto/checkout.dto";
 import {
   CreateDisputeDto,
   ArbitrateDisputeDto,
@@ -277,6 +277,47 @@ export class OrdersService {
       },
       "Đơn hàng đã được giao thành công",
     );
+  }
+
+  async addNoteBuyer(userId: string, id: string, dto: AddOrderNoteDto) {
+    const order = await this.prisma.order.findFirst({
+      where: {
+        OR: [{ id }, { code: id }],
+        userId,
+      },
+      include: { sellerOrders: { include: { items: true } } },
+    });
+    if (!order) throwNotFound(ErrorCode.ORDER_NOT_FOUND);
+
+    const cleanNote = (dto.note || "").trim();
+    if (!cleanNote) return await this.buyerView(order);
+
+    const timeStr = new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+    const formattedNote = `[Dặn dò ${timeStr}]: ${cleanNote}`;
+    const newNote = order.note ? `${order.note}\n${formattedNote}` : formattedNote;
+
+    const updated = await this.prisma.order.update({
+      where: { id: order.id },
+      data: { note: newNote },
+      include: { sellerOrders: { include: { items: true } } },
+    });
+
+    try {
+      await this.prisma.orderStatusHistory.create({
+        data: {
+          orderId: order.id,
+          toStatus: order.status,
+          title: "Lời dặn dò từ khách hàng",
+          description: formattedNote,
+          actorType: "BUYER",
+          actorId: userId,
+        },
+      });
+    } catch {
+      // Ignore history insertion failure
+    }
+
+    return await this.buyerView(updated);
   }
 
   async cancelBuyer(userId: string, id: string, dto: CancelOrderDto) {
