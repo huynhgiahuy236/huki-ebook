@@ -63,7 +63,7 @@ flowchart TD
     subgraph PHASE_2["PHASE II: KHẮC PHỤC & KIỂM TOÁN LOCAL"]
         S3 -->|"User/Lead Phê Duyệt"| S4["Bước 4: Sửa & Chạy E2E Từng Bug"]
         S4 --> S5["Bước 5: Kiểm Toán Toàn Diện Local"]
-        S5 --> S6["Bước 6: Vệ Sinh Code & Chuẩn Bị CI/CD"]
+        S5 --> S6["Bước 6: Mô Phỏng Cổng CI/CD & Vệ Sinh Code"]
     end
 
     subgraph PHASE_3["PHASE III: TRIỂN KHAI & NGHIỆM THU STAGING"]
@@ -181,25 +181,46 @@ flowchart TD
 
 ---
 
-#### 📌 Bước 6: Kiểm Tra Vệ Sinh Mã Nguồn & Chuẩn Bị CI/CD (Clean Code & Staging Gate)
-* **Mục tiêu:** Đảm bảo toàn bộ repository sạch sẽ, biên dịch chuẩn xác trước khi đưa lên hệ thống tự động hóa.
+#### 📌 Bước 6: Bộ Cổng Kiểm Soát Chất Lượng Mô Phỏng CI/CD & Vệ Sinh Mã Nguồn (Local CI/CD Quality Gates & Clean Code)
+* **Mục tiêu:** Mô phỏng chính xác 100% các tiêu chuẩn kiểm thử của GitHub Actions CI/CD (`.github/workflows/ci.yml`) tại môi trường nội bộ trước khi tạo Pull Request hoặc Push code lên remote; đảm bảo khi code đẩy lên CI luôn đạt trạng thái XANH TUYỆT ĐỐI (100% PASS), loại trừ triệt để tình trạng lệch contract, lệch unit test hay gãy build.
 * **Điều kiện kích hoạt:** Bước 5 đã hoàn tất không còn lỗi tồn đọng.
-* **Quy chuẩn thực thi:**
-  1. Kiểm tra vệ sinh git:
+* **Quy chuẩn thực thi (4 Cổng Kiểm Soát Nghiêm Ngặt - 4 Local CI/CD Gates):**
+  1. **Gate 1 - Vệ sinh Git & Rà soát Bí mật (Git Hygiene & Secrets Scan):**
      ```bash
      git status
      git diff --check
      ```
-     Đảm bảo không có tệp rác, file tạm `.tmp`, whitespace thừa hoặc log debug vương vãi.
-  2. Chạy Build TypeScript toàn bộ các phân hệ:
+     - Đảm bảo Working tree sạch sẽ (`working tree clean`).
+     - Tuyệt đối không còn file rác `.tmp`, logs vương vãi, khoảng trắng lỗi cú pháp hoặc thông tin nhạy cảm / token / secret bị lộ.
+  2. **Gate 2 - Toàn vẹn Lược đồ & Prisma Schema (Schema & Migration Integrity):**
      ```bash
+     # Kiểm tra format và tính hợp lệ của toàn bộ schema Prisma đa dịch vụ
+     powershell -Command "Get-ChildItem -Path platform/apps/*/prisma/schema.prisma | ForEach-Object { npx prisma validate --schema $_.FullName }"
+     ```
+     - 100% file `schema.prisma` phải hợp lệ cú pháp, không có xung đột enum hay quan hệ quan hệ model.
+  3. **Gate 3 - Bộ Kiểm Thử Đơn Vị & Khế Ước Dịch Vụ Backend (Backend Build & Contract Test Suite):**
+     ```bash
+     # Biên dịch shared và các service liên quan
      npm --prefix platform run build:shared
      npm --prefix platform run build:commerce
+     
+     # Chạy toàn bộ Unit & Contract Tests của các service có thay đổi mã nguồn
+     npm --prefix platform test -- --runInBand --forceExit
+     # Hoặc chỉ định rõ các file spec của service vừa sửa (ví dụ: reviews.service.spec, banners.service.spec, user.controller.spec)
+     ```
+     - **Tiêu chuẩn vàng:** 100% Unit Tests & Contract Tests phải đạt kết quả PASS (mã thoát 0).
+     - **Nguyên tắc cập nhật contract:** Nếu việc sửa bug dẫn đến thay đổi DTO response (ví dụ: thêm trường trả về, chuyển endpoint sang idempotent, đổi chữ ký hàm), BẮT BUỘC phải cập nhật lại assertions trong các file `.spec.ts` tương ứng và xác nhận `PASS` 100% ở bước này trước khi commit. Tuyệt đối không để xảy ra lệch signature giữa code thực tế và unit test.
+  4. **Gate 4 - Kiểm Tra Kiểu Dữ Liệu & Bản Dựng Frontend (Frontend Typecheck, Lint & Production Build):**
+     ```bash
+     npm --prefix web run typecheck
      npm --prefix web run build
      ```
-     **Tiêu chuẩn:** 100% các lệnh build phải hoàn tất thành công với mã thoát 0.
-* **Sản phẩm đầu ra (Deliverable):** Bản commit sạch sẽ, đầy đủ chú thích nghiệp vụ, sẵn sàng đẩy lên kho lưu trữ.
-* **Cổng kiểm soát (Quality Gate):** Lệnh build không có lỗi, git tree sạch.
+     - **Tiêu chuẩn:** `web run typecheck` đạt 0 TypeScript errors.
+     - `web run build` phải biên dịch thành công 100% các trang tĩnh/SSR Next.js, không phát sinh lỗi hydration mismatch, 0 lỗi JSX parser.
+* **Sản phẩm đầu ra (Deliverable):** 
+  - Toàn bộ 4 Cổng kiểm soát cục bộ đạt mã thoát 0 (Exit code 0).
+  - Bản commit sạch sẽ, đầy đủ commit message nghiệp vụ, đồng bộ khế ước kiểm thử.
+* **Cổng kiểm soát (Quality Gate):** **BLOCK NẾU BẤT KỲ CỔNG NÀO BỊ FAIL** — Chỉ khi cả 4 Gate đều vượt qua (100% pass) thì mới được phép merge vào `develop` và kích hoạt Bước 7 (CI/CD Pipeline).
 
 ---
 
