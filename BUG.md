@@ -755,6 +755,69 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
    - Kết quả: **11/11 Test assertions PASS (100%)**.
 
 > **🛑 CỔNG KIỂM SOÁT BƯỚC 8 (QUALITY GATE): ĐẠT 100% TIÊU CHUẨN**  
-> Toàn bộ 6/6 bugs đã được nghiệm thu 100% trên môi trường UAT thật. Phân hệ Shipper đã được chuẩn hóa logic và đồng bộ Realtime liên thông. Dừng lại chờ lệnh chỉ đạo từ Quản lý dự án để chuyển sang Bước 9 (Kiểm toán Tải, Logs & Traffic trên VPS UAT).
+> Toàn bộ 6/6 bugs đã được nghiệm thu 100% trên môi trường UAT thật. Phân hệ Shipper đã được chuẩn hóa logic và đồng bộ Realtime liên thông.
+
+---
+
+### 7.11. BÁO CÁO PHÂN TÍCH CHUYÊN SÂU: CHỈNH SỬA & TẠO SẢN PHẨM SELLER (`/seller/product/[id]/edit`)
+- **Đối tượng kiểm tra thực tế:** Sản phẩm Live UAT `af0462bc-9c7b-4848-8451-22dc37eb6ab2` ("sách combo1 huki offcial - Bill Gates").
+- **Dữ liệu trong Database thực tế:**
+  - `format`: `BOTH` (Combo Hybrid: gồm cả Sách Giấy & Ebook)
+  - `price`: `81.000₫` (Giá bán khuyến mãi sau chiết khấu)
+  - `originalPrice`: `90.000₫` (Giá bìa NXB niêm yết)
+  - `pricePaper`: `80.000₫`, `priceEbook`: `50.000₫`, `priceCombo`: `100.000₫` (Lưu trong metadata JSON)
+  - `stock`: `300`, `weight`: `300`g.
+
+#### 1. Lỗi Hydration Form (Điền lại dữ liệu khi vào trang Chỉnh Sửa):
+- **Lỗi đọc giá Ebook và Combo:** `SellerEditProductView.tsx` đọc `book.ebookPrice` và `book.comboPrice`. Do API backend trả về `priceEbook` và `priceCombo`, hai biến này bị `undefined`. Giao diện tự động tính giá giả lập (`basePrice * 0.7 = 56.700₫` và `basePrice * 1.15 = 93.150₫`), bỏ qua giá thật trong DB (`50.000₫` và `100.000₫`).
+- **Thiếu trường nhập giá sách in riêng lẻ (`pricePaper`):** Form hoàn toàn không có trường nào để hiển thị hoặc cập nhật `pricePaper: 80.000₫`.
+- **Kích thước đóng gói (`length`, `width`, `height`) & Số trang:** Bị fallback về giá trị mẫu (`20.5 x 14.5 x 2.0 cm` và `320 trang`) do backend lưu dạng gộp.
+- **Danh mục (`category`):** Trong DB `categoryId` là null nên form tự gán danh mục fallback "Sách Tổng Hợp".
+
+#### 2. Lỗi kiến trúc Backend nghiêm trọng khi Cập nhật (`updateBook`):
+- Trong `commerce-service/src/modules/books/books.service.ts` hàm `update()` (dòng 778-797):
+  Khi Seller cập nhật thông tin vận chuyển, backend cập nhật `dimensions` thành chuỗi `"LxWxH"`.
+  * **Hậu quả:** Ghi đè và **XÓA SẠCH VĨNH VIỄN** metadata lưu `pricePaper (80k)`, `priceEbook (50k)`, `priceCombo (100k)` trong database! Cuốn sách bị mất toàn bộ mức giá con của Combo.
+
+#### 3. Bất cập thuật ngữ Giá và Thiếu minh bạch dòng tiền:
+- Nhãn `Giá Bán Niêm Yết (₫)` gây nhầm lẫn với "Giá Bìa NXB". Cần chuẩn hóa thành:
+  * **"Giá Bìa Niêm Yết (NXB)"** (`originalPrice`): Giá in sau bìa sách, hiển thị gạch ngang.
+  * **"Giá Bán Khuyến Mãi"** (`price`): Số tiền thực tế người mua thanh toán.
+- Form chỉnh sửa thiếu bảng xem trước Dòng tiền (Phí sàn 5%, Thực nhận 95%).
+
+---
+
+### 7.12. BÁO CÁO PHÂN TÍCH LỖI CHATBOX AI & GIỎ HÀNG MUA NGAY (`/cart`)
+
+#### 1. Lỗi bắn 2 thông báo (toast) trùng lặp khi thêm vào giỏ từ Chatbox:
+- **Vị trí phát hiện:** `web/src/ui/components/ai/FloatingAIChatbox.tsx` (dòng 189-193) & `web/src/ui/context/CartContext.tsx` (dòng 518 & 552).
+- **Nguyên nhân:** Cả hai nơi cùng gọi `showToast` khi bấm thêm giỏ hàng:
+  1. `CartContext.addItem` tự động bắn toast: *"Ấn phẩm '[Tên sách]' đã được thêm vào giỏ của bạn."*
+  2. `FloatingAIChatbox.handleAddToCartItem` gọi thêm 1 lần nữa: *"Cuốn '[Tên sách]' đã được thêm vào giỏ hàng!"*
+  -> Người dùng bị nhìn thấy 2 pop-up thông báo xếp chồng lên nhau cùng lúc.
+
+#### 2. Hiện tượng 1 cuốn sách bị tách thành nhiều Shop khác nhau & Rải rác giỏ hàng:
+- **Kiểm tra Database thực tế:** Cuốn *"Làm Chủ Tư Duy Thay Đổi Vận Mệnh"* chỉ có duy nhất 1 bản ghi (`id: f2b8361d-8c62-4cf3-a399-509d7a78e620`) thuộc shop **"First News - Trí Việt"** (`storeId: 99999999-0000-4000-8000-000000000001`).
+- **Nguyên nhân gây lỗi chia shop:** Trong `FloatingAIChatbox.tsx` dòng 186:
+  ```typescript
+  await addToCart({
+    ...
+    storeId: 'huki-official', // <--- BUG NGUY HIỂM: HARDCODE 'huki-official'
+  });
+  ```
+  Khi bấm thêm từ Chatbox, `storeId` bị gán cứng thành `'huki-official'` (Gian Hàng HUKI), trong khi thêm từ trang ngoài thì mang `storeId` thật (`First News - Trí Việt`). Kết quả là giỏ hàng hiển thị cùng 1 cuốn sách nằm ở 2 gian hàng khác nhau!
+
+#### 3. Chatbox chưa chủ động gợi ý sách "Cùng Type" và chưa liên kết qua mục "Gợi ý cho bạn":
+- Trong `community-service/src/modules/chat/ai-chat.service.ts`:
+  * Khi người dùng hỏi về 1 cuốn sách cụ thể (`targetBook`), hệ thống chỉ trả về duy nhất cuốn đó (`suggestedBooks: [targetBook]`), không tự động query thêm 2-3 cuốn cùng thể loại (`targetBook.category`) để chủ động giới thiệu cho khách.
+  * Chưa có liên kết điều hướng trực tiếp sang mục Gợi ý cá nhân hóa (`/#for-you` hoặc `/books`).
+
+#### 4. Cơ chế Xếp hạng (Ranking) và Logic "Mua Ngay" tại Chatbox:
+- **Xếp hạng:** `BookCatalogItem` hiện thiếu `storeId`, `rating`, lượt đánh giá. Cần ưu tiên:
+  1. Theo yêu cầu rõ ràng của khách (nếu hỏi "giá rẻ" -> xếp theo `price` ASC; hỏi "sách hay/bán chạy" -> xếp theo `rating` và `soldCount` DESC).
+  2. Nếu cùng sách có nhiều định dạng/shop bán: Ưu tiên shop chính hãng, giá tốt nhất.
+- **Logic Mua Ngay:** Khi bấm "Mua ngay" tại Chatbox:
+  * Lấy đúng `storeId` thật của sách.
+  * Khi điều hướng sang `/cart`: Tự động uncheck hoặc dọn dẹp các món hàng thuộc các store khác, gom và chỉ chọn các ấn phẩm cùng store của cuốn sách đó để người dùng tiến hành thanh toán ngay mà không bị lộn xộn đa store.
 
 
