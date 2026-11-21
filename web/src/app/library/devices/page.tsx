@@ -88,7 +88,7 @@ export default function DeviceManagementPage() {
     }
   };
 
-  const activeCount = devices.length;
+  const activeCount = devices.filter(d => !d.status.includes('thu hồi')).length;
   const maxDevices = 5;
   const progressPercent = (activeCount / maxDevices) * 100;
 

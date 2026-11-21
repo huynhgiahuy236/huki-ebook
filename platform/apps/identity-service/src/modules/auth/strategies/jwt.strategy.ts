@@ -28,6 +28,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User not found or inactive');
     }
 
+    if (payload.sessionId) {
+      const isSessionValid = await this.authService.validateSession(
+        payload.sessionId,
+        payload.sub,
+      );
+      if (!isSessionValid) {
+        throw new UnauthorizedException(
+          'Phiên đăng nhập đã bị thu hồi hoặc đã hết hạn.',
+        );
+      }
+    }
+
     const isPendingDeletion = user.status === 'PENDING_DELETION';
     let remainingDays = 0;
     if (isPendingDeletion && user.deletionScheduledAt) {
@@ -42,6 +54,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       fullName: user.fullName,
       status: user.status,
       avatar: user.avatar,
+      sessionId: payload.sessionId,
       isPendingDeletion,
       deletionScheduledAt: user.deletionScheduledAt,
       remainingDays,

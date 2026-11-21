@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/ui/context/AuthContext';
 import { useReader } from '@/ui/context/ReaderContext';
 import { catalogApi, type BookData } from '@/ui/api/catalogApi';
 import { adminDrmApi } from '@/ui/api/adminDrmApi';
@@ -31,6 +32,8 @@ function ReaderContent() {
     totalPages,
     isHighlighterActive,
   } = useReader();
+
+  const { user } = useAuth();
 
   const [realBook, setRealBook] = useState<BookData | null>(null);
   const [accessStatus, setAccessStatus] = useState<'LOADING' | 'ALLOWED' | 'REVOKED' | 'UNAUTHORIZED'>('ALLOWED');
@@ -93,8 +96,9 @@ function ReaderContent() {
     // Gửi tín hiệu kích hoạt phiên đọc tới DRM Vault
     const sendJoinSession = async () => {
       try {
+        const effectiveUserId = user?.id || 'guest_reader';
         const res = await adminDrmApi.startSession(effectiveBookId, {
-          userId: 'reader_user',
+          userId: effectiveUserId,
           deviceId: deviceId || 'web_browser_01',
           deviceName: typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac') ? 'MacBook Pro Reader' : 'Windows PC Reader',
         });
@@ -103,6 +107,13 @@ function ReaderContent() {
           isTerminated = true;
           setAccessStatus('REVOKED');
           setAccessMessage(res.data.message || 'Quyền đọc tác phẩm đã bị thu hồi bởi Ban Quản Trị.');
+          return;
+        }
+
+        if (!res.data?.success && res.data?.code === 'DRM_DEVICE_LIMIT_EXCEEDED') {
+          isTerminated = true;
+          setAccessStatus('UNAUTHORIZED');
+          setAccessMessage(res.data.message || 'Tài khoản đã đạt giới hạn tối đa 5 thiết bị đọc sách DRM. Vui lòng thu hồi bớt thiết bị cũ trong Cài đặt tài khoản > Thiết bị.');
           return;
         }
 
@@ -127,8 +138,9 @@ function ReaderContent() {
     const heartbeatTimer = setInterval(async () => {
       if (isTerminated) return;
       try {
+        const effectiveUserId = user?.id || 'guest_reader';
         const res = await adminDrmApi.startSession(effectiveBookId, {
-          userId: 'reader_user',
+          userId: effectiveUserId,
           deviceId: deviceId || 'web_browser_01',
         });
 
@@ -137,6 +149,15 @@ function ReaderContent() {
           clearInterval(heartbeatTimer);
           setAccessStatus('REVOKED');
           setAccessMessage(res.data.message || 'Quyền đọc tác phẩm đã bị thu hồi do phát hiện vi phạm bản quyền.');
+          return;
+        }
+
+        if (!res.data?.success && res.data?.code === 'DRM_DEVICE_LIMIT_EXCEEDED') {
+          isTerminated = true;
+          clearInterval(heartbeatTimer);
+          setAccessStatus('UNAUTHORIZED');
+          setAccessMessage(res.data.message || 'Tài khoản đã đạt giới hạn tối đa 5 thiết bị đọc sách DRM. Vui lòng thu hồi bớt thiết bị cũ trong Cài đặt tài khoản > Thiết bị.');
+          return;
         }
       } catch (e) {
         console.warn('DRM heartbeat error:', e);
@@ -197,7 +218,7 @@ function ReaderContent() {
       window.removeEventListener('pagehide', handleLeave);
       handleLeave();
     };
-  }, [effectiveBookId, currentTitle, setActiveBookId, setTotalPages, fallbackMockBook.pages]);
+  }, [effectiveBookId, currentTitle, setActiveBookId, setTotalPages, fallbackMockBook.pages, user?.id]);
 
   // 3. Tiến độ đọc sách & khôi phục trang
   useEffect(() => {
@@ -257,6 +278,39 @@ function ReaderContent() {
             >
               <span className="material-symbols-outlined text-sm">shopping_bag</span>
               Khám Phá Sách Khác
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle DRM 5-Device Limit Exceeded (BUG-034 / POL-04)
+  if (accessStatus === 'UNAUTHORIZED') {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#121212] text-white p-6 text-center">
+        <div className="max-w-md w-full bg-[#1e1e1e] border border-amber-500/30 rounded-3xl p-8 shadow-2xl space-y-5">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center mx-auto">
+            <span className="material-symbols-outlined text-4xl">devices</span>
+          </div>
+          <h2 className="font-editorial text-2xl font-bold text-white">Giới Hạn 5 Thiết Bị Đọc Sách DRM</h2>
+          <p className="text-sm text-gray-300 leading-relaxed">
+            {accessMessage || 'Tài khoản của bạn đã đạt giới hạn tối đa 5 thiết bị đọc sách DRM bản quyền. Vui lòng vào Cài đặt tài khoản > Thiết bị để thu hồi các thiết bị cũ trước khi tiếp tục.'}
+          </p>
+          <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              href="/library/devices"
+              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-md"
+            >
+              <span className="material-symbols-outlined text-sm">phonelink_setup</span>
+              Quản Lý Thiết Bị DRM
+            </Link>
+            <Link
+              href="/library"
+              className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-sm">auto_stories</span>
+              Về Tủ Sách
             </Link>
           </div>
         </div>

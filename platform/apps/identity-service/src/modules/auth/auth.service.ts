@@ -630,7 +630,7 @@ export class AuthService {
         if (tokenUser && tokenUser.status !== "BLOCKED" && tokenUser.status !== "DELETED") {
           tokenUser = await this.ensureBusinessRoleIfApproved(tokenUser);
           return {
-            accessToken: this.signAccessToken(tokenUser),
+            accessToken: this.signAccessToken(tokenUser, token.sessionId),
             refreshToken: dto.refreshToken,
             tokenType: "Bearer",
             expiresIn: 900,
@@ -698,7 +698,7 @@ export class AuthService {
     tokenUser = await this.ensureBusinessRoleIfApproved(tokenUser);
 
     return {
-      accessToken: this.signAccessToken(tokenUser),
+      accessToken: this.signAccessToken(tokenUser, token.sessionId),
       refreshToken,
       expiresIn: 900,
     };
@@ -815,6 +815,19 @@ export class AuthService {
     });
   }
 
+  async validateSession(sessionId: string, userId: string): Promise<boolean> {
+    const session = await this.prisma.authSession.findFirst({
+      where: {
+        id: sessionId,
+        userId,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      select: { id: true },
+    });
+    return !!session;
+  }
+
   private async generateTokens(
     user: User,
     deviceInfo?: { userAgent?: string; ipAddress?: string },
@@ -822,6 +835,7 @@ export class AuthService {
     const refreshToken = randomUUID();
     const tokenHash = this.hashToken(refreshToken);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60_000);
+    let createdSessionId: string | undefined;
 
     await this.prisma.$transaction(
       async (tx) => {
@@ -865,6 +879,7 @@ export class AuthService {
             expiresAt,
           },
         });
+        createdSessionId = newSession.id;
 
         // FIX [ID-BIZ-001]: Khởi tạo đồng thời bản ghi trong refresh_tokens với tokenFamily mới
         await tx.refreshToken.create({
@@ -883,18 +898,21 @@ export class AuthService {
       },
     );
 
-    const accessToken = this.signAccessToken(user);
+    const accessToken = this.signAccessToken(user, createdSessionId);
     return { accessToken, refreshToken };
   }
 
-  private signAccessToken(user: User): string {
-    const payload = {
+  signAccessToken(user: User, sessionId?: string): string {
+    const payload: any = {
       sub: user.id,
       email: user.email,
       fullName: user.fullName,
       avatar: user.avatar,
       role: user.role,
     };
+    if (sessionId) {
+      payload.sessionId = sessionId;
+    }
     const options = {
       secret:
         this.configService.get('jwt.secret') ||

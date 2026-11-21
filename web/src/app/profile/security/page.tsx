@@ -66,8 +66,8 @@ export default function UserSecurityPage() {
     }
   }, []);
 
-  const fetchSessions = useCallback(async () => {
-    setIsLoadingSessions(true);
+  const fetchSessions = useCallback(async (isSilent = false) => {
+    if (!isSilent) setIsLoadingSessions(true);
     try {
       const res = await sessionApi.getSessions();
       if (res.success && res.data) {
@@ -76,13 +76,28 @@ export default function UserSecurityPage() {
     } catch {
       // Giữ phiên an toàn
     } finally {
-      setIsLoadingSessions(false);
+      if (!isSilent) setIsLoadingSessions(false);
     }
   }, []);
 
   useEffect(() => {
     fetchProfile();
-    fetchSessions();
+    fetchSessions(false);
+
+    // BUG-032: Polling định kỳ 30s nhẹ tải + tự động làm mới khi người dùng focus lại tab
+    const intervalTimer = setInterval(() => {
+      fetchSessions(true);
+    }, 30000);
+
+    const handleFocus = () => {
+      fetchSessions(true);
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(intervalTimer);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [fetchProfile, fetchSessions]);
 
   // Countdown timer for resending OTP
@@ -101,6 +116,7 @@ export default function UserSecurityPage() {
       if (res.success) {
         setActiveSessions((prev) => prev.filter((s) => s.id !== sessionId));
         showToast(`Đã thu hồi quyền truy cập của ${deviceName || 'thiết bị'}!`, 'info');
+        fetchSessions(true);
       } else {
         showToast(res.error?.message || 'Không thể thu hồi phiên đăng nhập.', 'error');
       }
@@ -115,6 +131,7 @@ export default function UserSecurityPage() {
       if (res.success) {
         setActiveSessions((prev) => prev.filter((s) => s.isCurrent));
         showToast('Đã đăng xuất khỏi tất cả các thiết bị khác!', 'success');
+        fetchSessions(true);
       } else {
         showToast(res.error?.message || 'Không thể đăng xuất các thiết bị khác.', 'error');
       }
