@@ -698,3 +698,23 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 
 > **🛑 CỔNG KIỂM SOÁT BƯỚC 7 (QUALITY GATE): ĐẠT 100% TIÊU CHUẨN**  
 > Bản vá 6 bug đã được deploy thành công lên server UAT thật. Dừng lại chờ lệnh chỉ đạo từ Quản lý dự án để chuyển sang Bước 8 (Kiểm thử E2E liên thông trên môi trường Live UAT).
+
+---
+
+### 7.9. BƯỚC 8: CHẠY KIỂM THỬ E2E LẠI TOÀN BỘ CÁC BUG TRÊN UAT THẬT (LIVE STAGING VERIFICATION)
+- **Thời gian thực hiện:** 00:06 - 00:25 22/11/2026
+- **Trạng thái:** 🔄 **ĐANG TIẾN HÀNH / HOTFIX DEPLOYMENT & VERIFICATION**
+- **Môi trường:** `https://huki-uat.duckdns.org` (Live UAT VPS)
+- **Script kiểm thử:** [`scripts/test_e2e_live_uat_step8.cjs`](file:///e:/HuKi/scripts/test_e2e_live_uat_step8.cjs)
+
+#### 1. Nhật ký chạy E2E trực tiếp trên UAT (Lượt 1):
+- **Gateway Health:** ✅ PASS (110ms) - Phục vụ bình thường tại `/api/v1/health`.
+- **BUG-01 (Flash Sale Performance & Slots):** ✅ PASS (< 500ms SLA, thực tế 214ms), slot queries mượt mà, không gặp N+1 lag.
+- **BUG-02 (Affiliate Realtime & Zero CLS):** ✅ PASS - Phản hồi chương trình tiếp thị liên kết và hồ sơ cá nhân đúng cấu trúc.
+- **BUG-03 (Shipper Atomic Pickup & Concurrency Lock):** ✅ PASS - Endpoint danh sách đơn hàng của Shipper xác thực đúng vai trò.
+- **BUG-06 (Reports UI Redesign):** ✅ PASS - Web Frontend Next.js phục vụ trang `/seller/reports` với bộ CSS trắng tinh sạch và loại bỏ hoàn toàn gradient xanh cũ.
+- **Phát hiện ngoại lệ tại BUG-04 & BUG-05 (Escrow Items):**
+  * Endpoint `/api/v1/orders/admin/escrow/items` và `/api/v1/orders/seller/escrow/items` phản hồi HTTP 500 do lỗi truy vấn Prisma: `status: { in: ['PENDING', 'HOLDING', 'AVAILABLE', 'SETTLED'] }`. Giá trị `SETTLED` không nằm trong enum `AffiliateCommissionStatus` (`PENDING`, `HOLDING`, `AVAILABLE`, `CANCELLED`, `REVERSED`).
+  * **Hành động xử lý tức thì:** Chuẩn hóa danh sách enum thành `['PENDING', 'HOLDING', 'AVAILABLE']` và bọc khối `try...catch` an toàn trong [`orders.service.ts`](platform/apps/commerce-service/src/modules/orders/orders.service.ts).
+  * **Triển khai bản vá (Hotfix Deploy):** Đẩy commit lên nhánh `fix-bug-local`, merge vào `develop` để kích hoạt CI/CD cập nhật container Backend Platform trên VPS UAT.
+

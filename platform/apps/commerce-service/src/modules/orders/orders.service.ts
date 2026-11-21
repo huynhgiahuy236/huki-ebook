@@ -2277,12 +2277,17 @@ export class OrdersService {
       voucherMap.get(u.orderId)!.push(u);
     }
 
-    const affiliateCommissions = await this.prisma.affiliateCommission.findMany({
-      where: {
-        orderId: { in: orderIds },
-        status: { in: ['PENDING', 'HOLDING', 'AVAILABLE', 'SETTLED'] as any },
-      },
-    });
+    let affiliateCommissions: any[] = [];
+    try {
+      affiliateCommissions = await this.prisma.affiliateCommission.findMany({
+        where: {
+          orderId: { in: orderIds },
+          status: { in: ['PENDING', 'HOLDING', 'AVAILABLE'] },
+        },
+      });
+    } catch (err: any) {
+      this.logger.warn(`Failed to query affiliate commissions: ${err?.message}`);
+    }
     const commissionMap = new Map<string, number>();
     for (const comm of affiliateCommissions) {
       if (comm.orderItemId) {
@@ -2581,12 +2586,17 @@ export class OrdersService {
       voucherMap.get(u.orderId)!.push(u);
     }
 
-    const affiliateCommissions = await this.prisma.affiliateCommission.findMany({
-      where: {
-        orderId: { in: orderIds },
-        status: { in: ['PENDING', 'HOLDING', 'AVAILABLE', 'SETTLED'] as any },
-      },
-    });
+    let affiliateCommissions: any[] = [];
+    try {
+      affiliateCommissions = await this.prisma.affiliateCommission.findMany({
+        where: {
+          orderId: { in: orderIds },
+          status: { in: ['PENDING', 'HOLDING', 'AVAILABLE'] },
+        },
+      });
+    } catch (err: any) {
+      this.logger.warn(`Failed to query affiliate commissions: ${err?.message}`);
+    }
     const commissionMap = new Map<string, number>();
     for (const comm of affiliateCommissions) {
       if (comm.orderItemId) {
