@@ -14,8 +14,9 @@ flowchart TD
         C2["CHẶNG 2 (Bugs 4-6): Search Header Seller/Admin, Widget Dashboard DB Thật, Mobile Google Auth & Responsive"]
         C3["CHẶNG 3 (Bugs 7-8): Redesign Modal Ân hạn Xóa TK & Trừ Lượt Quota, Cụm Nút Đơn Hàng Chuẩn Tài Chính"]
         C4["CHẶNG 4 (Bugs 9-10): Mục 'Tôi' Sidebar Dẫn Tới /profile (User), Xóa Banner Admin Realtime & Persist DB"]
+        C5["CHẶNG 5 (Bug 11): Khắc Phục Khối Flash Sale Trang Chủ Chỉ Hiện 1 Cuốn & Xếp Hạng Kết Hợp Giá - Sao Đưa Lên Đầu"]
     end
-    C1 --> C2 --> C3 --> C4
+    C1 --> C2 --> C3 --> C4 --> C5
 ```
 
 | Chặng | Mã Bug | Tên Bug / Nghiệp Vụ Trọng Điểm | Phân Hệ Liên Quan | Mức Độ | Trạng Thái |
@@ -30,6 +31,7 @@ flowchart TD
 | **Chặng 3** | **BUG-024** | Thiết kế lại cụm nút trong Danh Sách Đơn Hàng người mua (`/orders`) mượt mà, phân cấp nút chính/phụ tinh tế theo chuẩn viền trên như Kênh Tài Chính | `web/src/app/orders/page.tsx` | MEDIUM | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
 | **Chặng 4** | **BUG-025** | Bổ sung mục "Tôi / Hồ sơ cá nhân" vào Sidebar Người mua/Độc giả dẫn tới `/profile` (phân quyền chỉ dành riêng cho USER/BUYER) | `web/src/ui/components/layout/HierarchicalSidebar.tsx` | LOW | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
 | **Chặng 4** | **BUG-026** | Sửa lỗi xóa Banner tại `/admin/marketing`: Xóa thực tế vào Database/API và đồng bộ Realtime (không load lại banner mặc định khi F5) | `promotion-service` (`banners.controller`), `AdminMarketingView.tsx` | HIGH | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
+| **Chặng 5** | **BUG-027** | Lỗi khối Flash Sale / Ưu đãi Trang Chủ chỉ hiện 1 cuốn sách & thuật toán xếp hạng kết hợp Giá và Sao đưa lên đầu | `web/src/app/page.tsx`, `promotion-service` | HIGH | ✅ ĐÃ HOÀN TẤT & TEST PASS 100% |
 
 ---
 
@@ -887,6 +889,160 @@ Feature: Chặng 4 - Mục Sidebar "Hồ Sơ Của Tôi" & Quản Lý Banner Adm
 | **Chặng 3** | BUG-023, BUG-024 | ✅ **8/8 PASS (100%)** | ✅ **141 routes (0 errors)** | ✅ **7 services (0 errors)** |
 | **Chặng 4** | BUG-025, BUG-026 | ✅ **8/8 PASS (100%)** | ✅ **141 routes (0 errors)** | ✅ **7 services (0 errors)** |
 | **TỔNG** | **10 HẠNG MỤC LỖI HỆ THỐNG** | ✅ **38/38 PASS (100%)** | ✅ **HOÀN HẢO** | ✅ **HOÀN HẢO** |
+
+---
+
+# 🚀 CHẶNG 5: BUG-027 - FLASH SALE TRANG CHỦ & XẾP HẠNG KẾT HỢP GIÁ - SAO
+
+## 📌 BƯỚC 1: TIẾP NHẬN & CHUẨN HÓA 5W1H (BUG-027)
+- **Who (Role):** `BUYER` (Khách hàng truy cập trang chủ HUKI EBOOK)
+- **Where (Route/Screen):** `web/src/app/page.tsx` (Khối "HUKI DEAL HÔM NAY" / "FLASH SALE ĐANG LIVE" / "ƯU ĐÃI ĐẶC BIỆT")
+- **What (Expected vs Actual):**
+  * *Thực tế:* Khối Ưu đãi đặc biệt trên Trang Chủ chỉ hiển thị duy nhất 1 cuốn sách (`sách combo1 huki offcial`), để lại 5 ô trống hoác màu be. Trong khi đó, tại `/flash-sale` (tab Shop Flash Sale), gian hàng *Nhà Sách HuKi Official* đang có chiến dịch "Flash Sale Giờ Vàng Shop" với 6 cuốn sách đang giảm giá trực tiếp. Ngoài ra, danh sách sản phẩm trong Flash Sale hiển thị theo thứ tự ngẫu nhiên của mảng, chưa được sắp xếp tối ưu kết hợp giữa Mức Giá/Chiết Khấu và Đánh Giá Sao để đưa các sản phẩm tốt nhất lên đầu.
+  * *Kỳ vọng:* Trang Chủ tự động nhận diện chiến dịch Flash Sale đang LIVE (kể cả khi Sàn chưa có Platform Flash Sale mà chỉ có Shop Flash Sale); hiển thị chuẩn badge "FLASH SALE ĐANG LIVE", đồng hồ đếm ngược giờ vàng; toàn bộ các sản phẩm được xếp hạng bằng thuật toán kết hợp chuẩn TMĐT giữa [Mức Giá / Giảm Sâu] và [Đánh Giá Sao Cao] để đưa sản phẩm nổi bật nhất lên đầu; trường hợp fallback khi không có Flash Sale nào diễn ra thì tự động lấp đầy đủ 6 cuốn sách giá tốt nhất, không bao giờ để trống ô.
+- **Evidence:** Ảnh chụp `media_1795293353700_cfc960de.jpg` (Trang chủ hiện 1 cuốn) và `media_1795293361129_31807d02.jpg` (Shop Flash Sale có 6 cuốn).
+
+---
+
+## 🔬 BƯỚC 2: PHÂN TÍCH NGUYÊN NHÂN GỐC RỄ & MA TRẬN DOMINO (BUG-027)
+
+### 1. Phân Tích 4 Tầng Kiến Trúc
+- **Tầng 1 (Database):**
+  * Bảng `flash_sales` và `flash_sale_items` trong PostgreSQL `promotion_db` lưu trữ đầy đủ chiến dịch của cả Sàn (`scope = 'PLATFORM'`) và Gian hàng (`scope = 'SHOP'`).
+  * Các cuốn sách trong Flash Sale có giá ưu đãi `salePrice` và % chiết khấu `discountPercent` được lưu trong `flash_sale_items`, trong khi giá gốc trong bảng `books` của `catalog_db` không cài chiết khấu tĩnh.
+- **Tầng 2 (Backend Services):**
+  * Endpoint `GET /flash-sales/active` trong `flash-sales.controller.ts` hỗ trợ lấy tất cả các đợt Flash Sale đang active (khi không truyền query param `scope`).
+  * Endpoint `GET /flash-sales` hỗ trợ query linh hoạt theo status và scope.
+- **Tầng 3 (Data Fetching tại Client):**
+  * Tại `web/src/app/page.tsx` hàm `loadFlashSale`:
+    ```tsx
+    const res = await flashSaleApi.getAll({ scope: "PLATFORM" });
+    const platformSales = res.data.filter(
+      (s) => (s.scope === "PLATFORM" || !s.storeId) && s.status !== "CANCELLED" && s.status !== "ENDED"
+    );
+    ```
+    Trang chủ gò bó cứng `{ scope: "PLATFORM" }` và loại bỏ toàn bộ chiến dịch có `storeId`. Khi Sàn chưa tạo Flash Sale toàn sàn, `platformSales` trả về rỗng, khiến `activeFlashSale` bị gán `null`.
+- **Tầng 4 (Presentation UI & Thuật Toán Xếp Hạng):**
+  * Nhánh fallback "ƯU ĐÃI ĐẶC BIỆT" lọc `realBooks.filter(b => b.discountPercent > 0 || op > p)`. Vì chỉ có 1 cuốn có chiết khấu tĩnh trong catalog, mảng trả về chỉ có 1 phần tử, dẫn đến 5 ô trên lưới `grid-cols-6` bị trống hoác.
+  * Trong nhánh `if (activeFlashSale?.items)`: Hoàn toàn không có logic sắp xếp (sort), chỉ `items.map(...)` theo thứ tự mảng thô, không tính điểm kết hợp giữa Giá và Sao để đẩy deal hấp dẫn nhất lên vị trí 1, 2, 3.
+
+### 2. Ma Trận Domino Rủi Ro & Cơ Chế Phòng Thủ
+
+| Thành Phần Can Thiệp | Rủi Ro Tiềm Ẩn | Biện Pháp Kiểm Soát & Phòng Thủ |
+| :--- | :--- | :--- |
+| `loadFlashSale` (`page.tsx`) | Trùng lặp hoặc xung đột khi cả Sàn và Shop đều có Flash Sale | Ưu tiên số 1 cho Sàn (`PLATFORM`). Nếu Sàn không có, tự động chuyển tiếp sang Shop Flash Sale đang LIVE |
+| Thuật toán xếp hạng Giá + Sao | Sách chưa có đánh giá hoặc thiếu rating gây NaN | Mặc định `rating = Number(book?.rating ?? 5)`, chuẩn hóa thang điểm 0 - 100 an toàn |
+| Fallback Ưu Đãi Đặc Biệt | Vẫn thiếu sách nếu catalog chỉ có ít sách giảm giá | Tự động bổ sung các đầu sách bán chạy/sao cao nhất có giá tốt để luôn lấp đầy đủ 6 ô |
+
+---
+
+## 🏛️ BƯỚC 3: PHƯƠNG ÁN KIẾN TRÚC CHUẨN SHOPEE & BỘ CÂU HỎI TƯƠNG TÁC (CHẶNG 5)
+
+### 1. Phương Án Kỹ Thuật Chi Tiết (BUG-027)
+
+#### A. Thuật Toán Xếp Hạng Chuẩn Sàn TMĐT (Shopee Quality-Price Composite Score)
+Xây dựng công thức tính điểm kết hợp giữa **Đánh Giá Sao** và **Mức Giá / % Giảm Giá**:
+$$\text{CompositeScore} = \left(\frac{\text{Rating}}{5.0} \times 50\right) + \min\left(50, \frac{\text{DiscountPercent}}{100} \times 50\right)$$
+- **Trọng số Sao (50%):** Tôn vinh chất lượng nội dung và sự hài lòng của độc giả (5.0 sao đạt tối đa 50 điểm).
+- **Trọng số Giá & Chiết Khấu (50%):** Tôn vinh mức độ hấp dẫn của deal (-40% đạt 20 điểm, -50% đạt 25 điểm...).
+- **Quy tắc xếp hạng:**
+  * Sắp xếp giảm dần theo $\text{CompositeScore}$.
+  * Nếu điểm bằng nhau: Ưu tiên sách có giá bán `salePrice` tốt hơn và số lượt bán `sales` cao hơn.
+  * Đưa các cuốn sách có điểm số cao nhất lên đầu danh sách (vị trí 1, 2, 3... của hàng hiển thị).
+
+#### B. Cơ Chế Nhận Diện Đa Tầng Flash Sale Trên Trang Chủ
+- Gọi `flashSaleApi.getAll()` lấy toàn bộ chiến dịch đang hoạt động:
+  * **Tầng 1 (Platform Priority):** Tìm chiến dịch Flash Sale Sàn (`s.scope === 'PLATFORM'` hoặc `!s.storeId`) đang LIVE.
+  * **Tầng 2 (Shop Fallback):** Nếu Sàn không có, tìm chiến dịch Flash Sale Gian Hàng (`s.status === 'ACTIVE'` hoặc trong khung giờ bắt đầu - kết thúc) đang LIVE có nhiều sản phẩm nhất (như chiến dịch của *Nhà Sách HuKi Official*).
+  * **Tầng 3 (Teaser Upcoming):** Nếu không có đợt nào đang LIVE, tìm đợt sắp diễn ra sớm nhất.
+- Khi có Flash Sale LIVE:
+  * Kích hoạt badge **`FLASH SALE ĐANG LIVE`**.
+  * Chạy đồng hồ đếm ngược chính xác thời gian còn lại.
+  * Sắp xếp toàn bộ items theo thuật toán kết hợp Giá + Sao và hiển thị đủ 6 cuốn.
+
+#### C. Cơ Chế Chống Trống Ô Cho Fallback "ƯU ĐÃI ĐẶC BIỆT"
+- Khi hoàn toàn không có bất kỳ đợt Flash Sale nào trên hệ thống:
+  * Lấy danh sách sách có chiết khấu trong catalog.
+  * Áp dụng thuật toán xếp hạng Giá + Sao.
+  * Nếu số lượng sách giảm giá $< 6$, tự động bổ sung thêm các sách có điểm đánh giá sao cao nhất và giá tốt nhất từ `realBooks` để **luôn luôn đủ 6 cuốn**, không bao giờ để card bị cụt 1 cuốn.
+
+### 2. Tiêu Chuẩn Nghiệm Thu (Acceptance Criteria - Gherkin BDD)
+
+```gherkin
+Feature: Chặng 5 - Khắc Phục Flash Sale Trang Chủ & Thuật Toán Xếp Hạng Kết Hợp Giá - Sao
+
+  Scenario: Tự động hiển thị Flash Sale đang LIVE của Shop khi Sàn chưa có đợt toàn sàn
+    Given Hệ thống có chiến dịch Flash Sale Giờ Vàng Shop đang LIVE với 6 cuốn sách
+    And Sàn chưa tạo đợt Flash Sale toàn sàn (Platform)
+    When Người dùng truy cập Trang Chủ (/)
+    Then Khối Deal hôm nay hiển thị tiêu đề "FLASH SALE ĐANG LIVE"
+    And Hiển thị đồng hồ đếm ngược thời gian kết thúc của đợt Flash Sale
+    And Hiển thị đầy đủ 6 cuốn sách trên 6 ô của lưới giao diện, không bị bỏ trống
+
+  Scenario: Sắp xếp các cuốn sách trong Flash Sale kết hợp theo Giá và Sao đưa lên đầu
+    Given Đợt Flash Sale có nhiều sách với mức giảm giá và số sao khác nhau
+    When Hệ thống tính toán điểm CompositeScore từ Rating (50%) và DiscountPercent (50%)
+    Then Các cuốn sách có điểm kết hợp cao nhất (sao cao, giảm giá sâu) được xếp ở các vị trí đầu tiên
+    And Thứ tự hiển thị phản ánh chính xác deal nổi bật và chất lượng nhất
+
+  Scenario: Fallback Ưu Đãi Đặc Biệt luôn lấp đầy đủ 6 cuốn khi không có Flash Sale
+    Given Hệ thống không có bất kỳ đợt Flash Sale nào đang diễn ra
+    And Số sách có chiết khấu tĩnh trong catalog ít hơn 6 cuốn
+    When Người dùng xem khối "ƯU ĐÃI ĐẶC BIỆT" trên Trang Chủ
+    Then Hệ thống tự động bổ sung các đầu sách có sao cao và giá tốt để đủ 6 cuốn
+    And Không xuất hiện tình trạng card chỉ có 1 cuốn và để trống 5 ô
+```
+
+---
+
+### 3. CỔNG NGHIỆM THU & PHÊ DUYỆT (APPROVAL GATE CHẶNG 5)
+- Trình bày giải pháp kỹ thuật Chặng 5 tới Người dùng thông qua form câu hỏi tương tác trước khi sửa mã nguồn Bước 4.
+- **Trạng thái phê duyệt:** ĐÃ ĐƯỢC NGƯỜI DÙNG PHÊ DUYỆT ĐỒNG THUẬN 100% QUA FORM TƯƠNG TÁC.
+
+---
+
+## 🛠️ BƯỚC 4: THỰC THI SỬA LỖI & KẾT QUẢ KIỂM THỬ (CHẶNG 5)
+
+### 1. Chi Tiết Thực Hiện Sửa Mã Nguồn
+
+#### A. Khắc Phục Lỗi Nhận Diện Flash Sale Đa Tầng (`web/src/app/page.tsx` - `loadFlashSale`)
+- Gỡ bỏ hoàn toàn bộ lọc cứng `{ scope: "PLATFORM" }` và `!s.storeId`.
+- Gọi `await flashSaleApi.getAll()` lấy toàn bộ chiến dịch Flash Sale đang diễn ra trên hệ thống.
+- Thiết lập cơ chế nhận diện đa tầng:
+  * **Ưu tiên 1:** Đợt Flash Sale toàn sàn (Platform) đang LIVE.
+  * **Ưu tiên 2:** Đợt Flash Sale Gian Hàng (Shop Flash Sale) đang LIVE có nhiều sản phẩm nhất (như chiến dịch của *Nhà Sách HuKi Official* trong hình 2).
+  * **Ưu tiên 3:** Đợt Flash Sale sắp diễn ra (Teaser) gần nhất.
+- Khi có Flash Sale LIVE, tự động bật badge `FLASH SALE ĐANG LIVE`, kích hoạt đồng hồ đếm ngược và truyền toàn bộ 6 sản phẩm vào danh sách hiển thị.
+
+#### B. Thuật Toán Xếp Hạng Kết Hợp Giá (50%) & Sao (50%) Đưa Lên Đầu (`allFlashSale`)
+- Xây dựng hàm `calculateCompositeScore(rating, discountPct, salePrice)` chuẩn hóa:
+  * Điểm Sao (0 - 50 điểm): Tôn vinh mức độ hài lòng của độc giả và chất lượng nội dung.
+  * Điểm Giá / Chiết khấu (0 - 50 điểm): Tôn vinh mức giảm giá sâu và độ hấp dẫn của deal.
+- Áp dụng `mappedItems.sort()` theo `compositeScore` giảm dần để đưa các sản phẩm nổi bật nhất (5 sao, giảm 30%-40%) lên vị trí đầu tiên (1, 2, 3...) của hàng hiển thị.
+
+#### C. Cơ Chế Chống Trống Ô Cho Fallback "ƯU ĐÃI ĐẶC BIỆT"
+- Khi hệ thống không có bất kỳ Flash Sale nào đang LIVE, nếu số lượng sách giảm giá trong catalog $< 6$, hệ thống tự động bổ sung thêm các đầu sách bán chạy / sao cao nhất có giá tốt từ `realBooks`.
+- Áp dụng thuật toán xếp hạng Giá + Sao cho toàn bộ ứng viên và hiển thị đủ 6 cuốn, triệt tiêu 100% hiện tượng chỉ có 1 cuốn sách và để trống 5 ô màu be.
+
+### 2. Kết Quả Kiểm Thử E2E Chặng 5 (`scripts/test_e2e_sprint2_chang5.js`)
+- Kết quả chạy test độc lập: **6/6 PASS (100%)**.
+- Next.js Build: **141/141 routes biên dịch thành công 0 lỗi**.
+- Platform Microservices Build: **7/7 services biên dịch sạch sẽ 0 lỗi**.
+
+---
+
+## 🏆 TỔNG KẾT TOÀN DIỆN SPRINT 2 (11/11 BUGS HOÀN TẤT)
+
+| Chặng | Danh Sách Bug | Nghiệp Vụ Trọng Tâm | Kết Quả E2E Script | Next.js Build | Platform Build |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Chặng 1** | BUG-017, BUG-018, BUG-019 | Phản hồi Review & Thông báo Seller, Chat WebSocket Realtime, Dim Nút Call/Video | ✅ **11/11 PASS (100%)** | ✅ **141 routes (0 errors)** | ✅ **7 services (0 errors)** |
+| **Chặng 2** | BUG-020, BUG-021, BUG-022 | Search Header Seller/Admin, Widget Dashboard DB Thật, Mobile Google Login & Responsive | ✅ **11/11 PASS (100%)** | ✅ **141 routes (0 errors)** | ✅ **7 services (0 errors)** |
+| **Chặng 3** | BUG-023, BUG-024 | Redesign Modal Ân hạn Xóa TK & Trừ Lượt Quota, Cụm Nút Đơn Hàng Chuẩn Kênh Tài Chính | ✅ **8/8 PASS (100%)** | ✅ **141 routes (0 errors)** | ✅ **7 services (0 errors)** |
+| **Chặng 4** | BUG-025, BUG-026 | Mục "Tôi" Sidebar Dẫn Tới /profile (USER), Xóa Banner Admin Realtime & Persist DB | ✅ **8/8 PASS (100%)** | ✅ **141 routes (0 errors)** | ✅ **7 services (0 errors)** |
+| **Chặng 5** | **BUG-027** | **Flash Sale Trang Chủ Đa Tầng, Xếp Hạng Kết Hợp Giá - Sao Đưa Lên Đầu & Chống Trống Ô** | ✅ **6/6 PASS (100%)** | ✅ **141 routes (0 errors)** | ✅ **7 services (0 errors)** |
+| **TỔNG** | **11 HẠNG MỤC LỖI HỆ THỐNG** | **HOÀN TẤT TRIỆT ĐỂ TOÀN BỘ SPRINT 2** | ✅ **44/44 PASS (100%)** | ✅ **HOÀN HẢO** | ✅ **HOÀN HẢO** |
+
+
 
 
 
