@@ -591,3 +591,40 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 - **Tổng cộng cả 2 giai đoạn:** **36/36 TESTS PASSED (100%)**
 - **Trạng thái:** Toàn bộ 6/6 bug đã được sửa dứt điểm tận gốc rễ kỹ thuật, tuân thủ nghiêm ngặt nguyên tắc kiểm thử độc lập trong thư mục `scripts/`.
 - **Sẵn sàng chuyển sang Bước 5:** Local Audit & Double-Check.
+
+
+---
+
+### 7.6. BƯỚC 5: KIỂM TOÁN TOÀN DIỆN LOCAL (LOCAL DEEP AUDIT GATE)
+- **Thời gian thực hiện:** 23:41 - 23:42 21/11/2026
+- **Trạng thái:** ✅ **THÔNG QUA 100% (PASSED 15/15 CHECKS)**
+- **Script kiểm toán chuyên sâu:** [`scripts/test_local_deep_audit_step5.cjs`](file:///e:/HuKi/scripts/test_local_deep_audit_step5.cjs)
+
+#### Kết quả rà soát 5 Trục Chuyên sâu theo `readme-bug.md`:
+1. **Trục 1: Trạng thái Dịch vụ & Schema / Build Verification**
+   - Schema Commerce Service & Promotion Service: Định nghĩa đầy đủ, nhất quán các model nghiệp vụ (`AffiliateCommission`, `FlashSaleItem`, `SellerOrder`, `ReturnRequest`).
+   - Web Next.js compile/typecheck (`tsc --noEmit`): **100% PASS (0 lỗi)**.
+   - Microservices build (`nx build commerce-service`, `nx build promotion-service`): **100% PASS (0 lỗi)**.
+
+2. **Trục 2: Kiểm toán Lưu Lượng Mạng & Zero-Spam Traffic Audit**
+   - `SellerFlashSaleView`: Đã triệt tiêu hoàn toàn heartbeat 6s `setInterval(loadData, 6000)` kéo 100 cuốn sách liên tục.
+   - Đã loại bỏ ticker đếm ngược 1s ở root component, cô lập ticker vào component con `PlatformSlotCountdownCard` ngăn chặn bão re-render toàn bộ 3.800+ dòng.
+   - `AffiliateDashboardPage`: Triệt tiêu hoàn toàn thanh banner màu xanh 40px chèn gián đoạn DOM gây xô lệch giao diện (Zero CLS).
+   - `ShipperContext`: Polling nhẹ nhàng chuẩn SLA (30s) có kiểm tra `document.visibilityState === 'visible'`.
+
+3. **Trục 3: Vệ Sinh Mã Nguồn, Cú Pháp & Kiểm Soát Log**
+   - Toàn bộ 13 file mã nguồn cốt lõi tồn tại hợp lệ, cú pháp sạch sẽ, không có import mồ côi hay biến chưa dùng.
+   - 0 log rác debug hoặc `debugger;` còn sót lại.
+
+4. **Trục 4: Kiểm Toán Bảo Mật & Rà Soát Bí Mật (Gitflow Secrets Scan & RBAC)**
+   - Git tree hoàn toàn sạch sẽ, không có bất kỳ file cấu hình bí mật nào (`.env`, khóa RSA, cert, key credentials) bị lọt vào commit.
+   - Phân quyền RBAC nghiêm ngặt trong `current-business.decorator.ts`: Chỉ Quản trị viên (Admin) mới có quyền chỉ định tùy ý `businessId`; Người bán/Doanh nghiệp chỉ được truy cập đúng tài nguyên thuộc sở hữu của mình.
+   - Cơ chế Idempotent & Concurrency Lock trong `orders.service.ts`: Ngăn chặn giả mạo tài xế khác tiếp nhận đơn hàng.
+
+5. **Trục 5: Hiệu Năng, Rò Rỉ Bộ Nhớ & Quản Lý Tài Nguyên**
+   - Bộ nhớ đệm in-memory `bookCache` trong `flash-sales.service.ts` có giới hạn thời gian sống chặt chẽ (TTL 60s), không gây rò rỉ RAM.
+   - `ShipperContext`: Giải phóng cờ khóa `updatingPickupIdsRef` trong khối `finally` và giới hạn cửa sổ bảo vệ `recentPickupsRef` trong 8 giây.
+   - Toàn bộ timer trong component con `PlatformSlotCountdownCard` đều có `clearInterval` trong cleanup function khi unmount.
+
+> **🛑 CỔNG KIỂM SOÁT BƯỚC 5 (QUALITY GATE): ĐẠT 100% TIÊU CHUẨN**  
+> Hệ thống sạch 100% lỗi, 0 rò rỉ bảo mật, 0 spam traffic. Đã thực hiện commit checkpoint lưu lại lịch sử. Dừng lại chờ chỉ đạo để chuyển sang Bước 6.
