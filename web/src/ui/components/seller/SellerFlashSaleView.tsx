@@ -317,8 +317,8 @@ export function SellerFlashSaleView() {
 
   const getInitialTimes = () => {
     const now = new Date();
-    // Must be at least 2 minutes in the future for warm-up / teaser period
-    const start = new Date(now.getTime() + 2 * 60 * 1000 + 10 * 1000);
+    // Default start is 1 hour in the future so sellers have plenty of time to configure items (minimum allowed is 2 minutes)
+    const start = new Date(now.getTime() + 60 * 60 * 1000);
     const end = new Date(start.getTime() + 4 * 60 * 60 * 1000); // 4 hours
     const pad = (n: number) => String(n).padStart(2, '0');
     return {
@@ -337,7 +337,7 @@ export function SellerFlashSaleView() {
     const freshTimes = getInitialTimes();
     setCustomStartsAt(freshTimes.startsAt);
     setCustomEndsAt(freshTimes.endsAt);
-    showToast('Đã thiết lập thời gian bắt đầu sau 2 phút (theo quy định công bố tối thiểu)! ⏳', 'info');
+    showToast('Đã thiết lập thời gian bắt đầu sau 1 giờ (có thể tùy chỉnh tối thiểu sau 2 phút)! ⏳', 'info');
   };
 
   const [customStartsAt, setCustomStartsAt] = useState<string>(() => getInitialTimes().startsAt);
@@ -2080,7 +2080,7 @@ export function SellerFlashSaleView() {
                             onClick={handleSetStartNow}
                             className="text-[10px] text-orange-600 hover:text-orange-700 font-bold underline cursor-pointer"
                           >
-                            ⏳ Sau 2 phút
+                            ⏳ Sau 1 giờ
                           </button>
                         )}
                       </div>
