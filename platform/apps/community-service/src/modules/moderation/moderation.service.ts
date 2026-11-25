@@ -146,8 +146,30 @@ export class ModerationService {
         .lean(),
       this.reports.countDocuments(where),
     ]);
+
+    const reviewObjectIds = Array.from(
+      new Set(
+        items
+          .filter((r: any) => this.isContentType(r.targetType) && Types.ObjectId.isValid(r.targetId))
+          .map((r: any) => String(r.targetId)),
+      ),
+    ).map((id) => new Types.ObjectId(id));
+
+    const contentMap = new Map<string, any>();
+    if (reviewObjectIds.length > 0 && typeof this.reviews.find === 'function') {
+      const contents = await this.reviews
+        .find({ _id: { $in: reviewObjectIds } })
+        .lean();
+      for (const c of contents) {
+        contentMap.set(String(c._id), this.contentView('REVIEW', c));
+      }
+    }
+
     return {
-      data: items.map((report) => this.reportView(report)),
+      data: items.map((report: any) => ({
+        ...this.reportView(report),
+        content: contentMap.get(String(report.targetId)) ?? null,
+      })),
       pagination: this.pagination(query.page, query.limit, total),
     };
   }
@@ -463,6 +485,8 @@ export class ModerationService {
     return {
       targetType,
       id: content._id.toString(),
+      targetId: content.targetId,
+      rating: content.rating,
       title: content.title,
       content: content.content,
       authorId: content.authorId,

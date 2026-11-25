@@ -67,11 +67,16 @@ export function AdminModerationView() {
     return reports.filter((item) => {
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase().trim();
+      const reviewContent = item.content || item.targetContent;
       const matchId = (item.id || '').toLowerCase().includes(q);
       const matchTargetId = (item.targetId || '').toLowerCase().includes(q);
       const matchDesc = (item.description || '').toLowerCase().includes(q);
       const matchReason = (item.reason || '').toLowerCase().includes(q);
-      return matchId || matchTargetId || matchDesc || matchReason;
+      const matchReviewText =
+        (reviewContent?.title || '').toLowerCase().includes(q) ||
+        (reviewContent?.content || '').toLowerCase().includes(q) ||
+        (reviewContent?.authorName || '').toLowerCase().includes(q);
+      return matchId || matchTargetId || matchDesc || matchReason || matchReviewText;
     });
   }, [reports, searchQuery]);
 
@@ -369,8 +374,8 @@ export function AdminModerationView() {
                 <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[11px]">
                   <th className="py-3 px-4">Mã Báo Cáo</th>
                   <th className="py-3 px-4">Đối Tượng</th>
-                  <th className="py-3 px-4">Lý Do Vi Phạm</th>
-                  <th className="py-3 px-4">Mô Tả Khiếu Nại</th>
+                  <th className="py-3 px-4 min-w-[260px]">Nội Dung Đánh Giá Bị Báo Cáo</th>
+                  <th className="py-3 px-4">Lý Do &amp; Khiếu Nại</th>
                   <th className="py-3 px-4">Thời Gian</th>
                   <th className="py-3 px-4">Trạng Thái</th>
                   <th className="py-3 px-4 text-right">Thao Tác</th>
@@ -379,9 +384,10 @@ export function AdminModerationView() {
               <tbody className="divide-y divide-gray-100">
                 {paginatedReports.map((item) => {
                   const reasonInfo = getReasonLabel(item.reason);
+                  const reportedContent = item.content || item.targetContent;
                   return (
-                    <tr key={item.id} className="hover:bg-gray-50/70 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-gray-900">
+                    <tr key={item.id} className="hover:bg-gray-50/70 transition-colors align-top">
+                      <td className="py-3 px-4 font-mono font-bold text-gray-900 whitespace-nowrap">
                         #{item.id.slice(-6)}
                       </td>
                       <td className="py-3 px-4">
@@ -391,13 +397,57 @@ export function AdminModerationView() {
                         <div className="font-mono text-[10px] text-gray-400 truncate max-w-[120px]">
                           ID: {item.targetId}
                         </div>
+                        {reportedContent?.targetId && (
+                          <a
+                            href={`/book/${reportedContent.targetId}#reviews`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-0.5 text-[10.5px] font-semibold text-[#006953] hover:underline mt-1"
+                          >
+                            <span>Xem trang sách</span>
+                            <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                          </a>
+                        )}
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 max-w-sm">
+                        {reportedContent ? (
+                          <div className="p-2.5 rounded-xl bg-amber-50/50 border border-amber-200/70 space-y-1">
+                            <div className="flex items-center justify-between gap-2 text-[10.5px]">
+                              <span className="font-bold text-gray-800 truncate">
+                                {reportedContent.authorName || 'Độc giả HUKI'}
+                              </span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {typeof reportedContent.rating === 'number' && (
+                                  <span className="inline-flex items-center gap-0.5 text-amber-600 font-bold">
+                                    ★ {reportedContent.rating}/5
+                                  </span>
+                                )}
+                                {reportedContent.status === 'HIDDEN' && (
+                                  <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[9.5px] font-bold">
+                                    Đã ẩn
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {reportedContent.title && (
+                              <div className="font-bold text-gray-900 text-[11px] line-clamp-1">
+                                {reportedContent.title}
+                              </div>
+                            )}
+                            <p className="text-gray-700 text-[11.5px] line-clamp-3 leading-relaxed whitespace-pre-line">
+                              {reportedContent.content || '(Không có nội dung chữ)'}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 italic text-[11px]">
+                            Nội dung đánh giá không còn khả dụng hoặc đã bị xóa.
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 max-w-xs space-y-1.5">
                         <span className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-bold border ${reasonInfo.color}`}>
                           {reasonInfo.label}
                         </span>
-                      </td>
-                      <td className="py-3 px-4 max-w-xs">
                         <p className="text-gray-700 line-clamp-2 leading-relaxed">
                           {item.description || 'Không có mô tả chi tiết từ người báo cáo.'}
                         </p>
@@ -527,12 +577,43 @@ export function AdminModerationView() {
             </div>
 
             <form onSubmit={handleExecuteResolution} className="space-y-3.5 text-xs">
+              {(selectedReport.content || selectedReport.targetContent) && (() => {
+                const rc = selectedReport.content || selectedReport.targetContent!;
+                return (
+                  <div className="p-3.5 bg-amber-50/70 rounded-xl border border-amber-200 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 text-[11px]">
+                      <span className="font-bold text-amber-900">
+                        Nội dung đánh giá bị báo cáo — {rc.authorName || 'Độc giả HUKI'}
+                      </span>
+                      {typeof rc.rating === 'number' && (
+                        <span className="font-bold text-amber-700">★ {rc.rating}/5</span>
+                      )}
+                    </div>
+                    {rc.title && <div className="font-bold text-gray-900 text-xs">{rc.title}</div>}
+                    <p className="text-gray-800 leading-relaxed whitespace-pre-line max-h-36 overflow-y-auto">
+                      {rc.content || '(Không có nội dung chữ)'}
+                    </p>
+                    {rc.targetId && (
+                      <a
+                        href={`/book/${rc.targetId}#reviews`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#006953] hover:underline pt-0.5"
+                      >
+                        <span>Mở đánh giá trên trang sách</span>
+                        <span className="material-symbols-outlined text-[13px]">open_in_new</span>
+                      </a>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div className="p-3 bg-gray-50 rounded-xl space-y-1 border border-gray-100">
                 <div className="text-gray-500">Mã Báo Cáo: <strong className="text-gray-800 font-mono">#{selectedReport.id}</strong></div>
-                <div className="text-gray-500">Lý do: <strong className="text-rose-700">{selectedReport.reason}</strong></div>
+                <div className="text-gray-500">Lý do khiếu nại: <strong className="text-rose-700">{selectedReport.reason}</strong></div>
                 {selectedReport.description && (
                   <p className="text-gray-700 italic pt-1 border-t border-gray-200/60 mt-1">
-                    &quot;{selectedReport.description}&quot;
+                    Mô tả người báo cáo: &quot;{selectedReport.description}&quot;
                   </p>
                 )}
               </div>

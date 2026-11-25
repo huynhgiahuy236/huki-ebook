@@ -6,6 +6,20 @@ export type ReportReason = 'SPAM' | 'HARASSMENT' | 'OFFENSIVE' | 'MISINFORMATION
 export type ModerationAction = 'NONE' | 'WARN' | 'HIDE' | 'DELETE' | 'BAN';
 export type ReportTargetType = 'POST' | 'COMMENT' | 'REVIEW' | 'USER' | 'STORE';
 
+export interface ReportedContentPreview {
+  id: string;
+  targetType?: ReportTargetType;
+  targetId?: string;
+  content?: string;
+  title?: string;
+  rating?: number;
+  authorId?: string;
+  authorName?: string;
+  status?: string;
+  moderationNote?: string;
+  createdAt?: string;
+}
+
 export interface ModerationReportItem {
   id: string;
   reporterId: string;
@@ -19,15 +33,11 @@ export interface ModerationReportItem {
   resolvedBy?: string;
   resolvedAt?: string;
   resolutionNotes?: string;
+  resolutionNote?: string;
   actionTaken?: ModerationAction;
-  targetContent?: {
-    id: string;
-    content?: string;
-    title?: string;
-    rating?: number;
-    authorName?: string;
-    createdAt?: string;
-  };
+  action?: ModerationAction;
+  content?: ReportedContentPreview | null;
+  targetContent?: ReportedContentPreview | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -65,7 +75,14 @@ export const moderationApi = {
 
     if (res.success && res.data) {
       const raw = res.data;
-      const list = Array.isArray(raw) ? raw : (Array.isArray(raw.data) ? raw.data : []);
+      const rawList = Array.isArray(raw) ? raw : (Array.isArray(raw.data) ? raw.data : []);
+      const list: ModerationReportItem[] = rawList.map((item: any) => ({
+        ...item,
+        content: item.content || item.targetContent || null,
+        targetContent: item.targetContent || item.content || null,
+        actionTaken: item.actionTaken || item.action,
+        resolutionNotes: item.resolutionNotes || item.resolutionNote,
+      }));
       const pagination = raw.pagination || {
         page: query.page || 1,
         limit: query.limit || 10,
@@ -113,14 +130,27 @@ export const moderationApi = {
   async resolveReport(
     id: string,
     payload: {
-      status: 'RESOLVED' | 'DISMISSED';
+      status?: 'RESOLVED' | 'DISMISSED';
+      outcome?: 'RESOLVED' | 'DISMISSED';
       resolutionNotes?: string;
+      note?: string;
       action?: ModerationAction;
     }
   ): Promise<ApiResponse<ModerationReportItem>> {
+    const outcome = payload.outcome || payload.status || 'RESOLVED';
+    const action: ModerationAction =
+      outcome === 'DISMISSED' ? 'NONE' : (payload.action || 'HIDE');
+    const rawNote = (payload.note || payload.resolutionNotes || '').trim();
+    const note =
+      rawNote.length >= 3
+        ? rawNote
+        : outcome === 'DISMISSED'
+          ? 'Báo cáo không vi phạm tiêu chuẩn cộng đồng.'
+          : `Quản trị viên đã xử lý báo cáo với biện pháp ${action}.`;
+
     return apiClient<ModerationReportItem>(`/admin/moderation/reports/${encodeURIComponent(id)}/resolve`, {
       method: 'PATCH',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ outcome, action, note }),
     });
   },
 

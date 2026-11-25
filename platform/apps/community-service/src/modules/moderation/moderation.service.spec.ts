@@ -10,8 +10,9 @@ describe('ModerationService', () => {
     updateMany: jest.fn(),
     countDocuments: jest.fn().mockResolvedValue(0),
   };
-  const reviews = {
+    const reviews = {
     findById: jest.fn(),
+    find: jest.fn(),
     updateOne: jest.fn(),
     findOneAndUpdate: jest.fn(),
   };
@@ -199,6 +200,59 @@ describe('ModerationService', () => {
     expect(gateway.emitReviewEvent).toHaveBeenCalledWith(
       'review:removed',
       expect.objectContaining({ reviewId: id.toString() }),
+    );
+  });
+
+  it('hydrates reported review content in listReports for admin moderation review', async () => {
+    const id = new Types.ObjectId();
+    (reports as any).find = jest.fn().mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        {
+          _id: new Types.ObjectId(),
+          reporterId: 'seller-1',
+          targetType: 'REVIEW',
+          targetId: id.toString(),
+          reason: 'SPAM',
+          description: 'Báo cáo spam',
+          status: 'REVIEWING',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]),
+    });
+    reports.countDocuments.mockResolvedValue(1);
+    reviews.find.mockReturnValue({
+      lean: jest.fn().mockResolvedValue([
+        {
+          _id: id,
+          targetId: 'book-123',
+          rating: 5,
+          title: 'Tiêu đề đánh giá',
+          content: 'Nội dung đánh giá chi tiết của khách hàng',
+          authorId: 'buyer-1',
+          authorName: 'Nguyễn Văn A',
+          status: 'PUBLISHED',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]),
+    });
+
+    const result = await service.listReports({ page: 1, limit: 20 } as any);
+
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].content).toEqual(
+      expect.objectContaining({
+        id: id.toString(),
+        targetId: 'book-123',
+        rating: 5,
+        title: 'Tiêu đề đánh giá',
+        content: 'Nội dung đánh giá chi tiết của khách hàng',
+        authorName: 'Nguyễn Văn A',
+      }),
     );
   });
 });
