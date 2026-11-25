@@ -70,6 +70,14 @@ export default function MyReviewsPage() {
         showToast('Đã gửi phản hồi đánh giá thành công!', 'success');
         setReplyingReviewId(null);
         setReplyContent('');
+        window.dispatchEvent(
+          new CustomEvent('huki_review_reply_created', {
+            detail: { reviewId, reply: res.data },
+          })
+        );
+        try {
+          localStorage.setItem('huki_review_sync', String(Date.now()));
+        } catch {}
         loadReviewsData();
       } else {
         showToast(res?.error?.message || 'Không thể gửi phản hồi.', 'error');

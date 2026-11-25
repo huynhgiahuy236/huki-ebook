@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import { CommunityActor } from "../../common/community-auth.guard";
@@ -23,6 +23,7 @@ import {
 } from "./dto/notification.dto";
 import { NotificationGateway } from "./notification.gateway";
 import { NotificationDeliveryService } from "./notification-delivery.service";
+import { SellerScopeResolverService } from "./seller-scope-resolver.service";
 import {
   NotificationRecipientType,
   NotificationSenderType,
@@ -41,28 +42,55 @@ export class NotificationsService {
     private readonly devices: Model<NotificationDeviceDocument>,
     private readonly gateway: NotificationGateway,
     private readonly delivery: NotificationDeliveryService,
+    @Optional() private readonly sellerScopeResolver?: SellerScopeResolverService,
   ) {}
 
-  private getRoleConditions(actor: CommunityActor, targetRecipientType?: string): Array<Record<string, unknown>> {
+  private async resolveBusinessTargetIds(actor: CommunityActor) {
+    const extra = actor as unknown as Record<string, unknown>;
+    const entityIds = new Set<string>();
+    const ownerIds = new Set<string>([actor.sub]);
+
+    if (extra.storeId) entityIds.add(String(extra.storeId));
+    if (extra.businessId) entityIds.add(String(extra.businessId));
+
+    if (this.sellerScopeResolver) {
+      const scope = await this.sellerScopeResolver.resolveSellerScope(actor.sub);
+      scope.storeIds.forEach((id) => entityIds.add(id));
+      scope.businessIds.forEach((id) => entityIds.add(id));
+      scope.ownerUserIds.forEach((id) => ownerIds.add(id));
+    }
+
+    return {
+      entityIds: Array.from(entityIds),
+      ownerIds: Array.from(ownerIds),
+    };
+  }
+
+  private async getRoleConditions(
+    actor: CommunityActor,
+    targetRecipientType?: string,
+  ): Promise<Array<Record<string, unknown>>> {
     const conditions: Array<Record<string, unknown>> = [
       { recipientType: "ALL" },
     ];
-    const extra = actor as unknown as Record<string, unknown>;
+
+    const appendBusinessConditions = async () => {
+      const { entityIds, ownerIds } = await this.resolveBusinessTargetIds(actor);
+      conditions.push({ recipientType: "BUSINESS", recipientId: "*" });
+      for (const ownerId of ownerIds) {
+        conditions.push({ recipientType: "BUSINESS", recipientId: ownerId });
+      }
+      for (const entityId of entityIds) {
+        conditions.push({ recipientType: "BUSINESS", recipientId: entityId });
+        conditions.push({ recipientId: entityId });
+      }
+    };
 
     // 1. Phân lập theo recipientType rõ ràng nếu Client gửi lên (ví dụ: chuông ở Portal Seller -> BUSINESS)
     if (targetRecipientType) {
       const type = targetRecipientType.toUpperCase();
       if (type === "BUSINESS" || type === "SELLER") {
-        conditions.push({ recipientType: "BUSINESS", recipientId: actor.sub });
-        conditions.push({ recipientType: "BUSINESS", recipientId: "*" });
-        if (extra.storeId) {
-          conditions.push({ recipientType: "BUSINESS", recipientId: String(extra.storeId) });
-          conditions.push({ recipientId: String(extra.storeId) });
-        }
-        if (extra.businessId) {
-          conditions.push({ recipientType: "BUSINESS", recipientId: String(extra.businessId) });
-          conditions.push({ recipientId: String(extra.businessId) });
-        }
+        await appendBusinessConditions();
         return conditions;
       }
       if (type === "DELIVERY" || type === "SHIPPER") {
@@ -92,16 +120,7 @@ export class NotificationsService {
       conditions.push({ recipientId: "admin_channel" });
       conditions.push({ recipientId: actor.sub });
     } else if (actorRole === "BUSINESS" || actorRole === "SELLER") {
-      conditions.push({ recipientType: "BUSINESS", recipientId: "*" });
-      conditions.push({ recipientType: "BUSINESS", recipientId: actor.sub });
-      if (extra.storeId) {
-        conditions.push({ recipientId: String(extra.storeId) });
-        conditions.push({ recipientType: "BUSINESS", recipientId: String(extra.storeId) });
-      }
-      if (extra.businessId) {
-        conditions.push({ recipientId: String(extra.businessId) });
-        conditions.push({ recipientType: "BUSINESS", recipientId: String(extra.businessId) });
-      }
+      await appendBusinessConditions();
     } else if (actorRole === "DELIVERY_STAFF" || actorRole === "DELIVERY") {
       conditions.push({ recipientType: "DELIVERY", recipientId: "*" });
       conditions.push({ recipientType: "DELIVERY", recipientId: actor.sub });
@@ -115,7 +134,7 @@ export class NotificationsService {
   }
 
   async list(actor: CommunityActor, query: NotificationListQueryDto) {
-    const roleConditions = this.getRoleConditions(actor, query.recipientType);
+    const roleConditions = await this.getRoleConditions(actor, query.recipientType);
     const filter: Record<string, unknown> = {
       $or: roleConditions,
     };
@@ -163,7 +182,7 @@ export class NotificationsService {
   }
 
   async unreadCount(actor: CommunityActor, recipientType?: string) {
-    const roleConditions = this.getRoleConditions(actor, recipientType);
+    const roleConditions = await this.getRoleConditions(actor, recipientType);
     const count = await this.notifications.countDocuments({
       $or: roleConditions,
       isRead: false,
@@ -180,11 +199,11 @@ export class NotificationsService {
   async markRead(actor: CommunityActor, id: string) {
     const objectId = new Types.ObjectId(id);
     let notification = await this.accessible(actor, id);
-    const extra = actor as unknown as Record<string, unknown>;
+    const { entityIds, ownerIds } = await this.resolveBusinessTargetIds(actor);
     const isDirectRecipient =
       notification.recipientId === actor.sub ||
-      (extra.storeId && notification.recipientId === extra.storeId) ||
-      (extra.businessId && notification.recipientId === extra.businessId);
+      entityIds.includes(notification.recipientId) ||
+      ownerIds.includes(notification.recipientId);
 
     if (isDirectRecipient) {
       notification = (await this.notifications.findByIdAndUpdate(
@@ -208,11 +227,9 @@ export class NotificationsService {
   }
 
   async markAllRead(actor: CommunityActor, recipientType?: string) {
-    const roleConditions = this.getRoleConditions(actor, recipientType);
-    const extra = actor as unknown as Record<string, unknown>;
-    const targetIds = [actor.sub];
-    if (extra.storeId) targetIds.push(String(extra.storeId));
-    if (extra.businessId) targetIds.push(String(extra.businessId));
+    const roleConditions = await this.getRoleConditions(actor, recipientType);
+    const { entityIds, ownerIds } = await this.resolveBusinessTargetIds(actor);
+    const targetIds = Array.from(new Set([actor.sub, ...entityIds, ...ownerIds]));
 
     const directFilter: Record<string, unknown> = {
       recipientId: { $in: targetIds },
@@ -383,7 +400,7 @@ export class NotificationsService {
     const notification = await this.notifications.findById(objectId);
     if (!notification) throwNotFound(ErrorCode.NOTIFICATION_NOT_FOUND);
 
-    const roleConditions = this.getRoleConditions(actor);
+    const roleConditions = await this.getRoleConditions(actor);
     const hasAccess = roleConditions.some((cond) => {
       const typeMatches =
         !cond.recipientType ||

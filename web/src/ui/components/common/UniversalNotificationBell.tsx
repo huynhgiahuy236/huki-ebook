@@ -599,6 +599,13 @@ export default function UniversalNotificationBell({
         );
         const bookTitle = String(payload.bookTitle || payload.title || '');
 
+        const reviewId = String(payload.reviewId || '').trim();
+        const defaultReviewAction = isSeller
+          ? (reviewId ? `/seller/reviews?reviewId=${encodeURIComponent(reviewId)}` : '/seller/reviews')
+          : (payload.bookId || payload.targetId
+              ? `/book/${encodeURIComponent(String(payload.bookId || payload.targetId))}#reviews`
+              : undefined);
+
         list.push({
           id: n.id,
           notifId: n.id,
@@ -607,6 +614,7 @@ export default function UniversalNotificationBell({
           message: n.message,
           createdAt: n.createdAt,
           isRead: n.isRead,
+          actionUrl: n.actionUrl || defaultReviewAction,
           rating,
           reviewerName,
           comment,

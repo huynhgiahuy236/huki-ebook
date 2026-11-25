@@ -1,4 +1,4 @@
-import { Logger } from "@nestjs/common";
+import { Logger, Optional } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import {
   OnGatewayConnection,
@@ -7,6 +7,7 @@ import {
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import { CommunityActor } from "../../common/community-auth.guard";
+import { SellerScopeResolverService } from "./seller-scope-resolver.service";
 
 type AuthenticatedSocket = Socket & { data: { actor?: CommunityActor } };
 
@@ -20,7 +21,10 @@ export class NotificationGateway implements OnGatewayConnection {
   @WebSocketServer()
   private server?: Server;
 
-  constructor(private readonly jwt: JwtService) {}
+  constructor(
+    private readonly jwt: JwtService,
+    @Optional() private readonly sellerScopeResolver?: SellerScopeResolverService,
+  ) {}
 
   async handleConnection(client: AuthenticatedSocket) {
     try {
@@ -66,9 +70,22 @@ export class NotificationGateway implements OnGatewayConnection {
         await client.join("admin_channel");
       } else if (role === "BUSINESS" || role === "SELLER") {
         await client.join("seller_channel");
+        await client.join(`business_user:${actor.sub}`);
         const extra = actor as unknown as Record<string, unknown>;
         if (extra.storeId) await client.join(`store:${extra.storeId}`);
         if (extra.businessId) await client.join(`business:${extra.businessId}`);
+        if (this.sellerScopeResolver) {
+          const scope = await this.sellerScopeResolver.resolveSellerScope(actor.sub);
+          for (const storeId of scope.storeIds) {
+            await client.join(`store:${storeId}`);
+          }
+          for (const businessId of scope.businessIds) {
+            await client.join(`business:${businessId}`);
+          }
+          for (const ownerId of scope.ownerUserIds) {
+            await client.join(`business_user:${ownerId}`);
+          }
+        }
       } else if (role === "DELIVERY_STAFF" || role === "DELIVERY" || role === "SHIPPER") {
         await client.join("shipper_channel");
         await client.join(`shipper:${actor.sub}`);
@@ -100,7 +117,11 @@ export class NotificationGateway implements OnGatewayConnection {
   notification(recipientId: string, data: Record<string, unknown>) {
     this.server?.to(this.room(recipientId)).emit("notification", data);
     this.server?.to(`store:${recipientId}`).emit("notification", data);
+    this.server?.to(`business:${recipientId}`).emit("notification", data);
     this.server?.to(`shipper:${recipientId}`).emit("notification", data);
+    if (data.recipientType === "BUSINESS" || data.recipientType === "SELLER") {
+      this.server?.to(`business_user:${recipientId}`).emit("notification", data);
+    }
     if (data.recipientType === "DELIVERY" || recipientId === "DELIVERY") {
       this.server?.to("shipper_channel").emit("notification", data);
     }

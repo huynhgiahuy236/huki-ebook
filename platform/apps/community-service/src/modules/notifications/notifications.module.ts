@@ -21,6 +21,7 @@ import { NotificationGateway } from "./notification.gateway";
 import { NotificationWatchdogService } from "./notification-watchdog.service";
 import { NotificationsController } from "./notifications.controller";
 import { NotificationsService } from "./notifications.service";
+import { SellerScopeResolverService } from "./seller-scope-resolver.service";
 
 @Module({
   imports: [
@@ -43,7 +44,8 @@ import { NotificationsService } from "./notifications.service";
     NotificationGateway,
     FirebaseMessagingService,
     AuthenticatedCommunityGuard,
+    SellerScopeResolverService,
   ],
-  exports: [NotificationWatchdogService, NotificationDeliveryService],
+  exports: [NotificationWatchdogService, NotificationDeliveryService, SellerScopeResolverService],
 })
 export class NotificationsModule {}

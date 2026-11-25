@@ -21,6 +21,7 @@ import {
   SellerPagination,
 } from '@/ui/components/seller/SellerUI';
 import { VerifiedPurchaseBadge } from '@/ui/components/review/VerifiedPurchaseBadge';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 import {
   DataTableFilterBar,
@@ -66,6 +67,8 @@ export function SellerReviewsView() {
   // Modal / Detail state
   const [selectedReview, setSelectedReview] = useState<ReviewRowItem | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [replyContent, setReplyContent] = useState('');
+  const [submittingReply, setSubmittingReply] = useState(false);
   const [sellerBookIds, setSellerBookIds] = useState<Set<string>>(new Set());
   const [sellerStoreIds, setSellerStoreIds] = useState<Set<string>>(new Set());
 
@@ -237,11 +240,33 @@ export function SellerReviewsView() {
     }
   }, [targetReviewId, reviews]);
 
-  // Real-time synchronization: Auto-refresh interval (10s) & cross-tab events
+  // Sync open modal with refreshed review items (e.g. newly added replies)
+  useEffect(() => {
+    if (!selectedReview) return;
+    const refreshed = reviews.find((r) => String(r.id) === String(selectedReview.id));
+    if (refreshed && refreshed !== selectedReview) {
+      setSelectedReview(refreshed);
+    }
+  }, [reviews, selectedReview]);
+
+  useEffect(() => {
+    setReplyContent('');
+  }, [selectedReview?.id]);
+
+  // Real-time synchronization: WebSocket notifications, local events, cross-tab & polling
   useEffect(() => {
     const handleSync = () => {
       loadData(true);
     };
+
+    const unsubscribeNotifs = realtimeSyncBus.subscribe((event) => {
+      if (event.type === 'NOTIFICATIONS_UPDATED') {
+        const type = String((event.payload as any)?.type || '').toUpperCase();
+        if (!type || type === 'NEW_REVIEW' || type === 'NEW_REPLY') {
+          loadData(true);
+        }
+      }
+    });
 
     window.addEventListener('huki_review_created', handleSync);
     window.addEventListener('huki_review_reply_created', handleSync);
@@ -260,12 +285,66 @@ export function SellerReviewsView() {
     }, 30000);
 
     return () => {
+      unsubscribeNotifs();
       window.removeEventListener('huki_review_created', handleSync);
       window.removeEventListener('huki_review_reply_created', handleSync);
       window.removeEventListener('storage', handleStorage);
       clearInterval(interval);
     };
   }, [loadData]);
+
+  const handleSendInlineReply = async () => {
+    if (!selectedReview) return;
+    const trimmed = replyContent.trim();
+    if (trimmed.length < 2) {
+      showToast('Nội dung phản hồi tối thiểu 2 ký tự.', 'error');
+      return;
+    }
+    if (trimmed.length > 2000) {
+      showToast('Nội dung phản hồi không được vượt quá 2.000 ký tự.', 'error');
+      return;
+    }
+    setSubmittingReply(true);
+    try {
+      const res = await reviewApi.replyReview(String(selectedReview.id), { content: trimmed });
+      if (res.data) {
+        const newReply: ReviewReplyItem = {
+          id: res.data.id,
+          content: res.data.content,
+          business: res.data.business,
+          responderId: user?.id || 'seller',
+          createdAt: res.data.createdAt,
+          updatedAt: new Date().toISOString(),
+        };
+        const appendReply = (row: ReviewRowItem): ReviewRowItem => {
+          const existing = row.replies || [];
+          if (existing.some((r) => String(r.id) === String(newReply.id))) return row;
+          return { ...row, replies: [...existing, newReply] };
+        };
+        setReviews((prev) =>
+          prev.map((row) => (String(row.id) === String(selectedReview.id) ? appendReply(row) : row))
+        );
+        setSelectedReview((prev) => (prev ? appendReply(prev) : prev));
+        setReplyContent('');
+        showToast('Đã gửi phản hồi thành công!', 'success');
+        window.dispatchEvent(
+          new CustomEvent('huki_review_reply_created', {
+            detail: { reviewId: String(selectedReview.id), targetId: selectedReview.targetId, reply: newReply },
+          })
+        );
+        try {
+          localStorage.setItem('huki_review_sync', String(Date.now()));
+        } catch {}
+        loadData(true);
+      } else {
+        showToast(res.error?.message || 'Không thể gửi phản hồi.', 'error');
+      }
+    } catch {
+      showToast('Có lỗi xảy ra khi gửi phản hồi.', 'error');
+    } finally {
+      setSubmittingReply(false);
+    }
+  };
 
   // Statistics calculation
   const stats = useMemo(() => {
@@ -1023,27 +1102,48 @@ export function SellerReviewsView() {
                 </div>
               )}
 
-              {/* Guidance to reply directly on book detail page */}
-              {selectedReview.targetId ? (
+              {/* Inline Reply Form (if not replied yet) & Book Page Link */}
+              {(!selectedReview.replies || selectedReview.replies.length === 0) && (
                 <div className="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 space-y-3">
-                  <div className="flex items-center gap-2 text-[#00875A] font-bold text-xs">
-                    <span className="material-symbols-outlined text-base">forum</span>
-                    <span>Phản Hồi Trực Tiếp Trên Trang Chi Tiết Sách</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-[#00875A] font-bold text-xs">
+                      <span className="material-symbols-outlined text-base">reply</span>
+                      <span>Phản Hồi Đánh Giá Khách Hàng</span>
+                    </div>
+                    <span className={`text-[11px] ${replyContent.length > 2000 ? 'text-rose-500 font-bold' : 'text-slate-400'}`}>
+                      {replyContent.length}/2.000
+                    </span>
                   </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    Để đảm bảo tính xác thực và hiển thị nhất quán trên hệ thống, bạn có thể xem đầy đủ và gửi phản hồi công khai đến độc giả tại trang chi tiết cuốn sách này.
-                  </p>
-                  <Link
-                    href={`/book/${selectedReview.targetId}#reviews`}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-bold transition-all shadow-2xs"
-                  >
-                    <span className="material-symbols-outlined text-sm">open_in_new</span>
-                    <span>Đến Trang Chi Tiết Sách Để Phản Hồi</span>
-                  </Link>
-                </div>
-              ) : (
-                <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 text-slate-600 text-xs">
-                  Đánh giá không gắn với sách cụ thể.
+                  <textarea
+                    value={replyContent}
+                    onChange={(e) => setReplyContent(e.target.value)}
+                    placeholder="Nhập nội dung cảm ơn hoặc giải đáp cho độc giả..."
+                    rows={3}
+                    disabled={submittingReply}
+                    className="w-full text-xs p-3 bg-white border border-emerald-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#00875A] transition-colors resize-y"
+                  />
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    {selectedReview.targetId ? (
+                      <Link
+                        href={`/book/${selectedReview.targetId}#reviews`}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-[#00875A] hover:underline"
+                      >
+                        <span className="material-symbols-outlined text-sm">open_in_new</span>
+                        <span>Xem trên trang sách</span>
+                      </Link>
+                    ) : <span />}
+                    <button
+                      type="button"
+                      onClick={handleSendInlineReply}
+                      disabled={submittingReply || !replyContent.trim() || replyContent.length > 2000}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-bold transition-all shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      {submittingReply && (
+                        <span className="material-symbols-outlined text-xs animate-spin">progress_activity</span>
+                      )}
+                      <span>Gửi Phản Hồi Ngay</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

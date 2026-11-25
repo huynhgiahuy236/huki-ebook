@@ -129,9 +129,44 @@ export class ReviewVerificationService {
       const json: any = await res.json();
       const book = json?.data || json;
       if (!book) return null;
+      const storeId: string | undefined = book.storeId || book.businessId;
+      let ownerUserId: string | undefined = book.ownerUserId;
+      if (!ownerUserId && storeId) {
+        const resolved = await this.resolveStoreOwner(storeId);
+        ownerUserId = resolved?.ownerUserIds?.[0];
+      }
       return {
-        storeId: book.storeId || book.businessId,
-        ownerUserId: book.ownerUserId,
+        storeId,
+        ownerUserId,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async resolveStoreOwner(
+    targetId: string,
+  ): Promise<{ businessIds: string[]; storeIds: string[]; ownerUserIds: string[] } | null> {
+    const internalKey = process.env.INTERNAL_SERVICE_KEY;
+    if (!targetId || !this.businessUrl || !internalKey) return null;
+    try {
+      const businessBase = this.businessUrl.endsWith("/api/v1")
+        ? this.businessUrl
+        : `${this.businessUrl.replace(/\/+$/, "")}/api/v1`;
+      const res = await fetch(
+        `${businessBase}/internal/resolve-target/${encodeURIComponent(targetId)}`,
+        {
+          headers: { "x-internal-service-key": internalKey },
+          signal: AbortSignal.timeout(3_000),
+        },
+      );
+      if (!res.ok) return null;
+      const json: any = await res.json();
+      const data = json?.data ?? json;
+      return {
+        businessIds: Array.isArray(data?.businessIds) ? data.businessIds.map(String) : [],
+        storeIds: Array.isArray(data?.storeIds) ? data.storeIds.map(String) : [],
+        ownerUserIds: Array.isArray(data?.ownerUserIds) ? data.ownerUserIds.map(String) : [],
       };
     } catch {
       return null;

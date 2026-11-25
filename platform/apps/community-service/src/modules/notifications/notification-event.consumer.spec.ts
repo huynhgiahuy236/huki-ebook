@@ -81,4 +81,51 @@ describe("NotificationEventConsumer", () => {
       }),
     ]);
   });
+
+  it("uses /book/:id#reviews for buyer notification links on review.created and review.replied", () => {
+    const createdTargets = (consumer as any).targets({
+      eventType: "review.created",
+      payload: {
+        reviewId: "review-2",
+        authorId: "buyer-1",
+        targetType: "BOOK",
+        targetId: "book-1",
+        rating: 5,
+        storeId: "store-1",
+      },
+    });
+    expect(createdTargets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          recipientId: "store-1",
+          recipientType: "BUSINESS",
+          actionUrl: "/seller/reviews?reviewId=review-2",
+        }),
+        expect.objectContaining({
+          recipientId: "buyer-1",
+          recipientType: "USER",
+          actionUrl: "/book/book-1#reviews",
+        }),
+      ]),
+    );
+
+    const repliedTargets = (consumer as any).targets({
+      eventType: "review.replied",
+      payload: {
+        reviewId: "review-2",
+        userId: "buyer-1",
+        storeName: "HuKi Store",
+        content: "Cảm ơn bạn",
+        bookId: "book-1",
+      },
+    });
+    expect(repliedTargets).toEqual([
+      expect.objectContaining({
+        recipientId: "buyer-1",
+        recipientType: "USER",
+        type: "NEW_REVIEW",
+        actionUrl: "/book/book-1#reviews",
+      }),
+    ]);
+  });
 });

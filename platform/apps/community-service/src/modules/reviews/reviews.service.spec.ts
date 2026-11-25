@@ -19,6 +19,8 @@ describe("ReviewsService", () => {
     bookPurchase: jest.fn(),
     storePurchase: jest.fn(),
     businessAccess: jest.fn(),
+    lookupBookStore: jest.fn(),
+    resolveStoreOwner: jest.fn(),
   };
   const eventBus = { publish: jest.fn() };
   const autoModeration = {
@@ -372,5 +374,47 @@ describe("ReviewsService", () => {
         ),
       ).rejects.toBeInstanceOf(ConflictException);
     });
+  });
+
+  it("falls back to resolveStoreOwner when creating a book review with missing storeOwnerId", async () => {
+    reviews.exists.mockResolvedValue(null);
+    verification.bookPurchase.mockResolvedValue({
+      orderId: "order-99",
+      sellerOrderId: "seller-order-99",
+      storeId: "store-99",
+      storeOwnerId: undefined,
+    });
+    verification.resolveStoreOwner.mockResolvedValue({
+      businessIds: ["biz-99"],
+      storeIds: ["store-99"],
+      ownerUserIds: ["owner-99"],
+    });
+    reviews.create.mockResolvedValue({
+      id: "rev-99",
+      authorId: actor.sub,
+      targetType: "BOOK",
+      targetId: "book-99",
+      rating: 5,
+      verifiedPurchase: true,
+      storeId: "store-99",
+      storeOwnerId: "owner-99",
+      status: "PUBLISHED",
+      createdAt: new Date(),
+    });
+
+    await service.createBook(
+      actor,
+      "book-99",
+      { rating: 5, title: "Rất đáng đọc", content: "Sách rất hay và giao hàng nhanh", format: "PHYSICAL" },
+      "Bearer token",
+    );
+
+    expect(verification.resolveStoreOwner).toHaveBeenCalledWith("store-99");
+    expect(reviews.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        storeId: "store-99",
+        storeOwnerId: "owner-99",
+      }),
+    );
   });
 });

@@ -133,4 +133,46 @@ describe("NotificationsService", () => {
       { upsert: true },
     );
   });
+
+  it("includes resolved storeIds, businessIds, and ownerUserIds when listing BUSINESS notifications", async () => {
+    const scopeResolver = {
+      resolveSellerScope: jest.fn().mockResolvedValue({
+        businessIds: ["biz-1"],
+        storeIds: ["store-1"],
+        ownerUserIds: ["owner-1"],
+      }),
+    };
+    const scopedService = new NotificationsService(
+      notifications as any,
+      preferences as any,
+      devices as any,
+      gateway as any,
+      delivery as any,
+      scopeResolver as any,
+    );
+    notifications.find.mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue([]),
+    });
+    notifications.countDocuments.mockResolvedValue(0);
+
+    await scopedService.list(
+      { sub: "staff-1", role: "BUSINESS" },
+      { page: 1, limit: 20, recipientType: "BUSINESS" as any },
+    );
+
+    expect(scopeResolver.resolveSellerScope).toHaveBeenCalledWith("staff-1");
+    expect(notifications.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        $or: expect.arrayContaining([
+          { recipientType: "BUSINESS", recipientId: "staff-1" },
+          { recipientType: "BUSINESS", recipientId: "owner-1" },
+          { recipientType: "BUSINESS", recipientId: "store-1" },
+          { recipientType: "BUSINESS", recipientId: "biz-1" },
+        ]),
+      }),
+    );
+  });
 });

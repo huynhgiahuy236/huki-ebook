@@ -13,6 +13,7 @@ export interface SellerScopeResponse {
 export interface ResolveTargetResponse {
   businessIds: string[];
   storeIds: string[];
+  ownerUserIds: string[];
 }
 
 export interface UserStoreMappingsResponse {
@@ -58,11 +59,11 @@ export class InternalSellerScopeController {
   }
 
   @Get('resolve-target/:targetId')
-  @ApiOperation({ summary: 'Internal API: Resolve business and store IDs for a target' })
+  @ApiOperation({ summary: 'Internal API: Resolve business, store, and owner user IDs for a target' })
   async resolveTarget(@Param('targetId') targetId: string): Promise<ResolveTargetResponse> {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
     if (!isUuid) {
-      return { businessIds: [], storeIds: [] };
+      return { businessIds: [], storeIds: [], ownerUserIds: [] };
     }
 
     const [biz, store] = await Promise.all([
@@ -73,30 +74,52 @@ export class InternalSellerScopeController {
             where: { deletedAt: null },
             select: { id: true },
           },
+          members: {
+            where: { status: 'ACTIVE', deletedAt: null },
+            select: { userId: true },
+          },
         },
       }),
       this.prisma.store.findFirst({
         where: { id: targetId, deletedAt: null },
-        select: { id: true, businessId: true },
+        select: {
+          id: true,
+          businessId: true,
+          business: {
+            select: {
+              ownerId: true,
+              members: {
+                where: { status: 'ACTIVE', deletedAt: null },
+                select: { userId: true },
+              },
+            },
+          },
+        },
       }),
     ]);
 
     const businessIds = new Set<string>();
     const storeIds = new Set<string>();
+    const ownerUserIds = new Set<string>();
 
     if (biz) {
       businessIds.add(biz.id);
       storeIds.add(biz.id);
+      if (biz.ownerId) ownerUserIds.add(biz.ownerId);
       biz.stores.forEach((s) => storeIds.add(s.id));
+      biz.members.forEach((m) => ownerUserIds.add(m.userId));
     }
     if (store) {
       storeIds.add(store.id);
       businessIds.add(store.businessId);
+      if (store.business?.ownerId) ownerUserIds.add(store.business.ownerId);
+      store.business?.members?.forEach((m) => ownerUserIds.add(m.userId));
     }
 
     return {
       businessIds: Array.from(businessIds),
       storeIds: Array.from(storeIds),
+      ownerUserIds: Array.from(ownerUserIds),
     };
   }
 

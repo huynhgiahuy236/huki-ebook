@@ -215,6 +215,11 @@ export class ReviewsService {
       }
     }
 
+    if (storeId && !storeOwnerId) {
+      const resolved = await this.verification.resolveStoreOwner?.(storeId);
+      storeOwnerId = resolved?.ownerUserIds?.[0];
+    }
+
     return this.create(actor, {
       targetType: "BOOK",
       targetId: bookId,
@@ -248,6 +253,11 @@ export class ReviewsService {
         // fallback
       }
     }
+    let storeOwnerId: string | undefined = purchase?.storeOwnerId;
+    if (!storeOwnerId) {
+      const resolved = await this.verification.resolveStoreOwner?.(storeId);
+      storeOwnerId = resolved?.ownerUserIds?.[0];
+    }
     const { orderId: _orderId, ...content } = dto;
     return this.create(actor, {
       targetType: "STORE",
@@ -258,7 +268,7 @@ export class ReviewsService {
       orderId: purchase?.orderId || dto.orderId,
       sellerOrderId: purchase?.sellerOrderId,
       storeId,
-      storeOwnerId: purchase?.storeOwnerId,
+      storeOwnerId,
     });
   }
 
@@ -327,7 +337,8 @@ export class ReviewsService {
     dto: CreateReviewReplyDto,
     authorization: string,
   ) {
-    if (actor.role !== "BUSINESS") {
+    const role = (actor.role ?? "").toUpperCase();
+    if (role !== "BUSINESS" && role !== "SELLER") {
       throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT);
     }
     const review = await this.reviews.findOne({

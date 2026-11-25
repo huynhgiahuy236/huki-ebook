@@ -239,7 +239,7 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
             type: "NEW_REVIEW",
             title: "Đánh giá của bạn đã được ghi nhận",
             message: `Cảm ơn bạn đã gửi đánh giá ${payload.rating} sao. Ý kiến của bạn giúp cộng đồng độc giả chọn sách tốt hơn!`,
-            actionUrl: payload.targetType === 'BOOK' ? `/books/${payload.targetId}` : `/orders`,
+            actionUrl: payload.targetType === 'BOOK' ? `/book/${payload.targetId}#reviews` : `/orders`,
           });
         }
         break;
@@ -251,7 +251,7 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
             type: "NEW_REVIEW",
             title: `${payload.storeName || 'Người bán'} đã phản hồi đánh giá của bạn`,
             message: this.preview(payload.content),
-            actionUrl: payload.bookId ? `/books/${payload.bookId}` : `/orders`,
+            actionUrl: payload.bookId ? `/book/${payload.bookId}#reviews` : `/orders`,
           });
         }
         break;

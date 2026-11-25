@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import UserAvatar from '@/ui/components/common/UserAvatar';
 import VerifiedPurchaseBadge from './VerifiedPurchaseBadge';
 import { reviewApi, ReviewItemData, ReviewReplyItem } from '@/ui/api/reviewApi';
@@ -9,6 +9,7 @@ import { useToast } from '@/ui/context/ToastContext';
 export interface ReviewCardProps {
   review: ReviewItemData | {
     id: string | number;
+    targetId?: string;
     author: { id?: string; fullName: string; avatar?: string };
     rating: number;
     title: string;
@@ -28,7 +29,7 @@ export interface ReviewCardProps {
   };
   onHelpfulChange?: (reviewId: string, helpful: boolean) => void;
   canReply?: boolean;
-  onReplySuccess?: (reply: { id: string; content: string; business: { id: string; name: string }; createdAt: string }) => void;
+  onReplySuccess?: (reply: ReviewReplyItem) => void;
   className?: string;
   isOwner?: boolean;
   onEdit?: () => void;
@@ -51,6 +52,15 @@ export default function ReviewCard({
   const [isReplying, setIsReplying] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+
+  useEffect(() => {
+    setReplies(review.replies || []);
+  }, [review.replies]);
+
+  useEffect(() => {
+    setIsHelpful(Boolean(review.isHelpful));
+    setHelpfulCount(review.helpfulCount || 0);
+  }, [review.isHelpful, review.helpfulCount]);
 
   // Report review states (BUG-MOD06-13)
   const [isReporting, setIsReporting] = useState(false);
@@ -145,10 +155,20 @@ export default function ReviewCard({
           createdAt: res.data.createdAt,
           updatedAt: new Date().toISOString(),
         };
-        setReplies((prev) => [...prev, newReply]);
+        setReplies((prev) =>
+          prev.some((r) => String(r.id) === String(newReply.id)) ? prev : [...prev, newReply]
+        );
         setReplyText('');
         setIsReplying(false);
         showToast('Đã gửi phản hồi thành công!', 'success');
+        window.dispatchEvent(
+          new CustomEvent('huki_review_reply_created', {
+            detail: { reviewId: String(review.id), targetId: review.targetId, reply: newReply },
+          })
+        );
+        try {
+          localStorage.setItem('huki_review_sync', String(Date.now()));
+        } catch {}
         if (onReplySuccess) onReplySuccess(newReply);
       } else if (res.error?.code === 'REVIEW_ALREADY_EXISTS') {
         showToast('Gian hàng đã gửi phản hồi cho đánh giá này.', 'error');

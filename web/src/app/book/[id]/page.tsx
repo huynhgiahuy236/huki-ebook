@@ -369,13 +369,15 @@ export default function BookDetailPage() {
     return () => window.clearInterval(timer);
   }, [flashSaleInfo?.endsAt]);
 
-  const fetchBookReviews = useCallback(() => {
+  const fetchBookReviews = useCallback((options?: { silent?: boolean }) => {
     // If realBook is not loaded yet and id is a slug (not UUID), wait for realBook to resolve
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     const bookTargetId = realBook?.id || (isUUID ? id : null);
     if (!bookTargetId) return;
 
-    setIsLoadingReviews(true);
+    if (!options?.silent) {
+      setIsLoadingReviews(true);
+    }
     reviewApi
       .getBookReviews(
         bookTargetId,
@@ -397,7 +399,9 @@ export default function BookDetailPage() {
         console.warn('Could not fetch book reviews:', err);
       })
       .finally(() => {
-        setIsLoadingReviews(false);
+        if (!options?.silent) {
+          setIsLoadingReviews(false);
+        }
       });
   }, [realBook?.id, id, reviewsFilterRating]);
 
@@ -430,23 +434,52 @@ export default function BookDetailPage() {
     fetchBookReviews();
   }, [fetchBookReviews]);
 
-  // Real-time synchronization: cross-tab & local events
+  // Real-time synchronization: cross-tab, local events, & WebSocket review replies
   useEffect(() => {
     const handleSync = (e?: any) => {
       const targetId = realBook?.id || id;
       if (!e?.detail?.bookId || e?.detail?.bookId === targetId) {
-        fetchBookReviews();
+        fetchBookReviews({ silent: true });
       }
+    };
+    const handleReplySync = (e?: any) => {
+      const detail = e?.detail;
+      if (detail?.reviewId && detail?.reply) {
+        setReviewsList((prev) =>
+          prev.map((r) =>
+            String(r.id) === String(detail.reviewId)
+              ? {
+                  ...r,
+                  replies: (r.replies || []).some((x) => String(x.id) === String(detail.reply.id))
+                    ? r.replies
+                    : [...(r.replies || []), detail.reply],
+                }
+              : r
+          )
+        );
+      }
+      fetchBookReviews({ silent: true });
     };
     const handleStorage = (e: StorageEvent) => {
       if (e.key === 'huki_review_sync') {
-        fetchBookReviews();
+        fetchBookReviews({ silent: true });
       }
     };
+    const unsubscribeNotifs = realtimeSyncBus.subscribe((event) => {
+      if (event.type === 'NOTIFICATIONS_UPDATED') {
+        const type = String((event.payload as any)?.type || '').toUpperCase();
+        if (!type || type === 'NEW_REVIEW' || type === 'NEW_REPLY') {
+          fetchBookReviews({ silent: true });
+        }
+      }
+    });
     window.addEventListener('huki_review_created', handleSync);
+    window.addEventListener('huki_review_reply_created', handleReplySync);
     window.addEventListener('storage', handleStorage);
     return () => {
+      unsubscribeNotifs();
       window.removeEventListener('huki_review_created', handleSync);
+      window.removeEventListener('huki_review_reply_created', handleReplySync);
       window.removeEventListener('storage', handleStorage);
     };
   }, [fetchBookReviews, realBook?.id, id]);
@@ -1850,7 +1883,21 @@ export default function BookDetailPage() {
                           canReply={isSellerOrAdmin}
                           isOwner={Boolean(isMyReview)}
                           onEdit={isMyReview ? () => setIsReviewModalOpen(true) : undefined}
-                          onReplySuccess={() => fetchBookReviews()}
+                          onReplySuccess={(reply) => {
+                            setReviewsList((prev) =>
+                              prev.map((r) =>
+                                String(r.id) === String(rev.id)
+                                  ? {
+                                      ...r,
+                                      replies: (r.replies || []).some((x) => String(x.id) === String(reply.id))
+                                        ? r.replies
+                                        : [...(r.replies || []), reply],
+                                    }
+                                  : r
+                              )
+                            );
+                            fetchBookReviews({ silent: true });
+                          }}
                         />
                       </div>
                     );
