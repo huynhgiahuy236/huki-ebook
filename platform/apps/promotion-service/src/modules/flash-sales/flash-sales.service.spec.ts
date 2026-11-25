@@ -276,4 +276,34 @@ describe("FlashSalesService", () => {
       }),
     );
   });
+
+  it("rejects registering a HIDDEN book with a clear status message", async () => {
+    await expect(
+      service.sellerRegisterItem(
+        "store-1",
+        {
+          flashSaleId: campaign.id,
+          bookId: item.bookId,
+          salePrice: 80_000,
+          stock: 5,
+          maxPerUser: 1,
+        },
+        {
+          flashSale: {
+            ...campaign,
+            scope: "SHOP",
+            status: "SCHEDULED",
+          },
+          book: {
+            id: item.bookId,
+            title: "Sách Đang Ẩn",
+            price: 200_000,
+            available: 20,
+            status: "HIDDEN",
+            storeId: "store-1",
+          },
+        },
+      ),
+    ).rejects.toThrow("Đang ẩn");
+  });
 });

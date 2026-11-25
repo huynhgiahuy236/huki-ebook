@@ -9,6 +9,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   Param,
   ParseUUIDPipe,
   Post,
@@ -112,8 +113,11 @@ export class SellerFlashSalesController {
   async registerItem(
     @CurrentBusiness() business: any,
     @Body() dto: SellerRegisterFlashSaleItemDto,
+    @Headers("authorization") authHeader?: string,
   ) {
-    const result = await this.flashSales.sellerRegisterItem(business.id, dto);
+    const result = await this.flashSales.sellerRegisterItem(business.id, dto, {
+      authHeader,
+    });
     return { data: result, success: true, message: "Đăng ký tham gia Flash Sale thành công" };
   }
 
@@ -127,8 +131,9 @@ export class SellerFlashSalesController {
   async registerBatch(
     @CurrentBusiness() business: any,
     @Body() dto: SellerBatchRegisterFlashSaleItemsDto,
+    @Headers("authorization") authHeader?: string,
   ) {
-    const result = await this.flashSales.sellerRegisterBatch(business.id, dto);
+    const result = await this.flashSales.sellerRegisterBatch(business.id, dto, authHeader);
     return { data: result, success: true, message: `Đã đăng ký thành công ${result.registeredCount} sản phẩm vào Flash Sale` };
   }
 

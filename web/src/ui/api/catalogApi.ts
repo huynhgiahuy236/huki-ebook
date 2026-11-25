@@ -239,12 +239,14 @@ export const catalogApi = {
     limit?: number;
     business?: string;
     format?: BookFormat;
+    status?: string;
   }): Promise<ApiResponse<BookData[]>> {
     const query = new URLSearchParams();
     if (params?.page) query.set('page', String(params.page));
     if (params?.limit) query.set('limit', String(params.limit));
     if (params?.business) query.set('business', params.business);
     if (params?.format) query.set('format', params.format);
+    if (params?.status) query.set('status', params.status);
     return apiClient<BookData[]>(`/books/owned${query.toString() ? `?${query.toString()}` : ''}`, {
       method: 'GET',
     });

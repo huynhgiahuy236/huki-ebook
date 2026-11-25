@@ -634,7 +634,7 @@ export function SellerFlashSaleView() {
       const [slotsRes, itemsRes, booksSellerRes] = await Promise.all([
         flashSaleApi.getSellerSlots(),
         flashSaleApi.getSellerMyItems(),
-        catalogApi.getSellerBooks({ limit: 100, ...(bizId ? { business: bizId } : {}) }).catch(() => null),
+        catalogApi.getSellerBooks({ limit: 100, status: 'PUBLISHED', ...(bizId ? { business: bizId } : {}) }).catch(() => null),
       ]);
 
       if (slotsRes.success && slotsRes.data) {
@@ -669,7 +669,8 @@ export function SellerFlashSaleView() {
           : [];
       }
 
-      const finalBooks = books;
+      // Only publicly published books can join public Flash Sale campaigns
+      const finalBooks = books.filter((b) => !b.status || b.status === 'PUBLISHED');
       setRawBooks(finalBooks);
 
       // Preserve unsaved form selection state during silent background refreshes

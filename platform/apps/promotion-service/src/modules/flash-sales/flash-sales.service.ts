@@ -1570,23 +1570,24 @@ export class FlashSalesService
 
   private bookCache = new Map<string, { book: any; expiresAt: number }>();
 
-  private async getCommerceBookCached(bookId: string) {
+  private async getCommerceBookCached(bookId: string, authHeader?: string) {
     const cached = this.bookCache.get(bookId);
     if (cached && Date.now() < cached.expiresAt) {
       return cached.book;
     }
-    const book = await this.getCommerceBook(bookId);
-    if (book) {
+    const book = await this.getCommerceBook(bookId, authHeader);
+    if (book && (!book.status || book.status === "PUBLISHED")) {
       this.bookCache.set(bookId, { book, expiresAt: Date.now() + 60_000 });
     }
     return book;
   }
 
-  private async getCommerceBook(bookId: string) {
+  private async getCommerceBook(bookId: string, authHeader?: string) {
     try {
       const baseUrl = this.getCommerceBaseUrl();
       const response = await fetch(`${baseUrl}/api/v1/books/${bookId}`, {
-        signal: AbortSignal.timeout(3_000),
+        headers: authHeader ? { Authorization: authHeader } : undefined,
+        signal: AbortSignal.timeout(5_000),
       });
       if (!response.ok) return null;
       const body = (await response.json()) as any;
@@ -1597,6 +1598,29 @@ export class FlashSalesService
       );
       return null;
     }
+  }
+
+  /** Fetch book records from commerce-service in controlled chunks to avoid connection pool spikes on large batches. */
+  private async preloadCommerceBooks(
+    bookIds: string[],
+    authHeader?: string,
+    batchSize = 10,
+  ): Promise<Map<string, any>> {
+    const uniqueBookIds = Array.from(new Set(bookIds));
+    const bookMap = new Map<string, any>();
+    for (let i = 0; i < uniqueBookIds.length; i += batchSize) {
+      const chunk = uniqueBookIds.slice(i, i + batchSize);
+      const loaded = await Promise.all(
+        chunk.map(async (bookId) => ({
+          bookId,
+          book: await this.getCommerceBookCached(bookId, authHeader),
+        })),
+      );
+      loaded.forEach(({ bookId, book }) => {
+        if (book) bookMap.set(bookId, book);
+      });
+    }
+    return bookMap;
   }
 
   private async getCommerceBooks() {
@@ -1734,6 +1758,7 @@ export class FlashSalesService
       book?: any;
       participatingStoreIds?: string[];
       skipSyncStock?: boolean;
+      authHeader?: string;
     },
   ) {
     if (!businessId) {
@@ -1763,11 +1788,29 @@ export class FlashSalesService
       );
     }
 
-    const book = preloaded?.book || (await this.getCommerceBookCached(dto.bookId));
+    const book =
+      preloaded?.book ||
+      (await this.getCommerceBookCached(dto.bookId, preloaded?.authHeader));
     if (!book) {
       throwNotFound(
         ErrorCode.BOOK_NOT_FOUND,
         "Không tìm thấy thông tin sách trong kho hàng",
+      );
+    }
+    if (book.status && book.status !== "PUBLISHED") {
+      const statusLabel =
+        book.status === "HIDDEN"
+          ? "Đang ẩn"
+          : book.status === "DRAFT"
+          ? "Bản nháp"
+          : book.status === "ARCHIVED"
+          ? "Đã lưu trữ"
+          : book.status === "SUSPENDED"
+          ? "Bị tạm khóa"
+          : book.status;
+      throwBadRequest(
+        ErrorCode.FLASH_SALE_NOT_ACTIVE,
+        `Sách "${book.title || dto.bookId}" đang ở trạng thái "${statusLabel}", vui lòng xuất bản công khai trước khi đăng ký Flash Sale`,
       );
     }
 
@@ -1941,13 +1984,15 @@ export class FlashSalesService
   async sellerRegisterBatch(
     businessId: string,
     dto: SellerBatchRegisterFlashSaleItemsDto,
+    authHeader?: string,
   ) {
-    return this.sellerBatchRegisterItems(businessId, dto);
+    return this.sellerBatchRegisterItems(businessId, dto, authHeader);
   }
 
   async sellerBatchRegisterItems(
     businessId: string,
     dto: SellerBatchRegisterFlashSaleItemsDto,
+    authHeader?: string,
   ) {
     if (!businessId) {
       throwForbidden(
@@ -1974,23 +2019,16 @@ export class FlashSalesService
       );
     }
 
-    // Pre-fetch books and store participation ONCE in parallel to avoid N+1 latency (BUG-051)
-    const uniqueBookIds = Array.from(new Set(dto.items.map((item) => item.bookId)));
-    const [preloadedBooks, participatingStoreIds] = await Promise.all([
-      Promise.all(
-        uniqueBookIds.map(async (bookId) => ({
-          bookId,
-          book: await this.getCommerceBookCached(bookId),
-        })),
+    // Pre-fetch books in controlled chunks and store participation ONCE to avoid N+1 & pool saturation
+    const [bookCacheMap, participatingStoreIds] = await Promise.all([
+      this.preloadCommerceBooks(
+        dto.items.map((item) => item.bookId),
+        authHeader,
       ),
       flashSale.scope === FlashSaleScope.PLATFORM
         ? this.getParticipatingStoreIds(dto.flashSaleId)
         : Promise.resolve([] as string[]),
     ]);
-    const bookCacheMap = new Map<string, any>();
-    preloadedBooks.forEach(({ bookId, book }) => {
-      if (book) bookCacheMap.set(bookId, book);
-    });
 
     const results: any[] = [];
     const errors: any[] = [];
@@ -2013,6 +2051,7 @@ export class FlashSalesService
               flashSale,
               book: bookCacheMap.get(itemDto.bookId),
               participatingStoreIds,
+              authHeader,
             },
           ),
         ),
@@ -2081,16 +2120,9 @@ export class FlashSalesService
       orderBy: { createdAt: "desc" },
     });
 
-    // Batch query unique books in parallel to eliminate N+1 latency & CPU choking
-    const uniqueBookIds = Array.from(new Set(allItems.map((it) => it.bookId)));
-    const bookMap = new Map<string, any>();
-    await Promise.all(
-      uniqueBookIds.map(async (bookId) => {
-        const book = await this.getCommerceBookCached(bookId);
-        if (book) {
-          bookMap.set(bookId, book);
-        }
-      })
+    // Batch query unique books in chunks to eliminate N+1 latency & CPU choking
+    const bookMap = await this.preloadCommerceBooks(
+      allItems.map((it) => it.bookId),
     );
 
     const results: any[] = [];
