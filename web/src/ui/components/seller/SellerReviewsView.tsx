@@ -95,7 +95,7 @@ export function SellerReviewsView() {
       ]);
 
       const stores = (storesRes.success && Array.isArray(storesRes.data)) ? storesRes.data : [];
-      
+
       const extractItems = (resData: any): any[] => {
         if (!resData) return [];
         if (Array.isArray(resData)) return resData;
@@ -334,7 +334,7 @@ export function SellerReviewsView() {
         );
         try {
           localStorage.setItem('huki_review_sync', String(Date.now()));
-        } catch {}
+        } catch { }
         loadData(true);
       } else {
         showToast(res.error?.message || 'Không thể gửi phản hồi.', 'error');
@@ -569,9 +569,8 @@ export function SellerReviewsView() {
               {[1, 2, 3, 4, 5].map((i) => (
                 <span
                   key={i}
-                  className={`material-symbols-outlined text-[13px] ${
-                    i <= (rev.rating || 5) ? 'text-[#fea619]' : 'text-slate-200'
-                  }`}
+                  className={`material-symbols-outlined text-[13px] ${i <= (rev.rating || 5) ? 'text-[#fea619]' : 'text-slate-200'
+                    }`}
                   style={{ fontVariationSettings: "'FILL' 1" }}
                 >
                   star
@@ -732,7 +731,7 @@ export function SellerReviewsView() {
     );
   };
 
-    return (
+  return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto pb-16 font-sans animate-in fade-in duration-200 min-w-0 max-w-full overflow-hidden">
       {/* 1. Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 sm:p-6 rounded-2xl border border-slate-200/80 shadow-2xs">
@@ -795,11 +794,10 @@ export function SellerReviewsView() {
               {[1, 2, 3, 4, 5].map((i) => (
                 <span
                   key={i}
-                  className={`material-symbols-outlined text-[13px] ${
-                    i <= Math.round(Number(stats.averageRating)) && Number(stats.averageRating) > 0
-                      ? 'text-[#fea619]'
-                      : 'text-slate-200'
-                  }`}
+                  className={`material-symbols-outlined text-[13px] ${i <= Math.round(Number(stats.averageRating)) && Number(stats.averageRating) > 0
+                    ? 'text-[#fea619]'
+                    : 'text-slate-200'
+                    }`}
                   style={{ fontVariationSettings: "'FILL' 1" }}
                 >
                   star
@@ -1018,9 +1016,8 @@ export function SellerReviewsView() {
                       {[1, 2, 3, 4, 5].map((i) => (
                         <span
                           key={i}
-                          className={`material-symbols-outlined text-base ${
-                            i <= (selectedReview.rating || 5) ? 'text-[#fea619]' : 'text-slate-200'
-                          }`}
+                          className={`material-symbols-outlined text-base ${i <= (selectedReview.rating || 5) ? 'text-[#fea619]' : 'text-slate-200'
+                            }`}
                           style={{ fontVariationSettings: "'FILL' 1" }}
                         >
                           star

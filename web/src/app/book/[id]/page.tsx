@@ -86,7 +86,7 @@ export default function BookDetailPage() {
       if (Array.isArray(saved) && id) {
         setIsWishlisted(saved.includes(id));
       }
-    } catch (e) {}
+    } catch (e) { }
 
     const handleWishlistUpdated = (e: any) => {
       if (e?.detail?.bookId === id) {
@@ -125,7 +125,7 @@ export default function BookDetailPage() {
       realtimeSyncBus.publish('WISHLIST_UPDATED', { bookId: book.id, wishlisted: willWishlist, newIds });
       showToast(willWishlist ? 'Đã lưu vào danh sách Yêu thích!' : 'Đã bỏ khỏi Yêu thích', 'info');
       if (isLoggedIn) {
-        userApi.updateProfile({ wishlist: newIds }).catch(() => {});
+        userApi.updateProfile({ wishlist: newIds }).catch(() => { });
       }
       if (willWishlist) {
         trackEvent.addToWishlist(book.id, realBook?.categoryId);
@@ -150,7 +150,7 @@ export default function BookDetailPage() {
           return;
         }
       }
-    } catch (err) {}
+    } catch (err) { }
     try {
       const url = new URL(shareUrl);
       url.searchParams.delete('ref');
@@ -449,11 +449,11 @@ export default function BookDetailPage() {
           prev.map((r) =>
             String(r.id) === String(detail.reviewId)
               ? {
-                  ...r,
-                  replies: (r.replies || []).some((x) => String(x.id) === String(detail.reply.id))
-                    ? r.replies
-                    : [...(r.replies || []), detail.reply],
-                }
+                ...r,
+                replies: (r.replies || []).some((x) => String(x.id) === String(detail.reply.id))
+                  ? r.replies
+                  : [...(r.replies || []), detail.reply],
+              }
               : r
           )
         );
@@ -1296,10 +1296,10 @@ export default function BookDetailPage() {
                         key={fmt.type}
                         onClick={() => setSelectedFormat(fmt.type)}
                         className={`p-3 rounded-xl cursor-pointer transition-colors border-[1.5px] flex items-center justify-between gap-3 select-none ${isSelected
-                            ? 'border-[#006953] bg-[#006953]/5 shadow-2xs'
-                            : isDiscounted
-                              ? 'border-rose-200/80 bg-rose-50/10 hover:border-rose-300'
-                              : 'border-gray-200 bg-white hover:border-gray-300'
+                          ? 'border-[#006953] bg-[#006953]/5 shadow-2xs'
+                          : isDiscounted
+                            ? 'border-rose-200/80 bg-rose-50/10 hover:border-rose-300'
+                            : 'border-gray-200 bg-white hover:border-gray-300'
                           }`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0 pr-2">
@@ -1428,8 +1428,8 @@ export default function BookDetailPage() {
                       title="Thêm Vào Giỏ Hàng"
                       aria-label="Thêm Vào Giỏ Hàng"
                       className={`w-11 h-10 shrink-0 border rounded-xl transition-colors flex items-center justify-center cursor-pointer ${isOutOfStock
-                          ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : 'border-[#006953] text-[#006953] hover:bg-[#006953]/10'
+                        ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'border-[#006953] text-[#006953] hover:bg-[#006953]/10'
                         }`}
                     >
                       <span className="material-symbols-outlined text-[20px]">add_shopping_cart</span>
@@ -1438,8 +1438,8 @@ export default function BookDetailPage() {
                       onClick={handleBuyNow}
                       disabled={isOutOfStock}
                       className={`flex-1 h-10 rounded-xl font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${isOutOfStock
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          : 'bg-[#006953] hover:bg-[#00523c] text-white'
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-[#006953] hover:bg-[#00523c] text-white'
                         }`}
                     >
                       <span className="material-symbols-outlined text-[18px]">shopping_cart_checkout</span>
@@ -1766,8 +1766,8 @@ export default function BookDetailPage() {
                     <button
                       onClick={() => setReviewsFilterRating(undefined)}
                       className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${reviewsFilterRating === undefined
-                          ? 'bg-[#003B2B] text-white shadow-xs'
-                          : 'text-slate-600 dark:text-zinc-300 hover:text-slate-900'
+                        ? 'bg-[#003B2B] text-white shadow-xs'
+                        : 'text-slate-600 dark:text-zinc-300 hover:text-slate-900'
                         }`}
                     >
                       Tất cả
@@ -1777,8 +1777,8 @@ export default function BookDetailPage() {
                         key={r}
                         onClick={() => setReviewsFilterRating(r)}
                         className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${reviewsFilterRating === r
-                            ? 'bg-[#003B2B] text-white shadow-xs'
-                            : 'text-slate-600 dark:text-zinc-300 hover:text-slate-900'
+                          ? 'bg-[#003B2B] text-white shadow-xs'
+                          : 'text-slate-600 dark:text-zinc-300 hover:text-slate-900'
                           }`}
                       >
                         {r}★
@@ -1888,11 +1888,11 @@ export default function BookDetailPage() {
                               prev.map((r) =>
                                 String(r.id) === String(rev.id)
                                   ? {
-                                      ...r,
-                                      replies: (r.replies || []).some((x) => String(x.id) === String(reply.id))
-                                        ? r.replies
-                                        : [...(r.replies || []), reply],
-                                    }
+                                    ...r,
+                                    replies: (r.replies || []).some((x) => String(x.id) === String(reply.id))
+                                      ? r.replies
+                                      : [...(r.replies || []), reply],
+                                  }
                                   : r
                               )
                             );
@@ -1962,8 +1962,8 @@ export default function BookDetailPage() {
                 onClick={handleConfirmUnfollow}
                 disabled={unfollowCountdown > 0 || isUnfollowing}
                 className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-sm ${unfollowCountdown > 0 || isUnfollowing
-                    ? 'bg-gray-400 cursor-not-allowed opacity-80'
-                    : 'bg-rose-600 hover:bg-rose-700 cursor-pointer'
+                  ? 'bg-gray-400 cursor-not-allowed opacity-80'
+                  : 'bg-rose-600 hover:bg-rose-700 cursor-pointer'
                   }`}
               >
                 {isUnfollowing ? (
