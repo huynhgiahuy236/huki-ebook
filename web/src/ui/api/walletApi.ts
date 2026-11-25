@@ -253,6 +253,7 @@ export interface SellerEscrowItem {
   paymentStatus?: string;
   shippingAddress?: string;
   format?: string;
+  paidAt?: string | null;
   deliveredAt?: string | null;
   requiresShipping?: boolean;
   storeId: string;

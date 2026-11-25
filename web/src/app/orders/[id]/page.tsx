@@ -601,7 +601,12 @@ export default function OrderDetailPage() {
       status: isDelivered || isPaid ? 'completed' : 'upcoming',
       icon: 'auto_stories',
       returnAlert: (isDelivered || isPaid) && !isCancelled && (() => {
-        const rawTime = (order as any).paidAt || digitalSellerOrder?.completedAt || order.createdAt;
+        const rawTime =
+          (order as any).paidAt ||
+          digitalSellerOrder?.completedAt ||
+          digitalSellerOrder?.updatedAt ||
+          order.updatedAt ||
+          order.createdAt;
         if (!rawTime) return false;
         const elapsed = (Date.now() - new Date(rawTime).getTime()) / 1000;
         return elapsed < ESCROW_CONFIG.HOLD_DURATION_SECONDS;
@@ -1151,38 +1156,18 @@ export default function OrderDetailPage() {
                                 const itPrice = Number(item.unitPrice || item.price || 0);
                                 const itSubtotal = Number(item.subtotal || itPrice * (item.quantity || 1));
 
+                                const ebookStartTime =
+                                  (order as any).paidAt || so.completedAt || so.updatedAt || order.updatedAt || order.createdAt;
                                 const isEbookSettled = !!settledEscrowStores[`${so.id}_ebook`];
                                 const isEbookTimeExpired = (() => {
-                                  if (so.escrowStatus === 'ESCROW_SETTLED' || (order as any).escrowStatus === 'ESCROW_SETTLED') return true;
-
-                                  const rawStart = (order as any).paidAt || so.completedAt || order.createdAt;
-                                  let startTimestamp: number | null = null;
-                                  if (rawStart) {
-                                    const parsed = new Date(rawStart).getTime();
+                                  if (so.escrowStatus === 'ESCROW_SETTLED' || so.escrowStatus === 'RELEASED' || (order as any).escrowStatus === 'ESCROW_SETTLED' || (order as any).escrowStatus === 'RELEASED') return true;
+                                  if (ebookStartTime) {
+                                    const parsed = new Date(ebookStartTime).getTime();
                                     if (!isNaN(parsed) && parsed > 0) {
-                                      startTimestamp = parsed;
+                                      const elapsed = Math.floor((Date.now() - parsed) / 1000);
+                                      if (elapsed >= ESCROW_CONFIG.HOLD_DURATION_SECONDS) return true;
                                     }
                                   }
-
-                                  if (typeof window !== 'undefined' && isOrderPaid) {
-                                    const storageKey = `huki_escrow_timer_${order.id || ''}_${so.id}_ebook`;
-                                    const stored = localStorage.getItem(storageKey);
-                                    if (stored) {
-                                      const parsedStored = Number(stored);
-                                      if (!isNaN(parsedStored) && parsedStored > 0) {
-                                        startTimestamp = startTimestamp ? Math.min(startTimestamp, parsedStored) : parsedStored;
-                                      }
-                                    } else if (!startTimestamp) {
-                                      startTimestamp = Date.now();
-                                      localStorage.setItem(storageKey, String(startTimestamp));
-                                    }
-                                  }
-
-                                  if (startTimestamp) {
-                                    const elapsed = (Date.now() - startTimestamp) / 1000;
-                                    if (elapsed >= ESCROW_CONFIG.HOLD_DURATION_SECONDS) return true;
-                                  }
-
                                   return false;
                                 })();
                                 const existingReturn = returnRequests.find(
@@ -1305,7 +1290,7 @@ export default function OrderDetailPage() {
                                   subOrderId={`${so.id}_ebook`}
                                   storeName={`${storeDisplayName} (Ebook)`}
                                   amount={ebookSubtotal}
-                                  startTime={(order as any).paidAt || so.completedAt || order.createdAt}
+                                  startTime={(order as any).paidAt || so.completedAt || so.updatedAt || order.updatedAt || order.createdAt}
                                   isEbook={true}
                                   hideConfirmButton={true}
                                   isFrozen={returnRequests.some(
@@ -1363,38 +1348,19 @@ export default function OrderDetailPage() {
                                 const itPrice = Number(item.unitPrice || item.price || 0);
                                 const itSubtotal = Number(item.subtotal || itPrice * (item.quantity || 1));
 
+                                const physicalStartTime = so.deliveredAt || so.completedAt || (order as any).deliveredAt || so.updatedAt || order.updatedAt;
                                 const isPhysicalSettled = !!settledEscrowStores[`${so.id}_physical`];
 
-                                // Check if return window (120s / 2 minutes) has expired based on delivery timestamps or localStorage
+                                // Synchronized strictly with server delivery timestamp & Admin/Seller Escrow SSOT
                                 const isTimeExpired = (() => {
-                                  if (so.escrowStatus === 'ESCROW_SETTLED' || (order as any).escrowStatus === 'ESCROW_SETTLED') return true;
+                                  if (so.escrowStatus === 'ESCROW_SETTLED' || so.escrowStatus === 'RELEASED' || (order as any).escrowStatus === 'ESCROW_SETTLED' || (order as any).escrowStatus === 'RELEASED') return true;
 
-                                  const rawStart = so.deliveredAt || so.completedAt || (order as any).deliveredAt;
-                                  let startTimestamp: number | null = null;
-                                  if (rawStart) {
-                                    const parsed = new Date(rawStart).getTime();
+                                  if (physicalStartTime) {
+                                    const parsed = new Date(physicalStartTime).getTime();
                                     if (!isNaN(parsed) && parsed > 0) {
-                                      startTimestamp = parsed;
+                                      const elapsed = Math.floor((Date.now() - parsed) / 1000);
+                                      if (elapsed >= ESCROW_CONFIG.HOLD_DURATION_SECONDS) return true;
                                     }
-                                  }
-
-                                  if (typeof window !== 'undefined' && isPhysicalDelivered) {
-                                    const storageKey = `huki_escrow_timer_${order.id || ''}_${so.id}_physical`;
-                                    const stored = localStorage.getItem(storageKey);
-                                    if (stored) {
-                                      const parsedStored = Number(stored);
-                                      if (!isNaN(parsedStored) && parsedStored > 0) {
-                                        startTimestamp = startTimestamp ? Math.min(startTimestamp, parsedStored) : parsedStored;
-                                      }
-                                    } else if (!startTimestamp) {
-                                      startTimestamp = Date.now();
-                                      localStorage.setItem(storageKey, String(startTimestamp));
-                                    }
-                                  }
-
-                                  if (startTimestamp) {
-                                    const elapsed = (Date.now() - startTimestamp) / 1000;
-                                    if (elapsed >= ESCROW_CONFIG.HOLD_DURATION_SECONDS) return true;
                                   }
 
                                   return false;

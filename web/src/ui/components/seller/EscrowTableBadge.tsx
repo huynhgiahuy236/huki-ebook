@@ -16,16 +16,24 @@ export interface EscrowTableBadgeProps {
  * - Hết thời hạn: Tự động chuyển màu xanh "Đã Vào Ví" và kích hoạt onAutoRelease
  */
 export default function EscrowTableBadge({ item, onAutoRelease }: EscrowTableBadgeProps) {
+  const isDigital =
+    item.format === 'DIGITAL' ||
+    Boolean(item.bookTitle?.toLowerCase().includes('ebook'));
+
   const isDelivered =
     item.orderStatus === 'DELIVERED' ||
     item.orderStatus === 'COMPLETED' ||
-    Boolean(item.deliveredAt);
+    Boolean(item.deliveredAt) ||
+    (isDigital && item.escrowStatus === 'HOLDING');
 
   const calculateRemaining = () => {
     if (item.escrowStatus === 'RELEASED') return 0;
     if (!isDelivered) return ESCROW_CONFIG.HOLD_DURATION_SECONDS;
 
-    const startTimestamp = new Date(item.deliveredAt || item.orderCreatedAt).getTime();
+    const rawStart = isDigital
+      ? item.paidAt || item.deliveredAt || item.orderCreatedAt
+      : item.deliveredAt || item.orderCreatedAt;
+    const startTimestamp = new Date(rawStart).getTime();
     if (isNaN(startTimestamp) || startTimestamp <= 0) return ESCROW_CONFIG.HOLD_DURATION_SECONDS;
 
     const elapsed = Math.floor((Date.now() - startTimestamp) / 1000);

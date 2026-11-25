@@ -50,7 +50,7 @@ export default function EscrowCountdown({
       }
     }
 
-    // LocalStorage fallback based on orderId/subOrderId to preserve countdown on page reload
+    // Fallback based on localStorage only when server timestamp is unavailable
     const storageKey = `huki_escrow_timer_${orderId || ''}_${subOrderId || ''}`;
     if (!startTimestamp && typeof window !== 'undefined' && (orderId || subOrderId)) {
       const stored = localStorage.getItem(storageKey);
@@ -83,9 +83,7 @@ export default function EscrowCountdown({
   useEffect(() => {
     const initial = calculateRemainingSeconds();
     setSecondsLeft(initial);
-    if (initial <= 0) {
-      setIsCompleted(true);
-    }
+    setIsCompleted(initial <= 0);
   }, [calculateRemainingSeconds]);
 
   useEffect(() => {
@@ -93,24 +91,32 @@ export default function EscrowCountdown({
   }, [isFrozen]);
 
   useEffect(() => {
-    if (frozen || isCompleted || secondsLeft <= 0) {
+    if (frozen || isCompleted) {
       if (timerRef.current) clearInterval(timerRef.current);
       return;
     }
 
-    timerRef.current = setInterval(() => {
-      setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    const syncRemaining = () => {
+      const next = calculateRemainingSeconds();
+      setSecondsLeft(next);
+      if (next <= 0) {
+        if (timerRef.current) clearInterval(timerRef.current);
+      }
+    };
+
+    syncRemaining();
+    timerRef.current = setInterval(syncRemaining, 1000);
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', syncRemaining);
+    }
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', syncRemaining);
+      }
     };
-  }, [frozen, isCompleted, secondsLeft]);
+  }, [frozen, isCompleted, calculateRemainingSeconds]);
 
   // When countdown finishes, automatically release escrow funds to seller (Zero-F5 Shopee flow)
   useEffect(() => {

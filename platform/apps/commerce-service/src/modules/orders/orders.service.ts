@@ -1170,6 +1170,9 @@ export class OrdersService {
           confirmedAt: so.confirmedAt,
           shippedAt: so.shippedAt,
           completedAt: so.completedAt,
+          deliveredAt:
+            so.completedAt ||
+            (so.status === 'DELIVERED' || so.status === 'COMPLETED' ? so.updatedAt : null),
           cancelledAt: so.cancelledAt,
           cancelReason: so.cancelReason,
           createdAt: so.createdAt,
@@ -1190,7 +1193,7 @@ export class OrdersService {
     );
 
     const succeededPayment = Array.isArray(order.payments)
-      ? order.payments.find((p: any) => p.paidAt) || order.payments[0]
+      ? order.payments.find((p: any) => p.paidAt || p.updatedAt || p.createdAt) || order.payments[0]
       : null;
     const digitalCompletedAt = sellerOrders.find(
       (so: any) => !so.requiresShipping && so.completedAt,
@@ -1198,6 +1201,8 @@ export class OrdersService {
     const paidAt =
       order.paidAt ||
       succeededPayment?.paidAt ||
+      succeededPayment?.updatedAt ||
+      succeededPayment?.createdAt ||
       digitalCompletedAt ||
       null;
 

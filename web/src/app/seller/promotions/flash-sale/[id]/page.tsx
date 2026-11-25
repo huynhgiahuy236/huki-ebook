@@ -9,6 +9,7 @@ import { catalogApi, type BookData } from '@/ui/api/catalogApi';
 import { businessApi } from '@/ui/api/businessApi';
 import { flashSaleApi, invalidateFlashSaleCache, type FlashSaleSlot } from '@/ui/api/flashSaleApi';
 import { SellerActionButton, SellerStatusBadge } from '@/ui/components/seller/SellerUI';
+import { StandardPaginationBar } from '@/ui/components/common/GroupedDataTable';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 interface AddableBookConfig {
@@ -53,6 +54,11 @@ export default function SellerFlashSaleDetailPage() {
   const [slot, setSlot] = useState<FlashSaleSlot | any>(null);
   const [items, setItems] = useState<any[]>([]);
   const [sellerBooks, setSellerBooks] = useState<BookData[]>([]);
+
+  // Pagination & quick filter for registered books table
+  const PAGE_SIZE = 10;
+  const [itemSearch, setItemSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Inline Edit Item state
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -628,40 +634,81 @@ export default function SellerFlashSaleDetailPage() {
           )}
 
           <section className="bg-white border border-slate-200/80 rounded-2xl shadow-2xs overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-2">
-              <h2 className="font-bold text-sm text-slate-900 flex items-center gap-2 font-editorial">
-                <span className="material-symbols-outlined text-[#00875A] text-[18px]">menu_book</span>
-                <span>Danh sách ấn phẩm trong đợt ({items.length})</span>
-              </h2>
-            </div>
+            {(() => {
+              const q = itemSearch.trim().toLowerCase();
+              const filteredItems = q
+                ? items.filter(
+                    (it) =>
+                      (it.book?.title || it.title || '').toLowerCase().includes(q) ||
+                      getAuthorLabel(it.book?.author).toLowerCase().includes(q)
+                  )
+                : items;
+              const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
+              const safePage = Math.min(Math.max(1, currentPage), totalPages);
+              const paginatedItems = filteredItems.slice(
+                (safePage - 1) * PAGE_SIZE,
+                safePage * PAGE_SIZE
+              );
 
-            {items.length === 0 ? (
-              <div className="py-12 px-6 text-center text-slate-400 text-xs space-y-2">
-                <p>Chưa có sản phẩm nào được đăng ký trong khung giờ này.</p>
-                {!statusMeta.isEnded && (
-                  <button
-                    type="button"
-                    onClick={openAddPanel}
-                    className="text-[#00875A] font-bold hover:underline cursor-pointer"
-                  >
-                    + Thêm sách vào đợt ngay
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-slate-50 text-slate-500 uppercase text-[10.5px] font-bold tracking-wider border-b border-slate-200">
-                    <tr>
-                      <th className="py-3 px-4 min-w-[230px]">Sản phẩm</th>
-                      <th className="py-3 px-3 min-w-[150px]">Giá Flash Sale</th>
-                      <th className="py-3 px-3 min-w-[150px]">Tiến độ bán</th>
-                      <th className="py-3 px-3 min-w-[90px] text-center">Giới hạn</th>
-                      <th className="py-3 px-4 min-w-[140px] text-right">Thao tác</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {items.map((item) => {
+              return (
+                <>
+                  <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <h2 className="font-bold text-sm text-slate-900 flex items-center gap-2 font-editorial">
+                      <span className="material-symbols-outlined text-[#00875A] text-[18px]">menu_book</span>
+                      <span>Danh sách ấn phẩm trong đợt ({items.length})</span>
+                    </h2>
+
+                    {items.length > 0 && (
+                      <div className="relative min-w-[220px]">
+                        <span className="material-symbols-outlined text-[16px] text-slate-400 absolute left-3 top-1/2 -translate-y-1/2">
+                          search
+                        </span>
+                        <input
+                          type="text"
+                          value={itemSearch}
+                          onChange={(e) => {
+                            setItemSearch(e.target.value);
+                            setCurrentPage(1);
+                          }}
+                          placeholder="Tìm sách trong đợt..."
+                          className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-[#00875A]"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {filteredItems.length === 0 ? (
+                    <div className="py-12 px-6 text-center text-slate-400 text-xs space-y-2">
+                      <p>
+                        {items.length === 0
+                          ? 'Chưa có sản phẩm nào được đăng ký trong khung giờ này.'
+                          : 'Không tìm thấy ấn phẩm khớp từ khóa tìm kiếm.'}
+                      </p>
+                      {items.length === 0 && !statusMeta.isEnded && (
+                        <button
+                          type="button"
+                          onClick={openAddPanel}
+                          className="text-[#00875A] font-bold hover:underline cursor-pointer"
+                        >
+                          + Thêm sách vào đợt ngay
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="bg-slate-50 text-slate-500 uppercase text-[10.5px] font-bold tracking-wider border-b border-slate-200">
+                            <tr>
+                              <th className="py-3 px-4 min-w-[230px]">Sản phẩm</th>
+                              <th className="py-3 px-3 min-w-[150px]">Giá Flash Sale</th>
+                              <th className="py-3 px-3 min-w-[150px]">Tiến độ bán</th>
+                              <th className="py-3 px-3 min-w-[90px] text-center">Giới hạn</th>
+                              <th className="py-3 px-4 min-w-[140px] text-right">Thao tác</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-slate-700">
+                            {paginatedItems.map((item) => {
                       const orig = Number(item.originalPrice || item.book?.price || 0);
                       const sale = Number(item.salePrice || 0);
                       const sold = Number(item.sold || 0);
@@ -841,10 +888,23 @@ export default function SellerFlashSaleDetailPage() {
                         </tr>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <StandardPaginationBar
+                        currentPage={safePage}
+                        totalPages={totalPages}
+                        totalItems={filteredItems.length}
+                        pageSize={PAGE_SIZE}
+                        onPageChange={setCurrentPage}
+                        itemLabel="ấn phẩm"
+                      />
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </section>
         </div>
 
