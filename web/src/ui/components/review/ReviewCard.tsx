@@ -95,10 +95,10 @@ export default function ReviewCard({
 
   const formattedDate = review.createdAt
     ? new Date(review.createdAt).toLocaleDateString('vi-VN', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      })
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
     : 'Gần đây';
 
   const imageList: string[] = Array.isArray(review.images)
@@ -168,7 +168,7 @@ export default function ReviewCard({
         );
         try {
           localStorage.setItem('huki_review_sync', String(Date.now()));
-        } catch {}
+        } catch { }
         if (onReplySuccess) onReplySuccess(newReply);
       } else if (res.error?.code === 'REVIEW_ALREADY_EXISTS') {
         showToast('Gian hàng đã gửi phản hồi cho đánh giá này.', 'error');
@@ -233,9 +233,8 @@ export default function ReviewCard({
             {[1, 2, 3, 4, 5].map((star) => (
               <span
                 key={star}
-                className={`material-symbols-outlined text-[15px] sm:text-base ${
-                  star <= review.rating ? 'text-amber-500' : 'text-slate-200 dark:text-zinc-700'
-                }`}
+                className={`material-symbols-outlined text-[15px] sm:text-base ${star <= review.rating ? 'text-amber-500' : 'text-slate-200 dark:text-zinc-700'
+                  }`}
                 style={{ fontVariationSettings: "'FILL' 1" }}
               >
                 star
@@ -384,16 +383,14 @@ export default function ReviewCard({
           <button
             type="button"
             onClick={handleToggleHelpful}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
-              isHelpful
-                ? 'bg-emerald-500/10 text-[#006953] dark:text-emerald-400 border border-emerald-500/30 font-bold shadow-2xs'
-                : 'bg-slate-50 dark:bg-zinc-800/60 text-slate-500 dark:text-zinc-400 border border-slate-200/60 dark:border-zinc-700/50 hover:bg-slate-100 hover:text-slate-700'
-            }`}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer active:scale-95 ${isHelpful
+              ? 'bg-emerald-500/10 text-[#006953] dark:text-emerald-400 border border-emerald-500/30 font-bold shadow-2xs'
+              : 'bg-slate-50 dark:bg-zinc-800/60 text-slate-500 dark:text-zinc-400 border border-slate-200/60 dark:border-zinc-700/50 hover:bg-slate-100 hover:text-slate-700'
+              }`}
           >
             <span
-              className={`material-symbols-outlined text-sm ${
-                isHelpful ? 'text-[#006953] dark:text-emerald-400' : ''
-              }`}
+              className={`material-symbols-outlined text-sm ${isHelpful ? 'text-[#006953] dark:text-emerald-400' : ''
+                }`}
               style={isHelpful ? { fontVariationSettings: "'FILL' 1" } : {}}
             >
               thumb_up
