@@ -6,14 +6,17 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { catalogApi, type BookData } from '@/ui/api/catalogApi';
 import { businessApi } from '@/ui/api/businessApi';
 import { flashSaleApi, invalidateFlashSaleCache, type FlashSaleSlot } from '@/ui/api/flashSaleApi';
+import GroupedDataTable, { type Column } from '@/ui/components/common/GroupedDataTable';
 import {
+  SellerActionButton,
   SellerFilterTabs,
-  SellerPagination,
+  SellerStatusBadge,
 } from '@/ui/components/seller/SellerUI';
 import {
   sellerPenaltyService,
@@ -1461,23 +1464,202 @@ export function SellerFlashSaleView() {
     return groupedSessions.slice(start, start + pageSize);
   }, [groupedSessions, currentPage, pageSize]);
 
+  type FlashSaleSessionRow = {
+    id: string;
+    slot: FlashSaleSlot | any;
+    items: any[];
+  };
+
+  const sessionRows: FlashSaleSessionRow[] = useMemo(
+    () =>
+      groupedSessions.map(({ slot, items }) => ({
+        id: slot.id,
+        slot,
+        items,
+      })),
+    [groupedSessions]
+  );
+
+  const sessionColumns: Column<FlashSaleSessionRow>[] = useMemo(
+    () => [
+      {
+        key: 'name',
+        title: 'Đợt Flash Sale & Khung Giờ',
+        width: 300,
+        render: (_val, row) => {
+          const { slot } = row;
+          const startTimeStr = new Date(slot.startsAt).toLocaleTimeString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          const endTimeStr = new Date(slot.endsAt).toLocaleTimeString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          const dateStr = new Date(slot.startsAt).toLocaleDateString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          });
+          const isPlatform = slot.scope === 'PLATFORM' || !slot.storeId;
+
+          return (
+            <div className="py-1 space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Link
+                  href={`/seller/promotions/flash-sale/${slot.id}`}
+                  className="font-bold text-slate-900 hover:text-[#00875A] transition-colors line-clamp-1"
+                >
+                  {slot.name}
+                </Link>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200/80">
+                  {isPlatform ? 'Sàn HUKI' : 'Shop'}
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[13px] text-slate-400">schedule</span>
+                <span className="font-mono font-medium text-slate-700">
+                  {startTimeStr} – {endTimeStr}
+                </span>
+                <span className="text-slate-400">({dateStr})</span>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'items',
+        title: 'Ấn Phẩm Đăng Ký',
+        width: 240,
+        render: (_val, row) => {
+          const previewTitles = row.items
+            .slice(0, 2)
+            .map((it) => it.book?.title || it.title)
+            .filter(Boolean);
+          return (
+            <div className="py-1 space-y-0.5">
+              <div className="text-xs font-bold text-slate-800">
+                {row.items.length} ấn phẩm
+              </div>
+              {previewTitles.length > 0 ? (
+                <p className="text-[11px] text-slate-500 line-clamp-1">
+                  {previewTitles.join(', ')}
+                  {row.items.length > 2 ? ` (+${row.items.length - 2})` : ''}
+                </p>
+              ) : (
+                <p className="text-[11px] text-slate-400 italic">Chưa có sách đăng ký</p>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        key: 'progress',
+        title: 'Tiến Độ Bán Hàng',
+        width: 190,
+        render: (_val, row) => {
+          const sold = row.items.reduce((s, i) => s + Number(i.sold || 0), 0);
+          const stock = row.items.reduce((s, i) => s + Number(i.stock || 0), 0);
+          const total = sold + stock;
+          const pct = total > 0 ? Math.min(100, Math.round((sold / total) * 100)) : 0;
+          return (
+            <div className="py-1 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-600">
+                  Đã bán <strong className="text-slate-900">{sold}</strong>/{total}
+                </span>
+                <span className="font-mono text-slate-500">{pct}%</span>
+              </div>
+              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-[#00875A] rounded-full" style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'revenue',
+        title: 'Doanh Thu',
+        width: 140,
+        render: (_val, row) => {
+          const rev = row.items.reduce(
+            (s, i) => s + Number(i.sold || 0) * Number(i.salePrice || 0),
+            0
+          );
+          return (
+            <span className="font-mono text-xs font-bold text-slate-900">
+              {rev.toLocaleString('vi-VN')} đ
+            </span>
+          );
+        },
+      },
+      {
+        key: 'actions',
+        title: 'Trạng Thái & Thao Tác',
+        width: 260,
+        align: 'right',
+        render: (_val, row) => {
+          const { slot } = row;
+          const now = Date.now();
+          const startsAt = new Date(slot.startsAt || 0).getTime();
+          const endsAt = new Date(slot.endsAt || 0).getTime();
+          const isEnded = (endsAt > 0 && endsAt < now) || slot.status === 'ENDED' || slot.status === 'CANCELLED';
+          const isActive = !isEnded && ((now >= startsAt && now <= endsAt) || slot.status === 'ACTIVE');
+          const statusKey = isActive ? 'ACTIVE' : isEnded ? 'CANCELLED' : 'PENDING';
+          const statusLabel = isActive ? 'Đang mở bán' : isEnded ? 'Đã kết thúc' : 'Sắp diễn ra';
+
+          return (
+            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+              <SellerStatusBadge status={statusKey} label={statusLabel} />
+              <Link href={`/seller/promotions/flash-sale/${slot.id}`}>
+                <SellerActionButton
+                  variant="view"
+                  label="Chi tiết"
+                  icon="visibility"
+                  size="sm"
+                />
+              </Link>
+              {!isEnded && (
+                <SellerActionButton
+                  variant="primary"
+                  label="Thêm sách"
+                  icon="add"
+                  size="sm"
+                  onClick={() => handleOpenRegisterForSlot(slot.id)}
+                />
+              )}
+              {(slot.scope === 'SHOP' || slot.storeId) && (
+                <SellerActionButton
+                  variant="danger"
+                  icon="delete"
+                  title="Xóa đợt Flash Sale này"
+                  size="sm"
+                  loading={deletingSlotId === slot.id}
+                  onClick={() => handleDeleteSlot(slot.id, slot.name)}
+                />
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [deletingSlotId]
+  );
+
   return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200 font-sans pb-16 min-w-0 max-w-full overflow-hidden">
       {/* 1. Header Section */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-emerald-500/10 p-4 sm:p-6 rounded-3xl border border-amber-500/20 shadow-xs w-full min-w-0 max-w-full">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs w-full min-w-0 max-w-full">
         <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20">
-            <span className="material-symbols-outlined text-2xl animate-pulse">bolt</span>
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-200/70 text-[#00875A] flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-2xl">bolt</span>
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-              <span>Flash Sale Giờ Vàng</span>
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500 text-white font-bold tracking-wider uppercase shadow-xs">
-                Chính Thức
-              </span>
+            <h1 className="text-xl font-bold font-editorial text-slate-900 tracking-tight flex items-center gap-2">
+              <span>Quản Lý Flash Sale</span>
             </h1>
-            <p className="text-xs sm:text-sm text-gray-600 mt-0.5">
-              Thiết lập khung giờ Flash Sale riêng của Shop hoặc tham gia khung giờ vàng của Sàn để bùng nổ doanh số
+            <p className="text-xs text-slate-500 mt-0.5">
+              Thiết lập khung giờ Flash Sale riêng của Shop hoặc đăng ký tham gia chiến dịch toàn Sàn HuKi
             </p>
           </div>
         </div>
@@ -1492,12 +1674,12 @@ export function SellerFlashSaleView() {
                 setIsPolicyModalOpen(true);
               }}
               title="Nhấn để xem chi tiết 5 tiêu chuẩn vận hành và điểm Sao Quả Tạ của Shop"
-              className={`px-3 py-2 rounded-2xl border text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-2xs hover:scale-[1.02] ${
+              className={`px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer ${
                 penaltyProfile.penaltyPoints === 0
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100/70'
                   : penaltyProfile.penaltyPoints <= 2
-                  ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
-                  : 'bg-rose-50 border-rose-300 text-rose-900 hover:bg-rose-100 animate-pulse'
+                  ? 'bg-amber-50 border-amber-200 text-amber-900 hover:bg-amber-100/70'
+                  : 'bg-rose-50 border-rose-200 text-rose-900 hover:bg-rose-100/70'
               }`}
             >
               <div
@@ -2543,8 +2725,8 @@ export function SellerFlashSaleView() {
         <SellerFilterTabs
           tabs={[
             { key: 'ALL', label: 'Tất Cả Khung Giờ' },
-            { key: 'ACTIVE', label: 'Đang Mở Bán ' },
-            { key: 'ENDED', label: 'Đã Kết Thúc 🏁' },
+            { key: 'ACTIVE', label: 'Đang Mở Bán' },
+            { key: 'ENDED', label: 'Đã Kết Thúc' },
           ]}
           activeTab={activeTab}
           onChange={(tab) => setActiveTab(tab)}
@@ -2564,514 +2746,81 @@ export function SellerFlashSaleView() {
         </div>
       </div>
 
-      {/* 6. High-Detail Session-Based Flash Sale Accordions & Tables */}
-      <div className="space-y-6 w-full max-w-full min-w-0">
-        {loading ? (
-          <div className="bg-white rounded-3xl p-12 text-center text-gray-400 border border-gray-100 shadow-xs">
-            <span className="material-symbols-outlined text-3xl animate-spin text-orange-500 mb-2">
-              progress_activity
-            </span>
-            <div className="font-medium text-sm">Đang tải chi tiết các phiên Flash Sale...</div>
-          </div>
-        ) : groupedSessions.length === 0 ? (
-          <div className="bg-white rounded-3xl p-12 text-center text-gray-400 border border-gray-100 shadow-xs">
-            <span className="material-symbols-outlined text-4xl text-gray-300 mb-2">
-              bolt
-            </span>
-            <div className="font-bold text-gray-700 text-sm">Chưa có dữ liệu Flash Sale trong mục này</div>
-            <p className="text-xs text-gray-400 mt-1">Bấm nút "Đăng Ký Sách Hàng Loạt" ở trên để đưa sách tham gia giờ vàng.</p>
-          </div>
-        ) : (
-          paginatedSessions.map(({ slot, items }) => {
-            const now = Date.now();
-            const startsAt = new Date(slot.startsAt || 0).getTime();
-            const endsAt = new Date(slot.endsAt || 0).getTime();
-            const isEnded = (endsAt > 0 && endsAt < now) || slot.status === 'ENDED';
-            const isActive = !isEnded && ((now >= startsAt && now <= endsAt) || slot.status === 'ACTIVE');
-            const isScheduled = !isEnded && !isActive;
-
-            const startTimeStr = new Date(slot.startsAt).toLocaleTimeString('vi-VN', {
-              hour: '2-digit',
-              minute: '2-digit',
-            });
-            const endTimeStr = new Date(slot.endsAt).toLocaleTimeString('vi-VN', {
-              hour: '2-digit',
-              minute: '2-digit',
-            });
-            const dateStr = new Date(slot.startsAt).toLocaleDateString('vi-VN', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric',
-            });
-
-            const sessionTotalSold = items.reduce((s, i) => s + Number(i.sold || 0), 0);
-            const sessionTotalStock = items.reduce((s, i) => s + Number(i.stock || 0), 0);
-            const sessionRevenue = items.reduce((s, i) => s + Number(i.sold || 0) * Number(i.salePrice || 0), 0);
-
-            return (
-              <div
-                key={slot.id}
-                className={`w-full max-w-full min-w-0 bg-white rounded-3xl border transition-all overflow-hidden shadow-xs ${
-                  isActive
-                    ? 'border-orange-500/40 ring-2 ring-orange-500/10'
-                    : isScheduled
-                    ? 'border-blue-200'
-                    : 'border-gray-200 opacity-80'
-                }`}
-              >
-                {/* Session Header Card */}
-                <div
-                  className={`p-5 sm:p-6 border-b flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
-                    isActive
-                      ? 'bg-gradient-to-r from-orange-500/15 via-amber-500/10 to-red-500/5 border-orange-500/20'
-                      : isScheduled
-                      ? 'bg-gradient-to-r from-blue-500/10 via-indigo-500/5 to-slate-50 border-blue-100'
-                      : 'bg-gray-50 border-gray-200'
-                  }`}
-                >
-                  <div className="flex items-start sm:items-center gap-3.5">
-                    <div
-                      className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-white shadow-md shrink-0 ${
-                        isActive
-                          ? 'bg-gradient-to-br from-orange-500 to-red-600 shadow-orange-500/30 animate-pulse'
-                          : isScheduled
-                          ? 'bg-gradient-to-br from-blue-600 to-indigo-700 shadow-blue-500/20'
-                          : 'bg-gray-500 shadow-none'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-2xl">
-                        {isActive ? 'local_fire_department' : isScheduled ? 'alarm_on' : 'check_circle'}
-                      </span>
-                    </div>
-
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-title-md text-base sm:text-lg font-black text-gray-900">
-                          {slot.name}
-                        </h3>
-
-                        <span
-                          className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 ${
-                            isActive
-                              ? 'bg-orange-600 text-white animate-pulse'
-                              : isScheduled
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-200 text-gray-700'
-                          }`}
-                        >
-                          <span className="material-symbols-outlined text-xs">
-                            {isActive ? 'bolt' : isScheduled ? 'schedule' : 'done'}
-                          </span>
-                          {isActive ? 'ĐANG MỞ BÁN' : isScheduled ? 'SẮP DIỄN RA' : 'ĐÃ KẾT THÚC'}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 mt-1 font-medium">
-                        <span className="flex items-center gap-1 text-gray-700 font-bold">
-                          <span className="material-symbols-outlined text-sm text-gray-400">schedule</span>
-                          <span>{startTimeStr} - {endTimeStr}</span>
-                          <span className="text-gray-400 font-normal">({dateStr})</span>
-                        </span>
-
-                        <span>•</span>
-                        <span>{slot.description || 'Khung giờ giá sốc chính thức của Sàn HuKi'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Session Metrics & Actions */}
-                  <div className="flex flex-wrap items-center gap-3 sm:gap-4 self-start lg:self-auto">
-                    {/* Stat Badges */}
-                    <div className="flex items-center gap-2 text-xs">
-                      <div className="px-3 py-1.5 rounded-xl bg-white/80 border border-gray-200 shadow-2xs">
-                        <span className="text-gray-400 font-medium">Sách: </span>
-                        <strong className="text-gray-900 font-black">{items.length}</strong>
-                      </div>
-
-                      <div className="px-3 py-1.5 rounded-xl bg-white/80 border border-gray-200 shadow-2xs">
-                        <span className="text-gray-400 font-medium">Đã bán: </span>
-                        <strong className="text-emerald-700 font-black">{sessionTotalSold}</strong>
-                        <span className="text-gray-400">/{sessionTotalStock + sessionTotalSold}</span>
-                      </div>
-
-                      <div className="px-3 py-1.5 rounded-xl bg-white/80 border border-gray-200 shadow-2xs">
-                        <span className="text-gray-400 font-medium">Doanh thu: </span>
-                        <strong className="text-blue-700 font-black">{sessionRevenue.toLocaleString('vi-VN')} đ</strong>
-                      </div>
-                    </div>
-
-                    {!isEnded && (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenRegisterForSlot(slot.id)}
-                        className="px-3.5 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-transform hover:scale-105 cursor-pointer"
-                      >
-                        <span className="material-symbols-outlined text-sm">add_circle</span>
-                        <span>Thêm sách</span>
-                      </button>
-                    )}
-
-                    {(slot.scope === 'SHOP' || slot.storeId) && (
-                      <button
-                        type="button"
-                        disabled={deletingSlotId === slot.id}
-                        onClick={() => handleDeleteSlot(slot.id, slot.name)}
-                        className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-xs flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
-                        title="Xóa đợt Flash Sale này"
-                      >
-                        <span className="material-symbols-outlined text-sm">delete</span>
-                        <span className="hidden sm:inline">Xóa đợt</span>
-                      </button>
-                    )}
-                  </div>
+      {/* 6. Standardized GroupedDataTable Session Overview (BUG-056) */}
+      <div className="w-full max-w-full min-w-0">
+        <GroupedDataTable<FlashSaleSessionRow>
+          columns={sessionColumns}
+          data={sessionRows}
+          keyField="id"
+          loading={loading}
+          emptyTitle="Chưa có dữ liệu Flash Sale"
+          emptyMessage='Bấm nút "Tạo Flash Sale & Đăng Ký Sách" ở trên để tạo khung giờ riêng hoặc tham gia chiến dịch sàn.'
+          emptyIcon="bolt"
+          pagination={true}
+          expandable={true}
+          expandedRowRender={(row) => (
+            <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-200/70 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-xs font-bold text-slate-800">
+                  Xem nhanh danh sách ấn phẩm ({row.items.length} sách)
                 </div>
-
-                {/* Session Table Container - 5 Gold Columns Chuẩn Hóa Có Cuộn Ngang */}
-                <div className="w-full max-w-full overflow-x-auto min-w-0 rounded-xl border border-gray-200">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-gray-50/95 text-gray-600 uppercase text-[10px] font-bold tracking-wider border-b border-gray-200">
-                      <tr>
-                        <th className="py-3 px-3 w-8"></th>
-                        <th className="py-3 px-3 min-w-[240px]">Sản Phẩm & Phân Loại</th>
-                        <th className="py-3 px-3 w-[180px]">Giá Flash Sale (-%)</th>
-                        <th className="py-3 px-3 w-[180px]">Tiến Độ Bán Hàng</th>
-                        <th className="py-3 px-3 w-[130px] text-center">Trạng Thái</th>
-                        <th className="py-3 px-4 w-[140px] text-right">Thao Tác</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 text-gray-700">
-                      {items.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="py-8 text-center text-gray-400 bg-gray-50/30">
-                            Chưa có cuốn sách nào của shop đăng ký trong khung giờ này.{' '}
-                            {!isEnded && (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenRegisterForSlot(slot.id)}
-                                className="text-orange-600 font-bold hover:underline ml-1 cursor-pointer"
-                              >
-                                Bấm vào đây để thêm ngay
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ) : (
-                        items.map((item) => {
-                          const orig = Number(item.originalPrice || 0);
-                          const sale = Number(item.salePrice || 0);
-                          const disc = orig > 0 ? Math.round(((orig - sale) / orig) * 100) : 0;
-                          const savings = orig > sale ? orig - sale : 0;
-                          const sold = Number(item.sold || 0);
-                          const quota = Number(item.stock || 0);
-                          const totalAlloc = quota + sold;
-                          const percent = totalAlloc > 0 ? Math.round((sold / totalAlloc) * 100) : 0;
-                          const revenue = sold * sale;
-                          const isSoldOut = quota <= 0 && sold > 0;
-                          const isEditing = editingRowId === item.id;
-                          const isCancellingThis = cancelCountdownState?.itemId === item.id;
-                          const isCountdownActive = isCancellingThis && (cancelCountdownState?.secondsLeft ?? 0) > 0;
-                          const isItemExpanded = !!expandedItemIds[item.id];
-
-                          return (
-                            <React.Fragment key={item.id}>
-                              <tr
-                                onClick={() => !isEditing && toggleExpandItem(item.id)}
-                                className={`transition-colors cursor-pointer ${
-                                  isEditing
-                                    ? 'bg-amber-50/60 ring-2 ring-amber-400/40'
-                                    : isItemExpanded
-                                    ? 'bg-orange-50/40'
-                                    : 'hover:bg-orange-50/20'
-                                }`}
-                              >
-                                {/* 0. Expand Arrow */}
-                                <td className="py-3 px-2 text-center align-middle">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleExpandItem(item.id);
-                                    }}
-                                    className="w-5 h-5 rounded text-gray-400 hover:text-orange-600 flex items-center justify-center transition-transform cursor-pointer"
-                                    title={isItemExpanded ? 'Thu gọn chi tiết' : 'Mở rộng chi tiết'}
-                                    aria-expanded={isItemExpanded}
-                                    aria-label="Mở rộng chi tiết sản phẩm"
-                                  >
-                                    <span className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${isItemExpanded ? 'rotate-90 text-orange-600' : ''}`}>
-                                      chevron_right
-                                    </span>
-                                  </button>
-                                </td>
-
-                                {/* 1. Sản Phẩm */}
-                                <td className="py-3 px-3 align-middle">
-                                  <div className="flex items-center gap-2.5">
-                                    <img
-                                      src={item.book?.coverImage || item.book?.coverUrl || (item.book as any)?.cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=200&q=80'}
-                                      alt={item.book?.title || 'Book'}
-                                      referrerPolicy="no-referrer"
-                                      className="w-9 h-12 object-cover rounded-lg border border-gray-200 shadow-2xs shrink-0"
-                                    />
-                                    <div className="min-w-0">
-                                      <div
-                                        className="font-bold text-gray-900 break-words line-clamp-2 leading-snug text-xs hover:text-orange-600 transition-colors"
-                                        title={item.book?.title || item.bookTitle}
-                                      >
-                                        {item.book?.title || item.bookTitle || 'Sách tham gia Flash Sale'}
-                                      </div>
-                                      <div className="text-[11px] text-gray-400 mt-0.5 truncate">
-                                        Tác giả: {item.book?.author || 'Tác giả'}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </td>
-
-                                {/* 2. Giá Flash Sale */}
-                                <td className="py-3 px-3 align-middle">
-                                  {isEditing ? (
-                                    <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
-                                      <div className="relative">
-                                        <input
-                                          type="number"
-                                          min={1000}
-                                          max={orig - 1}
-                                          value={editingRowData?.salePrice || ''}
-                                          onChange={(e) =>
-                                            setEditingRowData((prev) =>
-                                              prev ? { ...prev, salePrice: Number(e.target.value) } : null
-                                            )
-                                          }
-                                          className="w-28 pl-2 pr-6 py-1 bg-white border-2 border-orange-500 rounded-lg text-xs font-black text-orange-600 outline-none shadow-2xs"
-                                        />
-                                        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">đ</span>
-                                      </div>
-                                      <div className="text-[10px] font-bold text-orange-600">
-                                        -{orig > 0 && editingRowData ? Math.round(((orig - editingRowData.salePrice) / orig) * 100) : 0}%
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="flex flex-col gap-0.5">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="font-black text-orange-600 text-xs">
-                                          {sale.toLocaleString('vi-VN')} đ
-                                        </span>
-                                        <span className="text-[10px] font-black px-1.5 py-0.2 rounded bg-orange-100 text-orange-700 shrink-0">
-                                          -{disc}%
-                                        </span>
-                                      </div>
-                                      <div className="text-[10.5px] text-gray-400 line-through">
-                                        {orig.toLocaleString('vi-VN')} đ
-                                      </div>
-                                    </div>
-                                  )}
-                                </td>
-
-                                {/* 3. Tiến Độ Bán Hàng */}
-                                <td className="py-3 px-3 align-middle">
-                                  <div className="space-y-1">
-                                    <div className="flex justify-between text-[10px] font-bold">
-                                      <span className={sold > 0 ? 'text-orange-600' : 'text-gray-500'}>
-                                        Đã bán {sold} / {totalAlloc}
-                                      </span>
-                                      <span className="text-gray-400">{percent}%</span>
-                                    </div>
-                                    <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                                      <div
-                                        className={`h-1.5 rounded-full transition-all ${
-                                          percent >= 80
-                                            ? 'bg-gradient-to-r from-orange-500 to-red-600 animate-pulse'
-                                            : 'bg-gradient-to-r from-amber-400 to-orange-500'
-                                        }`}
-                                        style={{ width: `${Math.min(100, Math.max(percent, 0))}%` }}
-                                      />
-                                    </div>
-                                  </div>
-                                </td>
-
-                                {/* 4. Trạng Thái */}
-                                <td className="py-3 px-3 align-middle text-center">
-                                  {isSoldOut ? (
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 uppercase">
-                                      CHÁY HÀNG
-                                    </span>
-                                  ) : isActive ? (
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 uppercase inline-flex items-center gap-1">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-orange-600 animate-ping"></span>
-                                      ĐANG BÁN
-                                    </span>
-                                  ) : isScheduled ? (
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 uppercase">
-                                      ĐÃ LÊN LỊCH
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 uppercase">
-                                      ĐÃ KẾT THÚC
-                                    </span>
-                                  )}
-                                </td>
-
-                                {/* 5. Thao Tác */}
-                                <td className="py-3 px-4 align-middle text-right" onClick={(e) => e.stopPropagation()}>
-                                  {isEditing ? (
-                                    <div className="inline-flex items-center gap-1.5 justify-end">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleSaveInlineEdit(item.id)}
-                                        disabled={savingRowId === item.id}
-                                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1"
-                                      >
-                                        <span className="material-symbols-outlined text-sm">
-                                          {savingRowId === item.id ? 'progress_activity' : 'check'}
-                                        </span>
-                                        <span>Lưu</span>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={handleCancelInlineEdit}
-                                        className="px-2 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs transition-colors cursor-pointer"
-                                      >
-                                        Hủy
-                                      </button>
-                                    </div>
-                                  ) : isCountdownActive ? (
-                                    <div className="inline-flex items-center gap-1 justify-end animate-pulse">
-                                      <span className="text-[10px] font-bold text-red-600">
-                                        Hủy sau {cancelCountdownState?.secondsLeft ?? 0}s
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={handleAbortCancel}
-                                        className="px-2 py-0.5 rounded bg-emerald-600 text-white font-bold text-[10px] hover:bg-emerald-700 transition-colors cursor-pointer"
-                                      >
-                                        Hoàn tác
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div className="inline-flex items-center gap-1 justify-end">
-                                      {!isEnded && (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleStartInlineEdit(item)}
-                                          className="p-1 rounded-lg hover:bg-orange-100 text-gray-600 hover:text-orange-700 transition-colors cursor-pointer"
-                                          title="Sửa nhanh giá & quota"
-                                        >
-                                          <span className="material-symbols-outlined text-[16px]">edit</span>
-                                        </button>
-                                      )}
-                                      <button
-                                        type="button"
-                                        disabled={deletingSlotId === item.id}
-                                        onClick={() => handleInitiateCancel(item.id)}
-                                        className="p-1 rounded-lg hover:bg-red-100 text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
-                                        title="Hủy khỏi Flash Sale"
-                                      >
-                                        <span className="material-symbols-outlined text-[16px]">delete</span>
-                                      </button>
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
-
-                              {/* Master-Detail Expandable Drawer */}
-                              {isItemExpanded && (
-                                <tr className="bg-orange-50/20">
-                                  <td colSpan={6} className="p-4 border-t border-b border-orange-200/70">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 bg-white rounded-xl p-4 border border-orange-200/80 shadow-2xs">
-                                      {/* Card 1: Quota & Giới Hạn Mua */}
-                                      <div className="space-y-2 text-xs">
-                                        <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-100 pb-1.5">
-                                          <span className="material-symbols-outlined text-[15px] text-orange-600">inventory_2</span>
-                                          <span>Quota & Giới Hạn</span>
-                                        </div>
-                                        <div className="space-y-1 text-xs">
-                                          <div className="flex justify-between">
-                                            <span className="text-slate-500">Kho khả dụng:</span>
-                                            <span className="font-semibold text-slate-900">{item.book?.available ?? 20} cuốn</span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-slate-500">Quota mở bán:</span>
-                                            <span className="font-bold text-orange-600">{quota} cuốn</span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-slate-500">Giới hạn / khách:</span>
-                                            <span className="font-medium text-slate-800">Tối đa {item.maxPerUser || 1} cuốn</span>
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      {/* Card 2: Doanh Thu & Hiệu Quả */}
-                                      <div className="space-y-2 text-xs">
-                                        <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-100 pb-1.5">
-                                          <span className="material-symbols-outlined text-[15px] text-emerald-600">payments</span>
-                                          <span>Doanh Thu & Hiệu Suất</span>
-                                        </div>
-                                        <div className="space-y-1 text-xs">
-                                          <div className="flex justify-between">
-                                            <span className="text-slate-500">Doanh thu thu về:</span>
-                                            <span className="font-mono font-bold text-emerald-700">{revenue.toLocaleString('vi-VN')} đ</span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-slate-500">Tiết kiệm cho khách:</span>
-                                            <span className="font-mono font-semibold text-rose-600">{(savings * sold).toLocaleString('vi-VN')} đ</span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-slate-500">Tỷ lệ chốt đơn:</span>
-                                            <span className="font-bold text-slate-900">{percent}%</span>
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      {/* Card 3: Thao Tác & Trạng Thái */}
-                                      <div className="space-y-2 flex flex-col justify-between text-xs">
-                                        <div>
-                                          <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-100 pb-1.5">
-                                            <span className="material-symbols-outlined text-[15px] text-blue-600">info</span>
-                                            <span>Trạng Thái Phiên</span>
-                                          </div>
-                                          <p className="text-[11px] text-slate-500 mt-2">
-                                            {isSoldOut
-                                              ? 'Ấn phẩm đã bán hết toàn bộ Quota phân bổ.'
-                                              : isActive
-                                              ? 'Đang trong khung giờ vàng diễn ra sự kiện.'
-                                              : isScheduled
-                                              ? 'Đã chuẩn bị sẵn sàng mở bán khi đến giờ.'
-                                              : 'Khung giờ Flash Sale đã kết thúc.'}
-                                          </p>
-                                        </div>
-                                        <div className="pt-2">
-                                          {!isEnded && (
-                                            <button
-                                              type="button"
-                                              onClick={() => handleStartInlineEdit(item)}
-                                              className="w-full py-2 px-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
-                                            >
-                                              <span className="material-symbols-outlined text-[15px]">edit</span>
-                                              <span>Chỉnh Sửa Giá & Quota</span>
-                                            </button>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
-                            </React.Fragment>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>                </div>
+                <Link
+                  href={`/seller/promotions/flash-sale/${row.slot.id}`}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#00875A] hover:underline"
+                >
+                  <span>Mở trang chi tiết &amp; chỉnh sửa đợt</span>
+                  <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+                </Link>
               </div>
-            );
-          })
-        )}
 
-        <SellerPagination
-          currentPage={currentPage}
-          totalPages={Math.ceil(groupedSessions.length / pageSize) || 1}
-          totalItems={groupedSessions.length}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
+              {row.items.length === 0 ? (
+                <p className="text-xs text-slate-500">
+                  Chưa có sản phẩm nào trong khung giờ này. Vào trang chi tiết hoặc bấm &quot;Thêm sách&quot; để đăng ký.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {row.items.slice(0, 6).map((item) => {
+                    const orig = Number(item.originalPrice || item.book?.price || 0);
+                    const sale = Number(item.salePrice || 0);
+                    const sold = Number(item.sold || 0);
+                    const stock = Number(item.stock || 0);
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-white border border-slate-200/80 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-900 truncate">
+                            {item.book?.title || item.bookTitle || 'Ấn phẩm HUKI'}
+                          </p>
+                          <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                            {sale.toLocaleString('vi-VN')} đ
+                            {orig > sale ? ` (gốc ${orig.toLocaleString('vi-VN')} đ)` : ''}
+                          </p>
+                        </div>
+                        <span className="text-[11px] font-mono text-slate-600 shrink-0">
+                          {sold}/{sold + stock}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {row.items.length > 6 && (
+                <p className="text-[11px] text-slate-500">
+                  Và {row.items.length - 6} sản phẩm khác —{' '}
+                  <Link
+                    href={`/seller/promotions/flash-sale/${row.slot.id}`}
+                    className="font-semibold text-[#00875A] hover:underline"
+                  >
+                    xem toàn bộ tại trang chi tiết
+                  </Link>
+                  .
+                </p>
+              )}
+            </div>
+          )}
         />
       </div>
 
