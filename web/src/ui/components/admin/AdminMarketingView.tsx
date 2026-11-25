@@ -4,8 +4,41 @@ import React, { useState, useEffect, useRef } from "react";
 import { useToast } from "../../context/ToastContext";
 import { AdminStatusBadge } from './AdminUI';
 import { bannerApi, BannerData } from '@/ui/api/bannerApi';
+import { compressImageToDataUrl, sanitizeImageUrl } from '@/ui/utils/imageUtils';
 
 export type BannerSlot = 'HERO_SLIDER' | 'SUB_TOP' | 'SUB_BOTTOM';
+
+const SLOT_SPECS: Record<BannerSlot, { label: string; sizeHint: string; aspectNote: string }> = {
+  HERO_SLIDER: {
+    label: 'Banner Chính (Slider Giữa)',
+    sizeHint: '1200 × 600 px (Tỉ lệ 2:1)',
+    aspectNote: 'Hiển thị full khung ở Slider trung tâm Trang Chủ',
+  },
+  SUB_TOP: {
+    label: 'Banner Phụ Trên (Cột Phải)',
+    sizeHint: '600 × 280 px (Tỉ lệ ~2.1:1)',
+    aspectNote: 'Khối banner trên ở cột phải Trang Chủ (tối đa 1 banner active)',
+  },
+  SUB_BOTTOM: {
+    label: 'Banner Phụ Dưới (Cột Phải)',
+    sizeHint: '600 × 280 px (Tỉ lệ ~2.1:1)',
+    aspectNote: 'Khối banner dưới ở cột phải Trang Chủ (tối đa 1 banner active)',
+  },
+};
+
+function toLocalDateTimeInput(iso?: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function toIsoDateOrNull(localStr?: string): string | null {
+  if (!localStr || !localStr.trim()) return null;
+  const d = new Date(localStr);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
 
 export interface MarketingBanner {
   id: string;
@@ -18,6 +51,8 @@ export interface MarketingBanner {
   clicks: number;
   order: number;
   slot?: BannerSlot;
+  startDate?: string | null;
+  endDate?: string | null;
 }
 
 const DEFAULT_BANNERS: MarketingBanner[] = [
@@ -219,13 +254,15 @@ export function AdminMarketingView() {
               id: b.id,
               title: b.title,
               subtitle: '',
-              badge: 'NỔI BẬT',
+              badge: slot === 'HERO_SLIDER' ? `SLIDER #${pos}` : slot === 'SUB_TOP' ? 'PHỤ TRÊN' : 'PHỤ DƯỚI',
               link: b.link || '/books',
-              bgImage: b.image || '/banners/hero-library.jpg',
+              bgImage: sanitizeImageUrl(b.image) || '/banners/hero-library.jpg',
               status: b.isActive ? 'active' : 'hidden',
               clicks: b.clicks || 0,
               order: pos,
               slot,
+              startDate: b.startDate || null,
+              endDate: b.endDate || null,
             };
           });
           setBanners(backendBanners);
@@ -278,28 +315,36 @@ export function AdminMarketingView() {
   const [editingBannerId, setEditingBannerId] = useState<string | null>(null);
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isSubmittingBanner, setIsSubmittingBanner] = useState(false);
 
   const [bannerForm, setBannerForm] = useState({
     title: "",
     subtitle: "",
-    badge: "ƯU ĐÃI NỔI BẬT",
+    badge: "",
     link: "/books",
     bgImage: "/banners/hero-library.jpg",
     order: 1,
     slot: "HERO_SLIDER" as BannerSlot,
+    startDate: "",
+    endDate: "",
+    isActive: true,
   });
 
   // Mở Form ở chế độ Tạo mới
   const handleOpenCreateForm = () => {
     setEditingBannerId(null);
+    const heroCount = banners.filter((b) => (b.slot || (b.order < 100 ? 'HERO_SLIDER' : 'SUB_TOP')) === 'HERO_SLIDER').length;
     setBannerForm({
       title: "",
       subtitle: "",
-      badge: "ƯU ĐÃI NỔI BẬT",
+      badge: "",
       link: "/books",
       bgImage: "/banners/hero-library.jpg",
-      order: banners.length + 1,
+      order: heroCount + 1,
       slot: "HERO_SLIDER",
+      startDate: "",
+      endDate: "",
+      isActive: true,
     });
     setIsAddFormOpen(true);
     setTimeout(() => {
@@ -314,12 +359,15 @@ export function AdminMarketingView() {
     const resolvedSlot: BannerSlot = banner.slot || (pos === 101 ? 'SUB_TOP' : pos === 102 ? 'SUB_BOTTOM' : 'HERO_SLIDER');
     setBannerForm({
       title: banner.title,
-      subtitle: banner.subtitle,
-      badge: banner.badge,
-      link: banner.link,
-      bgImage: banner.bgImage,
+      subtitle: banner.subtitle || "",
+      badge: banner.badge || "",
+      link: banner.link || "/books",
+      bgImage: sanitizeImageUrl(banner.bgImage) || "/banners/hero-library.jpg",
       order: pos,
       slot: resolvedSlot,
+      startDate: toLocalDateTimeInput(banner.startDate),
+      endDate: toLocalDateTimeInput(banner.endDate),
+      isActive: banner.status === "active",
     });
     setIsAddFormOpen(true);
     setTimeout(() => {
@@ -328,8 +376,8 @@ export function AdminMarketingView() {
     showToast?.(`Đang mở chỉnh sửa banner #${banner.order}: ${banner.title}`, "info");
   };
 
-  // Xử lý tải ảnh từ máy tính (File Picker)
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Xử lý tải & nén ảnh từ máy tính (tránh vượt dung lượng & không tạo blob: chết)
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -344,18 +392,17 @@ export function AdminMarketingView() {
     }
 
     setIsUploadingImage(true);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      setBannerForm((prev) => ({ ...prev, bgImage: result }));
+    try {
+      const targetW = bannerForm.slot === 'HERO_SLIDER' ? 1400 : 900;
+      const targetH = bannerForm.slot === 'HERO_SLIDER' ? 700 : 450;
+      const compressed = await compressImageToDataUrl(file, targetW, targetH, 0.88);
+      setBannerForm((prev) => ({ ...prev, bgImage: compressed }));
+      showToast?.("Đã tải & tối ưu ảnh banner thành công!", "success");
+    } catch {
+      showToast?.("Không thể xử lý file ảnh, vui lòng thử ảnh khác!", "error");
+    } finally {
       setIsUploadingImage(false);
-      showToast?.("Đã tải ảnh lên thành công!", "success");
-    };
-    reader.onerror = () => {
-      setIsUploadingImage(false);
-      showToast?.("Không thể đọc file ảnh, vui lòng thử lại!", "error");
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   // Ẩn / Hiện Banner
@@ -372,21 +419,31 @@ export function AdminMarketingView() {
     showToast?.("Đã cập nhật trạng thái hiển thị banner.", "info");
   };
 
-  // Submit Form: Tạo mới hoặc Lưu Cập nhật
-  const handleSubmitBanner = (e: React.FormEvent) => {
+  // Submit Form: Tạo mới hoặc Lưu Cập nhật (đồng bộ nghiêm ngặt Backend Banner DTO)
+  const handleSubmitBanner = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!bannerForm.title.trim()) {
-      showToast?.("Vui lòng nhập tiêu đề banner!", "warning");
+    const cleanTitle = bannerForm.title.trim();
+    const cleanImage = sanitizeImageUrl(bannerForm.bgImage) || "/banners/hero-library.jpg";
+    const cleanLink = bannerForm.link.trim() || "/books";
+
+    if (!cleanTitle) {
+      showToast?.("Vui lòng nhập tên chiến dịch / Alt banner!", "warning");
+      return;
+    }
+
+    const startIso = toIsoDateOrNull(bannerForm.startDate);
+    const endIso = toIsoDateOrNull(bannerForm.endDate);
+    if (startIso && endIso && new Date(endIso) <= new Date(startIso)) {
+      showToast?.("Thời gian kết thúc phải sau thời gian bắt đầu!", "warning");
       return;
     }
 
     const isSub = bannerForm.slot === 'SUB_TOP' || bannerForm.slot === 'SUB_BOTTOM';
-    const finalPosition = bannerForm.slot === 'SUB_TOP' ? 101 : bannerForm.slot === 'SUB_BOTTOM' ? 102 : (Number(bannerForm.order) || 1);
-    const slotLabel = bannerForm.slot === 'SUB_TOP' ? 'Banner Phụ Trên (Cột Phải)' : bannerForm.slot === 'SUB_BOTTOM' ? 'Banner Phụ Dưới (Cột Phải)' : 'Banner Hero Slider';
+    const finalPosition = bannerForm.slot === 'SUB_TOP' ? 101 : bannerForm.slot === 'SUB_BOTTOM' ? 102 : Math.max(1, Number(bannerForm.order) || 1);
+    const slotLabel = SLOT_SPECS[bannerForm.slot].label;
 
-    // Validation chống trùng vị trí: Vị trí Phụ Trên hoặc Phụ Dưới chỉ cho phép duy nhất 1 banner kích hoạt
     let updatedList = [...banners];
-    if (isSub) {
+    if (isSub && bannerForm.isActive) {
       const existingConflict = banners.find(
         (b) => b.order === finalPosition && b.id !== editingBannerId && b.status === 'active'
       );
@@ -395,7 +452,6 @@ export function AdminMarketingView() {
           `Vị trí "${slotLabel}" hiện đã có banner đang kích hoạt: "${existingConflict.title}".\n\nBạn có muốn thay thế banner cũ bằng banner này không? (Banner cũ sẽ tự động được chuyển sang trạng thái Ẩn để tránh chồng đè)`
         );
         if (!replaceOk) return;
-        // Chuyển banner cũ sang hidden
         updatedList = updatedList.map((b) =>
           b.id === existingConflict.id ? { ...b, status: 'hidden' as const } : b
         );
@@ -403,73 +459,95 @@ export function AdminMarketingView() {
       }
     }
 
-    if (editingBannerId) {
-      // CẬP NHẬT BANNER HIỆN TẠI
-      bannerApi.updateBanner(editingBannerId, {
-        title: bannerForm.title.trim(),
-        image: bannerForm.bgImage.trim() || "/banners/hero-library.jpg",
-        link: bannerForm.link.trim(),
-        position: finalPosition,
-      }).catch(() => {});
-
-      const updated: MarketingBanner[] = updatedList.map((b) =>
-        b.id === editingBannerId
-          ? {
-            ...b,
-            title: bannerForm.title.trim(),
-            subtitle: bannerForm.subtitle.trim(),
-            badge: bannerForm.badge.trim(),
-            link: bannerForm.link.trim(),
-            bgImage: bannerForm.bgImage.trim() || "/banners/hero-library.jpg",
-            order: finalPosition,
-            slot: bannerForm.slot,
-          }
-          : b,
-      );
-      setBanners(updated);
-      broadcastMarketingUpdate(updated);
-      showToast?.("Cập nhật thông tin banner thành công!", "success");
-      setIsAddFormOpen(false);
-      setEditingBannerId(null);
-    } else {
-      // TẠO BANNER MỚI
-      const generatedId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `e0000000-0000-4000-8000-${Date.now().toString(16).padStart(12, '0')}`;
-      const newBanner: MarketingBanner = {
-        id: generatedId,
-        title: bannerForm.title.trim(),
-        subtitle: bannerForm.subtitle.trim(),
-        badge: bannerForm.badge.trim(),
-        link: bannerForm.link.trim(),
-        bgImage: bannerForm.bgImage.trim() || "/banners/hero-library.jpg",
-        status: "active",
-        clicks: 0,
-        order: finalPosition,
-        slot: bannerForm.slot,
-      };
-
-      bannerApi.createBanner({
-        title: newBanner.title,
-        image: newBanner.bgImage,
-        link: newBanner.link,
-        position: finalPosition,
-        scope: 'HOMEPAGE',
-      }).then((res: any) => {
-        if (res.success && res.data?.id) {
-          setBanners(curr => {
-            const next = curr.map(b => b.id === newBanner.id ? { ...b, id: res.data!.id } : b);
-            broadcastMarketingUpdate(next);
-            return next;
-          });
+    setIsSubmittingBanner(true);
+    try {
+      if (editingBannerId) {
+        const res = await bannerApi.updateBanner(editingBannerId, {
+          title: cleanTitle,
+          image: cleanImage,
+          link: cleanLink,
+          position: finalPosition,
+          startDate: startIso,
+          endDate: endIso,
+          isActive: bannerForm.isActive,
+        });
+        if (!res.success) {
+          showToast?.(res.error?.message || "Không thể lưu cập nhật banner lên máy chủ!", "error");
+          return;
         }
-      }).catch(() => {});
 
-      const updated = [newBanner, ...updatedList];
-      setBanners(updated);
-      broadcastMarketingUpdate(updated);
-      setIsAddFormOpen(false);
-      showToast?.("Đã xuất bản banner mới lên trang chủ thành công!", "success");
+        const updated: MarketingBanner[] = updatedList.map((b) =>
+          b.id === editingBannerId
+            ? {
+              ...b,
+              title: cleanTitle,
+              subtitle: "",
+              badge: bannerForm.slot === 'HERO_SLIDER' ? `SLIDER #${finalPosition}` : bannerForm.slot === 'SUB_TOP' ? 'PHỤ TRÊN' : 'PHỤ DƯỚI',
+              link: cleanLink,
+              bgImage: cleanImage,
+              status: bannerForm.isActive ? "active" : "hidden",
+              order: finalPosition,
+              slot: bannerForm.slot,
+              startDate: startIso,
+              endDate: endIso,
+            }
+            : b,
+        );
+        setBanners(updated);
+        broadcastMarketingUpdate(updated);
+        showToast?.("Cập nhật thông tin banner thành công!", "success");
+        setIsAddFormOpen(false);
+        setEditingBannerId(null);
+      } else {
+        const createRes = await bannerApi.createBanner({
+          title: cleanTitle,
+          image: cleanImage,
+          link: cleanLink,
+          position: finalPosition,
+          scope: 'HOMEPAGE',
+          ...(startIso ? { startDate: startIso } : {}),
+          ...(endIso ? { endDate: endIso } : {}),
+        });
+        if (!createRes.success) {
+          showToast?.(createRes.error?.message || "Không thể tạo banner mới trên máy chủ!", "error");
+          return;
+        }
+
+        const createdId = createRes.data?.id || (
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `e0000000-0000-4000-8000-${Date.now().toString(16).padStart(12, '0')}`
+        );
+
+        if (!bannerForm.isActive && createRes.data?.id) {
+          await bannerApi.updateBanner(createRes.data.id, { isActive: false }).catch(() => {});
+        }
+
+        const newBanner: MarketingBanner = {
+          id: createdId,
+          title: cleanTitle,
+          subtitle: "",
+          badge: bannerForm.slot === 'HERO_SLIDER' ? `SLIDER #${finalPosition}` : bannerForm.slot === 'SUB_TOP' ? 'PHỤ TRÊN' : 'PHỤ DƯỚI',
+          link: cleanLink,
+          bgImage: cleanImage,
+          status: bannerForm.isActive ? "active" : "hidden",
+          clicks: 0,
+          order: finalPosition,
+          slot: bannerForm.slot,
+          startDate: startIso,
+          endDate: endIso,
+        };
+
+        const updated = [newBanner, ...updatedList];
+        setBanners(updated);
+        broadcastMarketingUpdate(updated);
+        setIsAddFormOpen(false);
+        showToast?.("Đã xuất bản banner mới chuẩn Shopee lên trang chủ!", "success");
+      }
+    } catch (err: any) {
+      showToast?.(err?.message || "Lỗi kết nối khi lưu banner!", "error");
+    } finally {
+      setIsSubmittingBanner(false);
     }
   };
 
@@ -582,6 +660,13 @@ export function AdminMarketingView() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-5">
             {/* Form Inputs (7 cols) */}
             <form onSubmit={handleSubmitBanner} className="lg:col-span-7 space-y-4 text-xs">
+              <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/80 flex items-start gap-2 text-[11.5px] text-emerald-900">
+                <span className="material-symbols-outlined text-base text-[#00875A] shrink-0 mt-0.5">info</span>
+                <div>
+                  <strong>Chuẩn hiển thị Shopee:</strong> Trang chủ hiển thị trọn vẹn ảnh banner thiết kế sẵn (chữ, ưu đãi &amp; nút CTA nằm ngay trong ảnh đồ họa), <strong>không đè chữ HTML hay lớp phủ tối</strong> lên ảnh. Kích thước gợi ý: <strong>{SLOT_SPECS[bannerForm.slot].sizeHint}</strong>.
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-gray-700 font-bold mb-1">
@@ -596,23 +681,10 @@ export function AdminMarketingView() {
                     }}
                     className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-semibold text-gray-800 focus:border-[#00875A] focus:outline-none text-xs cursor-pointer shadow-2xs"
                   >
-                    <option value="HERO_SLIDER">Banner Chính (Slider Giữa)</option>
-                    <option value="SUB_TOP">Banner Phụ Trên (Cột Phải)</option>
-                    <option value="SUB_BOTTOM">Banner Phụ Dưới (Cột Phải)</option>
+                    <option value="HERO_SLIDER">Banner Chính (Slider Giữa · 1200×600)</option>
+                    <option value="SUB_TOP">Banner Phụ Trên (Cột Phải · 600×280)</option>
+                    <option value="SUB_BOTTOM">Banner Phụ Dưới (Cột Phải · 600×280)</option>
                   </select>
-                </div>
-
-                <div>
-                  <label className="block text-gray-700 font-bold mb-1">
-                    Huy Hiệu (Badge) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="VD: ĐẠI HỘI SÁCH 2026"
-                    value={bannerForm.badge}
-                    onChange={(e) => setBannerForm({ ...bannerForm, badge: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-bold focus:border-[#00875A] focus:outline-none uppercase"
-                  />
                 </div>
 
                 <div>
@@ -629,30 +701,83 @@ export function AdminMarketingView() {
                     className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-mono font-bold focus:border-[#00875A] focus:outline-none disabled:bg-gray-100 disabled:text-gray-400"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Trạng Thái Kích Hoạt</label>
+                  <button
+                    type="button"
+                    onClick={() => setBannerForm((prev) => ({ ...prev, isActive: !prev.isActive }))}
+                    className={`w-full px-3 py-2 rounded-xl border font-bold text-xs flex items-center justify-between cursor-pointer transition-colors ${
+                      bannerForm.isActive
+                        ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+                        : "bg-gray-100 border-gray-300 text-gray-600"
+                    }`}
+                  >
+                    <span>{bannerForm.isActive ? "Đang Kích Hoạt" : "Tạm Ẩn"}</span>
+                    <span className="material-symbols-outlined text-base">
+                      {bannerForm.isActive ? "toggle_on" : "toggle_off"}
+                    </span>
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="block text-gray-700 font-bold mb-1">
-                  Tiêu Đề Banner <span className="text-red-500">*</span>
+                  Tên Chiến Dịch / Alt SEO Ảnh <span className="text-red-500">*</span>
+                  <span className="ml-1.5 font-normal text-[10.5px] text-gray-400">(Không đè lên ảnh)</span>
                 </label>
                 <input
                   type="text"
-                  placeholder="VD: Tuần Lễ Sách Văn Học Kinh Điển & Tinh Hoa Tri Thức"
+                  maxLength={255}
+                  placeholder="VD: Ngày Hội Đọc Sách - Sale Tháng Mới"
                   value={bannerForm.title}
                   onChange={(e) => setBannerForm({ ...bannerForm, title: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-semibold focus:border-[#00875A] focus:outline-none text-[13px]"
                 />
               </div>
 
-              <div>
-                <label className="block text-gray-700 font-bold mb-1">Mô Tả Phụ (Subtitle / Call To Action)</label>
-                <input
-                  type="text"
-                  placeholder="VD: Giảm sâu tới 40% cho hơn 1.000 đầu sách tuyển chọn"
-                  value={bannerForm.subtitle}
-                  onChange={(e) => setBannerForm({ ...bannerForm, subtitle: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-medium focus:border-[#00875A] focus:outline-none"
-                />
+              {/* Lịch chạy hiển thị (startDate / endDate đồng bộ Backend Banner DTO) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-gray-700 font-bold">Bắt Đầu Hiển Thị</label>
+                    {bannerForm.startDate && (
+                      <button
+                        type="button"
+                        onClick={() => setBannerForm({ ...bannerForm, startDate: "" })}
+                        className="text-[10.5px] text-gray-500 hover:text-rose-600 cursor-pointer"
+                      >
+                        Xóa mốc
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="datetime-local"
+                    value={bannerForm.startDate}
+                    onChange={(e) => setBannerForm({ ...bannerForm, startDate: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-gray-700 font-bold">Kết Thúc Hiển Thị</label>
+                    {bannerForm.endDate && (
+                      <button
+                        type="button"
+                        onClick={() => setBannerForm({ ...bannerForm, endDate: "" })}
+                        className="text-[10.5px] text-gray-500 hover:text-rose-600 cursor-pointer"
+                      >
+                        Xóa mốc
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="datetime-local"
+                    value={bannerForm.endDate}
+                    onChange={(e) => setBannerForm({ ...bannerForm, endDate: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
+                  />
+                </div>
               </div>
 
               {/* Comprehensive Select Option for CTA Link */}
@@ -797,26 +922,33 @@ export function AdminMarketingView() {
                 </button>
                 <button
                   type="submit"
-                  className={`px-6 py-2 rounded-xl text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center gap-1.5 ${editingBannerId
+                  disabled={isSubmittingBanner}
+                  className={`px-6 py-2 rounded-xl text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center gap-1.5 disabled:opacity-60 ${editingBannerId
                       ? "bg-amber-600 hover:bg-amber-700"
                       : "bg-[#00875A] hover:bg-[#00734c]"
                     }`}
                 >
                   <span className="material-symbols-outlined text-base">
-                    {editingBannerId ? "save" : "publish"}
+                    {isSubmittingBanner ? "progress_activity" : editingBannerId ? "save" : "publish"}
                   </span>
-                  <span>{editingBannerId ? "Lưu Cập Nhật Banner" : "Xuất Bản Banner"}</span>
+                  <span>
+                    {isSubmittingBanner
+                      ? "Đang lưu..."
+                      : editingBannerId
+                      ? "Lưu Cập Nhật Banner"
+                      : "Xuất Bản Banner"}
+                  </span>
                 </button>
               </div>
             </form>
 
-            {/* Live Preview Mockup (5 cols) */}
+            {/* Live Preview Mockup (5 cols - Chuẩn hiển thị Shopee sạch, không đè chữ HTML) */}
             <div className="lg:col-span-5 flex flex-col justify-between p-4 bg-gray-900 rounded-2xl border border-gray-800 text-white">
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-gray-800 mb-3">
                   <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
                     <span className="material-symbols-outlined text-sm text-emerald-400">visibility</span>
-                    <span>Live Preview Mockup</span>
+                    <span>Live Preview Chuẩn Shopee</span>
                   </span>
 
                   {/* Device Switcher (Desktop vs Mobile) */}
@@ -846,74 +978,101 @@ export function AdminMarketingView() {
                   </div>
                 </div>
 
-                {/* Mockup Canvas */}
+                {/* Mockup Canvas: Bố cục đúng chuẩn Shopee (Hero + 2 Sub, ảnh sạch toàn khung) */}
                 {previewDevice === "desktop" ? (
-                  /* Desktop 16:9 Aspect Frame */
-                  <div className="relative h-44 rounded-xl overflow-hidden bg-gray-800 border border-gray-700">
-                    <img
-                      src={bannerForm.bgImage || "/banners/hero-library.jpg"}
-                      alt="preview"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/banners/hero-library.jpg";
-                      }}
-                      className="w-full h-full object-cover opacity-85"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent p-4 flex flex-col justify-between">
-                      <div>
-                        <span className="px-2.5 py-0.5 rounded bg-white text-gray-900 font-black text-[9.5px] uppercase tracking-wider shadow-sm">
-                          {bannerForm.badge || "ƯU ĐÃI NỔI BẬT"}
-                        </span>
+                  <div className="grid grid-cols-12 gap-2 h-44 bg-gray-950 p-2 rounded-xl border border-gray-800">
+                    <div
+                      className={`col-span-8 rounded-lg overflow-hidden relative bg-gray-800 ${
+                        bannerForm.slot === 'HERO_SLIDER' ? 'ring-2 ring-emerald-400' : 'opacity-45'
+                      }`}
+                    >
+                      <img
+                        src={
+                          bannerForm.slot === 'HERO_SLIDER'
+                            ? (bannerForm.bgImage || "/banners/hero-library.jpg")
+                            : "/banners/hero-library.jpg"
+                        }
+                        alt={bannerForm.title || "Hero Preview"}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "/banners/hero-library.jpg";
+                        }}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="col-span-4 grid grid-rows-2 gap-2">
+                      <div
+                        className={`rounded-lg overflow-hidden relative bg-gray-800 ${
+                          bannerForm.slot === 'SUB_TOP' ? 'ring-2 ring-emerald-400' : 'opacity-45'
+                        }`}
+                      >
+                        <img
+                          src={
+                            bannerForm.slot === 'SUB_TOP'
+                              ? (bannerForm.bgImage || "/banners/hero-podium.jpg")
+                              : "/banners/hero-podium.jpg"
+                          }
+                          alt="Sub Top Preview"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "/banners/hero-podium.jpg";
+                          }}
+                          className="w-full h-full object-cover"
+                        />
                       </div>
-                      <div>
-                        <h4 className="font-extrabold text-white text-sm line-clamp-2 leading-snug">
-                          {bannerForm.title || "Tiêu đề Banner sẽ hiển thị ở đây"}
-                        </h4>
-                        <p className="text-gray-300 text-[11px] line-clamp-1 mt-0.5">
-                          {bannerForm.subtitle || "Mô tả phụ cho chiến dịch khuyến mãi..."}
-                        </p>
+                      <div
+                        className={`rounded-lg overflow-hidden relative bg-gray-800 ${
+                          bannerForm.slot === 'SUB_BOTTOM' ? 'ring-2 ring-emerald-400' : 'opacity-45'
+                        }`}
+                      >
+                        <img
+                          src={
+                            bannerForm.slot === 'SUB_BOTTOM'
+                              ? (bannerForm.bgImage || "/banners/sub-hybrid.jpg")
+                              : "/banners/sub-hybrid.jpg"
+                          }
+                          alt="Sub Bottom Preview"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "/banners/sub-hybrid.jpg";
+                          }}
+                          className="w-full h-full object-cover"
+                        />
                       </div>
                     </div>
                   </div>
                 ) : (
-                  /* Mobile Smartphone Aspect Frame */
-                  <div className="max-w-[220px] mx-auto rounded-2xl overflow-hidden bg-black border-4 border-gray-700 shadow-2xl relative">
-                    <div className="h-4 bg-black flex items-center justify-center">
+                  /* Mobile Smartphone Clean Banner Frame */
+                  <div className="max-w-[230px] mx-auto rounded-2xl overflow-hidden bg-black border-4 border-gray-700 shadow-2xl relative p-1.5">
+                    <div className="h-3 bg-black flex items-center justify-center mb-1">
                       <div className="w-12 h-1 bg-gray-700 rounded-full" />
                     </div>
-                    <div className="relative h-44 bg-gray-800">
+                    <div className="relative h-32 rounded-lg overflow-hidden bg-gray-800">
                       <img
                         src={bannerForm.bgImage || "/banners/hero-library.jpg"}
-                        alt="preview"
+                        alt={bannerForm.title || "Mobile Preview"}
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = "/banners/hero-library.jpg";
                         }}
-                        className="w-full h-full object-cover opacity-80"
+                        className="w-full h-full object-cover"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-3 flex flex-col justify-between">
-                        <div>
-                          <span className="px-2 py-0.5 rounded bg-white text-gray-900 font-black text-[8px] uppercase tracking-wider">
-                            {bannerForm.badge || "ƯU ĐÃI"}
-                          </span>
-                        </div>
-                        <div>
-                          <h5 className="font-extrabold text-white text-[11.5px] line-clamp-2 leading-tight">
-                            {bannerForm.title || "Tiêu đề Banner"}
-                          </h5>
-                          <p className="text-gray-300 text-[9.5px] line-clamp-1 mt-0.5">
-                            {bannerForm.subtitle || "Mô tả phụ..."}
-                          </p>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="text-[11px] text-gray-400 pt-3 border-t border-gray-800 flex items-center justify-between">
-                <span className="truncate max-w-[240px]">
-                  Điều hướng đến: <strong className="text-emerald-400 font-semibold">{getFriendlyLinkName(bannerForm.link)}</strong>
-                </span>
-                <span>Thứ tự: <strong className="text-white">#{bannerForm.order}</strong></span>
+              <div className="text-[11px] text-gray-400 pt-3 mt-3 border-t border-gray-800 space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate">
+                    Đích: <strong className="text-emerald-400 font-semibold">{getFriendlyLinkName(bannerForm.link)}</strong>
+                  </span>
+                  <span className="shrink-0">Vị trí: <strong className="text-white">#{bannerForm.order}</strong></span>
+                </div>
+                <div className="text-[10.5px] text-gray-400">
+                  Lịch chạy:{" "}
+                  <strong className="text-gray-200">
+                    {bannerForm.startDate || bannerForm.endDate
+                      ? `${bannerForm.startDate ? new Date(bannerForm.startDate).toLocaleString("vi-VN") : "Ngay lập tức"} → ${bannerForm.endDate ? new Date(bannerForm.endDate).toLocaleString("vi-VN") : "Không giới hạn"}`
+                      : "Hiển thị liên tục 24/7"}
+                  </strong>
+                </div>
               </div>
             </div>
           </div>
@@ -931,22 +1090,17 @@ export function AdminMarketingView() {
               }`}
           >
             <div>
-              {/* Image Preview with overlay */}
+              {/* Clean Banner Artwork Card Preview */}
               <div className="h-44 relative bg-gray-900 overflow-hidden">
                 <img
                   src={b.bgImage}
                   alt={b.title}
+                  referrerPolicy="no-referrer"
                   onError={(e) => {
-                    // Fallback tránh lỗi ảnh đen 404
                     (e.target as HTMLImageElement).src = "/banners/hero-podium.jpg";
                   }}
-                  className="w-full h-full object-cover opacity-85 group-hover:scale-105 transition-transform duration-500"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
-                <div className="absolute top-3 left-3">
-                  <span className="px-2.5 py-0.5 rounded-md bg-white/95 text-gray-900 font-black text-[10px] shadow-sm uppercase tracking-wider">
-                    {b.badge}
-                  </span>
-                </div>
                 <div className="absolute top-3 right-3 flex items-center gap-1.5">
                   {editingBannerId === b.id && (
                     <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[9px] font-black uppercase tracking-wider">
@@ -966,8 +1120,10 @@ export function AdminMarketingView() {
                 <h3 className="font-bold text-gray-900 text-sm leading-snug line-clamp-2">
                   {b.title}
                 </h3>
-                <p className="text-gray-500 text-xs line-clamp-2">
-                  {b.subtitle}
+                <p className="text-[11px] text-gray-500 font-mono">
+                  {b.startDate || b.endDate
+                    ? `Lịch: ${b.startDate ? new Date(b.startDate).toLocaleDateString('vi-VN') : '...'} → ${b.endDate ? new Date(b.endDate).toLocaleDateString('vi-VN') : '...'}`
+                    : 'Hiển thị liên tục 24/7'}
                 </p>
                 <div className="pt-2 flex items-center justify-between text-xs text-gray-500 border-t border-gray-100 gap-2">
                   <span className="truncate flex-1 text-gray-600 font-medium" title={getFriendlyLinkName(b.link)}>

@@ -7,8 +7,15 @@ import {
   IsBoolean,
   Min,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+const normalizeOptionalDate = ({ value }: { value: unknown }) => {
+  if (value === '') return null;
+  return value;
+};
 
 export enum BannerScope {
   HOMEPAGE = 'HOMEPAGE',
@@ -37,14 +44,18 @@ export class CreateBannerDto {
   position?: number;
 
   @ApiPropertyOptional()
+  @Transform(normalizeOptionalDate)
+  @ValidateIf((_obj, value) => value !== null && value !== undefined)
   @IsDateString()
   @IsOptional()
-  startDate?: string;
+  startDate?: string | null;
 
   @ApiPropertyOptional()
+  @Transform(normalizeOptionalDate)
+  @ValidateIf((_obj, value) => value !== null && value !== undefined)
   @IsDateString()
   @IsOptional()
-  endDate?: string;
+  endDate?: string | null;
 
   @ApiPropertyOptional({ enum: BannerScope, default: BannerScope.HOMEPAGE })
   @IsEnum(BannerScope)
@@ -80,14 +91,18 @@ export class UpdateBannerDto {
   position?: number;
 
   @ApiPropertyOptional()
+  @Transform(normalizeOptionalDate)
+  @ValidateIf((_obj, value) => value !== null && value !== undefined)
   @IsDateString()
   @IsOptional()
-  startDate?: string;
+  startDate?: string | null;
 
   @ApiPropertyOptional()
+  @Transform(normalizeOptionalDate)
+  @ValidateIf((_obj, value) => value !== null && value !== undefined)
   @IsDateString()
   @IsOptional()
-  endDate?: string;
+  endDate?: string | null;
 
   @ApiPropertyOptional()
   @IsBoolean()

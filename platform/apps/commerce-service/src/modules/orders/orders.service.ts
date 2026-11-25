@@ -2279,6 +2279,78 @@ export class OrdersService {
   }
 
   /**
+   * Resolves authoritative Wallet/Ledger settlement IDs and succeeded Payment timestamps
+   * shared between Admin Escrow and Seller Escrow views (BUG-045 SSOT).
+   */
+  private async resolveEscrowSSOTContext(orders: Array<{ id: string; sellerOrders: Array<{ id: string }> }>) {
+    const orderIds = orders.map((o) => o.id);
+    const sellerOrderIds = orders.flatMap((o) => o.sellerOrders.map((so) => so.id));
+    const settledSellerOrderIds = new Set<string>();
+    const paidAtMap = new Map<string, Date>();
+
+    if (sellerOrderIds.length > 0) {
+      try {
+        const ledgerRows = await (this.prisma as any).ledgerTransaction?.findMany?.({
+          where: {
+            referenceType: 'ESCROW_SETTLEMENT',
+            referenceId: { in: sellerOrderIds },
+          },
+          select: { referenceId: true },
+        });
+        if (Array.isArray(ledgerRows)) {
+          for (const row of ledgerRows) {
+            if (row?.referenceId) settledSellerOrderIds.add(row.referenceId);
+          }
+        }
+      } catch (err: any) {
+        this.logger.warn(`Failed to query ledgerTransaction SSOT: ${err?.message}`);
+      }
+
+      try {
+        const walletRows = await (this.prisma as any).walletTransaction?.findMany?.({
+          where: {
+            referenceType: 'SETTLEMENT',
+            referenceId: { in: sellerOrderIds },
+          },
+          select: { referenceId: true },
+        });
+        if (Array.isArray(walletRows)) {
+          for (const row of walletRows) {
+            if (row?.referenceId) settledSellerOrderIds.add(row.referenceId);
+          }
+        }
+      } catch (err: any) {
+        this.logger.warn(`Failed to query walletTransaction SSOT: ${err?.message}`);
+      }
+    }
+
+    if (orderIds.length > 0) {
+      try {
+        const payments = await (this.prisma as any).payment?.findMany?.({
+          where: {
+            orderId: { in: orderIds },
+            status: 'SUCCEEDED',
+          },
+          orderBy: { paidAt: 'desc' },
+          select: { orderId: true, paidAt: true, updatedAt: true, createdAt: true },
+        });
+        if (Array.isArray(payments)) {
+          for (const p of payments) {
+            if (p?.orderId && !paidAtMap.has(p.orderId)) {
+              const ts = p.paidAt || p.updatedAt || p.createdAt;
+              if (ts) paidAtMap.set(p.orderId, ts);
+            }
+          }
+        }
+      } catch (err: any) {
+        this.logger.warn(`Failed to query payment SSOT: ${err?.message}`);
+      }
+    }
+
+    return { settledSellerOrderIds, paidAtMap };
+  }
+
+  /**
    * List all items currently in platform escrow holding account (Task fix_checkout_v1)
    */
   async adminListEscrowItems(actor?: BookActor, query?: { status?: string; search?: string }) {
@@ -2316,6 +2388,7 @@ export class OrdersService {
     });
 
     const orderIds = orders.map((o) => o.id);
+    const { settledSellerOrderIds, paidAtMap } = await this.resolveEscrowSSOTContext(orders);
     const returnRequests = await this.prisma.returnRequest.findMany({
       where: {
         orderId: { in: orderIds },
@@ -2405,18 +2478,18 @@ export class OrdersService {
           let escrowStatus: 'HOLDING' | 'FROZEN' | 'RELEASED' | 'REFUNDED' | 'PENDING_PAYMENT' = 'HOLDING';
 
           const activeReturn = returnMap.get(item.id) || returnMap.get(`${order.id}_${item.bookId}`);
-          if (activeReturn) {
-            if (activeReturn.status === ReturnRequestStatus.REFUNDED || activeReturn.replacementStatus === 'REFUNDED') {
-              escrowStatus = 'REFUNDED';
-            } else if (activeReturn.status === ReturnRequestStatus.REPLACED || activeReturn.replacementStatus === 'REPLACED') {
-              escrowStatus = 'RELEASED';
-            } else if (activeReturn.status === ReturnRequestStatus.REJECTED) {
-              // Bác bỏ khiếu nại -> Về bình thường
-            } else {
-              // Yêu cầu đổi trả đang mở hoặc đang thu hồi -> LẬP TỨC ĐÓNG BĂNG DÒNG TIỀN!
-              escrowStatus = 'FROZEN';
-            }
-          }
+          const isReturnRefunded = Boolean(
+            activeReturn && (activeReturn.status === ReturnRequestStatus.REFUNDED || activeReturn.replacementStatus === 'REFUNDED'),
+          );
+          const isReturnReplaced = Boolean(
+            activeReturn && (activeReturn.status === ReturnRequestStatus.REPLACED || activeReturn.replacementStatus === 'REPLACED'),
+          );
+          const isReturnBlockingFreeze = Boolean(
+            activeReturn &&
+            activeReturn.status !== ReturnRequestStatus.REJECTED &&
+            !isReturnRefunded &&
+            !isReturnReplaced,
+          );
 
           const isPhysicalDelivered = sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED';
           const isCodOrder = order.paymentMethod === PaymentMethod.COD;
@@ -2424,25 +2497,43 @@ export class OrdersService {
             (order as any).isCodRemitted === true ||
             histories.some((h) => h.orderId === order.id && h.toStatus === 'COD_REMITTANCE')
           );
-
           const isCancelled = (order.status as string) === 'CANCELLED' || (sellerOrder.status as string) === 'CANCELLED';
+          const isSettledInWallet = settledSellerOrderIds.has(sellerOrder.id);
+          const orderPaidAt = paidAtMap.get(order.id) || (!sellerOrder.requiresShipping ? sellerOrder.completedAt : null);
+          const itemHistoryTarget = (itemHistory?.metadata as any)?.targetStatus;
 
           if (isCancelled) {
             escrowStatus = 'CANCELLED' as any;
-          } else if (itemHistory) {
-            const target = (itemHistory.metadata as any)?.targetStatus;
-            if (target) escrowStatus = target;
+          } else if (isReturnRefunded) {
+            escrowStatus = 'REFUNDED';
+          } else if (isReturnBlockingFreeze) {
+            escrowStatus = 'FROZEN';
           } else if (freezeEntry && (!unfreezeEntry || new Date(freezeEntry.createdAt) > new Date(unfreezeEntry.createdAt))) {
             escrowStatus = 'FROZEN';
           } else if (!isCodOrder && order.paymentStatus !== PaymentStatus.SUCCEEDED) {
             // Đơn online chưa thanh toán qua cổng PayOS -> Chưa có tiền vào sàn!
             escrowStatus = 'PENDING_PAYMENT';
+          } else if (isReturnReplaced || isSettledInWallet) {
+            // SSOT: Tiền đã giải ngân vào Ví Seller qua Ledger/Wallet -> Bắt buộc hiển thị Đã bàn giao
+            escrowStatus = 'RELEASED';
+          } else if (itemHistoryTarget === 'RELEASED' || itemHistoryTarget === 'REFUNDED' || itemHistoryTarget === 'FROZEN') {
+            escrowStatus = itemHistoryTarget;
+          } else if (
+            unfreezeEntry &&
+            (unfreezeEntry.toStatus === 'ESCROW_RELEASED' ||
+              unfreezeEntry.toStatus === 'ESCROW_UNFROZEN' ||
+              unfreezeEntry.toStatus.startsWith('RULING_'))
+          ) {
+            escrowStatus = 'RELEASED';
           } else if (isItemDigital) {
-            if (unfreezeEntry && (unfreezeEntry.toStatus === 'ESCROW_RELEASED' || unfreezeEntry.toStatus === 'ESCROW_UNFROZEN')) {
-              escrowStatus = 'RELEASED';
-            } else {
-              escrowStatus = 'HOLDING';
-            }
+            // Ebook: 3 phút (180 giây) tính từ lúc thanh toán thành công (paidAt || completedAt || order.updatedAt)
+            const digitalStartMs = orderPaidAt
+              ? new Date(orderPaidAt).getTime()
+              : (sellerOrder.completedAt
+                ? new Date(sellerOrder.completedAt).getTime()
+                : new Date(sellerOrder.updatedAt || order.updatedAt || order.createdAt).getTime());
+            const isDigitalWindowPassed = digitalStartMs > 0 ? (Date.now() - digitalStartMs) >= 3 * 60 * 1000 : false;
+            escrowStatus = isDigitalWindowPassed ? 'RELEASED' : 'HOLDING';
           } else {
             // For PHYSICAL book:
             if (!isPhysicalDelivered) {
@@ -2464,13 +2555,7 @@ export class OrdersService {
                   : 0;
               const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 3 * 60 * 1000 : false;
 
-              if (isReturnWindowPassed || unfreezeEntry) {
-                // Hết hạn đổi trả (>= 2 phút) -> Tiền qua Seller!
-                escrowStatus = 'RELEASED';
-              } else {
-                // Còn hạn đổi trả (< 2 phút) -> Sàn giữ ký quỹ!
-                escrowStatus = 'HOLDING';
-              }
+              escrowStatus = isReturnWindowPassed ? 'RELEASED' : 'HOLDING';
             }
           }
 
@@ -2532,7 +2617,10 @@ export class OrdersService {
               paymentStatus: order.paymentStatus,
               shippingAddress: shippingAddressText,
               format: item.format,
-              deliveredAt: sellerOrder.completedAt ? sellerOrder.completedAt.toISOString() : null,
+              paidAt: orderPaidAt ? new Date(orderPaidAt).toISOString() : null,
+              deliveredAt: (sellerOrder.completedAt || (isPhysicalDelivered ? sellerOrder.updatedAt : null))
+                ? new Date(sellerOrder.completedAt || sellerOrder.updatedAt).toISOString()
+                : null,
               requiresShipping: sellerOrder.requiresShipping,
               storeId: sellerOrder.storeId,
               storeName: sellerOrder.storeId,
@@ -2642,6 +2730,7 @@ export class OrdersService {
     });
 
     const orderIds = orders.map((o) => o.id);
+    const { settledSellerOrderIds, paidAtMap } = await this.resolveEscrowSSOTContext(orders);
     const voucherUsages = await this.voucherClient.getUsagesByOrderIds(orderIds);
     const voucherMap = new Map<string, any[]>();
     for (const u of voucherUsages) {
@@ -2720,23 +2809,36 @@ export class OrdersService {
           );
 
           const isCancelled = (order.status as string) === 'CANCELLED' || (sellerOrder.status as string) === 'CANCELLED';
+          const isSettledInWallet = settledSellerOrderIds.has(sellerOrder.id);
+          const orderPaidAt = paidAtMap.get(order.id) || (!sellerOrder.requiresShipping ? sellerOrder.completedAt : null);
+          const itemHistoryTarget = (itemHistory?.metadata as any)?.targetStatus;
 
           if (isCancelled) {
             escrowStatus = 'CANCELLED' as any;
-          } else if (itemHistory) {
-            const target = (itemHistory.metadata as any)?.targetStatus;
-            if (target) escrowStatus = target;
           } else if (freezeEntry && (!unfreezeEntry || new Date(freezeEntry.createdAt) > new Date(unfreezeEntry.createdAt))) {
             escrowStatus = 'FROZEN';
           } else if (!isCodOrder && order.paymentStatus !== PaymentStatus.SUCCEEDED) {
             // Đơn online chưa thanh toán qua cổng PayOS -> Chưa có tiền vào sàn!
             escrowStatus = 'PENDING_PAYMENT';
+          } else if (isSettledInWallet || itemHistoryTarget === 'RELEASED') {
+            escrowStatus = 'RELEASED';
+          } else if (itemHistoryTarget === 'FROZEN' || itemHistoryTarget === 'REFUNDED') {
+            escrowStatus = itemHistoryTarget;
+          } else if (
+            unfreezeEntry &&
+            (unfreezeEntry.toStatus === 'ESCROW_RELEASED' ||
+              unfreezeEntry.toStatus === 'ESCROW_UNFROZEN' ||
+              unfreezeEntry.toStatus.startsWith('RULING_'))
+          ) {
+            escrowStatus = 'RELEASED';
           } else if (isItemDigital) {
-            if (unfreezeEntry && (unfreezeEntry.toStatus === 'ESCROW_RELEASED' || unfreezeEntry.toStatus === 'ESCROW_UNFROZEN')) {
-              escrowStatus = 'RELEASED';
-            } else {
-              escrowStatus = 'RELEASED';
-            }
+            const digitalStartMs = orderPaidAt
+              ? new Date(orderPaidAt).getTime()
+              : (sellerOrder.completedAt
+                ? new Date(sellerOrder.completedAt).getTime()
+                : new Date(sellerOrder.updatedAt || order.updatedAt || order.createdAt).getTime());
+            const isDigitalWindowPassed = digitalStartMs > 0 ? (Date.now() - digitalStartMs) >= 3 * 60 * 1000 : false;
+            escrowStatus = isDigitalWindowPassed ? 'RELEASED' : 'HOLDING';
           } else {
             // For PHYSICAL book:
             if (!isPhysicalDelivered) {
@@ -2758,13 +2860,7 @@ export class OrdersService {
                   : 0;
               const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 3 * 60 * 1000 : false;
 
-              if (isReturnWindowPassed || unfreezeEntry) {
-                // Hết hạn 2 phút đổi trả -> Tiền qua Seller!
-                escrowStatus = 'RELEASED';
-              } else {
-                // Còn hạn 2 phút đổi trả -> Sàn giữ ký quỹ!
-                escrowStatus = 'HOLDING';
-              }
+              escrowStatus = isReturnWindowPassed ? 'RELEASED' : 'HOLDING';
             }
           }
 

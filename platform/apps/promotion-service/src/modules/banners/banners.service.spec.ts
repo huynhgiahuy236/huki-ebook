@@ -148,6 +148,8 @@ describe('BannersService', () => {
           isActive: true,
           OR: [
             { startDate: null, endDate: null },
+            { startDate: { lte: expect.any(Date) }, endDate: null },
+            { startDate: null, endDate: { gte: expect.any(Date) } },
             {
               startDate: { lte: expect.any(Date) },
               endDate: { gte: expect.any(Date) },
@@ -180,6 +182,41 @@ describe('BannersService', () => {
           where: expect.objectContaining({ storeId: 'store-1' }),
         }),
       );
+    });
+  });
+
+  describe('schedule management (BUG-047)', () => {
+    it('allows clearing startDate and endDate to null on update without 1970 epoch bug', async () => {
+      mockPrisma.banner.findUnique.mockResolvedValue({
+        id: 'banner-1',
+        title: 'Campaign',
+        startDate: new Date('2026-11-01T00:00:00Z'),
+        endDate: new Date('2026-11-30T23:59:59Z'),
+      });
+      mockPrisma.banner.update.mockResolvedValue({
+        id: 'banner-1',
+        title: 'Campaign',
+        startDate: null,
+        endDate: null,
+      });
+
+      const res = await service.update('banner-1', { startDate: null, endDate: null });
+      expect(res.startDate).toBeNull();
+      expect(mockPrisma.banner.update).toHaveBeenCalledWith({
+        where: { id: 'banner-1' },
+        data: { startDate: null, endDate: null },
+      });
+    });
+
+    it('rejects creating banner when endDate <= startDate', async () => {
+      await expect(
+        service.create({
+          title: 'Invalid Schedule',
+          image: 'https://cdn.example.com/banner.jpg',
+          startDate: '2026-11-20T10:00:00Z',
+          endDate: '2026-11-19T10:00:00Z',
+        }),
+      ).rejects.toThrow();
     });
   });
 });

@@ -7,8 +7,8 @@ export interface BannerData {
   image: string;
   link?: string;
   position?: number;
-  startDate?: string;
-  endDate?: string;
+  startDate?: string | null;
+  endDate?: string | null;
   scope?: 'HOMEPAGE' | 'CATEGORY' | 'STORE';
   storeId?: string;
   isActive?: boolean;

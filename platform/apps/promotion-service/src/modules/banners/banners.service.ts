@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateBannerDto,
@@ -13,7 +13,17 @@ import { ErrorCode } from '@huki/shared/errors';
 export class BannersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private validateDateWindow(startDate?: Date | null, endDate?: Date | null) {
+    if (startDate && endDate && endDate <= startDate) {
+      throw new BadRequestException('Thời gian kết thúc banner phải sau thời gian bắt đầu');
+    }
+  }
+
   async create(dto: CreateBannerDto) {
+    const startDate = dto.startDate ? new Date(dto.startDate) : null;
+    const endDate = dto.endDate ? new Date(dto.endDate) : null;
+    this.validateDateWindow(startDate, endDate);
+
     return this.prisma.banner.create({
       data: {
         title: dto.title,
@@ -21,8 +31,8 @@ export class BannersService {
         link: dto.link,
         position: dto.position ?? 0,
         isActive: true,
-        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-        endDate: dto.endDate ? new Date(dto.endDate) : undefined,
+        startDate: startDate ?? undefined,
+        endDate: endDate ?? undefined,
         scope: dto.scope ?? BannerScope.HOMEPAGE,
         storeId: dto.storeId,
       },
@@ -66,6 +76,12 @@ export class BannersService {
     const banner = await this.prisma.banner.findUnique({ where: { id } });
     if (!banner) throwNotFound(ErrorCode.BANNER_NOT_FOUND);
 
+    const nextStartDate =
+      dto.startDate !== undefined ? (dto.startDate ? new Date(dto.startDate) : null) : banner!.startDate;
+    const nextEndDate =
+      dto.endDate !== undefined ? (dto.endDate ? new Date(dto.endDate) : null) : banner!.endDate;
+    this.validateDateWindow(nextStartDate, nextEndDate);
+
     return this.prisma.banner.update({
       where: { id },
       data: {
@@ -73,8 +89,8 @@ export class BannersService {
         ...(dto.image !== undefined && { image: dto.image }),
         ...(dto.link !== undefined && { link: dto.link }),
         ...(dto.position !== undefined && { position: dto.position }),
-        ...(dto.startDate !== undefined && { startDate: new Date(dto.startDate) }),
-        ...(dto.endDate !== undefined && { endDate: new Date(dto.endDate) }),
+        ...(dto.startDate !== undefined && { startDate: dto.startDate ? new Date(dto.startDate) : null }),
+        ...(dto.endDate !== undefined && { endDate: dto.endDate ? new Date(dto.endDate) : null }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },
     });
@@ -98,6 +114,8 @@ export class BannersService {
         isActive: true,
         OR: [
           { startDate: null, endDate: null },
+          { startDate: { lte: now }, endDate: null },
+          { startDate: null, endDate: { gte: now } },
           {
             startDate: { lte: now },
             endDate: { gte: now },

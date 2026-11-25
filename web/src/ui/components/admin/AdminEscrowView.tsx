@@ -490,6 +490,7 @@ export function AdminEscrowView() {
       const isPhysical = !isDigital;
       const isDelivered =
         item.orderStatus === 'DELIVERED' ||
+        item.orderStatus === 'COMPLETED' ||
         Boolean(item.deliveredAt);
 
       const isCod = item.paymentMethod === 'COD';

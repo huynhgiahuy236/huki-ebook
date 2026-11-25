@@ -425,7 +425,15 @@ export default function HomePage() {
         if (saved !== null) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
-            const activeOnly = parsed.filter((b: any) => b.status === "active");
+            const nowMs = Date.now();
+            const activeOnly = parsed.filter((b: any) => {
+              if (b.status !== "active") return false;
+              const sMs = b.startDate ? new Date(b.startDate).getTime() : null;
+              const eMs = b.endDate ? new Date(b.endDate).getTime() : null;
+              if (sMs && !isNaN(sMs) && nowMs < sMs) return false;
+              if (eMs && !isNaN(eMs) && nowMs > eMs) return false;
+              return true;
+            });
             setCustomBanners(activeOnly);
             return;
           }
@@ -1231,79 +1239,84 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* 1.2 CỘT GIỮA: BANNER HERO LỚN VỚI HÌNH ẢNH NỀN */}
+          {/* 1.2 CỘT GIỮA: BANNER HERO LỚN CHUẨN SHOPEE (ẢNH THIẾT KẾ SẠCH, CLICK TRỰC TIẾP, KHÔNG CHỮ ĐÈ) */}
           <div
-            className="col-span-12 lg:col-span-6 rounded-2xl overflow-hidden relative shadow-xs flex flex-col justify-end min-h-[280px] sm:min-h-[320px] transition-all group"
+            className="col-span-12 lg:col-span-6 rounded-2xl overflow-hidden relative shadow-xs min-h-[260px] sm:min-h-[320px] transition-all group bg-emerald-950/5 border border-gray-200/80"
             onMouseEnter={() => setIsHeroHovered(true)}
             onMouseLeave={() => setIsHeroHovered(false)}
           >
-            {/* Cross-fade Background Layers */}
+            {/* Cross-fade Full-Bleed Clickable Banner Images */}
             {heroSlides.map((slide, idx) => (
               <Link
                 key={slide.id || idx}
                 href={slide.primaryBtn?.to || "/books"}
+                aria-label={slide.title || `Banner chiến dịch ${idx + 1}`}
+                title={slide.title || undefined}
                 onClick={() => {
                   if (slide.id) recordBannerClick(slide.id);
                 }}
-                className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ease-in-out cursor-pointer ${
-                  activeHeroSlide === idx ? 'opacity-100 z-0' : 'opacity-0 pointer-events-none'
+                className={`absolute inset-0 transition-opacity duration-700 ease-in-out cursor-pointer block ${
+                  activeHeroSlide === idx ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none z-0'
                 }`}
-                style={{
-                  backgroundImage: `${slide.overlay || ''}, url('${slide.bgImage || ''}')`,
-                }}
-              />
+              >
+                <img
+                  src={slide.bgImage || "/banners/hero-library.jpg"}
+                  alt={slide.title || "Banner HuKi"}
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    const img = e.currentTarget;
+                    if (!img.dataset.fallback) {
+                      img.dataset.fallback = '1';
+                      img.src = "/banners/hero-library.jpg";
+                    }
+                  }}
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.01]"
+                />
+              </Link>
             ))}
 
-            {/* Content Container */}
-            <div className="relative z-10 max-w-[460px] text-white p-5 sm:p-7 pointer-events-auto">
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-bold uppercase tracking-wider mb-2 border border-white/20">
-                {heroSlides[activeHeroSlide]?.badge}
-              </span>
-
-              <h2 className="text-xl sm:text-2xl lg:text-3xl font-black leading-tight tracking-tight text-white mb-2 drop-shadow-sm font-editorial line-clamp-2">
-                {heroSlides[activeHeroSlide]?.title}
-              </h2>
-
-              <p className="text-xs sm:text-sm text-gray-200 line-clamp-2 mb-4 leading-relaxed font-light">
-                {heroSlides[activeHeroSlide]?.desc}
-              </p>
-
-              <div className="flex items-center gap-2.5">
-                <Link
-                  href={heroSlides[activeHeroSlide]?.primaryBtn?.to || "/books"}
-                  onClick={() => {
-                    const curId = heroSlides[activeHeroSlide]?.id;
-                    if (curId) recordBannerClick(curId);
-                  }}
-                  className="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-white text-[#003B2B] hover:bg-emerald-50 text-xs sm:text-sm font-bold shadow-sm transition-all cursor-pointer"
-                >
-                  {heroSlides[activeHeroSlide]?.primaryBtn?.text} →
-                </Link>
-
-                <Link
-                  href={heroSlides[activeHeroSlide]?.secondaryBtn?.to || "/books"}
-                  onClick={() => {
-                    const curId = heroSlides[activeHeroSlide]?.id;
-                    if (curId) recordBannerClick(curId);
-                  }}
-                  className="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-black/25 hover:bg-black/40 text-white backdrop-blur-xs text-xs sm:text-sm font-semibold transition-all border border-white/20"
-                >
-                  {heroSlides[activeHeroSlide]?.secondaryBtn?.text}
-                </Link>
-              </div>
-            </div>
-
-            {/* Slider Controls & Pagination Dots */}
+            {/* Prev / Next Navigation Arrows (Shopee style, hover reveal) */}
             {heroSlides.length > 1 && (
-              <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-20 flex items-center gap-1.5">
+              <>
+                <button
+                  type="button"
+                  aria-label="Banner trước"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setActiveHeroSlide((prev) => (prev - 1 + heroSlides.length) % heroSlides.length);
+                  }}
+                  className="hidden sm:flex items-center justify-center w-8 h-12 rounded-r-lg bg-black/25 hover:bg-black/50 text-white absolute left-0 top-1/2 -translate-y-1/2 z-20 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-lg">chevron_left</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Banner tiếp theo"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setActiveHeroSlide((prev) => (prev + 1) % heroSlides.length);
+                  }}
+                  className="hidden sm:flex items-center justify-center w-8 h-12 rounded-l-lg bg-black/25 hover:bg-black/50 text-white absolute right-0 top-1/2 -translate-y-1/2 z-20 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-lg">chevron_right</span>
+                </button>
+              </>
+            )}
+
+            {/* Minimal Bottom Pagination Dots */}
+            {heroSlides.length > 1 && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/20 backdrop-blur-xs">
                 {heroSlides.map((_, idx) => (
                   <button
                     key={idx}
+                    type="button"
                     onClick={() => setActiveHeroSlide(idx)}
                     className={`h-1.5 rounded-full transition-all cursor-pointer ${
                       activeHeroSlide === idx
-                        ? "w-6 bg-white shadow-xs"
-                        : "w-2 bg-white/40 hover:bg-white/70"
+                        ? "w-5 bg-white shadow-xs"
+                        : "w-1.5 bg-white/55 hover:bg-white/85"
                     }`}
                     aria-label={`Slide ${idx + 1}`}
                   />
@@ -1312,58 +1325,54 @@ export default function HomePage() {
             )}
           </div>
 
-          {/* 1.3 CỘT PHẢI: 2 BANNER PHỤ (ĐỒNG BỘ THEO SLOT ADMIN MARKETING) */}
+          {/* 1.3 CỘT PHẢI: 2 BANNER PHỤ CHUẨN SHOPEE (FULL-BLEED ẢNH THIẾT KẾ SẴN, KHÔNG CHỮ ĐÈ) */}
           <div className="col-span-12 lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2.5">
             <Link
               href={subTopBanner?.link || "/books?sort=bestseller"}
-              style={{
-                backgroundImage: `linear-gradient(to right, rgba(0, 36, 26, 0.88) 0%, rgba(0, 36, 26, 0.5) 65%, rgba(0, 36, 26, 0.1) 100%), url('${subTopBanner?.bgImage || '/banners/hero-podium.jpg'}')`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
+              aria-label={subTopBanner?.title || "Banner sách bán chạy"}
+              title={subTopBanner?.title || "Tuyển tập bán chạy"}
+              onClick={() => {
+                if (subTopBanner?.id) recordBannerClick(subTopBanner.id);
               }}
-              className="flex-1 rounded-xl p-3.5 text-white relative overflow-hidden flex flex-col justify-between shadow-2xs group cursor-pointer hover:shadow-md transition-all min-h-[135px] border border-emerald-900/20"
+              className="flex-1 rounded-xl overflow-hidden relative shadow-2xs group cursor-pointer hover:shadow-md transition-all min-h-[135px] border border-gray-200/80 block bg-emerald-950/5"
             >
-              <div className="relative z-10 max-w-[210px]">
-                <span className="bg-amber-400 text-[#003B2B] text-[8.5px] uppercase font-black px-2 py-0.5 rounded shadow-xs">
-                  {subTopBanner?.badge || "SÁCH BÁN CHẠY"}
-                </span>
-                <h3 className="text-xs sm:text-sm font-bold mt-1.5 leading-snug text-white font-editorial drop-shadow-xs line-clamp-2">
-                  {subTopBanner?.title || "Tuyển Tập Được Đọc Nhiều Nhất"}
-                </h3>
-                <p className="text-[10.5px] text-emerald-100 mt-1 line-clamp-2 font-normal">
-                  {subTopBanner?.subtitle || "Khám phá các ấn phẩm bán chạy hàng đầu tuần này."}
-                </p>
-              </div>
-
-              <div className="relative z-10 mt-1.5 flex items-center text-[11px] font-bold text-amber-300 group-hover:translate-x-1 transition-transform">
-                <span>Xem ngay →</span>
-              </div>
+              <img
+                src={subTopBanner?.bgImage || '/banners/hero-podium.jpg'}
+                alt={subTopBanner?.title || "Tuyển Tập Được Đọc Nhiều Nhất"}
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  if (!img.dataset.fallback) {
+                    img.dataset.fallback = '1';
+                    img.src = '/banners/hero-podium.jpg';
+                  }
+                }}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+              />
             </Link>
 
             <Link
               href={subBottomBanner?.link || "/books?format=ebook"}
-              style={{
-                backgroundImage: `linear-gradient(to right, rgba(15, 23, 42, 0.9) 0%, rgba(15, 23, 42, 0.52) 65%, rgba(15, 23, 42, 0.1) 100%), url('${subBottomBanner?.bgImage || '/banners/sub-hybrid.jpg'}')`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
+              aria-label={subBottomBanner?.title || "Banner Ebook bản quyền"}
+              title={subBottomBanner?.title || "Ebook DRM Bản Quyền"}
+              onClick={() => {
+                if (subBottomBanner?.id) recordBannerClick(subBottomBanner.id);
               }}
-              className="flex-1 rounded-xl p-3.5 text-white relative overflow-hidden flex flex-col justify-between shadow-2xs group cursor-pointer hover:shadow-md transition-all min-h-[135px] border border-slate-800"
+              className="flex-1 rounded-xl overflow-hidden relative shadow-2xs group cursor-pointer hover:shadow-md transition-all min-h-[135px] border border-gray-200/80 block bg-slate-900/5"
             >
-              <div className="relative z-10 max-w-[210px]">
-                <span className="bg-emerald-400 text-slate-900 text-[8.5px] uppercase font-black px-2 py-0.5 rounded shadow-xs">
-                  {subBottomBanner?.badge || "EBOOK BẢN QUYỀN"}
-                </span>
-                <h3 className="text-xs sm:text-sm font-bold mt-1.5 leading-snug text-white font-editorial drop-shadow-xs line-clamp-2">
-                  {subBottomBanner?.title || "Đọc Mọi Lúc Mọi Nơi"}
-                </h3>
-                <p className="text-[10.5px] text-slate-200 mt-1 line-clamp-2 font-normal">
-                  {subBottomBanner?.subtitle || "Sách điện tử DRM bản quyền đọc tiện lợi trên mọi thiết bị."}
-                </p>
-              </div>
-
-              <div className="relative z-10 mt-1.5 flex items-center text-[11px] font-bold text-emerald-300 group-hover:translate-x-1 transition-transform">
-                <span>Xem ngay →</span>
-              </div>
+              <img
+                src={subBottomBanner?.bgImage || '/banners/sub-hybrid.jpg'}
+                alt={subBottomBanner?.title || "Sách Điện Tử DRM Bản Quyền"}
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  if (!img.dataset.fallback) {
+                    img.dataset.fallback = '1';
+                    img.src = '/banners/sub-hybrid.jpg';
+                  }
+                }}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+              />
             </Link>
           </div>
         </div>

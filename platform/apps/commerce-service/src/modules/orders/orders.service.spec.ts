@@ -45,6 +45,7 @@ describe("OrdersService (Prisma)", () => {
       validateAndApplyVouchers: jest.fn().mockResolvedValue({ valid: true }),
       releaseVoucherUsage: jest.fn().mockResolvedValue(undefined),
       rollback: jest.fn().mockResolvedValue(undefined),
+      getUsagesByOrderIds: jest.fn().mockResolvedValue([]),
     };
     escrow = new EscrowService(prisma);
     const configService = {
@@ -1111,6 +1112,70 @@ describe("OrdersService (Prisma)", () => {
 
       const detail: any = await service.buyerDetail("buyer-1", "ord-ebook-1");
       expect(detail.paidAt).toEqual(paidTimestamp);
+    });
+  });
+
+  describe("BUG-045: Admin Escrow SSOT synced with Ledger/Wallet settlements & 3-min rule", () => {
+    it("marks item as RELEASED in adminListEscrowItems when settled in Ledger/Wallet even if stale HOLDING history exists", async () => {
+      const recentPaidAt = new Date(Date.now() - 30_000); // only 30s ago, yet already settled in wallet
+      prisma.order.findMany = jest.fn().mockResolvedValue([
+        {
+          id: "ord-settled-1",
+          code: "ORD-SET-1",
+          grandTotal: 150000,
+          paymentMethod: "ONLINE_PAYMENT",
+          paymentStatus: PaymentStatus.SUCCEEDED,
+          status: OrderStatus.COMPLETED,
+          shippingAddress: { recipientName: "Huỳnh Gia Huy", phone: "0901234567" },
+          createdAt: recentPaidAt,
+          updatedAt: recentPaidAt,
+          sellerOrders: [
+            {
+              id: "so-settled-1",
+              orderId: "ord-settled-1",
+              code: "SO-SET-1",
+              storeId: "huki-official",
+              requiresShipping: true,
+              shippingFee: 0,
+              status: SellerOrderStatus.COMPLETED,
+              completedAt: recentPaidAt,
+              updatedAt: recentPaidAt,
+              items: [
+                {
+                  id: "oi-set-1",
+                  bookId: "book-1",
+                  bookTitle: "Sách Giấy Demo",
+                  format: "PHYSICAL",
+                  quantity: 1,
+                  unitPrice: 150000,
+                  subtotal: 150000,
+                },
+              ],
+            },
+          ],
+        },
+      ]);
+      prisma.orderStatusHistory.findMany = jest.fn().mockResolvedValue([
+        {
+          orderId: "ord-settled-1",
+          toStatus: "ESCROW_HOLDING",
+          createdAt: recentPaidAt,
+          metadata: { orderItemId: "oi-set-1", targetStatus: "HOLDING" },
+        },
+      ]);
+      prisma.ledgerTransaction = {
+        findMany: jest.fn().mockResolvedValue([{ referenceId: "so-settled-1" }]),
+      };
+      prisma.walletTransaction = {
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+      prisma.payment = {
+        findMany: jest.fn().mockResolvedValue([{ orderId: "ord-settled-1", paidAt: recentPaidAt }]),
+      };
+
+      const rows = await service.adminListEscrowItems({ sub: "admin-1", role: "PLATFORM_ADMIN" } as any);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].escrowStatus).toBe("RELEASED");
     });
   });
 });

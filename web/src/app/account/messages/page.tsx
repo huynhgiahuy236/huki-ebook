@@ -98,9 +98,9 @@ function MessengerContent() {
   const [activeTabFilter, setActiveTabFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Collapse controls for Left & Right sidebars
+  // Collapse controls for Left & Right sidebars (BUG-046: right info panel closed by default)
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
-  const [showRightPanel, setShowRightPanel] = useState(true);
+  const [showRightPanel, setShowRightPanel] = useState(false);
 
   // Accordion states in Right panel (Facebook Messenger style)
   const [expandedSection, setExpandedSection] = useState({
@@ -447,13 +447,32 @@ function MessengerContent() {
         };
       });
 
-      setChannels(prev =>
-        prev.map(c =>
+      setChannels(prev => {
+        const exists = prev.some(c => c.id === convId || c.id === activeChannel);
+        if (!exists && convId) {
+          return [{
+            id: convId,
+            storeId: (newMsg as any).storeId || convId,
+            name: newMsg.senderName || 'Gian Hàng HUKI',
+            type: 'store',
+            typeLabel: 'Nhà Xuất Bản',
+            verified: true,
+            avatar: sanitizeImageUrl(newMsg.senderAvatar) || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=160&q=80',
+            isOnline: true,
+            lastMsg: newMsg.content,
+            lastTime: item.time,
+            unread: activeChannel === convId ? 0 : 1,
+            rating: '5.0/5',
+            reviewCount: 'CSKH',
+            responseTime: '< 5p',
+          }, ...prev];
+        }
+        return prev.map(c =>
             c.id === convId || c.id === activeChannel
             ? { ...c, lastMsg: newMsg.content, lastTime: item.time, unread: activeChannel === convId ? 0 : c.unread + 1 }
             : c
-        )
-      );
+        );
+      });
 
       if (activeChannel === convId) {
         markAsRead(convId);
@@ -540,10 +559,21 @@ function MessengerContent() {
       prev.map(c => (c.id === activeChannel ? { ...c, unread: 0 } : c))
     );
 
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        loadMessages();
+        joinConversation(activeChannel);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
       leaveConversation(activeChannel);
     };
-  }, [activeChannel, joinConversation, leaveConversation, markAsRead, scrollToBottom]);
+  }, [activeChannel, isConnected, joinConversation, leaveConversation, markAsRead, scrollToBottom]);
 
   // Quản lý tệp đính kèm người mua (Ảnh / Video)
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
