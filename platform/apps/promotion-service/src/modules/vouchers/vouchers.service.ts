@@ -31,7 +31,7 @@ export class VouchersService {
   private readonly pgPools = new Map<string, any>();
   private readonly relatedIdsCache = new Map<string, { ids: string[]; expiresAt: number }>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   private resolveCrossServiceDbUrl(service: 'business' | 'commerce'): string {
     const envVar = service === 'business' ? process.env.BUSINESS_DATABASE_URL : process.env.COMMERCE_DATABASE_URL;
@@ -1140,7 +1140,7 @@ export class VouchersService {
         });
         const restoredStatus =
           updated.status === 'USED_UP' &&
-          (updated.totalUsage === 0 || updated.currentUsage < updated.totalUsage)
+            (updated.totalUsage === 0 || updated.currentUsage < updated.totalUsage)
             ? 'ACTIVE'
             : updated.status;
         await tx.voucher.update({
