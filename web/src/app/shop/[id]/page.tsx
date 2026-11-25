@@ -149,132 +149,108 @@ export default function ShopPage() {
 
   // Xử lý chọn tệp từ máy trong modal
   const handleModalFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+      const file = e.target.files?.[0];
+      if (!file) return;
 
-    const MAX_SIZE = 2 * 1024 * 1024; // 2MB
-    if (file.size > MAX_SIZE) {
-      showToast('Dung lượng ảnh vượt quá 2MB. Vui lòng chọn ảnh có dung lượng tối đa 2MB!', 'error');
-      if (modalFileInputRef.current) modalFileInputRef.current.value = '';
-      return;
-    }
-
-    if (!file.type.startsWith('image/')) {
-      showToast('Vui lòng chọn tệp hình ảnh hợp lệ (PNG, JPG, WEBP).', 'error');
-      if (modalFileInputRef.current) modalFileInputRef.current.value = '';
-      return;
-    }
-
-    const isAvatar = activeImageModal === 'avatar';
-    try {
-      const compressed = await compressImageToDataUrl(
-        file,
-        isAvatar ? 400 : 1200,
-        isAvatar ? 400 : 400,
-        0.85,
-      );
-      setPreviewImage(compressed);
-    } catch {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setPreviewImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // Xử lý bấm Áp dụng cập nhật ảnh vào DB
-  const handleApplyImage = async () => {
-    if (!activeImageModal) return;
-    setIsApplyingImage(true);
-    try {
-      const targetStoreId = business?.stores?.[0]?.id;
-      const isDefault = previewImage === 'DEFAULT';
-      const finalUrl = isDefault ? '' : (previewImage || '');
-
-      if (activeImageModal === 'avatar') {
-        if (targetStoreId) {
-          await businessApi.updateStore(targetStoreId, { logo: finalUrl });
-        }
-        setBusiness((prev) =>
-          prev
-            ? {
-              ...prev,
-              logo: isDefault ? undefined : (finalUrl || prev.logo),
-              stores: prev.stores?.length
-                ? prev.stores.map((s, idx) => (idx === 0 ? { ...s, logo: isDefault ? undefined : (finalUrl || s.logo) } : s))
-                : [{ id: targetStoreId || '1', name: prev.name, slug: prev.slug || '', logo: isDefault ? undefined : finalUrl }],
-            }
-            : null
-        );
-        showToast(isDefault ? 'Đã khôi phục ảnh đại diện mặc định!' : 'Cập nhật ảnh đại diện thành công!', 'success');
-      } else {
-        if (targetStoreId) {
-          await businessApi.updateStore(targetStoreId, { banner: finalUrl });
-        }
-        setBusiness((prev) =>
-          prev
-            ? {
-              ...prev,
-              banner: isDefault ? undefined : (finalUrl || prev.banner),
-              stores: prev.stores?.length
-                ? prev.stores.map((s, idx) => (idx === 0 ? { ...s, banner: isDefault ? undefined : (finalUrl || s.banner) } : s))
-                : [{ id: targetStoreId || '1', name: prev.name, slug: prev.slug || '', banner: isDefault ? undefined : finalUrl }],
-            }
-            : null
-        );
-        showToast(isDefault ? 'Đã khôi phục ảnh bìa mặc định!' : 'Cập nhật ảnh bìa gian hàng thành công!', 'success');
+      const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+      if (file.size > MAX_SIZE) {
+        showToast('Dung lượng ảnh vượt quá 2MB. Vui lòng chọn ảnh có dung lượng tối đa 2MB!', 'error');
+        if (modalFileInputRef.current) modalFileInputRef.current.value = '';
+        return;
       }
-      setActiveImageModal(null);
-      setPreviewImage(null);
-    } catch {
-      showToast('Có lỗi khi cập nhật ảnh. Vui lòng thử lại!', 'error');
-    } finally {
-      setIsApplyingImage(false);
-      if (modalFileInputRef.current) modalFileInputRef.current.value = '';
-    }
-  };
 
-  const fetchBusinessData = useCallback(async () => {
-    setIsLoadingStore(true);
-    const identifier = (businessSlugOrId || '').trim();
-    if (!identifier) {
-      setBusiness(null);
-      setIsLoadingStore(false);
-      return;
-    }
-    try {
-      let businessData: BusinessData | null = null;
+      if (!file.type.startsWith('image/')) {
+        showToast('Vui lòng chọn tệp hình ảnh hợp lệ (PNG, JPG, WEBP).', 'error');
+        if (modalFileInputRef.current) modalFileInputRef.current.value = '';
+        return;
+      }
 
-      // 1. Try finding store by slug directly
+      const isAvatar = activeImageModal === 'avatar';
       try {
-        const storeBySlugRes = await businessApi.getStoreBySlug(identifier);
-        if (storeBySlugRes.success && storeBySlugRes.data) {
-          const store = storeBySlugRes.data as any;
-          businessData = {
-            id: store.businessId || store.id,
-            name: store.business?.name || store.name,
-            displayName: store.name,
-            slug: store.slug || identifier,
-            email: store.email,
-            phone: store.phone,
-            address: store.address,
-            description: store.description,
-            logo: store.logo,
-            banner: store.banner,
-            status: (store.status as any) || 'APPROVED',
-            stores: [store],
-            businessType: 'CORPORATION',
-          };
-        }
-      } catch { }
+        const compressed = await compressImageToDataUrl(
+          file,
+          isAvatar ? 400 : 1200,
+          isAvatar ? 400 : 400,
+          0.85,
+        );
+        setPreviewImage(compressed);
+      } catch {
+        const reader = new FileReader();
+        reader.onload = () => {
+          setPreviewImage(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
+    };
 
-      // 2. Try finding store by ID directly (UUID or custom store ID)
-      if (!businessData) {
+    // Xử lý bấm Áp dụng cập nhật ảnh vào DB
+    const handleApplyImage = async () => {
+      if (!activeImageModal) return;
+      setIsApplyingImage(true);
+      try {
+        const targetStoreId = business?.stores?.[0]?.id;
+        const isDefault = previewImage === 'DEFAULT';
+        const finalUrl = isDefault ? '' : (previewImage || '');
+
+        if (activeImageModal === 'avatar') {
+          if (targetStoreId) {
+            await businessApi.updateStore(targetStoreId, { logo: finalUrl });
+          }
+          setBusiness((prev) =>
+            prev
+              ? {
+                ...prev,
+                logo: isDefault ? undefined : (finalUrl || prev.logo),
+                stores: prev.stores?.length
+                  ? prev.stores.map((s, idx) => (idx === 0 ? { ...s, logo: isDefault ? undefined : (finalUrl || s.logo) } : s))
+                  : [{ id: targetStoreId || '1', name: prev.name, slug: prev.slug || '', logo: isDefault ? undefined : finalUrl }],
+              }
+              : null
+          );
+          showToast(isDefault ? 'Đã khôi phục ảnh đại diện mặc định!' : 'Cập nhật ảnh đại diện thành công!', 'success');
+        } else {
+          if (targetStoreId) {
+            await businessApi.updateStore(targetStoreId, { banner: finalUrl });
+          }
+          setBusiness((prev) =>
+            prev
+              ? {
+                ...prev,
+                banner: isDefault ? undefined : (finalUrl || prev.banner),
+                stores: prev.stores?.length
+                  ? prev.stores.map((s, idx) => (idx === 0 ? { ...s, banner: isDefault ? undefined : (finalUrl || s.banner) } : s))
+                  : [{ id: targetStoreId || '1', name: prev.name, slug: prev.slug || '', banner: isDefault ? undefined : finalUrl }],
+              }
+              : null
+          );
+          showToast(isDefault ? 'Đã khôi phục ảnh bìa mặc định!' : 'Cập nhật ảnh bìa gian hàng thành công!', 'success');
+        }
+        setActiveImageModal(null);
+        setPreviewImage(null);
+      } catch {
+        showToast('Có lỗi khi cập nhật ảnh. Vui lòng thử lại!', 'error');
+      } finally {
+        setIsApplyingImage(false);
+        if (modalFileInputRef.current) modalFileInputRef.current.value = '';
+      }
+    };
+
+    const fetchBusinessData = useCallback(async () => {
+      setIsLoadingStore(true);
+      const identifier = (businessSlugOrId || '').trim();
+      if (!identifier) {
+        setBusiness(null);
+        setIsLoadingStore(false);
+        return;
+      }
+      try {
+        let businessData: BusinessData | null = null;
+
+        // 1. Try finding store by slug directly
         try {
-          const storeByIdRes = await businessApi.getStoreById(identifier);
-          if (storeByIdRes.success && storeByIdRes.data) {
-            const store = storeByIdRes.data as any;
+          const storeBySlugRes = await businessApi.getStoreBySlug(identifier);
+          if (storeBySlugRes.success && storeBySlugRes.data) {
+            const store = storeBySlugRes.data as any;
             businessData = {
               id: store.businessId || store.id,
               name: store.business?.name || store.name,
@@ -292,542 +268,566 @@ export default function ShopPage() {
             };
           }
         } catch { }
-      }
 
-      // 3. Try finding business by slug
-      if (!businessData) {
-        try {
-          const bizSlugRes = await businessApi.getBusinessBySlug(identifier);
-          if (bizSlugRes.success && bizSlugRes.data) {
-            businessData = bizSlugRes.data;
-          }
-        } catch { }
-      }
-
-      // 4. Try finding business by ID
-      if (!businessData && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier)) {
-        try {
-          const idRes = await businessApi.getBusinessById(identifier);
-          if (idRes.success && idRes.data) {
-            businessData = idRes.data;
-          }
-        } catch { }
-      }
-
-      // 5. Fallback: match across public businesses or public stores
-      if (!businessData) {
-        try {
-          const [allBizRes, allStoresRes] = await Promise.all([
-            businessApi.getPublicBusinesses({ limit: 100 }),
-            businessApi.getPublicStores({ limit: 100 }),
-          ]);
-
-          const norm = identifier.toLowerCase();
-          const cleanNorm = norm.replace(/-(official|store|shop)$/, '');
-          if (allStoresRes.success && Array.isArray(allStoresRes.data)) {
-            const matchedStore = allStoresRes.data.find(
-              (s) =>
-                s.id === identifier ||
-                (s.slug && s.slug.toLowerCase() === norm) ||
-                (s.name && s.name.toLowerCase().includes(norm.replace(/-/g, ' '))),
-            ) as any;
-            if (matchedStore) {
+        // 2. Try finding store by ID directly (UUID or custom store ID)
+        if (!businessData) {
+          try {
+            const storeByIdRes = await businessApi.getStoreById(identifier);
+            if (storeByIdRes.success && storeByIdRes.data) {
+              const store = storeByIdRes.data as any;
               businessData = {
-                id: matchedStore.businessId || matchedStore.id,
-                name: matchedStore.business?.name || matchedStore.name,
-                displayName: matchedStore.name,
-                slug: matchedStore.slug || identifier,
-                email: matchedStore.email,
-                phone: matchedStore.phone,
-                address: matchedStore.address,
-                description: matchedStore.description,
-                logo: matchedStore.logo,
-                banner: matchedStore.banner,
-                status: (matchedStore.status as any) || 'APPROVED',
-                stores: [matchedStore],
+                id: store.businessId || store.id,
+                name: store.business?.name || store.name,
+                displayName: store.name,
+                slug: store.slug || identifier,
+                email: store.email,
+                phone: store.phone,
+                address: store.address,
+                description: store.description,
+                logo: store.logo,
+                banner: store.banner,
+                status: (store.status as any) || 'APPROVED',
+                stores: [store],
                 businessType: 'CORPORATION',
               };
             }
-          }
+          } catch { }
+        }
 
-          if (!businessData && allBizRes.success && Array.isArray(allBizRes.data)) {
-            const matchedBiz = allBizRes.data.find(
-              (b) =>
-                b.id === identifier ||
-                b.ownerId === identifier ||
-                (b.slug && b.slug.toLowerCase() === norm) ||
-                (b.name && b.name.toLowerCase().includes(norm.replace(/-/g, ' '))) ||
-                b.stores?.some((s) => s.id === identifier || (s.slug && (s.slug.toLowerCase() === norm || s.slug.toLowerCase() === cleanNorm))),
-            );
-            if (matchedBiz) businessData = matchedBiz;
-          }
-        } catch { }
-      }
+        // 3. Try finding business by slug
+        if (!businessData) {
+          try {
+            const bizSlugRes = await businessApi.getBusinessBySlug(identifier);
+            if (bizSlugRes.success && bizSlugRes.data) {
+              businessData = bizSlugRes.data;
+            }
+          } catch { }
+        }
 
-      // 6. Fallback: match publishers in catalog or predefined partner list
-      if (!businessData) {
-        try {
-          const pubsRes = await catalogApi.getPublishers();
-          if (pubsRes.success && Array.isArray(pubsRes.data)) {
+        // 4. Try finding business by ID
+        if (!businessData && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier)) {
+          try {
+            const idRes = await businessApi.getBusinessById(identifier);
+            if (idRes.success && idRes.data) {
+              businessData = idRes.data;
+            }
+          } catch { }
+        }
+
+        // 5. Fallback: match across public businesses or public stores
+        if (!businessData) {
+          try {
+            const [allBizRes, allStoresRes] = await Promise.all([
+              businessApi.getPublicBusinesses({ limit: 100 }),
+              businessApi.getPublicStores({ limit: 100 }),
+            ]);
+
             const norm = identifier.toLowerCase();
-            const matchedPub = pubsRes.data.find(
-              (p) =>
-                p.id === identifier ||
-                (p.slug && p.slug.toLowerCase() === norm) ||
-                (p.name && p.name.toLowerCase().includes(norm.replace(/-/g, ' '))),
-            );
-            if (matchedPub) {
-              businessData = {
-                id: matchedPub.id,
-                name: matchedPub.name,
-                displayName: matchedPub.name,
-                slug: matchedPub.slug || identifier,
-                email: `contact@${matchedPub.slug || 'huki'}.vn`,
-                description: (matchedPub as any).description || 'Nhà xuất bản và đơn vị phát hành chính thức trên hệ sinh thái HUKI.',
-                logo: (matchedPub as any).logo || undefined,
-                banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
-                status: 'APPROVED',
-                stores: [
-                  {
-                    id: matchedPub.id,
-                    name: matchedPub.name,
-                    slug: matchedPub.slug || identifier,
-                    logo: (matchedPub as any).logo || undefined,
-                    banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
-                    description: (matchedPub as any).description,
-                  },
-                ],
-                businessType: 'CORPORATION',
-              };
+            const cleanNorm = norm.replace(/-(official|store|shop)$/, '');
+            if (allStoresRes.success && Array.isArray(allStoresRes.data)) {
+              const matchedStore = allStoresRes.data.find(
+                (s) =>
+                  s.id === identifier ||
+                  (s.slug && s.slug.toLowerCase() === norm) ||
+                  (s.name && s.name.toLowerCase().includes(norm.replace(/-/g, ' '))),
+              ) as any;
+              if (matchedStore) {
+                businessData = {
+                  id: matchedStore.businessId || matchedStore.id,
+                  name: matchedStore.business?.name || matchedStore.name,
+                  displayName: matchedStore.name,
+                  slug: matchedStore.slug || identifier,
+                  email: matchedStore.email,
+                  phone: matchedStore.phone,
+                  address: matchedStore.address,
+                  description: matchedStore.description,
+                  logo: matchedStore.logo,
+                  banner: matchedStore.banner,
+                  status: (matchedStore.status as any) || 'APPROVED',
+                  stores: [matchedStore],
+                  businessType: 'CORPORATION',
+                };
+              }
+            }
+
+            if (!businessData && allBizRes.success && Array.isArray(allBizRes.data)) {
+              const matchedBiz = allBizRes.data.find(
+                (b) =>
+                  b.id === identifier ||
+                  b.ownerId === identifier ||
+                  (b.slug && b.slug.toLowerCase() === norm) ||
+                  (b.name && b.name.toLowerCase().includes(norm.replace(/-/g, ' '))) ||
+                  b.stores?.some((s) => s.id === identifier || (s.slug && (s.slug.toLowerCase() === norm || s.slug.toLowerCase() === cleanNorm))),
+              );
+              if (matchedBiz) businessData = matchedBiz;
+            }
+          } catch { }
+        }
+
+        // 6. Fallback: match publishers in catalog or predefined partner list
+        if (!businessData) {
+          try {
+            const pubsRes = await catalogApi.getPublishers();
+            if (pubsRes.success && Array.isArray(pubsRes.data)) {
+              const norm = identifier.toLowerCase();
+              const matchedPub = pubsRes.data.find(
+                (p) =>
+                  p.id === identifier ||
+                  (p.slug && p.slug.toLowerCase() === norm) ||
+                  (p.name && p.name.toLowerCase().includes(norm.replace(/-/g, ' '))),
+              );
+              if (matchedPub) {
+                businessData = {
+                  id: matchedPub.id,
+                  name: matchedPub.name,
+                  displayName: matchedPub.name,
+                  slug: matchedPub.slug || identifier,
+                  email: `contact@${matchedPub.slug || 'huki'}.vn`,
+                  description: (matchedPub as any).description || 'Nhà xuất bản và đơn vị phát hành chính thức trên hệ sinh thái HUKI.',
+                  logo: (matchedPub as any).logo || undefined,
+                  banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
+                  status: 'APPROVED',
+                  stores: [
+                    {
+                      id: matchedPub.id,
+                      name: matchedPub.name,
+                      slug: matchedPub.slug || identifier,
+                      logo: (matchedPub as any).logo || undefined,
+                      banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
+                      description: (matchedPub as any).description,
+                    },
+                  ],
+                  businessType: 'CORPORATION',
+                };
+              }
+            }
+          } catch { }
+        }
+
+        // 7. Last fallback: known partner map
+        if (!businessData) {
+          const PARTNER_MAP: Record<string, { name: string; desc: string; banner: string }> = {
+            'alpha-books': {
+              name: 'Alpha Books Official',
+              desc: 'Nhà xuất bản hàng đầu Việt Nam về sách Kinh tế, Quản trị kinh doanh, Khởi nghiệp và Kỹ năng lãnh đạo.',
+              banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
+            },
+            'nxb-tre': {
+              name: 'NXB Trẻ',
+              desc: 'Thương hiệu xuất bản uy tín lâu đời với hàng ngàn đầu sách văn học, khoa học xã hội và tư duy trẻ.',
+              banner: 'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=1200&q=80',
+            },
+            'nha-nam': {
+              name: 'Nhã Nam Books',
+              desc: 'Không gian của những tác phẩm văn học kinh điển, triết học hiện đại và sách tranh nghệ thuật tinh tuyển.',
+              banner: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1200&q=80',
+            },
+            'nha-nam-books': {
+              name: 'Nhã Nam Books',
+              desc: 'Không gian của những tác phẩm văn học kinh điển, triết học hiện đại và sách tranh nghệ thuật tinh tuyển.',
+              banner: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1200&q=80',
+            },
+            'nxb-kim-dong': {
+              name: 'NXB Kim Đồng',
+              desc: 'Nhà xuất bản thiếu nhi lớn nhất Việt Nam, sở hữu bản quyền các bộ truyện tranh và sách giáo dục nổi tiếng.',
+              banner: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80',
+            },
+            'first-news': {
+              name: 'First News Trí Việt',
+              desc: 'Tủ sách Hạt giống tâm hồn và những tác phẩm rèn luyện nhân cách, phát triển kỹ năng con người.',
+              banner: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=1200&q=80',
+            },
+            'pub-4': {
+              name: 'Alpha Books Official',
+              desc: 'Nhà xuất bản hàng đầu Việt Nam về sách Kinh tế, Quản trị kinh doanh, Khởi nghiệp và Kỹ năng lãnh đạo.',
+              banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
+            },
+          };
+
+          const known = PARTNER_MAP[identifier.toLowerCase()];
+          if (known) {
+            businessData = {
+              id: identifier,
+              name: known.name,
+              displayName: known.name,
+              slug: identifier,
+              email: `contact@${identifier}.vn`,
+              description: known.desc,
+              banner: known.banner,
+              status: 'APPROVED',
+              stores: [
+                {
+                  id: identifier,
+                  name: known.name,
+                  slug: identifier,
+                  banner: known.banner,
+                  description: known.desc,
+                },
+              ],
+              businessType: 'CORPORATION',
+            };
+          }
+        }
+
+        setBusiness(businessData || null);
+      } catch {
+        setBusiness(null);
+      } finally {
+        setIsLoadingStore(false);
+      }
+    }, [businessSlugOrId]);
+
+    // Fetch Books from Commerce Backend
+    useEffect(() => {
+      fetchBusinessData();
+    }, [fetchBusinessData]);
+
+
+    useEffect(() => {
+      if (!business?.id) return;
+      const fetchBooks = async () => {
+        try {
+          const storeId = business.stores?.[0]?.id || business.id;
+          const storeSlug = (business.stores?.[0]?.slug || business.slug || '').toLowerCase();
+          const storeName = (business.stores?.[0]?.name || business.name || '').toLowerCase();
+
+          // 1. Direct query with store/business ID
+          const res = await catalogApi.getPublicBooks({ limit: 100, business: storeId });
+          let books = res.success && Array.isArray(res.data) ? res.data : [];
+
+          // 2. Fallback matching across public books by publisher name / slug
+          if (books.length === 0) {
+            const allRes = await catalogApi.getPublicBooks({ limit: 100 });
+            if (allRes.success && Array.isArray(allRes.data)) {
+              const cleanSlug = storeSlug.replace(/-(official|store|shop)$/, '');
+              const isAlpha = storeSlug.includes('alpha') || cleanSlug.includes('alpha');
+              const isHuki = storeSlug.includes('huki') || cleanSlug.includes('huki') || storeSlug.includes('tri-tue-viet');
+              const matched = allRes.data.filter((b: any) => {
+                const pSlug = (b.publisher?.slug || '').toLowerCase();
+                const pName = (b.publisher?.name || (typeof b.publisher === 'string' ? b.publisher : '')).toLowerCase();
+                const bTitle = (b.title || '').toLowerCase();
+                return (
+                  (b.storeId && (b.storeId === storeId || b.storeId === business.id)) ||
+                  (b.businessId && (b.businessId === storeId || b.businessId === business.id)) ||
+                  (storeSlug && (pSlug === storeSlug || pSlug === cleanSlug)) ||
+                  (cleanSlug && (pName.includes(cleanSlug.replace(/-/g, ' ')) || cleanSlug.includes(pSlug))) ||
+                  (storeName && (pName.includes(storeName) || storeName.includes(pName))) ||
+                  (isAlpha && (pSlug.includes('alpha') || pName.includes('alpha') || bTitle.includes('atomic habits'))) ||
+                  (isHuki && (b.storeId === '3094e54e-2549-42cc-92fb-14a8f8589277' || b.storeId === '77777777-0000-4000-8000-000000000001' || b.ownerUserId === '8d501a4d-d846-45bd-8f15-fda4e30cf826'))
+                );
+              });
+              books = matched;
             }
           }
-        } catch { }
-      }
 
-      // 7. Last fallback: known partner map
-      if (!businessData) {
-        const PARTNER_MAP: Record<string, { name: string; desc: string; banner: string }> = {
-          'alpha-books': {
-            name: 'Alpha Books Official',
-            desc: 'Nhà xuất bản hàng đầu Việt Nam về sách Kinh tế, Quản trị kinh doanh, Khởi nghiệp và Kỹ năng lãnh đạo.',
-            banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
-          },
-          'nxb-tre': {
-            name: 'NXB Trẻ',
-            desc: 'Thương hiệu xuất bản uy tín lâu đời với hàng ngàn đầu sách văn học, khoa học xã hội và tư duy trẻ.',
-            banner: 'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=1200&q=80',
-          },
-          'nha-nam': {
-            name: 'Nhã Nam Books',
-            desc: 'Không gian của những tác phẩm văn học kinh điển, triết học hiện đại và sách tranh nghệ thuật tinh tuyển.',
-            banner: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1200&q=80',
-          },
-          'nha-nam-books': {
-            name: 'Nhã Nam Books',
-            desc: 'Không gian của những tác phẩm văn học kinh điển, triết học hiện đại và sách tranh nghệ thuật tinh tuyển.',
-            banner: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1200&q=80',
-          },
-          'nxb-kim-dong': {
-            name: 'NXB Kim Đồng',
-            desc: 'Nhà xuất bản thiếu nhi lớn nhất Việt Nam, sở hữu bản quyền các bộ truyện tranh và sách giáo dục nổi tiếng.',
-            banner: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80',
-          },
-          'first-news': {
-            name: 'First News Trí Việt',
-            desc: 'Tủ sách Hạt giống tâm hồn và những tác phẩm rèn luyện nhân cách, phát triển kỹ năng con người.',
-            banner: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=1200&q=80',
-          },
-          'pub-4': {
-            name: 'Alpha Books Official',
-            desc: 'Nhà xuất bản hàng đầu Việt Nam về sách Kinh tế, Quản trị kinh doanh, Khởi nghiệp và Kỹ năng lãnh đạo.',
-            banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
-          },
-        };
-
-        const known = PARTNER_MAP[identifier.toLowerCase()];
-        if (known) {
-          businessData = {
-            id: identifier,
-            name: known.name,
-            displayName: known.name,
-            slug: identifier,
-            email: `contact@${identifier}.vn`,
-            description: known.desc,
-            banner: known.banner,
-            status: 'APPROVED',
-            stores: [
-              {
-                id: identifier,
-                name: known.name,
-                slug: identifier,
-                banner: known.banner,
-                description: known.desc,
-              },
-            ],
-            businessType: 'CORPORATION',
-          };
+          setRealBooks(books);
+          books.forEach((b) => reviewSummaryService.register(b.id));
+        } catch {
+          setRealBooks([]);
         }
-      }
+      };
 
-      setBusiness(businessData || null);
-    } catch {
-      setBusiness(null);
-    } finally {
-      setIsLoadingStore(false);
-    }
-  }, [businessSlugOrId]);
+      fetchBooks();
 
-  // Fetch Books from Commerce Backend
-  useEffect(() => {
-    fetchBusinessData();
-  }, [fetchBusinessData]);
-
-
-  useEffect(() => {
-    if (!business?.id) return;
-    const fetchBooks = async () => {
-      try {
-        const storeId = business.stores?.[0]?.id || business.id;
-        const storeSlug = (business.stores?.[0]?.slug || business.slug || '').toLowerCase();
-        const storeName = (business.stores?.[0]?.name || business.name || '').toLowerCase();
-
-        // 1. Direct query with store/business ID
-        const res = await catalogApi.getPublicBooks({ limit: 100, business: storeId });
-        let books = res.success && Array.isArray(res.data) ? res.data : [];
-
-        // 2. Fallback matching across public books by publisher name / slug
-        if (books.length === 0) {
-          const allRes = await catalogApi.getPublicBooks({ limit: 100 });
-          if (allRes.success && Array.isArray(allRes.data)) {
-            const cleanSlug = storeSlug.replace(/-(official|store|shop)$/, '');
-            const isAlpha = storeSlug.includes('alpha') || cleanSlug.includes('alpha');
-            const isHuki = storeSlug.includes('huki') || cleanSlug.includes('huki') || storeSlug.includes('tri-tue-viet');
-            const matched = allRes.data.filter((b: any) => {
-              const pSlug = (b.publisher?.slug || '').toLowerCase();
-              const pName = (b.publisher?.name || (typeof b.publisher === 'string' ? b.publisher : '')).toLowerCase();
-              const bTitle = (b.title || '').toLowerCase();
-              return (
-                (b.storeId && (b.storeId === storeId || b.storeId === business.id)) ||
-                (b.businessId && (b.businessId === storeId || b.businessId === business.id)) ||
-                (storeSlug && (pSlug === storeSlug || pSlug === cleanSlug)) ||
-                (cleanSlug && (pName.includes(cleanSlug.replace(/-/g, ' ')) || cleanSlug.includes(pSlug))) ||
-                (storeName && (pName.includes(storeName) || storeName.includes(pName))) ||
-                (isAlpha && (pSlug.includes('alpha') || pName.includes('alpha') || bTitle.includes('atomic habits'))) ||
-                (isHuki && (b.storeId === '3094e54e-2549-42cc-92fb-14a8f8589277' || b.storeId === '77777777-0000-4000-8000-000000000001' || b.ownerUserId === '8d501a4d-d846-45bd-8f15-fda4e30cf826'))
+      // Fetch store vouchers from backend promotion service
+      const sId = business.stores?.[0]?.id;
+      if (sId) {
+        voucherApi
+          .getVouchersByStore(sId)
+          .then((res) => {
+            if (res.success && Array.isArray(res.data)) {
+              const now = new Date();
+              setShopVouchers(
+                res.data.filter((v: any) => {
+                  const starts = new Date(v.startsAt);
+                  const expires = new Date(v.expiresAt);
+                  return v.status === 'ACTIVE' && starts <= now && expires >= now;
+                })
               );
-            });
-            books = matched;
-          }
-        }
+            }
+          })
+          .catch(() => setShopVouchers([]));
 
-        setRealBooks(books);
-        books.forEach((b) => reviewSummaryService.register(b.id));
-      } catch {
-        setRealBooks([]);
-      }
-    };
-
-    fetchBooks();
-
-    // Fetch store vouchers from backend promotion service
-    const sId = business.stores?.[0]?.id;
-    if (sId) {
-      voucherApi
-        .getVouchersByStore(sId)
-        .then((res) => {
-          if (res.success && Array.isArray(res.data)) {
-            const now = new Date();
-            setShopVouchers(
-              res.data.filter((v: any) => {
-                const starts = new Date(v.startsAt);
-                const expires = new Date(v.expiresAt);
-                return v.status === 'ACTIVE' && starts <= now && expires >= now;
-              })
-            );
-          }
-        })
-        .catch(() => setShopVouchers([]));
-
-      if (user) {
-        voucherApi.getWalletVouchers().then((wRes) => {
-          if (wRes.success && wRes.data) {
-            const savedFromWallet: string[] = [];
-            wRes.data.platform?.all?.forEach((pv: any) => {
-              if (pv.code) savedFromWallet.push(pv.code);
-              if (pv.id) savedFromWallet.push(pv.id);
-            });
-            wRes.data.stores?.forEach((sg: any) => {
-              sg.vouchers?.forEach((sv: any) => {
-                if (sv.code) savedFromWallet.push(sv.code);
-                if (sv.id) savedFromWallet.push(sv.id);
+        if (user) {
+          voucherApi.getWalletVouchers().then((wRes) => {
+            if (wRes.success && wRes.data) {
+              const savedFromWallet: string[] = [];
+              wRes.data.platform?.all?.forEach((pv: any) => {
+                if (pv.code) savedFromWallet.push(pv.code);
+                if (pv.id) savedFromWallet.push(pv.id);
               });
-            });
-            setSavedVouchers(Array.from(new Set(savedFromWallet)));
-          }
-        }).catch(() => { });
+              wRes.data.stores?.forEach((sg: any) => {
+                sg.vouchers?.forEach((sv: any) => {
+                  if (sv.code) savedFromWallet.push(sv.code);
+                  if (sv.id) savedFromWallet.push(sv.id);
+                });
+              });
+              setSavedVouchers(Array.from(new Set(savedFromWallet)));
+            }
+          }).catch(() => { });
+        }
       }
-    }
-  }, [business, user]);
+    }, [business, user]);
 
-  const handleSaveShopVoucher = async (voucher: any) => {
-    if (!user) {
-      showToast('Vui lòng đăng nhập để thu thập voucher ưu đãi!', 'warning');
-      return;
-    }
-
-    const code = voucher.code || voucher;
-
-    // Check Fan Tier (minFollowDays) requirement
-    if (voucher.targetAudience === 'FOLLOWERS_ONLY') {
-      if (!isFollowed) {
-        showToast('Mã voucher độc quyền dành cho Người theo dõi Shop. Hãy nhấn "Theo dõi & Lưu" để nhận mã!', 'warning');
+    const handleSaveShopVoucher = async (voucher: any) => {
+      if (!user) {
+        showToast('Vui lòng đăng nhập để thu thập voucher ưu đãi!', 'warning');
         return;
       }
-      if (voucher.minFollowDays && voucher.minFollowDays > 0) {
-        const req = formatFollowerRequirement(voucher.minFollowDays);
-        showToast(`Lưu ý: Voucher ${req.badge} yêu cầu theo dõi Shop đủ ${voucher.minFollowDays} ngày khi thanh toán đơn hàng.`, 'info');
-      }
-    }
 
-    if (savedVouchers.includes(code)) {
-      showToast(`Mã ${code} đã có trong ví của bạn!`, 'info');
-      return;
-    }
+      const code = voucher.code || voucher;
 
-    if (voucher.id) {
-      try {
-        const res = await voucherApi.saveVoucher(voucher.id);
-        if (res.success) {
-          setSavedVouchers((prev) => Array.from(new Set([...prev, code, ...(voucher.id ? [voucher.id] : [])])));
-          setShopVouchers((prev) => prev.map((sv) => (sv.id === voucher.id || sv.code === code ? { ...sv, isSaved: true } : sv)));
-          showToast(`Đã lưu voucher ${code} vào ví của bạn thành công!`, 'success');
-        } else {
-          showToast((res as any)?.message || 'Không thể lưu mã voucher', 'error');
+      // Check Fan Tier (minFollowDays) requirement
+      if (voucher.targetAudience === 'FOLLOWERS_ONLY') {
+        if (!isFollowed) {
+          showToast('Mã voucher độc quyền dành cho Người theo dõi Shop. Hãy nhấn "Theo dõi & Lưu" để nhận mã!', 'warning');
+          return;
         }
-      } catch (e: any) {
-        showToast(e?.message || 'Không thể lưu mã voucher', 'error');
-      }
-    } else {
-      setSavedVouchers((prev) => [...prev, code]);
-      showToast(`Đã lưu voucher ${code} vào ví của bạn thành công!`, 'success');
-    }
-  };
-
-  const handleFollow = () => {
-    setIsFollowed(prev => {
-      const next = !prev;
-      showToast(next ? `Đã theo dõi ${business?.name || 'doanh nghiệp'}!` : `Đã bỏ theo dõi.`, next ? 'success' : 'info');
-      return next;
-    });
-  };
-
-  // Format real books from DB and combine with store mocks
-  const allStoreBooks: BookCardData[] = useMemo(() => {
-    const formattedRealBooks: BookCardData[] = realBooks.map(rb => {
-      const normalized = toCatalogBook(rb);
-      const rawRb = rb as any;
-      const priceVal = Number(rb.price !== undefined ? rb.price : rawRb.priceEbook || rawRb.pricePaper || 0);
-      const originalPriceVal = Number(rb.originalPrice !== undefined ? rb.originalPrice : rawRb.originalPriceEbook || rawRb.originalPricePaper || 0);
-      const hasEb = Boolean(rawRb.hasEbook || rawRb.priceEbook || rb.digitalDetails?.digitalEnabled);
-      const hasPa = Boolean(rawRb.hasPaper || rawRb.pricePaper || rb.physicalDetails?.physicalEnabled);
-      const fmt = (hasEb && hasPa) ? 'Combo' : hasEb ? 'Ebook' : 'Sách giấy';
-      const fmtType = (hasEb && hasPa) ? 'hybrid' : hasEb ? 'ebook' : 'physical';
-
-      let catSlug = 'selfhelp';
-      if (rb.category) {
-        const catStr = (typeof rb.category === 'object' ? rb.category.slug || rb.category.name : rb.category).toLowerCase();
-        if (catStr.includes('kinh-te') || catStr.includes('business')) catSlug = 'business';
-        else if (catStr.includes('cong-nghe') || catStr.includes('tech')) catSlug = 'technology';
-        else if (catStr.includes('van-hoc') || catStr.includes('literature')) catSlug = 'literature';
+        if (voucher.minFollowDays && voucher.minFollowDays > 0) {
+          const req = formatFollowerRequirement(voucher.minFollowDays);
+          showToast(`Lưu ý: Voucher ${req.badge} yêu cầu theo dõi Shop đủ ${voucher.minFollowDays} ngày khi thanh toán đơn hàng.`, 'info');
+        }
       }
 
-      const targetStoreId = business?.stores?.[0]?.id || business?.id || rb.storeId || rb.businessId || 'huki-official';
-      const targetBusinessId = business?.id || rb.businessId || targetStoreId;
-
-      return {
-        ...normalized,
-        id: rb.id,
-        title: rb.title,
-        author: (typeof rb.author === 'object' ? rb.author?.name : rb.author) || (rb as any).authorName || 'Nhiều tác giả',
-        publisher: business?.name || normalized.publisher,
-        storeId: targetStoreId,
-        businessId: targetBusinessId,
-        category: catSlug,
-        format: fmt,
-        formatType: fmtType,
-        price: priceVal,
-        originalPrice: originalPriceVal > priceVal ? originalPriceVal : undefined,
-        discount: (rb as any).discountPercent ? `-${(rb as any).discountPercent}%` : '',
-        rating: (rb as any).rating ? Number((rb as any).rating) : undefined,
-        sales: ((rb as any).sales ?? (rb as any).soldCount ?? (rb as any).soldQuantity) ? String((rb as any).sales ?? (rb as any).soldCount ?? (rb as any).soldQuantity) : undefined,
-        cover: rb.coverUrl || rb.coverImage || '',
-        isMock: false,
-      };
-    });
-
-    return formattedRealBooks;
-  }, [realBooks, business]);
-
-  // Tính toán điểm đánh giá và tổng lượt đánh giá thật của gian hàng
-  const storeRatingStats = useMemo(() => {
-    let totalReviews = 0;
-    let weightedRatingSum = 0;
-
-    allStoreBooks.forEach((b: any) => {
-      const summary = reviewSummaryService.get(b.id);
-      const revCount = summary?.totalReviews ?? (b.ratingCount || b.reviewsCount ? Number(b.ratingCount || b.reviewsCount) : 0);
-      const avg = summary?.averageRating ?? (b.rating ? Number(b.rating) : 0);
-      if (revCount > 0 && avg > 0) {
-        totalReviews += revCount;
-        weightedRatingSum += avg * revCount;
+      if (savedVouchers.includes(code)) {
+        showToast(`Mã ${code} đã có trong ví của bạn!`, 'info');
+        return;
       }
-    });
 
-    const averageRating = totalReviews > 0 ? Number((weightedRatingSum / totalReviews).toFixed(1)) : 5.0;
-    return {
-      averageRating,
-      totalReviews,
-      hasReviews: totalReviews > 0,
+      if (voucher.id) {
+        try {
+          const res = await voucherApi.saveVoucher(voucher.id);
+          if (res.success) {
+            setSavedVouchers((prev) => Array.from(new Set([...prev, code, ...(voucher.id ? [voucher.id] : [])])));
+            setShopVouchers((prev) => prev.map((sv) => (sv.id === voucher.id || sv.code === code ? { ...sv, isSaved: true } : sv)));
+            showToast(`Đã lưu voucher ${code} vào ví của bạn thành công!`, 'success');
+          } else {
+            showToast((res as any)?.message || 'Không thể lưu mã voucher', 'error');
+          }
+        } catch (e: any) {
+          showToast(e?.message || 'Không thể lưu mã voucher', 'error');
+        }
+      } else {
+        setSavedVouchers((prev) => [...prev, code]);
+        showToast(`Đã lưu voucher ${code} vào ví của bạn thành công!`, 'success');
+      }
     };
-  }, [allStoreBooks]);
+
+    const handleFollow = () => {
+      setIsFollowed(prev => {
+        const next = !prev;
+        showToast(next ? `Đã theo dõi ${business?.name || 'doanh nghiệp'}!` : `Đã bỏ theo dõi.`, next ? 'success' : 'info');
+        return next;
+      });
+    };
+
+    // Format real books from DB and combine with store mocks
+    const allStoreBooks: BookCardData[] = useMemo(() => {
+      const formattedRealBooks: BookCardData[] = realBooks.map(rb => {
+        const normalized = toCatalogBook(rb);
+        const rawRb = rb as any;
+        const priceVal = Number(rb.price !== undefined ? rb.price : rawRb.priceEbook || rawRb.pricePaper || 0);
+        const originalPriceVal = Number(rb.originalPrice !== undefined ? rb.originalPrice : rawRb.originalPriceEbook || rawRb.originalPricePaper || 0);
+        const hasEb = Boolean(rawRb.hasEbook || rawRb.priceEbook || rb.digitalDetails?.digitalEnabled);
+        const hasPa = Boolean(rawRb.hasPaper || rawRb.pricePaper || rb.physicalDetails?.physicalEnabled);
+        const fmt = (hasEb && hasPa) ? 'Combo' : hasEb ? 'Ebook' : 'Sách giấy';
+        const fmtType = (hasEb && hasPa) ? 'hybrid' : hasEb ? 'ebook' : 'physical';
+
+        let catSlug = 'selfhelp';
+        if (rb.category) {
+          const catStr = (typeof rb.category === 'object' ? rb.category.slug || rb.category.name : rb.category).toLowerCase();
+          if (catStr.includes('kinh-te') || catStr.includes('business')) catSlug = 'business';
+          else if (catStr.includes('cong-nghe') || catStr.includes('tech')) catSlug = 'technology';
+          else if (catStr.includes('van-hoc') || catStr.includes('literature')) catSlug = 'literature';
+        }
+
+        const targetStoreId = business?.stores?.[0]?.id || business?.id || rb.storeId || rb.businessId || 'huki-official';
+        const targetBusinessId = business?.id || rb.businessId || targetStoreId;
+
+        return {
+          ...normalized,
+          id: rb.id,
+          title: rb.title,
+          author: (typeof rb.author === 'object' ? rb.author?.name : rb.author) || (rb as any).authorName || 'Nhiều tác giả',
+          publisher: business?.name || normalized.publisher,
+          storeId: targetStoreId,
+          businessId: targetBusinessId,
+          category: catSlug,
+          format: fmt,
+          formatType: fmtType,
+          price: priceVal,
+          originalPrice: originalPriceVal > priceVal ? originalPriceVal : undefined,
+          discount: (rb as any).discountPercent ? `-${(rb as any).discountPercent}%` : '',
+          rating: (rb as any).rating ? Number((rb as any).rating) : undefined,
+          sales: ((rb as any).sales ?? (rb as any).soldCount ?? (rb as any).soldQuantity) ? String((rb as any).sales ?? (rb as any).soldCount ?? (rb as any).soldQuantity) : undefined,
+          cover: rb.coverUrl || rb.coverImage || '',
+          isMock: false,
+        };
+      });
+
+      return formattedRealBooks;
+    }, [realBooks, business]);
+
+    // Tính toán điểm đánh giá và tổng lượt đánh giá thật của gian hàng
+    const storeRatingStats = useMemo(() => {
+      let totalReviews = 0;
+      let weightedRatingSum = 0;
+
+      allStoreBooks.forEach((b: any) => {
+        const summary = reviewSummaryService.get(b.id);
+        const revCount = summary?.totalReviews ?? (b.ratingCount || b.reviewsCount ? Number(b.ratingCount || b.reviewsCount) : 0);
+        const avg = summary?.averageRating ?? (b.rating ? Number(b.rating) : 0);
+        if (revCount > 0 && avg > 0) {
+          totalReviews += revCount;
+          weightedRatingSum += avg * revCount;
+        }
+      });
+
+      const averageRating = totalReviews > 0 ? Number((weightedRatingSum / totalReviews).toFixed(1)) : 5.0;
+      return {
+        averageRating,
+        totalReviews,
+        hasReviews: totalReviews > 0,
+      };
+    }, [allStoreBooks]);
 
 
-  // Filter books by tabs & search
-  const filteredBooks = useMemo(() => {
-    return allStoreBooks.filter(book => {
-      if (activeTab === 'ebook' && book.formatType !== 'ebook') return false;
-      if (activeTab === 'physical' && book.formatType !== 'physical') return false;
-      if (activeTab === 'hybrid' && book.formatType !== 'hybrid') return false;
-      if (activeTab === 'bestseller') {
-        const s = Number((book as any).sales || (book as any).soldCount || 0);
-        const r = Number(book.rating || 0);
-        if (s <= 0 && r < 4.0) return false;
+    // Filter books by tabs & search
+    const filteredBooks = useMemo(() => {
+      return allStoreBooks.filter(book => {
+        if (activeTab === 'ebook' && book.formatType !== 'ebook') return false;
+        if (activeTab === 'physical' && book.formatType !== 'physical') return false;
+        if (activeTab === 'hybrid' && book.formatType !== 'hybrid') return false;
+        if (activeTab === 'bestseller') {
+          const s = Number((book as any).sales || (book as any).soldCount || 0);
+          const r = Number(book.rating || 0);
+          if (s <= 0 && r < 4.0) return false;
+        }
+        if (activeCategory !== 'all' && (book as any).category !== activeCategory) return false;
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase().trim();
+          const auth = typeof book.author === 'string' ? book.author : book.author?.name || '';
+          return book.title.toLowerCase().includes(q) || auth.toLowerCase().includes(q);
+        }
+        return true;
+      });
+    }, [allStoreBooks, activeTab, activeCategory, searchQuery]);
+
+    // Reset page to 1 when filters change
+    useEffect(() => {
+      setCurrentPage(1);
+    }, [activeTab, activeCategory, searchQuery]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredBooks.length / ITEMS_PER_PAGE));
+    const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+    const paginatedBooks = useMemo(() => {
+      const start = (validCurrentPage - 1) * ITEMS_PER_PAGE;
+      return filteredBooks.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredBooks, validCurrentPage, ITEMS_PER_PAGE]);
+
+    const handlePageChange = (page: number) => {
+      if (page < 1 || page > totalPages) return;
+      setCurrentPage(page);
+      const el = document.getElementById('shop-products-catalog');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
-      if (activeCategory !== 'all' && (book as any).category !== activeCategory) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const auth = typeof book.author === 'string' ? book.author : book.author?.name || '';
-        return book.title.toLowerCase().includes(q) || auth.toLowerCase().includes(q);
-      }
-      return true;
-    });
-  }, [allStoreBooks, activeTab, activeCategory, searchQuery]);
+    };
 
-  // Reset page to 1 when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [activeTab, activeCategory, searchQuery]);
+    const legacyProfile = business?.stores?.[0];
+    const bannerImg =
+      sanitizeImageUrl(business?.banner) ||
+      sanitizeImageUrl(legacyProfile?.banner) ||
+      'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1600&q=80';
 
-  const totalPages = Math.max(1, Math.ceil(filteredBooks.length / ITEMS_PER_PAGE));
-  const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
-  const paginatedBooks = useMemo(() => {
-    const start = (validCurrentPage - 1) * ITEMS_PER_PAGE;
-    return filteredBooks.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredBooks, validCurrentPage, ITEMS_PER_PAGE]);
-
-  const handlePageChange = (page: number) => {
-    if (page < 1 || page > totalPages) return;
-    setCurrentPage(page);
-    const el = document.getElementById('shop-products-catalog');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
-
-  const legacyProfile = business?.stores?.[0];
-  const bannerImg =
-    sanitizeImageUrl(business?.banner) ||
-    sanitizeImageUrl(legacyProfile?.banner) ||
-    'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1600&q=80';
-
-  if (isLoadingStore) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="text-center">
-          <span className="inline-block w-8 h-8 border-3 border-theme-primary/20 border-t-theme-primary rounded-full animate-spin mb-3"></span>
-          <p className="text-xs text-on-surface-variant font-medium">Đang tải gian hàng...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!business) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-        <div className="bg-theme-surface rounded-3xl border border-theme-border p-12 max-w-lg mx-auto shadow-xs">
-          <span className="material-symbols-outlined text-5xl text-theme-primary/30 mb-3 block">storefront</span>
-          <h2 className="font-editorial text-2xl font-bold text-on-surface mb-2">Không Tìm Thấy Doanh Nghiệp</h2>
-          <p className="text-xs sm:text-sm text-on-surface-variant mb-6">Doanh nghiệp này chưa được phê duyệt hoặc đã tạm ngừng hoạt động.</p>
-          <Link href="/" className="bg-theme-primary text-white px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold hover:bg-theme-primary-hover transition-all shadow-sm inline-flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-base">home</span>
-            <span>Về Trang Chủ Sàn</span>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-5 pb-20 font-body-md">
-      {/* Breadcrumb */}
-      <nav className="text-body-sm text-on-surface-variant flex items-center gap-2 mb-6">
-        <Link href="/" className="hover:text-primary transition-colors flex items-center gap-1">
-          <span className="material-symbols-outlined text-[16px]">home</span>
-          Trang chủ
-        </Link>
-        <span>/</span>
-        <Link href="/stores" className="hover:text-primary transition-colors">Doanh nghiệp phát hành</Link>
-        <span>/</span>
-        <span className="text-theme-primary font-semibold truncate">{business?.name || 'Chi tiết doanh nghiệp'}</span>
-      </nav>
-
-      {/* Publisher Hero Header & Profile Card */}
-      <section className="relative rounded-3xl shadow-sm bg-theme-surface border border-theme-border mb-8 z-30">
-        {/* Panoramic Banner */}
-        <div className="h-56 md:h-72 w-full relative rounded-t-3xl overflow-hidden bg-slate-900">
-          <StoreLogoImg
-            src={bannerImg}
-            fallbackSrc="https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1600&q=80"
-            alt={business?.name || 'Ảnh bìa gian hàng'}
-            fallbackText={business?.name || 'HUKI'}
-            className="absolute inset-0 w-full h-full object-cover"
-            fallbackClassName="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-[#003b2b] to-[#006953] text-white/30 font-black text-4xl"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent"></div>
-          <div className="absolute bottom-6 left-6 right-6 text-white flex flex-col md:flex-row md:items-end justify-between gap-4 z-10">
-            <div>
-              <span className="px-3 py-1 bg-theme-accent text-white text-xs font-bold rounded-full uppercase tracking-wider mb-2 inline-block shadow-sm">
-                NXB Đối Tác Độc Quyền Mall
-              </span>
-              <h1 className="font-editorial text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-white leading-tight">
-                {business?.name || 'Doanh Nghiệp Sách Chính Hãng'}
-              </h1>
-              <p className="text-xs sm:text-sm text-white/80 mt-1 max-w-xl line-clamp-2">
-                {business?.description || legacyProfile?.description || `Trang phát hành chính thức của ${business?.name || 'doanh nghiệp'} trên HUKI.`}
-              </p>
-            </div>
-            <div className="text-right hidden md:block shrink-0">
-              <span className="text-emerald-300 font-semibold text-sm flex items-center justify-end gap-1">
-                <span className="material-symbols-outlined text-base">verified</span>
-                HUKI DRM Verified Publisher
-              </span>
-              <span className="text-stone-300 text-xs">Phân phối chính hãng toàn quốc</span>
-            </div>
+    if (isLoadingStore) {
+      return (
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="text-center">
+            <span className="inline-block w-8 h-8 border-3 border-theme-primary/20 border-t-theme-primary rounded-full animate-spin mb-3"></span>
+            <p className="text-xs text-on-surface-variant font-medium">Đang tải gian hàng...</p>
           </div>
         </div>
+      );
+    }
 
-        {/* Info & Stats Bar Below Banner */}
-        <div className="p-6 md:p-8 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 border-t border-theme-border/30 bg-theme-surface rounded-b-3xl relative">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border-2 border-white shadow-md -mt-10 lg:-mt-12 bg-white shrink-0 relative z-10 overflow-hidden">
-              <StoreLogoImg
-                src={business?.logo || legacyProfile?.logo}
-                alt={business?.name || 'Logo gian hàng'}
-                fallbackText={(business?.name || 'H').slice(0, 1).toUpperCase()}
-                className="w-full h-full object-cover"
-                fallbackClassName="w-full h-full bg-[#003b2b] text-white font-black text-2xl sm:text-3xl flex items-center justify-center"
-              />
+    if (!business) {
+      return (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+          <div className="bg-theme-surface rounded-3xl border border-theme-border p-12 max-w-lg mx-auto shadow-xs">
+            <span className="material-symbols-outlined text-5xl text-theme-primary/30 mb-3 block">storefront</span>
+            <h2 className="font-editorial text-2xl font-bold text-on-surface mb-2">Không Tìm Thấy Doanh Nghiệp</h2>
+            <p className="text-xs sm:text-sm text-on-surface-variant mb-6">Doanh nghiệp này chưa được phê duyệt hoặc đã tạm ngừng hoạt động.</p>
+            <Link href="/" className="bg-theme-primary text-white px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold hover:bg-theme-primary-hover transition-all shadow-sm inline-flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-base">home</span>
+              <span>Về Trang Chủ Sàn</span>
+            </Link>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-5 pb-20 font-body-md">
+        {/* Breadcrumb */}
+        <nav className="text-body-sm text-on-surface-variant flex items-center gap-2 mb-6">
+          <Link href="/" className="hover:text-primary transition-colors flex items-center gap-1">
+            <span className="material-symbols-outlined text-[16px]">home</span>
+            Trang chủ
+          </Link>
+          <span>/</span>
+          <Link href="/stores" className="hover:text-primary transition-colors">Doanh nghiệp phát hành</Link>
+          <span>/</span>
+          <span className="text-theme-primary font-semibold truncate">{business?.name || 'Chi tiết doanh nghiệp'}</span>
+        </nav>
+
+        {/* Publisher Hero Header & Profile Card */}
+        <section className="relative rounded-3xl shadow-sm bg-theme-surface border border-theme-border mb-8 z-30">
+          {/* Panoramic Banner */}
+          <div className="h-56 md:h-72 w-full relative rounded-t-3xl overflow-hidden bg-slate-900">
+            <StoreLogoImg
+              src={bannerImg}
+              fallbackSrc="https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1600&q=80"
+              alt={business?.name || 'Ảnh bìa gian hàng'}
+              fallbackText={business?.name || 'HUKI'}
+              className="absolute inset-0 w-full h-full object-cover"
+              fallbackClassName="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-[#003b2b] to-[#006953] text-white/30 font-black text-4xl"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent"></div>
+            <div className="absolute bottom-6 left-6 right-6 text-white flex flex-col md:flex-row md:items-end justify-between gap-4 z-10">
+              <div>
+                <span className="px-3 py-1 bg-theme-accent text-white text-xs font-bold rounded-full uppercase tracking-wider mb-2 inline-block shadow-sm">
+                  NXB Đối Tác Độc Quyền Mall
+                </span>
+                <h1 className="font-editorial text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-white leading-tight">
+                  {business?.name || 'Doanh Nghiệp Sách Chính Hãng'}
+                </h1>
+                <p className="text-xs sm:text-sm text-white/80 mt-1 max-w-xl line-clamp-2">
+                  {business?.description || legacyProfile?.description || `Trang phát hành chính thức của ${business?.name || 'doanh nghiệp'} trên HUKI.`}
+                </p>
+              </div>
+              <div className="text-right hidden md:block shrink-0">
+                <span className="text-emerald-300 font-semibold text-sm flex items-center justify-end gap-1">
+                  <span className="material-symbols-outlined text-base">verified</span>
+                  HUKI DRM Verified Publisher
+                </span>
+                <span className="text-stone-300 text-xs">Phân phối chính hãng toàn quốc</span>
+              </div>
             </div>
+          </div>
+
+          {/* Info & Stats Bar Below Banner */}
+          <div className="p-6 md:p-8 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 border-t border-theme-border/30 bg-theme-surface rounded-b-3xl relative">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border-2 border-white shadow-md -mt-10 lg:-mt-12 bg-white shrink-0 relative z-10 overflow-hidden">
+                <StoreLogoImg
+                  src={business?.logo || legacyProfile?.logo}
+                  alt={business?.name || 'Logo gian hàng'}
+                  fallbackText={(business?.name || 'H').slice(0, 1).toUpperCase()}
+                  className="w-full h-full object-cover"
+                  fallbackClassName="w-full h-full bg-[#003b2b] text-white font-black text-2xl sm:text-3xl flex items-center justify-center"
+                />
+              </div>
 
             <div>
               <div className="flex items-center gap-2">
@@ -859,658 +859,657 @@ export default function ShopPage() {
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2.5 w-full lg:w-auto relative">
-            {isOwner ? (
-              <>
-                {/* Nút Cập Nhật Ảnh (Dropdown Menu) */}
-                <div
-                  ref={dropdownRef}
-                  className="relative flex-1 lg:flex-none"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setIsImageDropdownOpen((prev) => !prev)}
-                    disabled={isApplyingImage}
-                    className="w-full lg:w-auto px-4 py-2.5 rounded-xl bg-theme-primary hover:bg-theme-primary-hover text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-base">
-                      {isApplyingImage ? 'progress_activity' : 'photo_camera'}
-                    </span>
-                    <span>{isApplyingImage ? 'Đang Xử Lý...' : 'Cập Nhật Ảnh'}</span>
-                    <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${isImageDropdownOpen ? 'rotate-180' : ''}`}>
-                      expand_more
-                    </span>
-                  </button>
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2.5 w-full lg:w-auto relative">
+                  {isOwner ? (
+                    <>
+                      {/* Nút Cập Nhật Ảnh (Dropdown Menu) */}
+                      <div
+                        ref={dropdownRef}
+                        className="relative flex-1 lg:flex-none"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setIsImageDropdownOpen((prev) => !prev)}
+                          disabled={isApplyingImage}
+                          className="w-full lg:w-auto px-4 py-2.5 rounded-xl bg-theme-primary hover:bg-theme-primary-hover text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-base">
+                            {isApplyingImage ? 'progress_activity' : 'photo_camera'}
+                          </span>
+                          <span>{isApplyingImage ? 'Đang Xử Lý...' : 'Cập Nhật Ảnh'}</span>
+                          <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${isImageDropdownOpen ? 'rotate-180' : ''}`}>
+                            expand_more
+                          </span>
+                        </button>
 
-                  {/* Dropdown Menu - Chỉ 2 lựa chọn */}
-                  {isImageDropdownOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-theme-border p-1.5 z-[999] animate-in fade-in slide-in-from-top-2 duration-150">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveImageModal('avatar');
-                          setPreviewImage(business?.logo || null);
-                          setIsImageDropdownOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold text-gray-700 hover:bg-theme-secondary-subtle hover:text-theme-primary transition-colors flex items-center gap-2.5 cursor-pointer"
+                        {/* Dropdown Menu - Chỉ 2 lựa chọn */}
+                        {isImageDropdownOpen && (
+                          <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-theme-border p-1.5 z-[999] animate-in fade-in slide-in-from-top-2 duration-150">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveImageModal('avatar');
+                                setPreviewImage(business?.logo || null);
+                                setIsImageDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold text-gray-700 hover:bg-theme-secondary-subtle hover:text-theme-primary transition-colors flex items-center gap-2.5 cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-lg text-theme-primary">account_circle</span>
+                              <span>Chọn ảnh đại diện</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveImageModal('banner');
+                                setPreviewImage(business?.banner || legacyProfile?.banner || null);
+                                setIsImageDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold text-gray-700 hover:bg-theme-secondary-subtle hover:text-theme-primary transition-colors flex items-center gap-2.5 cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-lg text-theme-primary">panorama</span>
+                              <span>Chọn ảnh nền</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Nút Quay Lại Trang Quản Lý */}
+                      <Link
+                        href="/seller/dashboard"
+                        className="flex-1 lg:flex-none px-4 py-2.5 rounded-xl border border-theme-border bg-white hover:bg-theme-surface-subtle text-theme-text font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs"
                       >
-                        <span className="material-symbols-outlined text-lg text-theme-primary">account_circle</span>
-                        <span>Chọn ảnh đại diện</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveImageModal('banner');
-                          setPreviewImage(business?.banner || legacyProfile?.banner || null);
-                          setIsImageDropdownOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold text-gray-700 hover:bg-theme-secondary-subtle hover:text-theme-primary transition-colors flex items-center gap-2.5 cursor-pointer"
+                        <span className="material-symbols-outlined text-base">dashboard</span>
+                        <span>Quay Lại Trang Quản Lý</span>
+                      </Link>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2 flex-1 lg:flex-none">
+                      <Link
+                        href={`/account/messages?shop=${encodeURIComponent(business?.stores?.[0]?.id || business?.id || businessSlugOrId)}&storeName=${encodeURIComponent(business?.name || '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2.5 rounded-xl border border-theme-border hover:border-[#003B2B] bg-white hover:bg-emerald-50 text-[#003B2B] font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                        title="Nhắn tin với gian hàng (Mở tab mới)"
                       >
-                        <span className="material-symbols-outlined text-lg text-theme-primary">panorama</span>
-                        <span>Chọn ảnh nền</span>
-                      </button>
+                        <span className="material-symbols-outlined text-base">chat</span>
+                        <span>Nhắn Tin</span>
+                        <span className="material-symbols-outlined text-xs opacity-70">open_in_new</span>
+                      </Link>
+
+                      {!isFollowed ? (
+                        <button
+                          type="button"
+                          onClick={handleFollowStore}
+                          className="w-full lg:w-auto px-5 py-2.5 rounded-xl bg-theme-primary hover:bg-theme-primary-hover text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                        >
+                          <span className="material-symbols-outlined text-base">person_add</span>
+                          <span>Theo Dõi Gian Hàng</span>
+                        </button>
+                      ) : (
+                        <div className="relative" ref={followDropdownRef}>
+                          <button
+                            type="button"
+                            onClick={() => setIsFollowDropdownOpen((prev) => !prev)}
+                            className="w-full lg:w-auto px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                          >
+                            <span className="material-symbols-outlined text-base">check</span>
+                            <span>Đang Theo Dõi</span>
+                            <span className="material-symbols-outlined text-sm">expand_more</span>
+                          </button>
+
+                          {isFollowDropdownOpen && (
+                            <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-xl border border-theme-border p-1.5 z-40 animate-in fade-in slide-in-from-top-2 duration-150">
+                              {/* Option 1: Nhắn tin */}
+                              <Link
+                                href={`/account/messages?shop=${encodeURIComponent(business?.stores?.[0]?.id || business?.id || businessSlugOrId)}&storeName=${encodeURIComponent(business?.name || '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={() => setIsFollowDropdownOpen(false)}
+                                className="w-full px-3 py-2 rounded-xl text-xs font-medium text-slate-800 hover:bg-emerald-50 hover:text-emerald-800 flex items-center justify-between transition-colors mb-1"
+                                title="Nhắn tin với Shop (Mở tab mới)"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="material-symbols-outlined text-sm text-[#003B2B]">chat</span>
+                                  <span>Nhắn tin với Shop</span>
+                                </div>
+                                <span className="material-symbols-outlined text-xs text-slate-400">open_in_new</span>
+                              </Link>
+
+                              {/* Option 2: Hủy theo dõi */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsFollowDropdownOpen(false);
+                                  setIsUnfollowModalOpen(true);
+                                }}
+                                className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer text-left"
+                              >
+                                <span className="material-symbols-outlined text-sm text-rose-600">person_remove</span>
+                                <span>Hủy theo dõi</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-
-                {/* Nút Quay Lại Trang Quản Lý */}
-                <Link
-                  href="/seller/dashboard"
-                  className="flex-1 lg:flex-none px-4 py-2.5 rounded-xl border border-theme-border bg-white hover:bg-theme-surface-subtle text-theme-text font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs"
-                >
-                  <span className="material-symbols-outlined text-base">dashboard</span>
-                  <span>Quay Lại Trang Quản Lý</span>
-                </Link>
-              </>
-            ) : (
-              <div className="flex items-center gap-2 flex-1 lg:flex-none">
-                <Link
-                  href={`/account/messages?shop=${encodeURIComponent(business?.stores?.[0]?.id || business?.id || businessSlugOrId)}&storeName=${encodeURIComponent(business?.name || '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2.5 rounded-xl border border-theme-border hover:border-[#003B2B] bg-white hover:bg-emerald-50 text-[#003B2B] font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                  title="Nhắn tin với gian hàng (Mở tab mới)"
-                >
-                  <span className="material-symbols-outlined text-base">chat</span>
-                  <span>Nhắn Tin</span>
-                  <span className="material-symbols-outlined text-xs opacity-70">open_in_new</span>
-                </Link>
-
-                {!isFollowed ? (
-                  <button
-                    type="button"
-                    onClick={handleFollowStore}
-                    className="w-full lg:w-auto px-5 py-2.5 rounded-xl bg-theme-primary hover:bg-theme-primary-hover text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    <span className="material-symbols-outlined text-base">person_add</span>
-                    <span>Theo Dõi Gian Hàng</span>
-                  </button>
-                ) : (
-                  <div className="relative" ref={followDropdownRef}>
-                    <button
-                      type="button"
-                      onClick={() => setIsFollowDropdownOpen((prev) => !prev)}
-                      className="w-full lg:w-auto px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                    >
-                      <span className="material-symbols-outlined text-base">check</span>
-                      <span>Đang Theo Dõi</span>
-                      <span className="material-symbols-outlined text-sm">expand_more</span>
-                    </button>
-
-                    {isFollowDropdownOpen && (
-                      <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-xl border border-theme-border p-1.5 z-40 animate-in fade-in slide-in-from-top-2 duration-150">
-                        {/* Option 1: Nhắn tin */}
-                        <Link
-                          href={`/account/messages?shop=${encodeURIComponent(business?.stores?.[0]?.id || business?.id || businessSlugOrId)}&storeName=${encodeURIComponent(business?.name || '')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() => setIsFollowDropdownOpen(false)}
-                          className="w-full px-3 py-2 rounded-xl text-xs font-medium text-slate-800 hover:bg-emerald-50 hover:text-emerald-800 flex items-center justify-between transition-colors mb-1"
-                          title="Nhắn tin với Shop (Mở tab mới)"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-sm text-[#003B2B]">chat</span>
-                            <span>Nhắn tin với Shop</span>
-                          </div>
-                          <span className="material-symbols-outlined text-xs text-slate-400">open_in_new</span>
-                        </Link>
-
-                        {/* Option 2: Hủy theo dõi */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsFollowDropdownOpen(false);
-                            setIsUnfollowModalOpen(true);
-                          }}
-                          className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer text-left"
-                        >
-                          <span className="material-symbols-outlined text-sm text-rose-600">person_remove</span>
-                          <span>Hủy theo dõi</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
-            )}
-          </div>
-        </div>
-      </section>
+            </section>
 
-      {/* Modal Popup Cập Nhật Ảnh (Avatar hoặc Banner) */}
-      {activeImageModal && (
-        <div
-          className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen min-h-screen bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 z-[99999] animate-in fade-in duration-200"
-          onClick={() => {
-            if (!isApplyingImage) {
-              setActiveImageModal(null);
-              setPreviewImage(null);
-            }
-          }}
-        >
-          <div
-            className="bg-white rounded-3xl shadow-2xl border border-theme-border w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header Modal */}
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-surface-container-lowest">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-theme-primary/10 text-theme-primary flex items-center justify-center">
-                  <span className="material-symbols-outlined text-xl">
-                    {activeImageModal === 'avatar' ? 'account_circle' : 'panorama'}
-                  </span>
-                </div>
-                <div>
-                  <h3 className="font-title-md text-base font-bold text-on-surface">
-                    {activeImageModal === 'avatar' ? 'Cập Nhật Ảnh Đại Diện' : 'Cập Nhật Ảnh Bìa Gian Hàng'}
-                  </h3>
-                  <p className="text-[11px] text-on-surface-variant">
-                    {activeImageModal === 'avatar'
-                      ? 'Logo đại diện chính thức của gian hàng'
-                      : 'Ảnh nền panorama hiển thị đầu trang gian hàng'}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
+            {/* Modal Popup Cập Nhật Ảnh (Avatar hoặc Banner) */}
+            {activeImageModal && (
+              <div
+                className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen min-h-screen bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 z-[99999] animate-in fade-in duration-200"
                 onClick={() => {
                   if (!isApplyingImage) {
                     setActiveImageModal(null);
                     setPreviewImage(null);
                   }
                 }}
-                disabled={isApplyingImage}
-                className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
               >
-                <span className="material-symbols-outlined text-lg">close</span>
-              </button>
-            </div>
-
-            {/* Body Modal */}
-            <div className="p-6 space-y-5">
-              {/* Preview Box */}
-              <div>
-                <label className="block text-xs font-bold text-gray-600 mb-2 uppercase tracking-wider">
-                  Xem trước ảnh:
-                </label>
-                {activeImageModal === 'avatar' ? (
-                  <div className="w-28 h-28 rounded-2xl border-2 border-theme-border overflow-hidden bg-gray-50 flex items-center justify-center mx-auto shadow-inner relative">
-                    {previewImage === 'DEFAULT' || (!previewImage && !business?.logo && !legacyProfile?.logo) ? (
-                      <div className="w-full h-full bg-[#003b2b] text-white font-black text-3xl flex items-center justify-center">
-                        {(business?.name || 'H').slice(0, 1).toUpperCase()}
-                      </div>
-                    ) : (
-                      <img
-                        src={previewImage || business?.logo || legacyProfile?.logo}
-                        alt="Avatar Preview"
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                  </div>
-                ) : (
-                  <div className="w-full h-36 sm:h-44 rounded-2xl border-2 border-theme-border overflow-hidden bg-gray-50 flex items-center justify-center mx-auto shadow-inner relative">
-                    <img
-                      src={
-                        previewImage === 'DEFAULT'
-                          ? 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1600&q=80'
-                          : previewImage || bannerImg
-                      }
-                      alt="Banner Preview"
-                      className="w-full h-full object-cover"
-                    />
-                    {previewImage === 'DEFAULT' && (
-                      <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur-xs">
-                        Ảnh bìa mặc định
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Upload Dropzone */}
-              <div
-                onClick={() => modalFileInputRef.current?.click()}
-                className="border-2 border-dashed border-theme-primary/30 hover:border-theme-primary hover:bg-theme-primary/[0.03] rounded-2xl p-4 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1.5 group"
-              >
-                <div className="w-10 h-10 rounded-full bg-theme-primary/10 text-theme-primary flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <span className="material-symbols-outlined text-xl">cloud_upload</span>
-                </div>
-                <div className="font-semibold text-xs text-theme-text">
-                  Bấm để chọn ảnh từ thiết bị
-                </div>
-                <p className="text-[11px] text-theme-text-muted">
-                  Định dạng hỗ trợ: PNG, JPG, WEBP • Dung lượng tối đa: <strong>2MB</strong>
-                </p>
-              </div>
-
-              <input
-                type="file"
-                ref={modalFileInputRef}
-                onChange={handleModalFileChange}
-                accept="image/png,image/jpeg,image/webp,image/jpg"
-                className="hidden"
-              />
-            </div>
-
-            {/* Footer Modal */}
-            <div className="px-6 py-4 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => setPreviewImage('DEFAULT')}
-                disabled={isApplyingImage}
-                className="px-3.5 py-2 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-base">restart_alt</span>
-                <span>Chọn ảnh mặc định</span>
-              </button>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveImageModal(null);
-                    setPreviewImage(null);
-                  }}
-                  disabled={isApplyingImage}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-200 transition-colors cursor-pointer"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="button"
-                  onClick={handleApplyImage}
-                  disabled={isApplyingImage}
-                  className="px-5 py-2 rounded-xl bg-theme-primary hover:bg-theme-primary-hover text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-base">
-                    {isApplyingImage ? 'progress_activity' : 'check'}
-                  </span>
-                  <span>{isApplyingImage ? 'Đang Lưu...' : 'Áp Dụng'}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Shop Vouchers Showcase Banner */}
-      {shopVouchers.length > 0 && (
-        <section className="bg-gradient-to-r from-amber-500/10 via-pink-500/5 to-emerald-500/10 rounded-3xl p-5 border border-amber-500/20 mb-8 shadow-xs">
-          <div className="flex items-center justify-between mb-3.5">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-pink-600 text-white flex items-center justify-center shadow-xs">
-                <span className="material-symbols-outlined text-lg">loyalty</span>
-              </div>
-              <div>
-                <h3 className="font-bold text-sm sm:text-base text-gray-900 flex items-center gap-2">
-                  <span>Mã Giảm Giá Gian Hàng</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-100 text-pink-700 font-bold uppercase">
-                    Độc Quyền
-                  </span>
-                </h3>
-                <p className="text-[11px] text-gray-500">
-                  Thu thập voucher ưu đãi từ {business.name} trước khi mua sách
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {shopVouchers.map((v) => {
-              const isSaved = Boolean(v.isSaved || savedVouchers.includes(v.code) || (v.id && savedVouchers.includes(v.id)));
-              const isFollowerVoucher = v.targetAudience === 'FOLLOWERS_ONLY';
-              const req = formatFollowerRequirement(v.minFollowDays);
-
-              return (
                 <div
-                  key={v.id || v.code}
-                  className={`bg-white rounded-2xl p-3.5 border border-dashed flex items-center justify-between gap-3 shadow-2xs transition-all hover:shadow-sm ${isFollowerVoucher ? 'border-pink-300 hover:border-pink-500' : 'border-amber-300 hover:border-amber-500'
-                    }`}
+                  className="bg-white rounded-3xl shadow-2xl border border-theme-border w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-bold text-sm text-[#006953]">
-                        {v.type === 'PERCENTAGE' ? `Giảm ${v.value}%` : `Giảm ${Number(v.value).toLocaleString('vi-VN')}đ`}
-                      </span>
-                      <span className="font-mono text-[10px] bg-gray-100 px-1.5 py-0.2 rounded font-bold text-gray-700 border border-gray-200">
-                        {v.code}
-                      </span>
+                  {/* Header Modal */}
+                  <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-surface-container-lowest">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-theme-primary/10 text-theme-primary flex items-center justify-center">
+                        <span className="material-symbols-outlined text-xl">
+                          {activeImageModal === 'avatar' ? 'account_circle' : 'panorama'}
+                        </span>
+                      </div>
+                      <div>
+                        <h3 className="font-title-md text-base font-bold text-on-surface">
+                          {activeImageModal === 'avatar' ? 'Cập Nhật Ảnh Đại Diện' : 'Cập Nhật Ảnh Bìa Gian Hàng'}
+                        </h3>
+                        <p className="text-[11px] text-on-surface-variant">
+                          {activeImageModal === 'avatar'
+                            ? 'Logo đại diện chính thức của gian hàng'
+                            : 'Ảnh nền panorama hiển thị đầu trang gian hàng'}
+                        </p>
+                      </div>
                     </div>
 
-                    <p className="text-xs text-gray-800 font-medium truncate mt-0.5">
-                      {v.name || `Voucher ${v.code}`}
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!isApplyingImage) {
+                          setActiveImageModal(null);
+                          setPreviewImage(null);
+                        }
+                      }}
+                      disabled={isApplyingImage}
+                      className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-lg">close</span>
+                    </button>
+                  </div>
 
-                    <div className="flex items-center gap-1.5 mt-1 text-[10px] text-gray-500">
-                      <span>Đơn từ {Number(v.minOrderAmount || 0).toLocaleString('vi-VN')}đ</span>
-                      {isFollowerVoucher && (
-                        <>
-                          <span>•</span>
-                          <span className="text-pink-600 font-bold flex items-center gap-0.5">
-                            <span className="material-symbols-outlined text-[12px]">{req.icon}</span>
-                            <span>{req.badge}</span>
-                          </span>
-                        </>
+                  {/* Body Modal */}
+                  <div className="p-6 space-y-5">
+                    {/* Preview Box */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-600 mb-2 uppercase tracking-wider">
+                        Xem trước ảnh:
+                      </label>
+                      {activeImageModal === 'avatar' ? (
+                        <div className="w-28 h-28 rounded-2xl border-2 border-theme-border overflow-hidden bg-gray-50 flex items-center justify-center mx-auto shadow-inner relative">
+                          {previewImage === 'DEFAULT' || (!previewImage && !business?.logo && !legacyProfile?.logo) ? (
+                            <div className="w-full h-full bg-[#003b2b] text-white font-black text-3xl flex items-center justify-center">
+                              {(business?.name || 'H').slice(0, 1).toUpperCase()}
+                            </div>
+                          ) : (
+                            <img
+                              src={previewImage || business?.logo || legacyProfile?.logo}
+                              alt="Avatar Preview"
+                              className="w-full h-full object-cover"
+                            />
+                          )}
+                        </div>
+                      ) : (
+                        <div className="w-full h-36 sm:h-44 rounded-2xl border-2 border-theme-border overflow-hidden bg-gray-50 flex items-center justify-center mx-auto shadow-inner relative">
+                          <img
+                            src={
+                              previewImage === 'DEFAULT'
+                                ? 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1600&q=80'
+                                : previewImage || bannerImg
+                            }
+                            alt="Banner Preview"
+                            className="w-full h-full object-cover"
+                          />
+                          {previewImage === 'DEFAULT' && (
+                            <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur-xs">
+                              Ảnh bìa mặc định
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
+
+                    {/* Upload Dropzone */}
+                    <div
+                      onClick={() => modalFileInputRef.current?.click()}
+                      className="border-2 border-dashed border-theme-primary/30 hover:border-theme-primary hover:bg-theme-primary/[0.03] rounded-2xl p-4 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1.5 group"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-theme-primary/10 text-theme-primary flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <span className="material-symbols-outlined text-xl">cloud_upload</span>
+                      </div>
+                      <div className="font-semibold text-xs text-theme-text">
+                        Bấm để chọn ảnh từ thiết bị
+                      </div>
+                      <p className="text-[11px] text-theme-text-muted">
+                        Định dạng hỗ trợ: PNG, JPG, WEBP • Dung lượng tối đa: <strong>2MB</strong>
+                      </p>
+                    </div>
+
+                    <input
+                      type="file"
+                      ref={modalFileInputRef}
+                      onChange={handleModalFileChange}
+                      accept="image/png,image/jpeg,image/webp,image/jpg"
+                      className="hidden"
+                    />
                   </div>
 
-                  {/* Action Button: Follow to Claim or Save */}
-                  <div className="shrink-0">
-                    {isFollowerVoucher && !isFollowed ? (
+                  {/* Footer Modal */}
+                  <div className="px-6 py-4 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewImage('DEFAULT')}
+                      disabled={isApplyingImage}
+                      className="px-3.5 py-2 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-base">restart_alt</span>
+                      <span>Chọn ảnh mặc định</span>
+                    </button>
+
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={async () => {
-                          await handleFollowStore();
-                          handleSaveShopVoucher(v);
+                        onClick={() => {
+                          setActiveImageModal(null);
+                          setPreviewImage(null);
                         }}
-                        className="px-3 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-all cursor-pointer"
-                        title="Theo dõi gian hàng để nhận mã ngay"
+                        disabled={isApplyingImage}
+                        className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-200 transition-colors cursor-pointer"
                       >
-                        <span className="material-symbols-outlined text-sm">favorite</span>
-                        <span>Theo dõi &amp; Lưu</span>
+                        Hủy
                       </button>
-                    ) : (
                       <button
                         type="button"
-                        onClick={() => handleSaveShopVoucher(v)}
-                        className={`px-3 py-2 rounded-xl font-bold text-[11px] transition-all cursor-pointer ${isSaved
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-[#006953] hover:bg-[#005240] text-white shadow-xs'
+                        onClick={handleApplyImage}
+                        disabled={isApplyingImage}
+                        className="px-5 py-2 rounded-xl bg-theme-primary hover:bg-theme-primary-hover text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-base">
+                          {isApplyingImage ? 'progress_activity' : 'check'}
+                        </span>
+                        <span>{isApplyingImage ? 'Đang Lưu...' : 'Áp Dụng'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Shop Vouchers Showcase Banner */}
+            {shopVouchers.length > 0 && (
+              <section className="bg-gradient-to-r from-amber-500/10 via-pink-500/5 to-emerald-500/10 rounded-3xl p-5 border border-amber-500/20 mb-8 shadow-xs">
+                <div className="flex items-center justify-between mb-3.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-pink-600 text-white flex items-center justify-center shadow-xs">
+                      <span className="material-symbols-outlined text-lg">loyalty</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm sm:text-base text-gray-900 flex items-center gap-2">
+                        <span>Mã Giảm Giá Gian Hàng</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-100 text-pink-700 font-bold uppercase">
+                          Độc Quyền
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-gray-500">
+                        Thu thập voucher ưu đãi từ {business.name} trước khi mua sách
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {shopVouchers.map((v) => {
+                    const isSaved = Boolean(v.isSaved || savedVouchers.includes(v.code) || (v.id && savedVouchers.includes(v.id)));
+                    const isFollowerVoucher = v.targetAudience === 'FOLLOWERS_ONLY';
+                    const req = formatFollowerRequirement(v.minFollowDays);
+
+                    return (
+                      <div
+                        key={v.id || v.code}
+                        className={`bg-white rounded-2xl p-3.5 border border-dashed flex items-center justify-between gap-3 shadow-2xs transition-all hover:shadow-sm ${isFollowerVoucher ? 'border-pink-300 hover:border-pink-500' : 'border-amber-300 hover:border-amber-500'
                           }`}
                       >
-                        {isSaved ? 'Đã lưu' : 'Lưu mã'}
-                      </button>
-                    )}
-                  </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-sm text-[#006953]">
+                              {v.type === 'PERCENTAGE' ? `Giảm ${v.value}%` : `Giảm ${Number(v.value).toLocaleString('vi-VN')}đ`}
+                            </span>
+                            <span className="font-mono text-[10px] bg-gray-100 px-1.5 py-0.2 rounded font-bold text-gray-700 border border-gray-200">
+                              {v.code}
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-gray-800 font-medium truncate mt-0.5">
+                            {v.name || `Voucher ${v.code}`}
+                          </p>
+
+                          <div className="flex items-center gap-1.5 mt-1 text-[10px] text-gray-500">
+                            <span>Đơn từ {Number(v.minOrderAmount || 0).toLocaleString('vi-VN')}đ</span>
+                            {isFollowerVoucher && (
+                              <>
+                                <span>•</span>
+                                <span className="text-pink-600 font-bold flex items-center gap-0.5">
+                                  <span className="material-symbols-outlined text-[12px]">{req.icon}</span>
+                                  <span>{req.badge}</span>
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Action Button: Follow to Claim or Save */}
+                        <div className="shrink-0">
+                          {isFollowerVoucher && !isFollowed ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await handleFollowStore();
+                                handleSaveShopVoucher(v);
+                              }}
+                              className="px-3 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                              title="Theo dõi gian hàng để nhận mã ngay"
+                            >
+                              <span className="material-symbols-outlined text-sm">favorite</span>
+                              <span>Theo dõi &amp; Lưu</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleSaveShopVoucher(v)}
+                              className={`px-3 py-2 rounded-xl font-bold text-[11px] transition-all cursor-pointer ${isSaved
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-[#006953] hover:bg-[#005240] text-white shadow-xs'
+                                }`}
+                            >
+                              {isSaved ? 'Đã lưu' : 'Lưu mã'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* Product Showcase & Filtering */}
-      <section id="shop-products-catalog">
-        {/* Navigation Tabs Bar & Search */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-theme-border mb-6">
-          {/* Format / Highlight Tabs */}
-          <div className="flex items-center flex-wrap gap-1 bg-[#f2fbf9] p-1 rounded-2xl border border-[#e8e5df]">
-            {[
-              { id: 'all', name: 'Tất Cả Sách', count: allStoreBooks.length },
-              { id: 'bestseller', name: 'Bán Chạy Nhất' },
-              { id: 'ebook', name: 'Ebook DRM' },
-              { id: 'physical', name: 'Sách Giấy' },
-              { id: 'hybrid', name: 'Combo Hybrid' },
-            ].map((tab) => {
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${isActive
-                      ? 'bg-white text-[#003b2b] shadow-2xs border border-[#e8e5df]'
-                      : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                >
-                  <span>{tab.name}</span>
-                  {tab.count !== undefined && (
-                    <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded-full font-semibold">
-                      {tab.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Search inside shop */}
-          <div className="relative w-full md:w-72">
-            <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-base">search</span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm trong gian hàng này..."
-              className="w-full pl-9 pr-8 py-2 rounded-xl bg-white border border-[#e8e5df] text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#003b2b] shadow-2xs"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
-              >
-                <span className="material-symbols-outlined text-sm">close</span>
-              </button>
+              </section>
             )}
-          </div>
-        </div>
 
-        {/* Category Tag Pills & Quick Mini Pagination */}
-        <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
-            <span className="text-xs text-slate-500 font-semibold shrink-0">Chủ đề:</span>
-            {[
-              { id: 'all', name: 'Tất cả' },
-              { id: 'selfhelp', name: 'Phát triển bản thân' },
-              { id: 'business', name: 'Kinh doanh & Đầu tư' },
-              { id: 'technology', name: 'Công nghệ & AI' },
-              { id: 'literature', name: 'Văn học & Nghệ thuật' },
-            ].map((cat) => {
-              const isCatActive = activeCategory === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setActiveCategory(cat.id)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer ${isCatActive
-                      ? 'bg-[#003b2b] text-white'
-                      : 'bg-white border border-[#e8e5df] text-slate-700 hover:bg-slate-50'
-                    }`}
-                >
-                  {cat.name}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Quick Mini Pagination Indicator */}
-          {totalPages > 1 && (
-            <div className="flex items-center gap-2 ml-auto shrink-0 text-xs">
-              <span className="text-slate-600 font-medium">
-                <strong className="text-[#003b2b]">{validCurrentPage}</strong>/{totalPages}
-              </span>
-              <div className="flex items-center rounded-lg overflow-hidden border border-slate-300 bg-white shadow-2xs">
-                <button
-                  type="button"
-                  disabled={validCurrentPage <= 1}
-                  onClick={() => handlePageChange(validCurrentPage - 1)}
-                  className="w-7 h-7 flex items-center justify-center text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors border-r border-slate-200 cursor-pointer"
-                  title="Trang trước"
-                  aria-label="Trang trước"
-                >
-                  <span className="material-symbols-outlined text-xs">chevron_left</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={validCurrentPage >= totalPages}
-                  onClick={() => handlePageChange(validCurrentPage + 1)}
-                  className="w-7 h-7 flex items-center justify-center text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
-                  title="Trang sau"
-                  aria-label="Trang sau"
-                >
-                  <span className="material-symbols-outlined text-xs">chevron_right</span>
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Books Grid */}
-        {filteredBooks.length === 0 ? (
-          <EmptyState
-            icon="menu_book"
-            title="Gian hàng chưa có sản phẩm phù hợp"
-            description="Hãy thử đổi bộ lọc hoặc từ khóa tìm kiếm để khám phá thêm nhiều đầu sách khác của shop."
-            actionText="Xem tất cả sách"
-            onAction={() => {
-              setActiveTab('all');
-              setActiveCategory('all');
-              setSearchQuery('');
-            }}
-          />
-        ) : (
-          <>
-            <div className="grid grid-cols-2 min-[480px]:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-3.5">
-              {paginatedBooks.map((book) => (
-                <BookCard
-                  key={book.id}
-                  book={book}
-                  isMock={book.isMock}
-                />
-              ))}
-            </div>
-
-            {/* Bottom Full Pagination */}
-            {totalPages > 1 && (
-              <div className="mt-8 mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 pt-5 border-t border-theme-border">
-                <div className="text-xs text-slate-500">
-                  Hiển thị <span className="font-bold text-slate-900">{(validCurrentPage - 1) * ITEMS_PER_PAGE + 1}</span> - <span className="font-bold text-slate-900">{Math.min(validCurrentPage * ITEMS_PER_PAGE, filteredBooks.length)}</span> trong tổng số <span className="font-bold text-slate-900">{filteredBooks.length}</span> sản phẩm
-                </div>
-
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    disabled={validCurrentPage <= 1}
-                    onClick={() => handlePageChange(validCurrentPage - 1)}
-                    className="w-8 h-8 rounded-lg border border-slate-300 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
-                    aria-label="Trang trước"
-                  >
-                    <span className="material-symbols-outlined text-sm">chevron_left</span>
-                  </button>
-
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
-                    if (totalPages > 7) {
-                      if (p !== 1 && p !== totalPages && Math.abs(p - validCurrentPage) > 2) {
-                        if (p === 2 || p === totalPages - 1) {
-                          return <span key={p} className="px-1 text-slate-400">...</span>;
-                        }
-                        return null;
-                      }
-                    }
+            {/* Product Showcase & Filtering */}
+            <section id="shop-products-catalog">
+              {/* Navigation Tabs Bar & Search */}
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-theme-border mb-6">
+                {/* Format / Highlight Tabs */}
+                <div className="flex items-center flex-wrap gap-1 bg-[#f2fbf9] p-1 rounded-2xl border border-[#e8e5df]">
+                  {[
+                    { id: 'all', name: 'Tất Cả Sách', count: allStoreBooks.length },
+                    { id: 'bestseller', name: 'Bán Chạy Nhất' },
+                    { id: 'ebook', name: 'Ebook DRM' },
+                    { id: 'physical', name: 'Sách Giấy' },
+                    { id: 'hybrid', name: 'Combo Hybrid' },
+                  ].map((tab) => {
+                    const isActive = activeTab === tab.id;
                     return (
                       <button
-                        key={p}
+                        key={tab.id}
                         type="button"
-                        onClick={() => handlePageChange(p)}
-                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
-                          p === validCurrentPage
-                            ? 'bg-[#003b2b] text-white shadow-2xs'
-                            : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                        }`}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${isActive
+                          ? 'bg-white text-[#003b2b] shadow-2xs border border-[#e8e5df]'
+                          : 'text-slate-600 hover:text-slate-900'
+                          }`}
                       >
-                        {p}
+                        <span>{tab.name}</span>
+                        {tab.count !== undefined && (
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded-full font-semibold">
+                            {tab.count}
+                          </span>
+                        )}
                       </button>
                     );
                   })}
+                </div>
 
-                  <button
-                    type="button"
-                    disabled={validCurrentPage >= totalPages}
-                    onClick={() => handlePageChange(validCurrentPage + 1)}
-                    className="w-8 h-8 rounded-lg border border-slate-300 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
-                    aria-label="Trang sau"
-                  >
-                    <span className="material-symbols-outlined text-sm">chevron_right</span>
-                  </button>
+                {/* Search inside shop */}
+                <div className="relative w-full md:w-72">
+                  <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-base">search</span>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Tìm trong gian hàng này..."
+                    className="w-full pl-9 pr-8 py-2 rounded-xl bg-white border border-[#e8e5df] text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#003b2b] shadow-2xs"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                    >
+                      <span className="material-symbols-outlined text-sm">close</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Category Tag Pills & Quick Mini Pagination */}
+              <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
+                  <span className="text-xs text-slate-500 font-semibold shrink-0">Chủ đề:</span>
+                  {[
+                    { id: 'all', name: 'Tất cả' },
+                    { id: 'selfhelp', name: 'Phát triển bản thân' },
+                    { id: 'business', name: 'Kinh doanh & Đầu tư' },
+                    { id: 'technology', name: 'Công nghệ & AI' },
+                    { id: 'literature', name: 'Văn học & Nghệ thuật' },
+                  ].map((cat) => {
+                    const isCatActive = activeCategory === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setActiveCategory(cat.id)}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer ${isCatActive
+                          ? 'bg-[#003b2b] text-white'
+                          : 'bg-white border border-[#e8e5df] text-slate-700 hover:bg-slate-50'
+                          }`}
+                      >
+                        {cat.name}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Quick Mini Pagination Indicator */}
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-2 ml-auto shrink-0 text-xs">
+                    <span className="text-slate-600 font-medium">
+                      <strong className="text-[#003b2b]">{validCurrentPage}</strong>/{totalPages}
+                    </span>
+                    <div className="flex items-center rounded-lg overflow-hidden border border-slate-300 bg-white shadow-2xs">
+                      <button
+                        type="button"
+                        disabled={validCurrentPage <= 1}
+                        onClick={() => handlePageChange(validCurrentPage - 1)}
+                        className="w-7 h-7 flex items-center justify-center text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors border-r border-slate-200 cursor-pointer"
+                        title="Trang trước"
+                        aria-label="Trang trước"
+                      >
+                        <span className="material-symbols-outlined text-xs">chevron_left</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={validCurrentPage >= totalPages}
+                        onClick={() => handlePageChange(validCurrentPage + 1)}
+                        className="w-7 h-7 flex items-center justify-center text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                        title="Trang sau"
+                        aria-label="Trang sau"
+                      >
+                        <span className="material-symbols-outlined text-xs">chevron_right</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Books Grid */}
+              {filteredBooks.length === 0 ? (
+                <EmptyState
+                  icon="menu_book"
+                  title="Gian hàng chưa có sản phẩm phù hợp"
+                  description="Hãy thử đổi bộ lọc hoặc từ khóa tìm kiếm để khám phá thêm nhiều đầu sách khác của shop."
+                  actionText="Xem tất cả sách"
+                  onAction={() => {
+                    setActiveTab('all');
+                    setActiveCategory('all');
+                    setSearchQuery('');
+                  }}
+                />
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 min-[480px]:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-3.5">
+                    {paginatedBooks.map((book) => (
+                      <BookCard
+                        key={book.id}
+                        book={book}
+                        isMock={book.isMock}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Bottom Full Pagination */}
+                  {totalPages > 1 && (
+                    <div className="mt-8 mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 pt-5 border-t border-theme-border">
+                      <div className="text-xs text-slate-500">
+                        Hiển thị <span className="font-bold text-slate-900">{(validCurrentPage - 1) * ITEMS_PER_PAGE + 1}</span> - <span className="font-bold text-slate-900">{Math.min(validCurrentPage * ITEMS_PER_PAGE, filteredBooks.length)}</span> trong tổng số <span className="font-bold text-slate-900">{filteredBooks.length}</span> sản phẩm
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={validCurrentPage <= 1}
+                          onClick={() => handlePageChange(validCurrentPage - 1)}
+                          className="w-8 h-8 rounded-lg border border-slate-300 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                          aria-label="Trang trước"
+                        >
+                          <span className="material-symbols-outlined text-sm">chevron_left</span>
+                        </button>
+
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                          if (totalPages > 7) {
+                            if (p !== 1 && p !== totalPages && Math.abs(p - validCurrentPage) > 2) {
+                              if (p === 2 || p === totalPages - 1) {
+                                return <span key={p} className="px-1 text-slate-400">...</span>;
+                              }
+                              return null;
+                            }
+                          }
+                          return (
+                            <button
+                              key={p}
+                              type="button"
+                              onClick={() => handlePageChange(p)}
+                              className={`w-8 h-8 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${p === validCurrentPage
+                                ? 'bg-[#003b2b] text-white shadow-2xs'
+                                : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                                }`}
+                            >
+                              {p}
+                            </button>
+                          );
+                        })}
+
+                        <button
+                          type="button"
+                          disabled={validCurrentPage >= totalPages}
+                          onClick={() => handlePageChange(validCurrentPage + 1)}
+                          className="w-8 h-8 rounded-lg border border-slate-300 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                          aria-label="Trang sau"
+                        >
+                          <span className="material-symbols-outlined text-sm">chevron_right</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+
+            {/* Modal Popup Xác Nhận Hủy Theo Dõi (Đếm ngược 5s) */}
+            {isUnfollowModalOpen && (
+              <div className="fixed inset-0 w-screen h-screen z-[99999] bg-black/65 backdrop-blur-xs flex items-center justify-center p-4">
+                <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-theme-border relative animate-in fade-in zoom-in-95 duration-150">
+                  {/* Icon Warning */}
+                  <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4 border border-rose-100">
+                    <span className="material-symbols-outlined text-2xl">person_remove</span>
+                  </div>
+
+                  {/* Title & Body */}
+                  <h3 className="font-bold text-center text-gray-900 text-lg mb-2">
+                    Xác Nhận Hủy Theo Dõi Gian Hàng
+                  </h3>
+                  <p className="text-xs sm:text-sm text-center text-gray-600 mb-6 leading-relaxed">
+                    Bạn có chắc chắn muốn hủy theo dõi gian hàng{' '}
+                    <strong className="text-gray-900">{business?.name || 'này'}</strong> không? Bạn sẽ không còn nhận được các thông báo cập nhật sách mới và ưu đãi độc quyền từ gian hàng này.
+                  </p>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsUnfollowModalOpen(false)}
+                      disabled={isUnfollowing}
+                      className="flex-1 py-2.5 px-4 rounded-xl border border-gray-200 text-xs sm:text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      Đóng / Hủy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmUnfollow}
+                      disabled={unfollowCountdown > 0 || isUnfollowing}
+                      className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-sm ${unfollowCountdown > 0 || isUnfollowing
+                        ? 'bg-gray-400 cursor-not-allowed opacity-80'
+                        : 'bg-rose-600 hover:bg-rose-700 cursor-pointer'
+                        }`}
+                    >
+                      {isUnfollowing ? (
+                        <>
+                          <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                          <span>Đang xử lý...</span>
+                        </>
+                      ) : unfollowCountdown > 0 ? (
+                        <>
+                          <span className="material-symbols-outlined text-sm">timer</span>
+                          <span>Xác nhận ({unfollowCountdown}s)</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-sm">check</span>
+                          <span>Xác nhận hủy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
-          </>
-        )}
-      </section>
-
-      {/* Modal Popup Xác Nhận Hủy Theo Dõi (Đếm ngược 5s) */}
-      {isUnfollowModalOpen && (
-        <div className="fixed inset-0 w-screen h-screen z-[99999] bg-black/65 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-theme-border relative animate-in fade-in zoom-in-95 duration-150">
-            {/* Icon Warning */}
-            <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4 border border-rose-100">
-              <span className="material-symbols-outlined text-2xl">person_remove</span>
-            </div>
-
-            {/* Title & Body */}
-            <h3 className="font-bold text-center text-gray-900 text-lg mb-2">
-              Xác Nhận Hủy Theo Dõi Gian Hàng
-            </h3>
-            <p className="text-xs sm:text-sm text-center text-gray-600 mb-6 leading-relaxed">
-              Bạn có chắc chắn muốn hủy theo dõi gian hàng{' '}
-              <strong className="text-gray-900">{business?.name || 'này'}</strong> không? Bạn sẽ không còn nhận được các thông báo cập nhật sách mới và ưu đãi độc quyền từ gian hàng này.
-            </p>
-
-            {/* Actions */}
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setIsUnfollowModalOpen(false)}
-                disabled={isUnfollowing}
-                className="flex-1 py-2.5 px-4 rounded-xl border border-gray-200 text-xs sm:text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                Đóng / Hủy
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmUnfollow}
-                disabled={unfollowCountdown > 0 || isUnfollowing}
-                className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-sm ${unfollowCountdown > 0 || isUnfollowing
-                    ? 'bg-gray-400 cursor-not-allowed opacity-80'
-                    : 'bg-rose-600 hover:bg-rose-700 cursor-pointer'
-                  }`}
-              >
-                {isUnfollowing ? (
-                  <>
-                    <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                    <span>Đang xử lý...</span>
-                  </>
-                ) : unfollowCountdown > 0 ? (
-                  <>
-                    <span className="material-symbols-outlined text-sm">timer</span>
-                    <span>Xác nhận ({unfollowCountdown}s)</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-sm">check</span>
-                    <span>Xác nhận hủy</span>
-                  </>
-                )}
-              </button>
-            </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
+          );
 }
