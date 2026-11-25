@@ -325,30 +325,138 @@ export class CartService {
     }
   }
 
-  private readonly storeNameCache = new Map<string, { name: string; expiry: number }>();
+  private readonly storeNameCache = new Map<string, { name: string; canonicalId: string; expiry: number }>();
+  private businessDirectoryCache: {
+    expiresAt: number;
+    aliasMap: Map<string, { canonicalStoreId: string; storeName: string }>;
+    singleStoreFallback: { canonicalStoreId: string; storeName: string } | null;
+  } | null = null;
 
-  public async resolveStoreName(storeId: string): Promise<string> {
-    if (!storeId || storeId === 'huki-official' || storeId === 'default-store') {
-      return 'Nhà Sách HuKi Official';
+  private async getBusinessDirectory(): Promise<{
+    aliasMap: Map<string, { canonicalStoreId: string; storeName: string }>;
+    singleStoreFallback: { canonicalStoreId: string; storeName: string } | null;
+  }> {
+    if (this.businessDirectoryCache && this.businessDirectoryCache.expiresAt > Date.now()) {
+      return {
+        aliasMap: this.businessDirectoryCache.aliasMap,
+        singleStoreFallback: this.businessDirectoryCache.singleStoreFallback,
+      };
     }
 
-    const cached = this.storeNameCache.get(storeId);
+    const aliasMap = new Map<string, { canonicalStoreId: string; storeName: string }>();
+    let singleStoreFallback: { canonicalStoreId: string; storeName: string } | null = null;
+
+    const businessPort = process.env.BUSINESS_SERVICE_PORT || 3002;
+    const businessBaseUrl = process.env.BUSINESS_SERVICE_URL || `http://localhost:${businessPort}`;
+
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(`${businessBaseUrl}/api/v1/businesses?limit=100`, {
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timer));
+
+      if (res.ok) {
+        const json = (await res.json()) as any;
+        const businesses = Array.isArray(json?.data)
+          ? json.data
+          : Array.isArray(json?.data?.items)
+            ? json.data.items
+            : Array.isArray(json?.items)
+              ? json.items
+              : [];
+
+        for (const biz of businesses) {
+          if (!biz?.id) continue;
+          const canonicalStoreId = String(biz.id);
+          const storeName = String(
+            biz.stores?.[0]?.name || biz.displayName || biz.name || 'Nhà Sách HuKi Official',
+          ).trim();
+          const entry = { canonicalStoreId, storeName };
+
+          aliasMap.set(canonicalStoreId.toLowerCase(), entry);
+          if (biz.slug) aliasMap.set(String(biz.slug).toLowerCase(), entry);
+          if (Array.isArray(biz.stores)) {
+            for (const st of biz.stores) {
+              if (st?.id) aliasMap.set(String(st.id).toLowerCase(), entry);
+              if (st?.slug) aliasMap.set(String(st.slug).toLowerCase(), entry);
+            }
+          }
+        }
+
+        if (businesses.length === 1 && businesses[0]?.id) {
+          const onlyBiz = businesses[0];
+          singleStoreFallback = {
+            canonicalStoreId: String(onlyBiz.id),
+            storeName: String(
+              onlyBiz.stores?.[0]?.name || onlyBiz.displayName || onlyBiz.name || 'Nhà Sách HuKi Official',
+            ).trim(),
+          };
+        }
+      // Only cache non-empty directory responses so transient errors never poison lookups for 60s
+      if (businesses.length > 0) {
+        this.businessDirectoryCache = {
+          expiresAt: Date.now() + 60000,
+          aliasMap,
+          singleStoreFallback,
+        };
+      }
+      }
+    } catch {
+      // Tolerate unreachable business-service (e.g. unit tests)
+    }
+
+    return { aliasMap, singleStoreFallback };
+  }
+
+  public async resolveCanonicalStore(
+    rawStoreId?: string | null,
+  ): Promise<{ canonicalStoreId: string; storeName: string }> {
+    const raw = String(rawStoreId || '').trim();
+    const lower = raw.toLowerCase();
+    const { aliasMap, singleStoreFallback } = await this.getBusinessDirectory();
+
+    const OFFICIAL_SEEDS = new Set([
+      '',
+      'huki-official',
+      'default-store',
+      'nha-sach-huki-official',
+      '77777777-0000-4000-8000-000000000001',
+      '88888888-0000-4000-8000-000000000001',
+      '99999999-0000-4000-8000-000000000001',
+    ]);
+
+    if (lower && aliasMap.has(lower)) {
+      return aliasMap.get(lower)!;
+    }
+
+    if (OFFICIAL_SEEDS.has(lower)) {
+      if (singleStoreFallback) {
+        return singleStoreFallback;
+      }
+      return {
+        canonicalStoreId: '77777777-0000-4000-8000-000000000001',
+        storeName: 'Nhà Sách HuKi Official',
+      };
+    }
+
+    const cached = this.storeNameCache.get(raw);
     if (cached && cached.expiry > Date.now()) {
-      return cached.name;
+      return { canonicalStoreId: cached.canonicalId, storeName: cached.name };
     }
 
     const businessPort = process.env.BUSINESS_SERVICE_PORT || 3002;
     const businessBaseUrl = process.env.BUSINESS_SERVICE_URL || `http://localhost:${businessPort}`;
 
     try {
-      // 1. Try store by ID
-      const resStore = await fetch(`${businessBaseUrl}/api/v1/stores/${encodeURIComponent(storeId)}`);
+      const resStore = await fetch(`${businessBaseUrl}/api/v1/stores/${encodeURIComponent(raw)}`);
       if (resStore.ok) {
-        const json = await resStore.json() as any;
+        const json = (await resStore.json()) as any;
         const data = json.data || json;
         if (data?.name) {
-          this.storeNameCache.set(storeId, { name: data.name, expiry: Date.now() + 60000 });
-          return data.name;
+          const canonicalId = String(data.businessId || data.id || raw);
+          this.storeNameCache.set(raw, { name: data.name, canonicalId, expiry: Date.now() + 60000 });
+          return { canonicalStoreId: canonicalId, storeName: data.name };
         }
       }
     } catch {
@@ -356,14 +464,14 @@ export class CartService {
     }
 
     try {
-      // 2. Try store by slug
-      const resSlug = await fetch(`${businessBaseUrl}/api/v1/stores/slug/${encodeURIComponent(storeId)}`);
+      const resSlug = await fetch(`${businessBaseUrl}/api/v1/stores/slug/${encodeURIComponent(raw)}`);
       if (resSlug.ok) {
-        const json = await resSlug.json() as any;
+        const json = (await resSlug.json()) as any;
         const data = json.data || json;
         if (data?.name) {
-          this.storeNameCache.set(storeId, { name: data.name, expiry: Date.now() + 60000 });
-          return data.name;
+          const canonicalId = String(data.businessId || data.id || raw);
+          this.storeNameCache.set(raw, { name: data.name, canonicalId, expiry: Date.now() + 60000 });
+          return { canonicalStoreId: canonicalId, storeName: data.name };
         }
       }
     } catch {
@@ -371,26 +479,31 @@ export class CartService {
     }
 
     try {
-      // 3. Try business by ID
-      const resBiz = await fetch(`${businessBaseUrl}/api/v1/businesses/${encodeURIComponent(storeId)}`);
+      const resBiz = await fetch(`${businessBaseUrl}/api/v1/businesses/${encodeURIComponent(raw)}`);
       if (resBiz.ok) {
-        const json = await resBiz.json() as any;
+        const json = (await resBiz.json()) as any;
         const data = json.data || json;
-        if (data?.stores && data.stores.length > 0 && data.stores[0]?.name) {
-          const storeName = data.stores[0].name;
-          this.storeNameCache.set(storeId, { name: storeName, expiry: Date.now() + 60000 });
-          return storeName;
-        }
-        if (data?.name) {
-          this.storeNameCache.set(storeId, { name: data.name, expiry: Date.now() + 60000 });
-          return data.name;
+        const storeName = data?.stores?.[0]?.name || data?.displayName || data?.name;
+        if (storeName) {
+          const canonicalId = String(data.id || raw);
+          this.storeNameCache.set(raw, { name: storeName, canonicalId, expiry: Date.now() + 60000 });
+          return { canonicalStoreId: canonicalId, storeName };
         }
       }
     } catch {
       // Ignore
     }
 
-    return 'Gian Hàng HUKI';
+    if (singleStoreFallback) {
+      return singleStoreFallback;
+    }
+
+    return { canonicalStoreId: raw || 'huki-official', storeName: 'Gian Hàng HUKI' };
+  }
+
+  public async resolveStoreName(storeId: string): Promise<string> {
+    const resolved = await this.resolveCanonicalStore(storeId);
+    return resolved.storeName;
   }
 
   private async resolveBookPrice(bookId: string, basePrice: number): Promise<number> {
@@ -523,12 +636,14 @@ export class CartService {
       const unitPrice = isAvailable ? currentLivePrice : addedPrice;
       const subtotal = unitPrice * item.quantity;
 
-      const storeId = book.storeId || book.businessId || 'huki-official';
+      const rawStoreId = book.storeId || book.businessId || 'huki-official';
       const publisherName =
         (book.publisher && typeof book.publisher === 'object' && book.publisher.name) ||
         (typeof book.publisher === 'string' && book.publisher) ||
         'Đang cập nhật';
-      const storeName = await this.resolveStoreName(storeId);
+      const resolvedStore = await this.resolveCanonicalStore(rawStoreId);
+      const storeId = resolvedStore.canonicalStoreId;
+      const storeName = resolvedStore.storeName;
 
       const authorName =
         (book.author && typeof book.author === 'object' && book.author.name) ||

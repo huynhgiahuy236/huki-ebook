@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import BookCard from '@/ui/components/common/BookCard';
 import EmptyState from '@/ui/components/common/EmptyState';
 import { catalogApi, type BookData } from '@/ui/api/catalogApi';
+import { businessApi, type BusinessData } from '@/ui/api/businessApi';
 import { trackEvent } from '@/lib/tracker';
 import { personalizationService, normalizeVietnameseText } from '@/ui/services/personalizationService';
 import { reviewSummaryService } from '@/ui/services/reviewSummaryService';
@@ -45,6 +46,7 @@ function CatalogPageContent() {
   const topGridRef = useRef<HTMLDivElement>(null);
 
   const selectedCat = searchParams.get('cat') || searchParams.get('category') || 'all';
+  const selectedStore = searchParams.get('storeId') || searchParams.get('store') || 'all';
   const selectedFormat = searchParams.get('format') || 'all';
   const selectedPublisher = searchParams.get('publisher') || 'all';
   const selectedAuthor = searchParams.get('author') || 'all';
@@ -60,6 +62,7 @@ function CatalogPageContent() {
   const [minPriceInput, setMinPriceInput] = useState(minPriceParam);
   const [maxPriceInput, setMaxPriceInput] = useState(maxPriceParam);
   const [realBooks, setRealBooks] = useState<BookData[]>([]);
+  const [realBusinesses, setRealBusinesses] = useState<BusinessData[]>([]);
   const [realCategories, setRealCategories] = useState<{ id: string; name: string; slug: string }[]>([]);
   const [, setIsLoadingRealBooks] = useState(true);
   const [reviewsTick, setReviewsTick] = useState(0);
@@ -69,6 +72,11 @@ function CatalogPageContent() {
     catalogApi.getCategories().then((res) => {
       if (isMounted && res.success && Array.isArray(res.data) && res.data.length > 0) {
         setRealCategories(res.data);
+      }
+    }).catch(() => {});
+    businessApi.getPublicBusinesses({ limit: 50 }).then((res) => {
+      if (isMounted && res.success && Array.isArray(res.data)) {
+        setRealBusinesses(res.data);
       }
     }).catch(() => {});
     async function loadBooks() {
@@ -128,6 +136,12 @@ function CatalogPageContent() {
       params.delete('category');
       if (value && value !== 'all') {
         params.set('category', value);
+      }
+    } else if (key === 'storeId' || key === 'store') {
+      params.delete('storeId');
+      params.delete('store');
+      if (value && value !== 'all') {
+        params.set('storeId', value);
       }
     } else if (value === 'all' || !value || (key === 'page' && value === '1')) {
       params.delete(key);
@@ -241,11 +255,54 @@ function CatalogPageContent() {
     });
   }, [realBooks, reviewsTick]);
 
+  // Danh sách Nhà sách / Gian hàng bán thực tế từ DB /businesses (BUG-049)
+  const availableStores = useMemo(() => {
+    const list = realBusinesses.map((biz) => {
+      const displayName = (
+        (biz as any).stores?.[0]?.name ||
+        biz.displayName ||
+        biz.name ||
+        'Nhà Sách HuKi Official'
+      ).trim();
+      const aliases = new Set<string>();
+      if (biz.id) aliases.add(String(biz.id).toLowerCase());
+      if ((biz as any).slug) aliases.add(String((biz as any).slug).toLowerCase());
+      if (Array.isArray((biz as any).stores)) {
+        (biz as any).stores.forEach((st: any) => {
+          if (st?.id) aliases.add(String(st.id).toLowerCase());
+          if (st?.slug) aliases.add(String(st.slug).toLowerCase());
+        });
+      }
+      if (realBusinesses.length === 1) {
+        aliases.add('99999999-0000-4000-8000-000000000001');
+        aliases.add('huki-official');
+        aliases.add('default-store');
+      }
+      return {
+        id: String(biz.id),
+        name: displayName,
+        aliases,
+      };
+    });
+    return list;
+  }, [realBusinesses]);
+
   const filteredBooks = useMemo(() => {
     const minP = minPriceParam ? Number(minPriceParam) : null;
     const maxP = maxPriceParam ? Number(maxPriceParam) : null;
 
     const matches = allBooks.filter((book) => {
+      // Store / Bookstore filter (strictly matches real active businesses on UAT - BUG-049)
+      if (selectedStore !== 'all') {
+        const targetNorm = normalizeVietnameseText(selectedStore.replace(/-/g, ' '));
+        const matchedStoreObj = availableStores.find(
+          (st) => st.aliases.has(selectedStore.toLowerCase()) || normalizeVietnameseText(st.name) === targetNorm,
+        );
+        if (!matchedStoreObj) return false;
+        const bookStoreKey = String(book.storeId || book.businessId || '').toLowerCase();
+        if (!matchedStoreObj.aliases.has(bookStoreKey)) return false;
+      }
+
       // Category filter (SSOT: Matching by slug, id, categoryName and aliases)
       if (selectedCat !== 'all') {
         const selNorm = normalizeVietnameseText(selectedCat).toLowerCase();
@@ -284,11 +341,13 @@ function CatalogPageContent() {
       if (selectedFormat === 'physical' && !book.hasPaper) return false;
       if (selectedFormat === 'hybrid' && (!book.hasEbook || !book.hasPaper)) return false;
       
-      // Publisher filter (supports both accented name and hyphenated slug e.g. "nha-nam")
+      // Publisher filter (supports both accented name and hyphenated slug, never matches empty string - BUG-049)
       if (selectedPublisher !== 'all') {
         const normSelected = normalizeVietnameseText(selectedPublisher.replace(/-/g, ' '));
         const normBookPub = normalizeVietnameseText(book.publisher || '');
-        if (!normBookPub.includes(normSelected) && !normSelected.includes(normBookPub)) return false;
+        if (!normBookPub || !normSelected || (!normBookPub.includes(normSelected) && !normSelected.includes(normBookPub))) {
+          return false;
+        }
       }
 
       // Author filter (supports both accented name and hyphenated slug e.g. "nguyen-nhat-anh")
@@ -355,7 +414,7 @@ function CatalogPageContent() {
       }
       return (b.rating ?? 0) - (a.rating ?? 0);
     });
-  }, [allBooks, selectedCat, selectedFormat, selectedPublisher, selectedAuthor, selectedRating, minPriceParam, maxPriceParam, selectedSort, searchTerm]);
+  }, [allBooks, availableStores, selectedCat, selectedStore, selectedFormat, selectedPublisher, selectedAuthor, selectedRating, minPriceParam, maxPriceParam, selectedSort, searchTerm]);
 
   const totalPages = Math.max(1, Math.ceil(filteredBooks.length / ITEMS_PER_PAGE));
   const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
@@ -364,7 +423,7 @@ function CatalogPageContent() {
     return filteredBooks.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredBooks, validCurrentPage]);
 
-  const hasActiveFilters = selectedCat !== 'all' || selectedFormat !== 'all' || selectedPublisher !== 'all' || selectedAuthor !== 'all' || selectedRating !== 'all' || Boolean(minPriceParam) || Boolean(maxPriceParam) || Boolean(searchTerm);
+  const hasActiveFilters = selectedCat !== 'all' || selectedStore !== 'all' || selectedFormat !== 'all' || selectedPublisher !== 'all' || selectedAuthor !== 'all' || selectedRating !== 'all' || Boolean(minPriceParam) || Boolean(maxPriceParam) || Boolean(searchTerm);
 
   // Computed dynamic filters data
   const counts = useMemo(() => {
@@ -408,9 +467,7 @@ function CatalogPageContent() {
       }
     });
     const sorted = Object.entries(pubMap).sort((a, b) => b[1] - a[1]);
-    const defaultList = ['Nhã Nam', 'NXB Trẻ', 'Alpha Books', 'First News', 'Kim Đồng'];
-    const extracted = sorted.slice(0, 5).map(([name]) => name);
-    return Array.from(new Set([...extracted, ...defaultList])).slice(0, 5);
+    return sorted.slice(0, 8).map(([name]) => name);
   }, [allBooks]);
 
   const quickPriceRanges = [
@@ -621,45 +678,90 @@ function CatalogPageContent() {
             </div>
           </div>
 
-          {/* 4. Nhà Xuất Bản */}
+          {/* 3.5. Nhà Sách / Gian Hàng Bán (Dữ liệu thật từ /businesses - BUG-049) */}
           <div className="py-3 border-b border-gray-100">
-            <h4 className="font-bold text-xs text-gray-900 mb-2">Nhà Xuất Bản</h4>
+            <h4 className="font-bold text-xs text-gray-900 mb-2">Nhà Sách / Gian Hàng</h4>
             <div className="space-y-1.5 text-xs text-gray-700">
               <label
-                onClick={() => updateParam('publisher', 'all')}
+                onClick={() => updateParam('storeId', 'all')}
                 className={`flex items-center gap-2 cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
-                  selectedPublisher === 'all' ? 'text-[#003b2b] font-bold' : ''
+                  selectedStore === 'all' ? 'text-[#003b2b] font-bold' : ''
                 }`}
               >
                 <input
                   type="radio"
-                  name="publisher_filter"
-                  checked={selectedPublisher === 'all'}
+                  name="store_filter"
+                  checked={selectedStore === 'all'}
                   onChange={() => {}}
                   className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
                 />
-                <span>Tất cả NXB</span>
+                <span>Tất cả nhà sách ({availableStores.length})</span>
               </label>
-              {popularPublishers.map((pubName) => (
+              {availableStores.map((st) => {
+                const isSelected = selectedStore === st.id || st.aliases.has(selectedStore.toLowerCase());
+                return (
+                  <label
+                    key={st.id}
+                    onClick={() => updateParam('storeId', st.id)}
+                    className={`flex items-center gap-2 cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
+                      isSelected ? 'text-[#003b2b] font-bold' : ''
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="store_filter"
+                      checked={isSelected}
+                      onChange={() => {}}
+                      className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
+                    />
+                    <span className="truncate">{st.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 4. Nhà Xuất Bản (Chỉ NXB có sách thực tế) */}
+          {popularPublishers.length > 0 && (
+            <div className="py-3 border-b border-gray-100">
+              <h4 className="font-bold text-xs text-gray-900 mb-2">Nhà Xuất Bản (Ấn Hành)</h4>
+              <div className="space-y-1.5 text-xs text-gray-700">
                 <label
-                  key={pubName}
-                  onClick={() => updateParam('publisher', pubName)}
+                  onClick={() => updateParam('publisher', 'all')}
                   className={`flex items-center gap-2 cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
-                    selectedPublisher === pubName ? 'text-[#003b2b] font-bold' : ''
+                    selectedPublisher === 'all' ? 'text-[#003b2b] font-bold' : ''
                   }`}
                 >
                   <input
                     type="radio"
                     name="publisher_filter"
-                    checked={selectedPublisher === pubName}
+                    checked={selectedPublisher === 'all'}
                     onChange={() => {}}
                     className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
                   />
-                  <span className="truncate">{pubName}</span>
+                  <span>Tất cả NXB</span>
                 </label>
-              ))}
+                {popularPublishers.map((pubName) => (
+                  <label
+                    key={pubName}
+                    onClick={() => updateParam('publisher', pubName)}
+                    className={`flex items-center gap-2 cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
+                      selectedPublisher === pubName ? 'text-[#003b2b] font-bold' : ''
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="publisher_filter"
+                      checked={selectedPublisher === pubName}
+                      onChange={() => {}}
+                      className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
+                    />
+                    <span className="truncate">{pubName}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* 5. Khoảng Giá */}
           <div className="py-3 border-b border-gray-100">
@@ -866,6 +968,12 @@ function CatalogPageContent() {
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#e6f4f0] text-[#003b2b] text-[11px] font-medium">
                   Định dạng: {selectedFormat}
                   <button onClick={() => updateParam('format', 'all')} className="hover:opacity-75 cursor-pointer"><span className="material-symbols-outlined text-[12px]">close</span></button>
+                </span>
+              )}
+              {selectedStore !== 'all' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#e6f4f0] text-[#003b2b] text-[11px] font-medium">
+                  Nhà sách: {availableStores.find((s) => s.id === selectedStore || s.aliases.has(selectedStore.toLowerCase()))?.name || selectedStore}
+                  <button onClick={() => updateParam('storeId', 'all')} className="hover:opacity-75 cursor-pointer"><span className="material-symbols-outlined text-[12px]">close</span></button>
                 </span>
               )}
               {selectedPublisher !== 'all' && (

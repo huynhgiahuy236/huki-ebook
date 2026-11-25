@@ -52,4 +52,93 @@ describe('CartService (Prisma)', () => {
     expect(res.storeGroups).toHaveLength(1);
     expect(res.storeGroups[0].name).toBe('Nhà Sách HuKi Official');
   });
+
+  it('coalesces 77777777/88888888/99999999 seed aliases for 1 seller into one storeGroup (BUG-050)', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch' as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: '77777777-0000-4000-8000-000000000001',
+            name: 'Nhà Sách HuKi Official',
+            stores: [
+              { id: '88888888-0000-4000-8000-000000000001', name: 'Nhà Sách HuKi Official' },
+            ],
+          },
+        ],
+      }),
+    } as any);
+
+    prisma.cart.findUnique.mockResolvedValue({
+      id: 'cart-2',
+      userId: 'user-2',
+      updatedAt: new Date('2026-11-25T10:00:00Z'),
+      items: [
+        {
+          id: 'ci-a',
+          bookId: 'book-a',
+          format: 'DIGITAL',
+          quantity: 1,
+          unitPrice: 79000,
+          book: {
+            id: 'book-a',
+            title: 'Nhà Giả Kim',
+            slug: 'nha-gia-kim',
+            status: 'PUBLISHED',
+            price: 79000,
+            storeId: '88888888-0000-4000-8000-000000000001',
+            coverUrl: null,
+            publisher: { name: 'Nhã Nam Books' },
+            author: { name: 'Paulo Coelho' },
+            digitalDetails: { digitalEnabled: true },
+          },
+        },
+        {
+          id: 'ci-b',
+          bookId: 'book-b',
+          format: 'DIGITAL',
+          quantity: 1,
+          unitPrice: 125000,
+          book: {
+            id: 'book-b',
+            title: 'Tỷ Phú Bán Giày',
+            slug: 'ty-phu-ban-giay',
+            status: 'PUBLISHED',
+            price: 125000,
+            storeId: '99999999-0000-4000-8000-000000000001',
+            coverUrl: null,
+            publisher: { name: 'First News - Trí Việt' },
+            author: { name: 'Tony Hsieh' },
+            digitalDetails: { digitalEnabled: true },
+          },
+        },
+        {
+          id: 'ci-c',
+          bookId: 'book-c',
+          format: 'DIGITAL',
+          quantity: 1,
+          unitPrice: 30000,
+          book: {
+            id: 'book-c',
+            title: 'Sách ebook test',
+            slug: 'sach-ebook-test',
+            status: 'PUBLISHED',
+            price: 30000,
+            storeId: '77777777-0000-4000-8000-000000000001',
+            coverUrl: null,
+            publisher: { name: 'First News - Trí Việt' },
+            author: { name: 'Paulo Coelho' },
+            digitalDetails: { digitalEnabled: true },
+          },
+        },
+      ],
+    });
+
+    const res = await service.getCart('user-2');
+    expect(res.storeGroups).toHaveLength(1);
+    expect(res.storeGroups[0].id).toBe('77777777-0000-4000-8000-000000000001');
+    expect(res.storeGroups[0].name).toBe('Nhà Sách HuKi Official');
+    expect(res.storeGroups[0].items).toHaveLength(3);
+    fetchSpy.mockRestore();
+  });
 });
