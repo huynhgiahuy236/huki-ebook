@@ -80,6 +80,15 @@ export class Review {
   @Prop({ default: 0, min: 0 })
   helpfulCount!: number;
 
+  @Prop({ default: 0, min: 0 })
+  reportCount!: number;
+
+  @Prop({ default: false })
+  isReported!: boolean;
+
+  @Prop({ type: String })
+  lastReportReason?: string;
+
   @Prop({
     required: true,
     type: String,

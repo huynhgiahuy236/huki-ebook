@@ -35,6 +35,10 @@ export interface ReviewItemData {
   images: Array<{ url: string; thumbnail?: string }>;
   replies: ReviewReplyItem[];
   status: 'PENDING_REVIEW' | 'PUBLISHED' | 'HIDDEN' | 'DELETED' | 'FLAGGED';
+  isReported?: boolean;
+  reportCount?: number;
+  reportReason?: string;
+  moderationNote?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -56,10 +56,11 @@ export class ReviewsService {
     query: ReviewListQueryDto,
     actor?: CommunityActor,
   ) {
+    // Include legacy FLAGGED status until Admin explicitly hides (HIDDEN) or deletes (DELETED).
     const publicFilter: Record<string, unknown> = {
       targetType,
       targetId,
-      status: "PUBLISHED",
+      status: { $in: ["PUBLISHED", "FLAGGED"] },
     };
     const listFilter = query.rating
       ? { ...publicFilter, rating: query.rating }
@@ -120,7 +121,7 @@ export class ReviewsService {
         $match: {
           targetType,
           targetId: { $in: cleanIds },
-          status: "PUBLISHED",
+          status: { $in: ["PUBLISHED", "FLAGGED"] },
         },
       },
       {
@@ -644,6 +645,12 @@ export class ReviewsService {
       images: review.images,
       replies: replies.map((reply) => this.replyView(reply)),
       status: review.status,
+      isReported: Boolean(review.isReported || review.status === "FLAGGED"),
+      reportCount: Number(
+        review.reportCount ?? (review.status === "FLAGGED" ? 1 : 0),
+      ),
+      reportReason: review.lastReportReason ?? undefined,
+      moderationNote: review.moderationNote ?? undefined,
       createdAt: review.createdAt,
       updatedAt: review.updatedAt,
     };
@@ -710,7 +717,7 @@ export class ReviewsService {
 
   private async computeTargetSummary(targetType: ReviewTargetType, targetId: string) {
     const summaryRows = await this.reviews.aggregate<{ _id: number; count: number }>([
-      { $match: { targetType, targetId, status: "PUBLISHED" } },
+      { $match: { targetType, targetId, status: { $in: ["PUBLISHED", "FLAGGED"] } } },
       { $group: { _id: "$rating", count: { $sum: 1 } } },
       { $sort: { _id: 1 } },
     ]);

@@ -41,7 +41,28 @@ export default function OrderReviewPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [orderDetail, setOrderDetail] = useState<BuyerOrder | null>(null);
+  const [myReviews, setMyReviews] = useState<ReviewItemData[]>([]);
   const [selectedBookIndex, setSelectedBookIndex] = useState(0);
+
+  useEffect(() => {
+    const fetchMine = () => {
+      reviewApi
+        .getMyReviews({ limit: 100 })
+        .then((res) => {
+          if (res?.success && Array.isArray(res.data)) {
+            setMyReviews(res.data);
+          }
+        })
+        .catch(() => {});
+    };
+    fetchMine();
+    const unsubscribe = realtimeSyncBus.subscribe((evt) => {
+      if (evt.type === 'NOTIFICATIONS_UPDATED') {
+        fetchMine();
+      }
+    });
+    return () => unsubscribe();
+  }, [rawId, user?.id]);
 
   useEffect(() => {
     if (!rawId) return;
@@ -133,9 +154,15 @@ export default function OrderReviewPage() {
 
   const existingReview = useMemo(() => {
     if (!currentItem?.bookId) return null;
+    const fromBackend = myReviews.find(
+      (r) =>
+        (r.targetId === currentItem.bookId || (rawId && r.orderId === rawId)) &&
+        r.status !== 'DELETED',
+    );
+    if (fromBackend) return fromBackend;
     const list = reviewStorage.getByBookId(currentItem.bookId);
     return list.find((r) => !user?.id || r.author?.id === user.id) || null;
-  }, [currentItem?.bookId, user?.id]);
+  }, [currentItem?.bookId, myReviews, rawId, user?.id]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -421,15 +448,42 @@ export default function OrderReviewPage() {
             <div className="bg-white p-6 sm:p-8 rounded-2xl border border-[#e8e5df] shadow-xs">
               {existingReview ? (
                 <div className="space-y-6">
-                  <div className="p-5 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-center space-y-2">
-                    <span className="material-symbols-outlined text-4xl text-emerald-600">verified</span>
-                    <h3 className="font-bold text-base text-emerald-900">
-                      Bạn đã gửi đánh giá cho ấn phẩm này
-                    </h3>
-                    <p className="text-xs text-emerald-700">
-                      Cảm ơn bạn đã đóng góp đánh giá hữu ích cho cộng đồng độc giả HuKi!
-                    </p>
-                  </div>
+                  {existingReview.status === 'HIDDEN' ? (
+                    <div className="p-5 rounded-2xl bg-rose-50/80 border border-rose-200 text-center space-y-2">
+                      <span className="material-symbols-outlined text-4xl text-rose-600">visibility_off</span>
+                      <h3 className="font-bold text-base text-rose-900">
+                        Đánh giá của bạn đã bị Quản trị viên ẩn
+                      </h3>
+                      <p className="text-xs text-rose-700 leading-relaxed">
+                        {existingReview.moderationNote
+                          ? `Lý do: ${existingReview.moderationNote}. `
+                          : ''}
+                        Đánh giá này hiện không còn hiển thị công khai trên trang sản phẩm theo quyết định kiểm duyệt của HUKI.
+                      </p>
+                    </div>
+                  ) : (existingReview.isReported || existingReview.status === 'FLAGGED') ? (
+                    <div className="p-5 rounded-2xl bg-amber-50/80 border border-amber-200 text-center space-y-2">
+                      <span className="material-symbols-outlined text-4xl text-amber-600">flag</span>
+                      <h3 className="font-bold text-base text-amber-900">
+                        Đánh giá đang bị báo cáo • Chờ Quản trị viên kiểm duyệt
+                      </h3>
+                      <p className="text-xs text-amber-800 leading-relaxed">
+                        Đánh giá của bạn vừa nhận một báo cáo vi phạm
+                        {existingReview.reportReason ? ` (${existingReview.reportReason})` : ''}.
+                        {' '}Bài đánh giá <strong>vẫn đang hiển thị bình thường</strong> trên trang sách và chỉ bị ẩn nếu Quản trị viên xác nhận vi phạm.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-5 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-center space-y-2">
+                      <span className="material-symbols-outlined text-4xl text-emerald-600">verified</span>
+                      <h3 className="font-bold text-base text-emerald-900">
+                        Bạn đã gửi đánh giá cho ấn phẩm này
+                      </h3>
+                      <p className="text-xs text-emerald-700">
+                        Cảm ơn bạn đã đóng góp đánh giá hữu ích cho cộng đồng độc giả HuKi!
+                      </p>
+                    </div>
+                  )}
 
                   <div className="p-5 rounded-2xl bg-[#faf9f6] border border-gray-200 space-y-3">
                     <div className="flex items-center justify-between">

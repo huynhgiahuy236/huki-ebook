@@ -13,6 +13,7 @@ describe('ModerationService', () => {
   const reviews = {
     findById: jest.fn(),
     updateOne: jest.fn(),
+    findOneAndUpdate: jest.fn(),
   };
   const eventBus = { publish: jest.fn().mockResolvedValue(undefined) };
   const service = new ModerationService(
@@ -25,7 +26,7 @@ describe('ModerationService', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('stores a unique report, flags review and emits user.reported', async () => {
+  it('stores a unique report, marks review as reported without hiding it, and emits user.reported', async () => {
     const id = new Types.ObjectId();
     reviews.findById.mockResolvedValue({
       _id: id,
@@ -36,16 +37,28 @@ describe('ModerationService', () => {
       id: 'report-1',
       status: 'PENDING',
     });
-    reviews.updateOne.mockResolvedValue({ matchedCount: 1 });
+    reviews.findOneAndUpdate.mockResolvedValue({
+      _id: id,
+      status: 'PUBLISHED',
+      isReported: true,
+      reportCount: 1,
+    });
 
     const result = await service.report(actor as any, 'REVIEW', id.toString(), {
       reason: 'SPAM',
       description: 'Spam review',
     });
 
-    expect(reviews.updateOne).toHaveBeenCalledWith(
+    expect(reviews.findOneAndUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ _id: id }),
-      { $set: { status: 'FLAGGED' } },
+      expect.objectContaining({
+        $inc: { reportCount: 1 },
+        $set: expect.objectContaining({
+          isReported: true,
+          lastReportReason: 'SPAM',
+        }),
+      }),
+      { new: true },
     );
     expect(result.data.status).toBe('PENDING');
     await Promise.resolve();
@@ -140,6 +153,12 @@ describe('ModerationService', () => {
     reports.create.mockResolvedValue({
       id: 'report-rt-1',
       status: 'PENDING',
+    });
+    reviews.findOneAndUpdate.mockResolvedValue({
+      _id: id,
+      status: 'PUBLISHED',
+      isReported: true,
+      reportCount: 1,
     });
     reviews.updateOne.mockResolvedValue({ matchedCount: 1 });
 

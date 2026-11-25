@@ -19,6 +19,11 @@ export interface ReviewCardProps {
     images?: Array<{ url: string; thumbnail?: string }> | string[];
     helpfulCount?: number;
     isHelpful?: boolean;
+    status?: 'PENDING_REVIEW' | 'PUBLISHED' | 'HIDDEN' | 'DELETED' | 'FLAGGED';
+    isReported?: boolean;
+    reportCount?: number;
+    reportReason?: string;
+    moderationNote?: string;
     replies?: Array<{
       id: string;
       content: string;
@@ -227,6 +232,15 @@ export default function ReviewCard({
                   variant="pill"
                   format={review.format}
                 />
+              )}
+              {(isOwner || canReply) && (review.isReported || review.status === 'FLAGGED') && (
+                <span
+                  className="px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 text-[10px] font-bold border border-amber-200/80 dark:border-amber-800/60 inline-flex items-center gap-1"
+                  title="Đánh giá đang được Admin xem xét báo cáo và vẫn hiển thị cho tới khi có quyết định."
+                >
+                  <span className="material-symbols-outlined text-[12px]">flag</span>
+                  Đang bị báo cáo (Chờ Admin duyệt)
+                </span>
               )}
             </div>
             <div className="text-[11px] text-slate-400 dark:text-zinc-400 flex items-center gap-2 mt-0.5">

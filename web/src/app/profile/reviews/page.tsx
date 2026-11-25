@@ -459,6 +459,20 @@ export default function MyReviewsPage() {
                               </span>
                               <span className="text-gray-300">•</span>
                               <VerifiedPurchaseBadge variant="compact" />
+                              {rev.status === 'HIDDEN' ? (
+                                <span className="px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold inline-flex items-center gap-1">
+                                  <span className="material-symbols-outlined text-[12px]">visibility_off</span>
+                                  Đã bị Admin ẩn
+                                </span>
+                              ) : (rev.isReported || rev.status === 'FLAGGED') ? (
+                                <span
+                                  className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold inline-flex items-center gap-1"
+                                  title="Đánh giá vẫn hiển thị bình thường cho tới khi Admin quyết định"
+                                >
+                                  <span className="material-symbols-outlined text-[12px]">flag</span>
+                                  Đang bị báo cáo • Chờ Admin duyệt
+                                </span>
+                              ) : null}
                             </div>
                           </div>
                         </div>

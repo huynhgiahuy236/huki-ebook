@@ -67,9 +67,16 @@ export class ModerationService {
         description: dto.description?.trim(),
         status: 'PENDING',
       });
-      await this.model(targetType).updateOne(
-        { _id: target!._id, status: 'PUBLISHED' },
-        { $set: { status: 'FLAGGED' } },
+      const updatedTarget = await this.model(targetType).findOneAndUpdate(
+        { _id: target!._id },
+        {
+          $inc: { reportCount: 1 },
+          $set: {
+            isReported: true,
+            lastReportReason: dto.reason,
+          },
+        },
+        { new: true },
       );
       void this.publish('user.reported', report.id, {
         reportId: report.id,
@@ -102,7 +109,16 @@ export class ModerationService {
         targetId: target!.targetId,
         storeId: target!.storeId,
         storeOwnerId: target!.storeOwnerId,
+        authorId: target!.authorId,
         reviewId: targetId,
+        review: {
+          id: targetId,
+          status: updatedTarget?.status ?? target!.status,
+          isReported: true,
+          reportCount:
+            updatedTarget?.reportCount ?? ((target as any)?.reportCount ?? 0) + 1,
+          reportReason: dto.reason,
+        },
       });
       return {
         message: 'Report submitted',
@@ -267,7 +283,12 @@ export class ModerationService {
       Promise.all(
         types.map(async (type) => {
           const items = await this.model(type)
-            .find({ status: { $in: statuses } })
+            .find({
+              $or: [
+                { status: { $in: statuses } },
+                ...(!query.status ? [{ isReported: true, status: 'PUBLISHED' }] : []),
+              ],
+            })
             .sort({ createdAt: -1 })
             .limit(take)
             .lean();
@@ -276,7 +297,12 @@ export class ModerationService {
       ),
       Promise.all(
         types.map((type) =>
-          this.model(type).countDocuments({ status: { $in: statuses } }),
+          this.model(type).countDocuments({
+            $or: [
+              { status: { $in: statuses } },
+              ...(!query.status ? [{ isReported: true, status: 'PUBLISHED' }] : []),
+            ],
+          }),
         ),
       ),
     ]);
@@ -354,10 +380,13 @@ export class ModerationService {
       {
         $set: {
           status,
+          isReported: false,
           moderatedBy: adminId,
           moderatedAt: new Date(),
           moderationNote: note.trim(),
+          ...(status === 'PUBLISHED' ? { reportCount: 0 } : {}),
         },
+        ...(status === 'PUBLISHED' ? { $unset: { lastReportReason: '' } } : {}),
       },
     );
     if (!result.matchedCount) throwNotFound(ErrorCode.MODERATION_REPORT_NOT_FOUND);
@@ -370,6 +399,17 @@ export class ModerationService {
         storeOwnerId: current!.storeOwnerId,
         authorId: current!.authorId,
         reviewId: targetId,
+        ...(status === 'PUBLISHED'
+          ? {
+              review: {
+                id: targetId,
+                status: 'PUBLISHED',
+                isReported: false,
+                reportCount: 0,
+                moderationNote: note.trim(),
+              },
+            }
+          : {}),
       },
     );
   }
