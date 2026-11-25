@@ -63,14 +63,13 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
   const [categories, setCategories] = useState<CategoryData[]>([]);
   const [authors, setAuthors] = useState<CatalogEntity[]>([]);
   const [publishers, setPublishers] = useState<CatalogEntity[]>([]);
+  const [issuingCompanies, setIssuingCompanies] = useState<CatalogEntity[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeSection, setActiveSection] = useState('sec-basic');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Category Logic: 'EXISTING' | 'CUSTOM'
   const [categoryMode, setCategoryMode] = useState<'EXISTING' | 'CUSTOM'>('EXISTING');
-  // Publisher Logic: 'SELF' | 'PARTNER'
-  const [publisherMode, setPublisherMode] = useState<'SELF' | 'PARTNER'>('SELF');
   // Author Logic: 'EXISTING' | 'CUSTOM'
   const [authorMode, setAuthorMode] = useState<'EXISTING' | 'CUSTOM'>('EXISTING');
   // SERP Preview Device: 'mobile' | 'desktop'
@@ -90,6 +89,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
     language: 'Tiếng Việt',
     publishDate: new Date().toISOString().split('T')[0],
     isbn: '',
+    publishingLicenseNumber: '',
     edition: '',
     pages: '',
     sku: '',
@@ -98,9 +98,11 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
     authorId: '',
     customAuthorName: '',
     authorName: '',
+    translatorName: '',
     publisherId: '',
+    issuingCompanyId: '',
     customPublisherName: '',
-    publisherName: currentBizName,
+    publisherName: '',
     coverUrl: '',
     physicalPrice: '',
     originalPrice: '',
@@ -139,23 +141,26 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
     }
   }, [pathname, searchParams]);
 
-  // Load categories, authors, publishers & AI audio plans from Backend
+  // Load categories, authors, publishers, issuing companies & AI audio plans from Backend
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [categoryRes, authorRes, publisherRes, plans] = await Promise.all([
+        const [categoryRes, authorRes, publisherRes, issuingRes, plans] = await Promise.all([
           catalogApi.getCategories(),
           catalogApi.getAuthors(),
           catalogApi.getPublishers(),
+          catalogApi.getIssuingCompanies(),
           aiAudioService.getPlans().catch(() => []),
         ]);
         const categoryData = categoryRes.success && Array.isArray(categoryRes.data) ? categoryRes.data : [];
         const authorData = authorRes.success && Array.isArray(authorRes.data) ? authorRes.data : [];
         const publisherData = publisherRes.success && Array.isArray(publisherRes.data) ? publisherRes.data : [];
-        
+        const issuingData = issuingRes.success && Array.isArray(issuingRes.data) ? issuingRes.data : [];
+
         setCategories(categoryData);
         setAuthors(authorData);
         setPublishers(publisherData);
+        setIssuingCompanies(issuingData);
 
         const activePlans = plans.filter((p) => p.status === 'ACTIVE');
         setAiAudioPlans(activePlans);
@@ -163,13 +168,12 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
           const defaultPlan = activePlans.find((p) => p.price === 100000) || activePlans[0];
           setSelectedAiPlanId(defaultPlan.id);
         }
-        
+
         setForm(prev => ({
           ...prev,
           categoryId: prev.categoryId || '',
           authorId: prev.authorId || '',
           authorName: prev.authorName || '',
-          publisherName: currentBizName,
         }));
       } catch (err) {
         console.warn('Could not load catalog master data', err);
@@ -182,13 +186,19 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
   const handleFillDemoData = () => {
     setCategoryMode('EXISTING');
     setAuthorMode('EXISTING');
-    setPublisherMode('SELF');
+    const matchedPub = publishers.find(p => p.name.toLowerCase().includes('tổng hợp')) || publishers[0];
+    const matchedIssuing = issuingCompanies.find(c => c.name.toLowerCase().includes('first news'));
     setForm(prev => ({
       ...prev,
       title: 'Đắc Nhân Tâm – Nghệ Thuật Thu Phục Lòng Người',
       teaser: 'Tác phẩm kinh điển vượt thời gian về nghệ thuật giao tiếp và xây dựng các mối quan hệ bền vững.',
       description: 'Đắc Nhân Tâm là cuốn sách đầu tiên và hay nhất của mọi thời đại về nghệ thuật đối nhân xử thế, đem lại thành công và hạnh phúc cho hàng triệu độc giả trên toàn thế giới.',
       isbn: '978-604-58-1234-5',
+      publishingLicenseNumber: '2456/QĐ-NXBTH',
+      translatorName: 'Nguyễn Hiến Lê',
+      publisherId: matchedPub?.id || prev.publisherId,
+      publisherName: matchedPub?.name || prev.publisherName,
+      issuingCompanyId: matchedIssuing?.id || prev.issuingCompanyId,
       pages: '320',
       edition: 'Tái bản lần 1',
       coverUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBldhgYiC5r8pQXi4qeHSTCtWbbqbNG3on0MvhA1aDlNqhPWUc0vxDN66WP08gQOhujNyn9ioDRAdk0WMZ2kusBW1UaNz_drE-pr1z6kDX__xWCUYXEou-HgS4oTKLU_PdZUYQU71wmsMrkWVQ2QQQ9TpzYAwBodRXxIwHfqU3BdZALmt5R3bfLCpA0TV9C5YDY7LX8yfeFuJj3ZWernvxTjnpvNMG56GL6j2j-E-XC_WY454GWEaLicw',
@@ -486,7 +496,6 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
 
       setCategoryMode('EXISTING');
       setAuthorMode('CUSTOM');
-      setPublisherMode('SELF');
       setErrors({});
 
       showToast?.(` Trích xuất thành công: "${foundData.title}" (${foundData.source || 'Metadata'})! Đã điền tự động toàn bộ thông tin & ảnh bìa.`, 'success');
@@ -649,8 +658,13 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
       newErrors.customAuthorName = 'Vui lòng nhập tên tác giả.';
     }
 
-    if (publisherMode === 'PARTNER' && !form.publisherId && !form.customPublisherName?.trim()) {
-      newErrors.publisherId = 'Vui lòng chọn hoặc nhập tên Nhà xuất bản cấp phép liên kết.';
+    if (!form.publisherId) {
+      newErrors.publisherId = 'Vui lòng chọn Nhà xuất bản (đơn vị cấp phép) từ danh sách chuẩn.';
+    }
+
+    const rawPages = String(form.pages || '').trim();
+    if (rawPages && (!/^\d+$/.test(rawPages) || Number(rawPages) <= 0)) {
+      newErrors.pages = 'Số trang bắt buộc phải là số nguyên dương (Integer > 0).';
     }
 
     if (!form.coverUrl || !form.coverUrl.trim()) {
@@ -714,7 +728,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
     setErrors(newErrors);
 
     if (Object.keys(newErrors).length > 0) {
-      if (newErrors.title || newErrors.description) {
+      if (newErrors.title || newErrors.description || newErrors.pages) {
         scrollToSection('sec-basic');
       } else if (newErrors.categoryId || newErrors.customCategoryName || newErrors.authorId || newErrors.customAuthorName || newErrors.publisherId) {
         scrollToSection('sec-taxonomy');
@@ -817,17 +831,17 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
         }
       }
 
-      let resolvedPublisherId: string | undefined = undefined;
-      if (publisherMode === 'PARTNER' && form.publisherId) {
-        const pub = publishers.find(p => p.id === form.publisherId);
-        if (pub) {
-          resolvedPublisherId = pub.id;
-        }
-      }
+      const resolvedPublisherId = publishers.find(p => p.id === form.publisherId)?.id;
+      const resolvedIssuingCompanyId = issuingCompanies.find(c => c.id === form.issuingCompanyId)?.id;
+      const parsedPageCount = form.pages && /^\d+$/.test(form.pages.trim()) && Number(form.pages.trim()) > 0
+        ? Number(form.pages.trim())
+        : undefined;
 
       const payload = {
         title: form.title.trim(),
         isbn: form.isbn?.trim() || undefined,
+        publishingLicenseNumber: form.publishingLicenseNumber?.trim() || undefined,
+        language: form.language?.trim() || 'Tiếng Việt',
         description: form.description?.trim() || form.teaser?.trim(),
         price: Number(sellingPrice),
         pricePaper: hasPhysical && form.physicalPrice ? Number(form.physicalPrice) : undefined,
@@ -837,6 +851,9 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
         categoryId: resolvedCategoryId || undefined,
         authorId: resolvedAuthorId || undefined,
         publisherId: resolvedPublisherId,
+        issuingCompanyId: resolvedIssuingCompanyId,
+        translatorName: form.translatorName?.trim() || undefined,
+        pageCount: parsedPageCount,
         coverUrl: form.coverUrl?.trim() || undefined,
         businessId,
         enableAffiliate: Boolean(enableAffiliate),
@@ -847,6 +864,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
             length: Number(form.length || 20.5),
             width: Number(form.width || 14.5),
             height: Number(form.height || 2.0),
+            pageCount: parsedPageCount,
             physicalEnabled: true,
           }
         }),
@@ -969,7 +987,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
 
   // Section Error Helpers
   const sectionErrors = useMemo(() => ({
-    basic: Boolean(errors.title || errors.description),
+    basic: Boolean(errors.title || errors.description || errors.pages),
     taxonomy: Boolean(errors.categoryId || errors.customCategoryName || errors.authorId || errors.customAuthorName || errors.publisherId),
     media: Boolean(errors.coverUrl),
     pricing: Boolean(errors.physicalPrice || errors.ebookPrice || errors.comboPrice),
@@ -1039,7 +1057,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
   };
 
   const displayAuthorName = authorMode === 'EXISTING' ? (form.authorName || 'Chưa chọn tác giả') : (form.customAuthorName || 'Tác giả mới');
-  const displayPublisherName = publisherMode === 'SELF' ? currentBizName : (form.customPublisherName || form.publisherName || currentBizName);
+  const displayPublisherName = publishers.find(p => p.id === form.publisherId)?.name || form.publisherName || 'Chưa chọn NXB';
 
   if (!canCreateProduct) {
     return (
@@ -1526,15 +1544,20 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-on-surface mb-1">Ngôn Ngữ</label>
-                  <input 
-                    type="text"
+                  <select
                     value={form.language}
                     onChange={(e) => handleChange('language', e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary"
-                  />
+                    className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary cursor-pointer"
+                  >
+                    <option value="Tiếng Việt">Tiếng Việt</option>
+                    <option value="Tiếng Anh">Tiếng Anh (English)</option>
+                    <option value="Song ngữ Việt - Anh">Song ngữ Việt - Anh</option>
+                    <option value="Tiếng Pháp">Tiếng Pháp</option>
+                    <option value="Tiếng Nhật">Tiếng Nhật</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-on-surface mb-1">Mã ISBN Quốc Tế</label>
@@ -1547,14 +1570,32 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-on-surface mb-1">Số Trang</label>
-                  <input 
-                    type="number"
-                    value={form.pages}
-                    onChange={(e) => handleChange('pages', e.target.value)}
-                    placeholder="VD: 250"
+                  <label className="block text-xs font-semibold text-on-surface mb-1">Số Giấy Phép Xuất Bản</label>
+                  <input
+                    type="text"
+                    value={form.publishingLicenseNumber}
+                    onChange={(e) => handleChange('publishingLicenseNumber', e.target.value)}
+                    placeholder="VD: 1234/QĐ-NXBTH"
                     className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary"
                   />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">Số Trang (Số nguyên dương)</label>
+                  <input 
+                    type="number"
+                    min={1}
+                    step={1}
+                    inputMode="numeric"
+                    value={form.pages}
+                    onChange={(e) => handleChange('pages', e.target.value.replace(/[^\d]/g, ''))}
+                    placeholder="VD: 320"
+                    className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${
+                      errors.pages ? 'border-rose-400 bg-rose-50/20 text-rose-900' : 'border-theme-border'
+                    } text-on-surface focus:outline-hidden focus:border-primary`}
+                  />
+                  {errors.pages && (
+                    <p className="text-[11px] text-rose-600 font-medium mt-1">{errors.pages}</p>
+                  )}
                 </div>
               </div>
 
@@ -1810,56 +1851,78 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                 )}
               </div>
 
-              {/* Publisher Mode */}
+              {/* Dịch giả (Translator - tách riêng khỏi tác giả) */}
               <div>
                 <label className="block text-xs font-semibold text-on-surface mb-1">
-                  Đơn Vị Phát Hành / Nhà Xuất Bản Liên Kết
+                  Dịch Giả <span className="text-[11px] font-normal text-on-surface-variant">(Nếu là sách dịch)</span>
                 </label>
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <button
-                    type="button"
-                    onClick={() => setPublisherMode('SELF')}
-                    className={`px-3 py-2 rounded-xl text-xs font-medium border text-left flex items-center gap-2 cursor-pointer transition-all ${
-                      publisherMode === 'SELF' ? 'border-primary bg-primary/5 text-primary' : 'border-theme-border bg-surface-container-lowest text-on-surface'
-                    }`}
+                <input
+                  type="text"
+                  value={form.translatorName}
+                  onChange={(e) => handleChange('translatorName', e.target.value)}
+                  placeholder="VD: Nguyễn Hiến Lê, Dương Tường..."
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary"
+                />
+              </div>
+
+              {/* Nhà xuất bản (Cấp phép - Master Data bắt buộc) & Đơn vị phát hành */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Nhà Xuất Bản (Cấp phép) <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={form.publisherId}
+                    onChange={(e) => {
+                      const pub = publishers.find(p => p.id === e.target.value);
+                      setForm(prev => ({
+                        ...prev,
+                        publisherId: e.target.value,
+                        publisherName: pub?.name || '',
+                      }));
+                      if (errors.publisherId) {
+                        setErrors(prev => {
+                          const next = { ...prev };
+                          delete next.publisherId;
+                          return next;
+                        });
+                      }
+                    }}
+                    className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${
+                      errors.publisherId ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' : 'border-theme-border'
+                    } text-on-surface focus:outline-hidden focus:border-primary cursor-pointer`}
                   >
-                    <span className="material-symbols-outlined text-sm">storefront</span>
-                    <span>Chính gian hàng ({currentBizName})</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPublisherMode('PARTNER')}
-                    className={`px-3 py-2 rounded-xl text-xs font-medium border text-left flex items-center gap-2 cursor-pointer transition-all ${
-                      publisherMode === 'PARTNER' ? 'border-primary bg-primary/5 text-primary' : 'border-theme-border bg-surface-container-lowest text-on-surface'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-sm">handshake</span>
-                    <span>Liên kết NXB cấp quyền</span>
-                  </button>
+                    <option value="">-- Chọn Nhà xuất bản hợp pháp tại VN --</option>
+                    {publishers.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                  {errors.publisherId && (
+                    <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">error</span>
+                      <span>{errors.publisherId}</span>
+                    </p>
+                  )}
                 </div>
 
-                {publisherMode === 'PARTNER' && (
-                  <div>
-                    <select 
-                      value={form.publisherId}
-                      onChange={(e) => handleChange('publisherId', e.target.value)}
-                      className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${
-                        errors.publisherId ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' : 'border-theme-border'
-                      } text-on-surface focus:outline-hidden focus:border-primary cursor-pointer`}
-                    >
-                      <option value="">-- Chọn Nhà xuất bản đối tác --</option>
-                      {publishers.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                    {errors.publisherId && (
-                      <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[14px]">error</span>
-                        <span>{errors.publisherId}</span>
-                      </p>
-                    )}
-                  </div>
-                )}
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Đơn Vị Phát Hành / Công Ty Sách <span className="text-[11px] font-normal text-on-surface-variant">(Tùy chọn)</span>
+                  </label>
+                  <select
+                    value={form.issuingCompanyId}
+                    onChange={(e) => handleChange('issuingCompanyId', e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary cursor-pointer"
+                  >
+                    <option value="">-- NXB tự phát hành / Không có --</option>
+                    {issuingCompanies.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-[10.5px] text-on-surface-variant mt-1">
+                    VD: First News - Trí Việt, Nhã Nam, Alpha Books... (để trống nếu NXB tự phát hành).
+                  </p>
+                </div>
               </div>
             </section>
 

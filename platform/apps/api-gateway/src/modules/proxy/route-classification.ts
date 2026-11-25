@@ -219,6 +219,8 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
       normPath.startsWith('/categories') ||
       normPath.startsWith('/authors') ||
       normPath.startsWith('/publishers') ||
+      normPath.startsWith('/issuing-companies') ||
+      normPath.startsWith('/translators') ||
       normPath.startsWith('/banners') ||
       normPath.startsWith('/discounts/active') ||
       normPath.startsWith('/analytics/recommendations/similar') ||

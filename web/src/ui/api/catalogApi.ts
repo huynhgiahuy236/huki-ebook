@@ -30,6 +30,7 @@ export interface PhysicalDetails {
   length?: number;
   width?: number;
   height?: number;
+  pageCount?: number | null;
   physicalEnabled?: boolean;
 }
 
@@ -48,6 +49,12 @@ export interface BookData {
   slug?: string;
   author?: CatalogEntity | null;
   publisher?: CatalogEntity | null;
+  issuingCompany?: CatalogEntity | null;
+  translator?: CatalogEntity | null;
+  isbn?: string | null;
+  publishingLicenseNumber?: string | null;
+  language?: string | null;
+  pageCount?: number | null;
   description?: string;
   coverImage?: string;
   coverUrl?: string;
@@ -100,6 +107,12 @@ export interface CreateBookPayload {
   categoryId?: string;
   authorId?: string;
   publisherId?: string;
+  issuingCompanyId?: string;
+  translatorId?: string;
+  translatorName?: string;
+  publishingLicenseNumber?: string;
+  language?: string;
+  pageCount?: number;
   coverUrl?: string;
   physicalDetails?: PhysicalDetails;
   digitalDetails?: DigitalDetails;
@@ -115,6 +128,8 @@ function sanitizeBookPayload<T extends Partial<CreateBookPayload>>(payload: T): 
   if ('categoryId' in clean && !isUuid(clean.categoryId)) delete clean.categoryId;
   if ('authorId' in clean && !isUuid(clean.authorId)) delete clean.authorId;
   if ('publisherId' in clean && !isUuid(clean.publisherId)) delete clean.publisherId;
+  if ('issuingCompanyId' in clean && !isUuid(clean.issuingCompanyId)) delete clean.issuingCompanyId;
+  if ('translatorId' in clean && !isUuid(clean.translatorId)) delete clean.translatorId;
   if ('businessId' in clean && !isUuid(clean.businessId)) delete clean.businessId;
   if ('storeId' in clean && !isUuid(clean.storeId)) delete clean.storeId;
   return clean;
@@ -237,6 +252,14 @@ export const catalogApi = {
 
   async getPublishers(): Promise<ApiResponse<CatalogEntity[]>> {
     return apiClient<CatalogEntity[]>('/publishers?limit=100', { method: 'GET', skipAuth: true });
+  },
+
+  async getIssuingCompanies(): Promise<ApiResponse<CatalogEntity[]>> {
+    return apiClient<CatalogEntity[]>('/issuing-companies?limit=100', { method: 'GET', skipAuth: true });
+  },
+
+  async getTranslators(): Promise<ApiResponse<CatalogEntity[]>> {
+    return apiClient<CatalogEntity[]>('/translators?limit=100', { method: 'GET', skipAuth: true });
   },
 
   async getSellerBooks(params?: {

@@ -112,10 +112,24 @@ export default function ReviewCard({
 
     try {
       if (typeof review.id === 'string' && review.id.length === 24) {
-        if (nextState) {
-          await reviewApi.markHelpful(review.id);
-        } else {
-          await reviewApi.unmarkHelpful(review.id);
+        const res = nextState
+          ? await reviewApi.markHelpful(review.id)
+          : await reviewApi.unmarkHelpful(review.id);
+
+        if (!res?.success) {
+          setIsHelpful(!nextState);
+          setHelpfulCount((prev) => Math.max(0, prev + (nextState ? -1 : 1)));
+          if (res?.error?.statusCode === 401) {
+            showToast('Vui lòng đăng nhập để đánh dấu đánh giá hữu ích.', 'warning');
+          } else {
+            showToast(res?.error?.message || 'Không thể cập nhật phản hồi lúc này.', 'error');
+          }
+          return;
+        }
+
+        if (res.data) {
+          setHelpfulCount(res.data.helpfulCount);
+          setIsHelpful(res.data.isHelpful);
         }
       }
       showToast(

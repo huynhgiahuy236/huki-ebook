@@ -443,9 +443,19 @@ export class ReviewsService {
         .select("+helpful")
         .exec()) as ReviewDocument | null);
     if (!review) throwNotFound(ErrorCode.REVIEW_NOT_FOUND);
+    const helpfulCount = Math.max(0, review!.helpfulCount);
+    this.gateway?.emitReviewEvent("review:helpful", {
+      targetType: review!.targetType,
+      targetId: review!.targetId,
+      storeId: review!.storeId,
+      storeOwnerId: review!.storeOwnerId,
+      authorId: review!.authorId,
+      reviewId: review!.id,
+      helpfulCount,
+    });
     return {
       data: {
-        helpfulCount: Math.max(0, review!.helpfulCount),
+        helpfulCount,
         isHelpful: review!.helpful.includes(actor.sub),
       },
     };

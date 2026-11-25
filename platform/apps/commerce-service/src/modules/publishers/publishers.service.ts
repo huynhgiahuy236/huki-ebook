@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { normalizeCatalogText, toCatalogSlug } from '../../common/catalog-text.util';
@@ -6,20 +6,67 @@ import { PageQueryDto } from '../../common/dto/page-query.dto';
 import { paginate, PaginatedResult } from '../../common/pagination.util';
 import { CreatePublisherDto } from './dto/create-publisher.dto';
 import { UpdatePublisherDto } from './dto/update-publisher.dto';
+import {
+  MAJOR_VN_ISSUING_COMPANIES,
+  OFFICIAL_VN_PUBLISHERS,
+} from './publishing-master-data';
 import { throwConflict, throwNotFound } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
 
 const PUBLISHER_CACHE_PREFIX = 'publishers:';
+const ISSUING_COMPANY_CACHE_PREFIX = 'issuing_companies:';
+const TRANSLATOR_CACHE_PREFIX = 'translators:';
 const PUBLISHER_CACHE_TTL = 300; // 5 minutes
 
 @Injectable()
-export class PublishersService {
+export class PublishersService implements OnModuleInit {
   private readonly logger = new Logger(PublishersService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
   ) {}
+
+  async onModuleInit() {
+    try {
+      await this.seedPublishingMasterData();
+    } catch (err) {
+      this.logger.warn(
+        `Skipping publishing master data seed on init: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  async seedPublishingMasterData() {
+    const prismaAny = this.prisma as any;
+    if (prismaAny?.publisher?.createMany) {
+      const pubRows = OFFICIAL_VN_PUBLISHERS.map((item) => ({
+        name: item.name,
+        normalizedName: normalizeCatalogText(item.name),
+        slug: toCatalogSlug(item.name),
+        description: item.description,
+        isActive: true,
+      }));
+      await prismaAny.publisher.createMany({
+        data: pubRows,
+        skipDuplicates: true,
+      });
+    }
+
+    if (prismaAny?.issuingCompany?.createMany) {
+      const companyRows = MAJOR_VN_ISSUING_COMPANIES.map((item) => ({
+        name: item.name,
+        normalizedName: normalizeCatalogText(item.name),
+        slug: toCatalogSlug(item.name),
+        description: item.description,
+        isActive: true,
+      }));
+      await prismaAny.issuingCompany.createMany({
+        data: companyRows,
+        skipDuplicates: true,
+      });
+    }
+  }
 
   async create(dto: CreatePublisherDto) {
     const name = dto.name.trim();
@@ -141,5 +188,135 @@ export class PublishersService {
     if (existing) {
       throwConflict(ErrorCode.PUBLISHER_SLUG_EXISTS);
     }
+  }
+
+  // ============================================
+  // ISSUING COMPANIES (Đơn vị phát hành / Công ty sách)
+  // ============================================
+
+  async findAllIssuingCompanies(query: PageQueryDto): Promise<PaginatedResult<any>> {
+    const cacheKey = `${ISSUING_COMPANY_CACHE_PREFIX}page:${query.page}:limit:${query.limit}`;
+    if (!query.includeInactive && query.page === 1) {
+      const cached = await this.redis.get<PaginatedResult<any>>(cacheKey);
+      if (cached) return cached;
+    }
+
+    const where = query.includeInactive ? {} : { isActive: true };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.issuingCompany.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          logo: true,
+          isActive: true,
+          createdAt: true,
+        },
+        orderBy: { name: 'asc' },
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.issuingCompany.count({ where }),
+    ]);
+
+    const result = paginate(items, total, query.page, query.limit);
+    if (!query.includeInactive && query.page === 1) {
+      await this.redis.set(cacheKey, result, PUBLISHER_CACHE_TTL);
+    }
+    return result;
+  }
+
+  async findOneIssuingCompany(id: string) {
+    const company = await this.prisma.issuingCompany.findUnique({ where: { id } });
+    if (!company) throw new NotFoundException('Issuing company not found');
+    return company;
+  }
+
+  async createIssuingCompany(dto: CreatePublisherDto) {
+    const name = dto.name.trim();
+    const normalizedName = normalizeCatalogText(name);
+    const slug = dto.slug ?? toCatalogSlug(name);
+
+    const existing = await this.prisma.issuingCompany.findFirst({
+      where: { OR: [{ slug }, { normalizedName }] },
+    });
+    if (existing) {
+      throw new ConflictException('Issuing company already exists');
+    }
+
+    const created = await this.prisma.issuingCompany.create({
+      data: {
+        name,
+        normalizedName,
+        slug,
+        description: dto.description?.trim() || null,
+        logo: dto.logoUrl ?? null,
+      },
+    });
+    await this.redis.delPattern(`${ISSUING_COMPANY_CACHE_PREFIX}*`);
+    return created;
+  }
+
+  // ============================================
+  // TRANSLATORS (Dịch giả)
+  // ============================================
+
+  async findAllTranslators(query: PageQueryDto): Promise<PaginatedResult<any>> {
+    const cacheKey = `${TRANSLATOR_CACHE_PREFIX}page:${query.page}:limit:${query.limit}`;
+    if (!query.includeInactive && query.page === 1) {
+      const cached = await this.redis.get<PaginatedResult<any>>(cacheKey);
+      if (cached) return cached;
+    }
+
+    const where = query.includeInactive ? {} : { isActive: true };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.translator.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          bio: true,
+          isActive: true,
+          createdAt: true,
+        },
+        orderBy: { name: 'asc' },
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.translator.count({ where }),
+    ]);
+
+    const result = paginate(items, total, query.page, query.limit);
+    if (!query.includeInactive && query.page === 1) {
+      await this.redis.set(cacheKey, result, PUBLISHER_CACHE_TTL);
+    }
+    return result;
+  }
+
+  async findOrCreateTranslator(nameInput: string, bio?: string) {
+    const name = nameInput.trim();
+    const normalizedName = normalizeCatalogText(name);
+    const existing = await this.prisma.translator.findFirst({
+      where: { normalizedName },
+    });
+    if (existing) return existing;
+
+    const baseSlug = toCatalogSlug(name) || `translator-${Date.now()}`;
+    const slugExists = await this.prisma.translator.findUnique({ where: { slug: baseSlug } });
+    const slug = slugExists ? `${baseSlug}-${Date.now().toString(36)}` : baseSlug;
+
+    const created = await this.prisma.translator.create({
+      data: {
+        name,
+        normalizedName,
+        slug,
+        bio: bio?.trim() || null,
+      },
+    });
+    await this.redis.delPattern(`${TRANSLATOR_CACHE_PREFIX}*`);
+    return created;
   }
 }

@@ -362,7 +362,19 @@ export class BooksService implements OnModuleInit {
       }
     }
 
-    await this.validateCatalog(dto.categoryId ?? null, authorId, publisherId);
+    const issuingCompanyId = dto.issuingCompanyId ?? null;
+    const translatorId = await this.resolveTranslatorId(
+      dto.translatorId,
+      dto.translatorName,
+    );
+
+    await this.validateCatalog(
+      dto.categoryId ?? null,
+      authorId,
+      publisherId,
+      issuingCompanyId,
+      translatorId,
+    );
 
     const title = dto.title.trim();
     const slug = dto.slug ?? toCatalogSlug(title);
@@ -377,18 +389,23 @@ export class BooksService implements OnModuleInit {
           normalizedTitle: normalizeCatalogText(title),
           slug,
           isbn: dto.isbn ?? null,
+          publishingLicenseNumber: dto.publishingLicenseNumber?.trim() || null,
+          language: dto.language?.trim() || 'Tiếng Việt',
           description,
           price,
           coverUrl: dto.coverUrl || dto.coverImage || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDOYh4ba1idBkiR2I8t0pbdA5FVcmBvHkOWsn-6ihQAw4v36GBdi9qZb-Ef2l9Q7pwf8U5b-YhC_MHz4uICBBj1fVy10mzaI1UWVXqpQY8u2Pt0bsfSl7mZtxUx2jwedu3VpfRL-dHGtqxlrkAAJCUYiX9sL3DilKi9JH38UBhTg7gbdhOvQ49VfEsuXjVZSGFMhjkdSxAVpWEetgSSRzLHqYif101iDoUn8nRyClOOEC8cuhL8j3JLag',
           categoryId: dto.categoryId ?? null,
           authorId,
           publisherId,
+          issuingCompanyId,
+          translatorId,
           format,
           status: BookStatus.DRAFT,
         },
       });
 
       // Create physical details
+      const resolvedPageCount = dto.physicalDetails?.pageCount ?? dto.pageCount ?? null;
       if (dto.physicalDetails || format === BookFormat.PHYSICAL || format === BookFormat.BOTH) {
         const dimObj: Record<string, any> = {};
         if (dto.physicalDetails && (dto.physicalDetails as any).dimensions) {
@@ -405,6 +422,7 @@ export class BooksService implements OnModuleInit {
             stock: dto.physicalDetails?.stock ?? 100,
             reserved: 0,
             weight: dto.physicalDetails?.weight ?? 300,
+            pageCount: resolvedPageCount,
             physicalEnabled: dto.physicalDetails?.physicalEnabled ?? true,
             dimensions: dimensionsStr,
           },
@@ -456,6 +474,8 @@ export class BooksService implements OnModuleInit {
         category: true,
         author: true,
         publisher: true,
+        issuingCompany: true,
+        translator: true,
         physicalDetails: true,
         digitalDetails: true,
         affiliateSetting: true,
@@ -556,6 +576,10 @@ export class BooksService implements OnModuleInit {
           { author: { is: { normalizedName: { contains: search, mode: 'insensitive' } } } },
           { publisher: { is: { name: { contains: rawSearch, mode: 'insensitive' } } } },
           { publisher: { is: { normalizedName: { contains: search, mode: 'insensitive' } } } },
+          { issuingCompany: { is: { name: { contains: rawSearch, mode: 'insensitive' } } } },
+          { issuingCompany: { is: { normalizedName: { contains: search, mode: 'insensitive' } } } },
+          { translator: { is: { name: { contains: rawSearch, mode: 'insensitive' } } } },
+          { translator: { is: { normalizedName: { contains: search, mode: 'insensitive' } } } },
           { category: { is: { name: { contains: rawSearch, mode: 'insensitive' } } } },
           { category: { is: { normalizedName: { contains: search, mode: 'insensitive' } } } },
         ],
@@ -579,6 +603,8 @@ export class BooksService implements OnModuleInit {
       title: true,
       slug: true,
       isbn: true,
+      publishingLicenseNumber: true,
+      language: true,
       description: true,
       price: true,
       format: true,
@@ -589,6 +615,8 @@ export class BooksService implements OnModuleInit {
       category: true,
       author: true,
       publisher: true,
+      issuingCompany: true,
+      translator: true,
       physicalDetails: {
         select: {
           stock: true,
@@ -596,6 +624,7 @@ export class BooksService implements OnModuleInit {
           physicalEnabled: true,
           weight: true,
           dimensions: true,
+          pageCount: true,
         },
       },
       digitalDetails: {
@@ -730,6 +759,8 @@ export class BooksService implements OnModuleInit {
           category: true,
           author: true,
           publisher: true,
+          issuingCompany: true,
+          translator: true,
           physicalDetails: true,
           digitalDetails: true,
           affiliateSetting: true,
@@ -751,6 +782,8 @@ export class BooksService implements OnModuleInit {
         category: true,
         author: true,
         publisher: true,
+        issuingCompany: true,
+        translator: true,
         physicalDetails: true,
         digitalDetails: true,
       },
@@ -805,9 +838,21 @@ export class BooksService implements OnModuleInit {
     const categoryId = dto.categoryId ?? existing!.categoryId;
     const authorId = dto.authorId ?? existing!.authorId;
     const publisherId = dto.publisherId ?? existing!.publisherId;
+    const issuingCompanyId =
+      dto.issuingCompanyId === undefined ? existing!.issuingCompanyId : dto.issuingCompanyId || null;
+    const translatorId =
+      dto.translatorId !== undefined || dto.translatorName !== undefined
+        ? await this.resolveTranslatorId(dto.translatorId, dto.translatorName)
+        : existing!.translatorId;
 
-    if (categoryId || authorId || publisherId) {
-      await this.validateCatalog(categoryId, authorId, publisherId);
+    if (categoryId || authorId || publisherId || issuingCompanyId || translatorId) {
+      await this.validateCatalog(
+        categoryId,
+        authorId,
+        publisherId,
+        issuingCompanyId,
+        translatorId,
+      );
     }
 
     const title = dto.title?.trim() ?? existing!.title;
@@ -827,18 +872,39 @@ export class BooksService implements OnModuleInit {
           normalizedTitle: normalizeCatalogText(title),
           slug,
           isbn: dto.isbn === undefined ? existing!.isbn : dto.isbn ?? null,
+          publishingLicenseNumber:
+            dto.publishingLicenseNumber === undefined
+              ? (existing as any).publishingLicenseNumber ?? null
+              : dto.publishingLicenseNumber?.trim() || null,
+          language:
+            dto.language === undefined
+              ? (existing as any).language || 'Tiếng Việt'
+              : dto.language?.trim() || 'Tiếng Việt',
           description: dto.description?.trim() ?? existing!.description,
           price: dto.price ?? existing!.price,
           coverUrl,
           categoryId,
           authorId,
           publisherId,
+          issuingCompanyId,
+          translatorId,
           format: dto.format ?? existing!.format,
           ...(dto.status ? { status: dto.status } : {}),
         },
       });
 
-      if (dto.physicalDetails || dto.pricePaper !== undefined || dto.priceEbook !== undefined || dto.priceCombo !== undefined) {
+      const resolvedPageCount =
+        dto.physicalDetails?.pageCount !== undefined
+          ? dto.physicalDetails.pageCount
+          : dto.pageCount;
+
+      if (
+        dto.physicalDetails ||
+        resolvedPageCount !== undefined ||
+        dto.pricePaper !== undefined ||
+        dto.priceEbook !== undefined ||
+        dto.priceCombo !== undefined
+      ) {
         const existingPhysical = (existing as any)?.physicalDetails;
         let dimObj: Record<string, any> = {};
         if (existingPhysical?.dimensions) {
@@ -870,12 +936,14 @@ export class BooksService implements OnModuleInit {
             bookId: id,
             stock: dto.physicalDetails?.stock ?? existingPhysical?.stock ?? 100,
             weight: dto.physicalDetails?.weight ?? existingPhysical?.weight ?? 300,
+            pageCount: resolvedPageCount ?? existingPhysical?.pageCount ?? null,
             dimensions: dimensionsStr,
             physicalEnabled: dto.physicalDetails?.physicalEnabled ?? existingPhysical?.physicalEnabled ?? true,
           },
           update: {
             ...(dto.physicalDetails?.stock !== undefined ? { stock: dto.physicalDetails.stock } : {}),
             ...(dto.physicalDetails?.weight !== undefined ? { weight: dto.physicalDetails.weight } : {}),
+            ...(resolvedPageCount !== undefined ? { pageCount: resolvedPageCount } : {}),
             ...(dimensionsStr !== undefined ? { dimensions: dimensionsStr } : {}),
             ...(dto.physicalDetails?.physicalEnabled !== undefined ? { physicalEnabled: dto.physicalDetails.physicalEnabled } : {}),
           },
@@ -973,7 +1041,48 @@ export class BooksService implements OnModuleInit {
     );
   }
 
-  private async validateCatalog(categoryId: string | null, authorId: string | null, publisherId: string | null) {
+  private async resolveTranslatorId(
+    translatorId?: string | null,
+    translatorName?: string | null,
+  ): Promise<string | null> {
+    if (translatorId) {
+      return translatorId;
+    }
+    const cleanName = translatorName?.trim();
+    if (!cleanName) {
+      return null;
+    }
+    const prismaAny = this.prisma as any;
+    if (!prismaAny?.translator?.findFirst || !prismaAny?.translator?.create) {
+      return null;
+    }
+    const normalizedName = normalizeCatalogText(cleanName);
+    const existing = await prismaAny.translator.findFirst({
+      where: { normalizedName },
+    });
+    if (existing) {
+      return existing.id;
+    }
+    const baseSlug = toCatalogSlug(cleanName) || `translator-${Date.now()}`;
+    const slugExists = await prismaAny.translator.findUnique({ where: { slug: baseSlug } });
+    const created = await prismaAny.translator.create({
+      data: {
+        name: cleanName,
+        normalizedName,
+        slug: slugExists ? `${baseSlug}-${Date.now().toString(36)}` : baseSlug,
+      },
+    });
+    return created.id;
+  }
+
+  private async validateCatalog(
+    categoryId: string | null,
+    authorId: string | null,
+    publisherId: string | null,
+    issuingCompanyId: string | null = null,
+    translatorId: string | null = null,
+  ) {
+    const prismaAny = this.prisma as any;
     if (categoryId) {
       const cat = await this.prisma.category.findUnique({ where: { id: categoryId } });
       if (!cat || !cat.isActive) throwNotFound(ErrorCode.CATEGORY_NOT_FOUND);
@@ -985,6 +1094,14 @@ export class BooksService implements OnModuleInit {
     if (publisherId) {
       const pub = await this.prisma.publisher.findUnique({ where: { id: publisherId } });
       if (!pub || !pub.isActive) throwNotFound(ErrorCode.PUBLISHER_NOT_FOUND);
+    }
+    if (issuingCompanyId && prismaAny?.issuingCompany?.findUnique) {
+      const company = await prismaAny.issuingCompany.findUnique({ where: { id: issuingCompanyId } });
+      if (!company || !company.isActive) throwNotFound(ErrorCode.PUBLISHER_NOT_FOUND);
+    }
+    if (translatorId && prismaAny?.translator?.findUnique) {
+      const translator = await prismaAny.translator.findUnique({ where: { id: translatorId } });
+      if (!translator || !translator.isActive) throwNotFound(ErrorCode.AUTHOR_NOT_FOUND);
     }
   }
 
@@ -1090,6 +1207,8 @@ export class BooksService implements OnModuleInit {
       title: book.title,
       slug: book.slug,
       isbn: book.isbn,
+      publishingLicenseNumber: book.publishingLicenseNumber ?? null,
+      language: book.language || 'Tiếng Việt',
       description: book.description,
       price: salePrice,
       originalPrice,
@@ -1113,6 +1232,9 @@ export class BooksService implements OnModuleInit {
       category: book.category,
       author: book.author,
       publisher: book.publisher,
+      issuingCompany: book.issuingCompany ?? null,
+      translator: book.translator ?? null,
+      pageCount: physical?.pageCount ?? null,
       stock,
       reserved,
       available,

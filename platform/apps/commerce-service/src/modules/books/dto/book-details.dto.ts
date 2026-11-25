@@ -40,6 +40,13 @@ export class PhysicalBookDetailsDto {
   @IsPositive()
   height?: number;
 
+  @ApiPropertyOptional({ description: 'Positive integer page count for printed book', example: 320 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pageCount?: number;
+
   @ApiPropertyOptional({ default: false })
   @IsOptional()
   @IsBoolean()

@@ -38,6 +38,10 @@ export interface BookDetailData {
   title: string;
   author: string;
   publisher: string;
+  issuingCompany?: string;
+  translator?: string;
+  publishingLicenseNumber?: string;
+  language?: string;
   category?: string;
   isbn?: string;
   cover: string;
@@ -557,6 +561,12 @@ export default function BookDetailPage() {
         );
       }
     },
+    onReviewRemoved: (evt) => {
+      if (evt.reviewId) {
+        setReviewsList((prev) => prev.filter((r) => String(r.id) !== String(evt.reviewId)));
+      }
+      fetchBookReviews({ silent: true });
+    },
   });
 
   // RT-03: Realtime inventory reservation watcher for this book
@@ -761,8 +771,27 @@ export default function BookDetailPage() {
       const publisherName =
         typeof realBook.publisher === 'object'
           ? realBook.publisher?.name
-          : realBook.publisher || realBook.business?.displayName || realBook.business?.name || storeInfo?.name || 'Gian Hàng HUKI';
-      const categoryName = typeof realBook.category === 'object' ? realBook.category?.name : realBook.category || 'Công nghệ & Đổi mới';
+          : realBook.publisher || 'Đang cập nhật';
+      const issuingCompanyName =
+        typeof realBook.issuingCompany === 'object'
+          ? realBook.issuingCompany?.name
+          : realBook.issuingCompany || '';
+      const translatorName =
+        typeof realBook.translator === 'object'
+          ? realBook.translator?.name
+          : realBook.translator || '';
+      const rawPages =
+        realBook.pageCount ??
+        realBook.physicalDetails?.pageCount ??
+        realBook.physicalDetails?.pages ??
+        (realBook as any)?.pages;
+      const parsedPages =
+        typeof rawPages === 'number' && Number.isFinite(rawPages) && rawPages > 0
+          ? Math.trunc(rawPages)
+          : typeof rawPages === 'string' && /^\d+$/.test(rawPages.trim()) && Number(rawPages) > 0
+            ? Number(rawPages)
+            : undefined;
+      const categoryName = typeof realBook.category === 'object' ? realBook.category?.name : realBook.category || 'Văn học & Tri thức';
       const priceVal = typeof realBook.price === 'number' ? realBook.price : 150000;
       const originalPriceVal =
         typeof realBook.originalPrice === 'number' && realBook.originalPrice > priceVal
@@ -776,8 +805,12 @@ export default function BookDetailPage() {
         slug: realBook.slug,
         title: realBook.title || 'Sách Tuyển Chọn',
         author: authorName || 'Tác giả HUKI',
-        publisher: publisherName || 'Gian Hàng HUKI',
-        category: categoryName || 'Công nghệ & Đổi mới',
+        publisher: publisherName || 'Đang cập nhật',
+        issuingCompany: issuingCompanyName || undefined,
+        translator: translatorName || undefined,
+        publishingLicenseNumber: realBook.publishingLicenseNumber || undefined,
+        language: realBook.language || (realBook as any)?.language_code || 'Tiếng Việt',
+        category: categoryName || 'Văn học & Tri thức',
         isbn: realBook.isbn || undefined,
         cover: realBook.coverUrl || realBook.coverImage || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600',
         coverImage: realBook.coverUrl || realBook.coverImage,
@@ -790,7 +823,7 @@ export default function BookDetailPage() {
         rating: 5.0,
         reviewCount: 120,
         readCount: 850,
-        pages: realBook.physicalDetails?.pages || realBook.physicalDetails?.pageCount || (realBook as any)?.pages || (realBook as any)?.pageCount || realBook.pageCount || undefined,
+        pages: parsedPages,
         stock: stockVal,
         reserved: reservedVal,
         available: availableVal,
@@ -894,7 +927,7 @@ export default function BookDetailPage() {
         name: storeInfo.name || defaultName,
         slug: storeInfo.slug || storeInfo.stores?.[0]?.slug || publisherSlug || storeInfo.id,
         logo: storeLogo,
-        description: storeInfo.description || storeInfo.stores?.[0]?.description || 'Gian hàng và Nhà xuất bản chính thức được chứng nhận bản quyền bởi HUKI Platform.',
+        description: storeInfo.description || storeInfo.stores?.[0]?.description || 'Nhà phân phối chính thức được chứng nhận bản quyền bởi HUKI Platform.',
         address: storeInfo.address || 'Hà Nội & TP. Hồ Chí Minh, Việt Nam',
         rating: publisherReviewStats.rating,
         reviewsCount: publisherReviewStats.reviewsCount,
@@ -909,7 +942,7 @@ export default function BookDetailPage() {
         name: realBook.business.displayName || realBook.business.name || defaultName,
         slug: realBook.business.slug || realBook.business.stores?.[0]?.slug || publisherSlug || realBook.business.id,
         logo: storeLogo,
-        description: realBook.business.description || realBook.business.stores?.[0]?.description || 'Nhà xuất bản và phát hành sách bản quyền chính thức trên hệ thống HUKI Platform.',
+        description: realBook.business.description || realBook.business.stores?.[0]?.description || 'Nhà phân phối chính thức được chứng nhận bản quyền bởi HUKI Platform.',
         address: realBook.business.address || 'Hà Nội & TP. Hồ Chí Minh, Việt Nam',
         rating: publisherReviewStats.rating,
         reviewsCount: publisherReviewStats.reviewsCount,
@@ -923,7 +956,7 @@ export default function BookDetailPage() {
       name: defaultName,
       slug: publisherSlug,
       logo: storeLogo,
-      description: 'Nhà xuất bản và phát hành sách bản quyền chính thức trên hệ thống HUKI Platform.',
+      description: 'Nhà phân phối chính thức được chứng nhận bản quyền bởi HUKI Platform.',
       address: 'Hà Nội & TP. Hồ Chí Minh, Việt Nam',
       rating: publisherReviewStats.rating,
       reviewsCount: publisherReviewStats.reviewsCount,
@@ -1320,10 +1353,21 @@ export default function BookDetailPage() {
                     )}
                   </div>
                   <h1 className="font-editorial text-lg sm:text-xl font-bold text-[#17201f] leading-snug">{book.title}</h1>
-                  <div className="flex items-center gap-2 mt-1.5 text-xs text-[#6b7280]">
+                  <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-[#6b7280]">
                     <span>Tác giả: <strong className="text-[#17201f] font-semibold">{book.author}</strong></span>
+                    {book.translator && (
+                      <>
+                        <span>•</span>
+                        <span>Dịch giả: <strong className="text-[#17201f] font-semibold">{book.translator}</strong></span>
+                      </>
+                    )}
                     <span>•</span>
-                    <span>NXB: <Link href={`/shop/${publisherProfile.slug || publisherProfile.id}`} className="text-[#006953] font-bold hover:underline">{book.publisher}</Link></span>
+                    <span>
+                      Đơn vị phát hành:{' '}
+                      <strong className="text-[#006953] font-bold">
+                        {book.issuingCompany || book.publisher}
+                      </strong>
+                    </span>
                   </div>
                 </div>
 
@@ -1348,9 +1392,28 @@ export default function BookDetailPage() {
 
                 {/* 3 Specs Mini Grid */}
                 <div className="grid grid-cols-3 gap-2.5 text-center">
-                  <div className="bg-[#f8f6f1]/80 p-2 rounded-lg border border-[#e8e5df]/70"><span className="block text-gray-400 text-[9.5px]">Số trang</span><strong className="text-xs text-[#17201f]">{book.pages ? `${book.pages} tr.` : (realBook?.physicalDetails?.pages || (realBook as any)?.pages ? `${realBook?.physicalDetails?.pages || (realBook as any)?.pages} tr.` : 'Chuẩn DRM')}</strong></div>
-                  <div className="bg-[#f8f6f1]/80 p-2 rounded-lg border border-[#e8e5df]/70"><span className="block text-gray-400 text-[9.5px]">Ngôn ngữ</span><strong className="text-xs text-[#17201f]">{(realBook as any)?.language || (realBook as any)?.language_code || 'Tiếng Việt'}</strong></div>
-                  <div className="bg-[#f8f6f1]/80 p-2 rounded-lg border border-[#e8e5df]/70"><span className="block text-gray-400 text-[9.5px]">Định dạng</span><strong className="text-xs text-[#006953]">{realBook?.format === 'DIGITAL' ? 'Ebook DRM' : realBook?.format === 'PHYSICAL' ? 'Bìa mềm' : 'Sách in & DRM'}</strong></div>
+                  <div className="bg-[#f8f6f1]/80 p-2 rounded-lg border border-[#e8e5df]/70">
+                    <span className="block text-gray-400 text-[9.5px]">Số trang</span>
+                    <strong className="text-xs text-[#17201f]">
+                      {selectedFormat === 'ebook'
+                        ? (book.pages ? `${book.pages} trang` : 'Tùy chỉnh theo thiết bị')
+                        : (book.pages ? `${book.pages} trang` : 'Đang cập nhật')}
+                    </strong>
+                  </div>
+                  <div className="bg-[#f8f6f1]/80 p-2 rounded-lg border border-[#e8e5df]/70">
+                    <span className="block text-gray-400 text-[9.5px]">Ngôn ngữ</span>
+                    <strong className="text-xs text-[#17201f]">{book.language || 'Tiếng Việt'}</strong>
+                  </div>
+                  <div className="bg-[#f8f6f1]/80 p-2 rounded-lg border border-[#e8e5df]/70">
+                    <span className="block text-gray-400 text-[9.5px]">Định dạng</span>
+                    <strong className="text-xs text-[#006953]">
+                      {selectedFormat === 'physical'
+                        ? 'Bìa mềm'
+                        : selectedFormat === 'ebook'
+                          ? 'Ebook (EPUB/PDF)'
+                          : 'Combo Sách in & Ebook'}
+                    </strong>
+                  </div>
                 </div>
 
                 {/* Short Description */}
@@ -1606,31 +1669,45 @@ export default function BookDetailPage() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-xs">
                   <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-500">Nhà xuất bản / Đơn vị phát hành:</span>
-                    <Link href={`/shop/${publisherProfile.slug || publisherProfile.id}`} className="font-semibold text-[#006953] hover:underline">
-                      {book.publisher}
-                    </Link>
+                    <span className="text-gray-500">Nhà xuất bản:</span>
+                    <span className="font-semibold text-gray-800">{book.publisher}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-500">Tác giả / Dịch giả:</span>
+                    <span className="text-gray-500">Đơn vị phát hành:</span>
+                    <span className="font-semibold text-[#006953]">{book.issuingCompany || book.publisher}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-500">Tác giả:</span>
                     <span className="font-semibold text-gray-800">{book.author}</span>
                   </div>
-                  {book.isbn && (
+                  {book.translator && (
                     <div className="flex justify-between py-2 border-b border-gray-100">
-                      <span className="text-gray-500">Mã chuẩn quốc tế (ISBN):</span>
-                      <span className="font-mono font-semibold text-gray-800">{book.isbn}</span>
+                      <span className="text-gray-500">Dịch giả:</span>
+                      <span className="font-semibold text-gray-800">{book.translator}</span>
                     </div>
                   )}
+                  {(book.publishingLicenseNumber || book.isbn) && (
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="text-gray-500">Số giấy phép xuất bản / ISBN:</span>
+                      <span className="font-mono font-semibold text-gray-800">
+                        {[book.publishingLicenseNumber, book.isbn].filter(Boolean).join(' • ')}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-500">Ngôn ngữ:</span>
+                    <span className="font-semibold text-gray-800">{book.language || 'Tiếng Việt'}</span>
+                  </div>
                   {book.category && (
                     <div className="flex justify-between py-2 border-b border-gray-100">
-                      <span className="text-gray-500">Thể loại phân mục:</span>
+                      <span className="text-gray-500">Thể loại:</span>
                       <span className="font-semibold text-gray-800">{book.category}</span>
                     </div>
                   )}
-                  {(realBook?.physicalDetails?.pageCount || (!realBook && book.pages)) && (
+                  {book.pages && (
                     <div className="flex justify-between py-2 border-b border-gray-100">
                       <span className="text-gray-500">Số trang sách in:</span>
-                      <span className="font-semibold text-gray-800">{realBook?.physicalDetails?.pageCount || book.pages} trang</span>
+                      <span className="font-semibold text-gray-800">{book.pages} trang</span>
                     </div>
                   )}
                   {(realBook?.physicalDetails?.weight || realBook?.physicalDetails?.dimensions) && (
@@ -1680,9 +1757,7 @@ export default function BookDetailPage() {
                         </Link>
                         <span className="inline-flex items-center gap-0.5 bg-[#006953]/10 text-[#006953] text-[10px] font-bold px-2 py-0.5 rounded-full">
                           <span className="material-symbols-outlined text-xs">verified</span>
-                          {publisherProfile.name.toLowerCase().includes((book.publisher || '').toLowerCase()) || (book.publisher || '').toLowerCase().includes(publisherProfile.name.toLowerCase())
-                            ? 'NXB Chính Hãng'
-                            : 'Gian Hàng Chính Hãng'}
+                          Gian Hàng Chính Hãng
                         </span>
                       </div>
                       <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{publisherProfile.description}</p>

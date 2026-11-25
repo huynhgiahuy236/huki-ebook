@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsEnum,
+  IsInt,
   IsISBN,
   IsNumber,
   IsOptional,
@@ -42,6 +43,18 @@ export class CreateBookDto {
   @IsOptional()
   @MaxLength(20)
   isbn?: string;
+
+  @ApiPropertyOptional({ description: 'Số giấy phép xuất bản / quyết định xuất bản', example: '1234/QĐ-NXBTH' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  publishingLicenseNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Ngôn ngữ xuất bản', example: 'Tiếng Việt' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  language?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -97,6 +110,29 @@ export class CreateBookDto {
   @IsOptional()
   @IsUUID()
   publisherId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Đơn vị phát hành / Công ty sách' })
+  @IsOptional()
+  @IsUUID()
+  issuingCompanyId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Dịch giả ID' })
+  @IsOptional()
+  @IsUUID()
+  translatorId?: string;
+
+  @ApiPropertyOptional({ description: 'Tên dịch giả (tự động tạo/gắn nếu chưa có ID)', example: 'Nguyễn Văn A' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  translatorName?: string;
+
+  @ApiPropertyOptional({ description: 'Số trang sách in (Số nguyên dương)', example: 320 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pageCount?: number;
 
   @ApiPropertyOptional({ enum: BookFormat })
   @IsOptional()

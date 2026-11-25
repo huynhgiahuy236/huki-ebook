@@ -1,0 +1,98 @@
+export interface PublishingSeedItem {
+  name: string;
+  description: string;
+}
+
+/**
+ * Danh sách ~60 Nhà xuất bản chính thống tại Việt Nam (Master Data).
+ * Các NXB này có chức năng cấp phép xuất bản theo Luật Xuất bản Việt Nam.
+ */
+export const OFFICIAL_VN_PUBLISHERS: PublishingSeedItem[] = [
+  { name: 'NXB Tổng hợp TP.HCM', description: 'Nhà xuất bản trực thuộc Thành ủy TP. Hồ Chí Minh, xuất bản sách tổng hợp đa lĩnh vực.' },
+  { name: 'NXB Trẻ', description: 'Nhà xuất bản sách văn học, kỹ năng, kiến thức trẻ hàng đầu tại TP. Hồ Chí Minh.' },
+  { name: 'NXB Kim Đồng', description: 'Nhà xuất bản sách thiếu nhi và văn học trẻ lớn nhất Việt Nam.' },
+  { name: 'NXB Hội Nhà Văn', description: 'Nhà xuất bản chuyên sách văn học, thơ ca, phê bình của Hội Nhà văn Việt Nam.' },
+  { name: 'NXB Văn Học', description: 'Nhà xuất bản văn học cổ điển và hiện đại trong nước và quốc tế.' },
+  { name: 'NXB Thế Giới', description: 'Nhà xuất bản sách đối ngoại, lịch sử, văn hóa và sách dịch đa ngôn ngữ.' },
+  { name: 'NXB Lao Động', description: 'Nhà xuất bản trực thuộc Tổng Liên đoàn Lao động Việt Nam.' },
+  { name: 'NXB Phụ Nữ Việt Nam', description: 'Nhà xuất bản chuyên đề gia đình, phụ nữ, văn học và kỹ năng sống.' },
+  { name: 'NXB Giáo Dục Việt Nam', description: 'Nhà xuất bản sách giáo khoa, giáo trình và tài liệu tham khảo quốc gia.' },
+  { name: 'NXB Chính Trị Quốc Gia Sự Thật', description: 'Nhà xuất bản chính trị, pháp luật, lịch sử và lý luận quốc gia.' },
+  { name: 'NXB Khoa Học Xã Hội', description: 'Nhà xuất bản thuộc Viện Hàn lâm Khoa học xã hội Việt Nam.' },
+  { name: 'NXB Công Thương', description: 'Nhà xuất bản trực thuộc Bộ Công Thương, chuyên sách kinh tế và thương mại.' },
+  { name: 'NXB Tài Chính', description: 'Nhà xuất bản trực thuộc Bộ Tài chính, chuyên sách tài chính - kế toán.' },
+  { name: 'NXB Thông Tin và Truyền Thông', description: 'Nhà xuất bản trực thuộc Bộ Thông tin và Truyền thông, chuyên CNTT và chuyển đổi số.' },
+  { name: 'NXB Hà Nội', description: 'Nhà xuất bản văn hóa, lịch sử và tri thức Thủ đô Hà Nội.' },
+  { name: 'NXB Đà Nẵng', description: 'Nhà xuất bản khu vực miền Trung - Tây Nguyên trực thuộc TP. Đà Nẵng.' },
+  { name: 'NXB Thanh Niên', description: 'Nhà xuất bản trực thuộc Trung ương Đoàn TNCS Hồ Chí Minh.' },
+  { name: 'NXB Tri Thức', description: 'Nhà xuất bản sách khoa học, triết học và tinh hoa tri thức nhân loại.' },
+  { name: 'NXB Dân Trí', description: 'Nhà xuất bản trực thuộc Hội Khuyến học Việt Nam.' },
+  { name: 'NXB Hồng Đức', description: 'Nhà xuất bản trực thuộc Hội Luật gia Việt Nam.' },
+  { name: 'NXB Mỹ Thuật', description: 'Nhà xuất bản chuyên ngành hội họa, thiết kế và nghệ thuật thị giác.' },
+  { name: 'NXB Âm Nhạc', description: 'Nhà xuất bản chuyên ngành âm nhạc và nghệ thuật biểu diễn.' },
+  { name: 'NXB Sân Khấu', description: 'Nhà xuất bản thuộc Hội Nghệ sĩ Sân khấu Việt Nam.' },
+  { name: 'NXB Thể Thao và Du Lịch', description: 'Nhà xuất bản chuyên ngành văn hóa, thể thao và du lịch.' },
+  { name: 'NXB Y Học', description: 'Nhà xuất bản chuyên sách y khoa, dược học và chăm sóc sức khỏe.' },
+  { name: 'NXB Nông Nghiệp', description: 'Nhà xuất bản chuyên ngành nông nghiệp, lâm nghiệp và phát triển nông thôn.' },
+  { name: 'NXB Xây Dựng', description: 'Nhà xuất bản chuyên ngành kiến trúc, quy hoạch và kỹ thuật xây dựng.' },
+  { name: 'NXB Giao Thông Vận Tải', description: 'Nhà xuất bản chuyên ngành giao thông, hạ tầng và logistics.' },
+  { name: 'NXB Khoa Học và Kỹ Thuật', description: 'Nhà xuất bản chuyên sách khoa học tự nhiên, công nghệ và kỹ thuật.' },
+  { name: 'NXB Bách Khoa Hà Nội', description: 'Nhà xuất bản trực thuộc Đại học Bách khoa Hà Nội.' },
+  { name: 'NXB Đại Học Quốc Gia Hà Nội', description: 'Nhà xuất bản học thuật trực thuộc ĐHQG Hà Nội.' },
+  { name: 'NXB Đại Học Quốc Gia TP.HCM', description: 'Nhà xuất bản học thuật trực thuộc ĐHQG TP. Hồ Chí Minh.' },
+  { name: 'NXB Đại Học Sư Phạm', description: 'Nhà xuất bản giáo trình và nghiên cứu giáo dục thuộc ĐHSP Hà Nội.' },
+  { name: 'NXB Đại Học Sư Phạm TP.HCM', description: 'Nhà xuất bản giáo trình và tài liệu sư phạm khu vực phía Nam.' },
+  { name: 'NXB Đại Học Kinh Tế Quốc Dân', description: 'Nhà xuất bản sách kinh tế, quản trị và tài chính thuộc ĐH KTQD.' },
+  { name: 'NXB Tài Nguyên - Môi Trường và Bản Đồ Việt Nam', description: 'Nhà xuất bản chuyên bản đồ, địa lý và tài nguyên môi trường.' },
+  { name: 'NXB Công An Nhân Dân', description: 'Nhà xuất bản sách an ninh, trật tự, pháp luật và văn học.' },
+  { name: 'NXB Quân Đội Nhân Dân', description: 'Nhà xuất bản lịch sử quân sự, quốc phòng và văn học chiến tranh.' },
+  { name: 'NXB Tư Pháp', description: 'Nhà xuất bản trực thuộc Bộ Tư pháp.' },
+  { name: 'NXB Lý Luận Chính Trị', description: 'Nhà xuất bản trực thuộc Học viện Chính trị quốc gia Hồ Chí Minh.' },
+  { name: 'NXB Tôn Giáo', description: 'Nhà xuất bản chuyên sách tôn giáo, tín ngưỡng và văn hóa tâm linh.' },
+  { name: 'NXB Văn Hóa Dân Tộc', description: 'Nhà xuất bản văn hóa các dân tộc Việt Nam.' },
+  { name: 'NXB Văn Hóa - Văn Nghệ', description: 'Nhà xuất bản văn hóa nghệ thuật khu vực TP.HCM.' },
+  { name: 'NXB Hải Phòng', description: 'Nhà xuất bản địa phương thành phố Hải Phòng.' },
+  { name: 'NXB Nghệ An', description: 'Nhà xuất bản địa phương tỉnh Nghệ An.' },
+  { name: 'NXB Thuận Hóa', description: 'Nhà xuất bản văn hóa lịch sử khu vực Thừa Thiên Huế.' },
+  { name: 'NXB Thanh Hóa', description: 'Nhà xuất bản địa phương tỉnh Thanh Hóa.' },
+  { name: 'NXB Đồng Nai', description: 'Nhà xuất bản địa phương tỉnh Đồng Nai.' },
+  { name: 'NXB Cần Thơ', description: 'Nhà xuất bản địa phương khu vực Đồng bằng sông Cửu Long.' },
+  { name: 'NXB Phương Đông', description: 'Nhà xuất bản sách văn hóa, giáo dục và phổ thông.' },
+  { name: 'NXB Lao Động - Xã Hội', description: 'Nhà xuất bản trực thuộc Bộ Lao động - Thương binh và Xã hội.' },
+  { name: 'NXB Kinh Tế TP.HCM', description: 'Nhà xuất bản học thuật thuộc Đại học Kinh tế TP.HCM (UEH).' },
+  { name: 'NXB Thống Kê', description: 'Nhà xuất bản chuyên niên giám thống kê và phân tích dữ liệu kinh tế - xã hội.' },
+  { name: 'NXB Từ Điển Bách Khoa', description: 'Nhà xuất bản chuyên từ điển và công trình bách khoa thư.' },
+  { name: 'NXB Hàng Hải', description: 'Nhà xuất bản chuyên ngành hàng hải và vận tải biển.' },
+  { name: 'NXB Học Viện Nông Nghiệp', description: 'Nhà xuất bản trực thuộc Học viện Nông nghiệp Việt Nam.' },
+  { name: 'NXB Đại Học Huế', description: 'Nhà xuất bản học thuật trực thuộc Đại học Huế.' },
+  { name: 'NXB Đại Học Thái Nguyên', description: 'Nhà xuất bản học thuật trực thuộc Đại học Thái Nguyên.' },
+  { name: 'NXB Đại Học Cần Thơ', description: 'Nhà xuất bản học thuật trực thuộc Đại học Cần Thơ.' },
+  { name: 'NXB Đại Học Vinh', description: 'Nhà xuất bản học thuật trực thuộc Trường Đại học Vinh.' },
+];
+
+/**
+ * Danh sách các Đơn vị phát hành / Công ty sách lớn tại Việt Nam (Master Data).
+ * Các đơn vị này mua bản quyền, biên dịch, biên tập và liên kết phát hành cùng Nhà xuất bản.
+ */
+export const MAJOR_VN_ISSUING_COMPANIES: PublishingSeedItem[] = [
+  { name: 'First News - Trí Việt', description: 'Công ty Văn hóa Sáng tạo Trí Việt - Đơn vị giữ bản quyền Đắc Nhân Tâm, Hạt Giống Tâm Hồn, Think Big...' },
+  { name: 'Nhã Nam', description: 'Công ty Cổ phần Văn hóa và Truyền thông Nhã Nam.' },
+  { name: 'Alpha Books', description: 'Công ty Cổ phần Sách Alpha - Chuyên sách kinh doanh, quản trị và khoa học.' },
+  { name: 'Thái Hà Books', description: 'Công ty Cổ phần Sách Thái Hà - Chuyên sách Phật giáo, nuôi dạy con và quản trị.' },
+  { name: 'Đông A Books', description: 'Công ty Cổ phần Văn hóa Đông A - Chuyên sách văn học kinh điển và ấn bản đặc biệt.' },
+  { name: 'Đinh Tị Books', description: 'Công ty TNHH Thương mại và Dịch vụ Văn hóa Đinh Tị.' },
+  { name: 'Skybooks', description: 'Thương hiệu sách trẻ, văn học đương đại và tản văn.' },
+  { name: '1980 Books', description: 'Công ty TNHH Văn hóa và Truyền thông 1980 Books.' },
+  { name: 'Omega Plus', description: 'Công ty Cổ phần Sách Omega Việt Nam - Chuyên sách sử học, khoa học và kinh điển.' },
+  { name: 'IPM', description: 'Công ty Cổ phần Xuất bản và Truyền thông IPM - Chuyên Light Novel, Manga và văn học Nhật Bản.' },
+  { name: 'Minh Long Book', description: 'Công ty TNHH MTV Thương mại Dịch vụ Minh Long.' },
+  { name: 'Huy Hoàng Bookstore', description: 'Công ty TNHH Văn hóa Huy Hoàng.' },
+  { name: 'Tân Việt Books', description: 'Công ty Cổ phần Văn hóa và Giáo dục Tân Việt.' },
+  { name: 'Quảng Văn Books', description: 'Công ty Cổ phần Sách Quảng Văn.' },
+  { name: 'Bloom Books', description: 'Thương hiệu sách kỹ năng, nghệ thuật sống và phát triển bản thân.' },
+  { name: 'Bách Việt Books', description: 'Công ty Cổ phần Sách Bách Việt.' },
+  { name: 'Chibooks', description: 'Công ty Cổ phần Văn hóa Chi.' },
+  { name: 'Saigon Books', description: 'Công ty Cổ phần Văn hóa Sách Sài Gòn.' },
+  { name: 'Sbooks', description: 'Công ty Cổ phần Sbooks.' },
+  { name: 'Phương Nam Book', description: 'Công ty TNHH Bán lẻ Phương Nam - Nhà sách Phương Nam.' },
+];

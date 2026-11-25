@@ -1,5 +1,10 @@
 import { NotFoundException } from '@nestjs/common';
 import { BooksService } from './books.service';
+import { PublishersService } from '../publishers/publishers.service';
+import {
+  MAJOR_VN_ISSUING_COMPANIES,
+  OFFICIAL_VN_PUBLISHERS,
+} from '../publishers/publishing-master-data';
 
 describe('BooksService (Prisma)', () => {
   const prisma = {
@@ -103,5 +108,75 @@ describe('BooksService (Prisma)', () => {
     expect(ebookStorage.getStream).toHaveBeenCalledWith('stores/s1/books/b1/pdf-1.pdf', undefined);
     expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
     expect(pipe).toHaveBeenCalledWith(res);
+  });
+
+  it('exposes issuingCompany, translator, publishingLicenseNumber, language, and integer pageCount', async () => {
+    const prismaWithRelations = {
+      ...prisma,
+      book: {
+        ...prisma.book,
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'book-pub-1',
+          storeId: 'store-1',
+          ownerUserId: 'owner-1',
+          title: 'Nghĩ Lớn Để Thành Công',
+          slug: 'nghi-lon-de-thanh-cong',
+          isbn: '978-604-58-9999-9',
+          publishingLicenseNumber: '2456/QĐ-NXBTH',
+          language: 'Tiếng Việt',
+          description: 'Sách kinh doanh & lãnh đạo',
+          price: 115000,
+          format: 'BOTH',
+          status: 'PUBLISHED',
+          coverUrl: null,
+          publishedAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          viewCount: 10,
+          category: { id: 'cat-1', name: 'Kinh doanh & Lãnh đạo' },
+          author: { id: 'auth-1', name: 'Donald J. Trump & Bill Zanker' },
+          publisher: { id: 'pub-1', name: 'NXB Tổng hợp TP.HCM' },
+          issuingCompany: { id: 'iss-1', name: 'First News - Trí Việt' },
+          translator: { id: 'tr-1', name: 'Nguyễn Văn Dịch' },
+          physicalDetails: { stock: 25, reserved: 0, pageCount: 456, weight: 400 },
+          digitalDetails: null,
+          affiliateSetting: null,
+        }),
+      },
+      orderItem: {
+        aggregate: jest.fn().mockResolvedValue({ _sum: { quantity: 5 } }),
+      },
+    };
+    const svc = new BooksService(prismaWithRelations as any);
+    const result = await svc.findOne('book-pub-1');
+
+    expect(result.publisher?.name).toBe('NXB Tổng hợp TP.HCM');
+    expect(result.issuingCompany?.name).toBe('First News - Trí Việt');
+    expect(result.translator?.name).toBe('Nguyễn Văn Dịch');
+    expect(result.publishingLicenseNumber).toBe('2456/QĐ-NXBTH');
+    expect(result.language).toBe('Tiếng Việt');
+    expect(result.pageCount).toBe(456);
+  });
+
+  it('seeds ~60 official VN publishers and issuing companies master data idempotently', async () => {
+    const pubCreateMany = jest.fn().mockResolvedValue({ count: OFFICIAL_VN_PUBLISHERS.length });
+    const issuingCreateMany = jest.fn().mockResolvedValue({ count: MAJOR_VN_ISSUING_COMPANIES.length });
+    const mockPrisma = {
+      publisher: { createMany: pubCreateMany },
+      issuingCompany: { createMany: issuingCreateMany },
+    };
+    const mockRedis = { get: jest.fn(), set: jest.fn(), delPattern: jest.fn() };
+    const pubService = new PublishersService(mockPrisma as any, mockRedis as any);
+
+    await pubService.seedPublishingMasterData();
+
+    expect(OFFICIAL_VN_PUBLISHERS.length).toBeGreaterThanOrEqual(55);
+    expect(MAJOR_VN_ISSUING_COMPANIES.length).toBeGreaterThanOrEqual(15);
+    expect(pubCreateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skipDuplicates: true }),
+    );
+    expect(issuingCreateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skipDuplicates: true }),
+    );
   });
 });

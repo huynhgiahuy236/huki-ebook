@@ -476,4 +476,46 @@ describe("ReviewsService", () => {
       }),
     );
   });
+
+  it("emits realtime review:helpful event with updated helpfulCount", async () => {
+    const gateway = { emitReviewEvent: jest.fn() };
+    const id = new Types.ObjectId().toString();
+    const reviewDoc = {
+      id,
+      targetType: "BOOK",
+      targetId: "book-1",
+      storeId: "store-1",
+      storeOwnerId: "owner-1",
+      authorId: "author-2",
+      helpful: [actor.sub],
+      helpfulCount: 1,
+    };
+    reviews.findOneAndUpdate.mockReturnValue({
+      select: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(reviewDoc),
+      }),
+    });
+
+    const svc = new ReviewsService(
+      reviews as any,
+      replies as any,
+      verification as any,
+      eventBus as any,
+      autoModeration as any,
+      gateway as any,
+    );
+
+    const res = await svc.helpful(actor, id, true);
+
+    expect(res.data).toEqual({ helpfulCount: 1, isHelpful: true });
+    expect(gateway.emitReviewEvent).toHaveBeenCalledWith(
+      "review:helpful",
+      expect.objectContaining({
+        reviewId: id,
+        targetId: "book-1",
+        storeId: "store-1",
+        helpfulCount: 1,
+      }),
+    );
+  });
 });

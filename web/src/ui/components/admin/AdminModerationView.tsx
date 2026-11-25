@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '../../context/ToastContext';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import {
   moderationApi,
   type ModerationReportItem,
@@ -53,6 +54,12 @@ export function AdminModerationView() {
 
   useEffect(() => {
     loadReports();
+    const unsubscribe = realtimeSyncBus.subscribe((event) => {
+      if (event.type === 'NOTIFICATIONS_UPDATED' || event.type === 'ADMIN_NOTIFICATIONS_UPDATED') {
+        loadReports();
+      }
+    });
+    return () => unsubscribe();
   }, [loadReports]);
 
   // Client-side filtering for search query

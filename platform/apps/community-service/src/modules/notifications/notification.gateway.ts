@@ -179,7 +179,7 @@ export class NotificationGateway implements OnGatewayConnection {
   }
 
   emitReviewEvent(
-    eventName: "review:created" | "review:updated" | "review:replied" | "review:helpful",
+    eventName: "review:created" | "review:updated" | "review:replied" | "review:helpful" | "review:removed",
     data: {
       targetType?: string;
       targetId?: string;

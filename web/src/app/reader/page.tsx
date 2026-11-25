@@ -84,7 +84,7 @@ function ReaderContent() {
     isBookResolved &&
     realBook !== null &&
     (realBook.hasPdf === false ||
-      (realBook.digitalDetails !== undefined &&
+      (realBook.digitalDetails != null &&
         !realBook.digitalDetails.hasSourceFile &&
         !realBook.digitalDetails.hasPreviewFile &&
         realBook.hasPdf !== true));

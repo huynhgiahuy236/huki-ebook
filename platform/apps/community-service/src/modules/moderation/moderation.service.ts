@@ -1,6 +1,7 @@
 import {
   Injectable,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { randomUUID } from 'crypto';
@@ -14,6 +15,8 @@ import {
   ReportTargetType,
 } from '../../entities/report.schema';
 import { Review, ReviewDocument } from '../../entities/review.schema';
+import { NotificationGateway } from '../notifications/notification.gateway';
+import { NotificationDeliveryService } from '../notifications/notification-delivery.service';
 import {
   CreateReportDto,
   ModerateContentDto,
@@ -37,6 +40,8 @@ export class ModerationService {
     @InjectModel(Review.name)
     private readonly reviews: Model<ReviewDocument>,
     private readonly eventBus: RabbitMqEventBus,
+    @Optional() private readonly gateway?: NotificationGateway,
+    @Optional() private readonly notificationDelivery?: NotificationDeliveryService,
   ) {}
 
   async report(
@@ -73,6 +78,31 @@ export class ModerationService {
         targetType,
         targetId,
         reason: dto.reason,
+      });
+      if (this.notificationDelivery) {
+        void this.notificationDelivery.deliver({
+          sourceKey: `user.reported:${report.id}:admin_channel`,
+          recipientId: 'admin_channel',
+          recipientType: 'ADMIN',
+          type: 'WATCHDOG_ALERT' as any,
+          priority: 'HIGH',
+          title: 'Báo cáo vi phạm đánh giá mới',
+          message: `Có báo cáo ${dto.reason} cho đánh giá #${targetId}. Cần kiểm duyệt xử lý.`,
+          actionUrl: '/admin/moderation',
+          payload: {
+            reportId: report.id,
+            targetType,
+            targetId,
+            reason: dto.reason,
+          },
+        }).catch(() => null);
+      }
+      this.gateway?.emitReviewEvent('review:updated', {
+        targetType: target!.targetType,
+        targetId: target!.targetId,
+        storeId: target!.storeId,
+        storeOwnerId: target!.storeOwnerId,
+        reviewId: targetId,
       });
       return {
         message: 'Report submitted',
@@ -331,6 +361,17 @@ export class ModerationService {
       },
     );
     if (!result.matchedCount) throwNotFound(ErrorCode.MODERATION_REPORT_NOT_FOUND);
+    this.gateway?.emitReviewEvent(
+      status === 'PUBLISHED' ? 'review:updated' : 'review:removed',
+      {
+        targetType: current!.targetType,
+        targetId: current!.targetId,
+        storeId: current!.storeId,
+        storeOwnerId: current!.storeOwnerId,
+        authorId: current!.authorId,
+        reviewId: targetId,
+      },
+    );
   }
 
   private async requireContent(

@@ -350,6 +350,23 @@ export function SellerReviewsView() {
         loadData(true);
       }
     },
+    onReviewHelpful: (evt) => {
+      if (evt.reviewId && typeof evt.helpfulCount === 'number') {
+        setReviews((prev) =>
+          prev.map((row) =>
+            String(row.id) === String(evt.reviewId)
+              ? { ...row, helpfulCount: evt.helpfulCount! }
+              : row,
+          ),
+        );
+      }
+    },
+    onReviewRemoved: (evt) => {
+      if (evt.reviewId) {
+        setReviews((prev) => prev.filter((row) => String(row.id) !== String(evt.reviewId)));
+      }
+      loadData(true);
+    },
   });
 
   const handleSendInlineReply = async () => {

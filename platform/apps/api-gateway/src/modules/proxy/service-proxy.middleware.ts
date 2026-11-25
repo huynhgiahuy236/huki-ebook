@@ -29,6 +29,8 @@ const ROUTES: Record<string, ServiceName> = {
   categories: 'commerce',
   authors: 'commerce',
   publishers: 'commerce',
+  'issuing-companies': 'commerce',
+  translators: 'commerce',
   catalog: 'commerce',
   cart: 'commerce',
   orders: 'commerce',

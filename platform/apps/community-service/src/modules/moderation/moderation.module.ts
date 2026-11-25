@@ -14,10 +14,12 @@ import {
   ContentReportsController,
 } from './moderation.controller';
 import { ModerationService } from './moderation.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     EventsModule,
+    NotificationsModule,
     ThrottlerModule.forRoot([{ ttl: 60 * 60_000, limit: 10 }]),
     MongooseModule.forFeature([
       { name: Report.name, schema: ReportSchema },

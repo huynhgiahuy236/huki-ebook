@@ -26,6 +26,7 @@ export interface UseReviewSocketOptions {
   onReviewUpdated?: (payload: ReviewSocketEventPayload) => void;
   onReviewReplied?: (payload: ReviewSocketEventPayload) => void;
   onReviewHelpful?: (payload: ReviewSocketEventPayload) => void;
+  onReviewRemoved?: (payload: ReviewSocketEventPayload) => void;
 }
 
 function resolveSocketBaseUrl(): string {
@@ -50,6 +51,7 @@ export function useReviewSocket({
   onReviewUpdated,
   onReviewReplied,
   onReviewHelpful,
+  onReviewRemoved,
 }: UseReviewSocketOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);
@@ -58,6 +60,7 @@ export function useReviewSocket({
     onReviewUpdated,
     onReviewReplied,
     onReviewHelpful,
+    onReviewRemoved,
   });
 
   useEffect(() => {
@@ -66,8 +69,9 @@ export function useReviewSocket({
       onReviewUpdated,
       onReviewReplied,
       onReviewHelpful,
+      onReviewRemoved,
     };
-  }, [onReviewCreated, onReviewUpdated, onReviewReplied, onReviewHelpful]);
+  }, [onReviewCreated, onReviewUpdated, onReviewReplied, onReviewHelpful, onReviewRemoved]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -122,6 +126,10 @@ export function useReviewSocket({
 
     socket.on('review:helpful', (payload: ReviewSocketEventPayload) => {
       callbacksRef.current.onReviewHelpful?.(payload);
+    });
+
+    socket.on('review:removed', (payload: ReviewSocketEventPayload) => {
+      callbacksRef.current.onReviewRemoved?.(payload);
     });
 
     if (socket.connected) {
