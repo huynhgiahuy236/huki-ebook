@@ -107,7 +107,7 @@ export class AiChatService {
    * Lấy toàn bộ sách thật từ Commerce Database (có cache trên Redis 1 tiếng)
    */
   async getCatalogBooks(): Promise<BookCatalogItem[]> {
-    const REDIS_CATALOG_KEY = "ai:books:catalog";
+    const REDIS_CATALOG_KEY = "ai:books:catalog:v2";
     const REDIS_CATALOG_TTL = 3600; // 1 giờ
 
     // 1. Kiểm tra cache trên Redis trước
@@ -125,16 +125,65 @@ export class AiChatService {
       }
     }
 
-    // 2. Lấy dữ liệu thật từ Commerce Service
+    // 2. Lấy dữ liệu thật từ Commerce Service & Business Service
     try {
       const commerceUrl =
         this.config.get<string>("COMMERCE_SERVICE_URL") ||
         process.env.COMMERCE_SERVICE_URL ||
         "http://localhost:3003";
+      const businessUrl =
+        this.config.get<string>("BUSINESS_SERVICE_URL") ||
+        process.env.BUSINESS_SERVICE_URL ||
+        "http://localhost:3002";
 
-      const res = await fetch(`${commerceUrl}/api/v1/books?limit=100`, {
-        headers: { "Content-Type": "application/json" },
-      });
+      const [res, bizRes] = await Promise.all([
+        fetch(`${commerceUrl}/api/v1/books?limit=100`, {
+          headers: { "Content-Type": "application/json" },
+        }),
+        fetch(`${businessUrl}/api/v1/businesses?limit=100`, {
+          headers: { "Content-Type": "application/json" },
+        }).catch(() => null),
+      ]);
+
+      const storeAliasMap = new Map<string, { storeId: string; storeName: string }>();
+      let singleStoreFallback: { storeId: string; storeName: string } | null = null;
+      if (bizRes && bizRes.ok) {
+        try {
+          const bizJson = await bizRes.json();
+          const bizList = Array.isArray(bizJson?.data)
+            ? bizJson.data
+            : Array.isArray(bizJson?.data?.items)
+            ? bizJson.data.items
+            : Array.isArray(bizJson?.items)
+            ? bizJson.items
+            : [];
+          for (const biz of bizList) {
+            if (!biz?.id) continue;
+            const entry = {
+              storeId: String(biz.id),
+              storeName: String(biz.stores?.[0]?.name || biz.displayName || biz.name || "Nhà Sách HuKi Official").trim(),
+            };
+            storeAliasMap.set(String(biz.id).toLowerCase(), entry);
+            if (biz.slug) storeAliasMap.set(String(biz.slug).toLowerCase(), entry);
+            if (Array.isArray(biz.stores)) {
+              for (const st of biz.stores) {
+                if (st?.id) storeAliasMap.set(String(st.id).toLowerCase(), entry);
+                if (st?.slug) storeAliasMap.set(String(st.slug).toLowerCase(), entry);
+              }
+            }
+          }
+          if (bizList.length === 1 && bizList[0]?.id) {
+            singleStoreFallback = {
+              storeId: String(bizList[0].id),
+              storeName: String(
+                bizList[0].stores?.[0]?.name || bizList[0].displayName || bizList[0].name || "Nhà Sách HuKi Official",
+              ).trim(),
+            };
+          }
+        } catch {
+          // ignore malformed business JSON
+        }
+      }
 
       if (res.ok) {
         const json = await res.json();
@@ -147,10 +196,17 @@ export class AiChatService {
           : [];
         if (rawBooks.length > 0) {
           const catalogItems: BookCatalogItem[] = rawBooks.map((b: any) => {
-            const rawStoreName = b.store?.name || b.business?.name || b.publisher?.name;
-            const fallbackStoreName = String(b.storeId || "").toLowerCase().includes("first-news")
-              ? "First News - Trí Việt"
-              : "Gian Hàng HUKI Official";
+            const rawStoreId = String(b.storeId || b.businessId || "huki-official").trim();
+            const matchedStore = storeAliasMap.get(rawStoreId.toLowerCase()) || singleStoreFallback;
+            const resolvedStoreId = matchedStore?.storeId || rawStoreId;
+            // BUG-050: Tuyệt đối không lấy publisher.name (ví dụ First News - Trí Việt) làm tên gian hàng bán
+            const resolvedStoreName =
+              b.storeName ||
+              b.store?.name ||
+              b.business?.displayName ||
+              b.business?.name ||
+              matchedStore?.storeName ||
+              "Nhà Sách HuKi Official";
             return {
               id: b.id,
               title: b.title || "Tựa sách HUKI",
@@ -158,8 +214,8 @@ export class AiChatService {
               author: b.author?.name || (typeof b.author === "string" ? b.author : "Tác giả HUKI"),
               category: b.category?.name || (typeof b.category === "string" ? b.category : "Sách chọn lọc"),
               categoryId: b.categoryId || b.category?.id,
-              storeId: b.storeId || b.businessId || "huki-official",
-              storeName: rawStoreName || fallbackStoreName,
+              storeId: resolvedStoreId,
+              storeName: resolvedStoreName,
               rating: Number(b.rating || b.averageRating || 5),
               price: Number(b.price || 0),
               originalPrice: b.originalPrice ? Number(b.originalPrice) : undefined,

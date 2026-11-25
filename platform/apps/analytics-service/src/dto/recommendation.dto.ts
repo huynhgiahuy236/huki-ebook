@@ -15,8 +15,9 @@ export class GetForYouDto {
 }
 
 export class GetSimilarBooksDto {
+  @IsOptional()
   @IsString()
-  bookId!: string;
+  bookId?: string;
 
   @IsOptional()
   @IsString()

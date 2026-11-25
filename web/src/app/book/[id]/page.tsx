@@ -276,76 +276,82 @@ export default function BookDetailPage() {
   }, [id]);
 
   useEffect(() => {
+    let isCancelled = false;
     const targetStoreId = realBook?.storeId || realBook?.businessId || realBook?.business?.id;
-    if (targetStoreId) {
-      // First attempt: resolve via store API (by ID or Slug)
-      businessApi.getStoreById(targetStoreId)
-        .then((res) => {
-          if (res?.success && res.data) {
-            setStoreInfo(res.data);
-          } else {
-            return businessApi.getStoreBySlug(targetStoreId);
+
+    async function resolveStore() {
+      if (targetStoreId) {
+        try {
+          const bizListRes = await businessApi.getPublicBusinesses({ limit: 50 }).catch(() => null);
+          if (isCancelled) return;
+          const businesses = Array.isArray(bizListRes?.data) ? bizListRes!.data : [];
+          const lowerTarget = String(targetStoreId).trim().toLowerCase();
+          const matchedBiz =
+            businesses.find((biz: any) => {
+              if (String(biz.id || '').toLowerCase() === lowerTarget || String(biz.slug || '').toLowerCase() === lowerTarget) {
+                return true;
+              }
+              return Array.isArray(biz.stores) && biz.stores.some(
+                (st: any) => String(st.id || '').toLowerCase() === lowerTarget || String(st.slug || '').toLowerCase() === lowerTarget,
+              );
+            }) || (businesses.length === 1 ? businesses[0] : null);
+
+          if (matchedBiz) {
+            const matchedSubStore = Array.isArray((matchedBiz as any).stores)
+              ? (matchedBiz as any).stores.find((st: any) => String(st.id || '').toLowerCase() === lowerTarget) || (matchedBiz as any).stores[0]
+              : null;
+            setStoreInfo({
+              ...matchedBiz,
+              name: matchedSubStore?.name || matchedBiz.displayName || matchedBiz.name,
+              logo: matchedSubStore?.logo || matchedBiz.logo,
+            });
+            return;
           }
-        })
-        .then((res) => {
-          if (res && res.success && res.data) {
-            setStoreInfo(res.data);
-          } else if (!storeInfo) {
-            // Fallback: try business API
-            return businessApi.getBusinessById(targetStoreId);
+
+          // Fallback to single lookup only if not resolved from public business directory
+          const storeRes = await businessApi.getStoreById(targetStoreId).catch(() => null);
+          if (!isCancelled && storeRes?.success && storeRes.data) {
+            setStoreInfo(storeRes.data);
+            return;
           }
-        })
-        .then((res) => {
-          if (res && res.success && res.data) {
-            setStoreInfo(res.data);
-          } else if (!storeInfo) {
-            return businessApi.getBusinessBySlug(targetStoreId);
+          const bizRes = await businessApi.getBusinessById(targetStoreId).catch(() => null);
+          if (!isCancelled && bizRes?.success && bizRes.data) {
+            setStoreInfo(bizRes.data);
           }
-        })
-        .then((res) => {
-          if (res && res.success && res.data) {
-            setStoreInfo(res.data);
-          }
-        })
-        .catch(() => { });
-    } else if (realBook?.publisher) {
-      const pubName = typeof realBook.publisher === 'object' ? (realBook.publisher.slug || realBook.publisher.name) : realBook.publisher;
-      if (pubName) {
-        businessApi
-          .getStoreBySlug(pubName)
-          .then((res) => {
-            if (res?.success && res.data) {
-              setStoreInfo(res.data);
-            } else {
-              return businessApi.getBusinessBySlug(pubName);
-            }
-          })
-          .then((res) => {
-            if (res && res.success && res.data) setStoreInfo(res.data);
-          })
-          .catch(() => { });
+        } catch {
+          // ignore
+        }
+      } else if (realBook?.business?.id || realBook?.business?.name) {
+        setStoreInfo(realBook.business);
       }
     }
+
+    resolveStore();
+
     if (realBook?.id) {
       flashSaleApi
         .getBookPrice(realBook.id)
         .then((res) => {
-          if (res?.success && res.data && res.data.salePrice) setFlashSaleInfo(res.data);
-          else setFlashSaleInfo(null);
+          if (!isCancelled && res?.success && res.data && res.data.salePrice) setFlashSaleInfo(res.data);
+          else if (!isCancelled) setFlashSaleInfo(null);
         })
-        .catch(() => setFlashSaleInfo(null));
+        .catch(() => { if (!isCancelled) setFlashSaleInfo(null); });
 
       discountApi
         .getDiscountByBookId(realBook.id)
         .then((res) => {
-          if (res?.success && res.data && res.data.status === 'ACTIVE' && res.data.isCurrentlyActive) {
+          if (!isCancelled && res?.success && res.data && res.data.status === 'ACTIVE' && res.data.isCurrentlyActive) {
             setBookDiscount(res.data);
-          } else {
+          } else if (!isCancelled) {
             setBookDiscount(null);
           }
         })
-        .catch(() => setBookDiscount(null));
+        .catch(() => { if (!isCancelled) setBookDiscount(null); });
     }
+
+    return () => {
+      isCancelled = true;
+    };
   }, [realBook]);
 
   useEffect(() => {

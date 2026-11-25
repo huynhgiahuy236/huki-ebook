@@ -15,6 +15,30 @@ export interface UseChatSocketOptions {
   onConversationClosed?: (data: { conversationId: string }) => void;
 }
 
+interface SharedSocketEntry {
+  socket: Socket;
+  subscribers: Set<{
+    callbacksRef: React.MutableRefObject<UseChatSocketOptions>;
+    setIsConnected: React.Dispatch<React.SetStateAction<boolean>>;
+  }>;
+  joinedRooms: Map<string, string | undefined>;
+  joinedShops: Map<string, number>;
+  seenMessageIds: Set<string>;
+  cleanupTimer?: ReturnType<typeof setTimeout>;
+}
+
+const sharedChatSockets = new Map<string, SharedSocketEntry>();
+
+function resolveChatSocketUrl(): string {
+  let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3005';
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    if (socketUrl.includes('localhost') || socketUrl.includes('127.0.0.1')) {
+      socketUrl = window.location.origin;
+    }
+  }
+  return socketUrl;
+}
+
 export function useChatSocket(options: UseChatSocketOptions = {}) {
   const {
     storeId,
@@ -27,10 +51,11 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
 
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+  const poolKeyRef = useRef<string | null>(null);
   const joinedRoomsRef = useRef<Map<string, string | undefined>>(new Map());
 
   // Lưu callbacks vào ref để tránh re-subscribe liên tục
-  const callbacksRef = useRef({
+  const callbacksRef = useRef<UseChatSocketOptions>({
     onMessageReceived,
     onMessageRead,
     onMessageDelivered,
@@ -52,117 +77,162 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
     const token = tokenStorage.getAccessToken();
     if (!token) return;
 
-    let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3005';
-    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      if (socketUrl.includes('localhost') || socketUrl.includes('127.0.0.1')) {
-        socketUrl = window.location.origin;
+    const socketUrl = resolveChatSocketUrl();
+    const poolKey = `${socketUrl}::${token}`;
+    poolKeyRef.current = poolKey;
+
+    let entry = sharedChatSockets.get(poolKey);
+    if (!entry) {
+      const socket = io(`${socketUrl}/chat`, {
+        transports: ['polling', 'websocket'],
+        auth: { token },
+        reconnection: true,
+        reconnectionAttempts: 12,
+        reconnectionDelay: 2000,
+        reconnectionDelayMax: 30000,
+        randomizationFactor: 0.4,
+        timeout: 10000,
+      });
+
+      entry = {
+        socket,
+        subscribers: new Set(),
+        joinedRooms: new Map(),
+        joinedShops: new Map(),
+        seenMessageIds: new Set(),
+      };
+
+      const poolEntry = entry;
+
+      socket.on('connect', () => {
+        poolEntry.subscribers.forEach((sub) => sub.setIsConnected(true));
+        poolEntry.joinedShops.forEach((count, shopId) => {
+          if (count > 0 && shopId) {
+            socket.emit('shop:join', { storeId: shopId });
+          }
+        });
+        poolEntry.joinedRooms.forEach((roomStoreId, convId) => {
+          socket.emit('conversation:join', {
+            conversationId: convId,
+            storeId: roomStoreId,
+          });
+        });
+      });
+
+      socket.on('disconnect', (reason) => {
+        poolEntry.subscribers.forEach((sub) => sub.setIsConnected(false));
+        if (reason === 'io server disconnect') {
+          socket.connect();
+        }
+      });
+
+      socket.on('connect_error', (err) => {
+        poolEntry.subscribers.forEach((sub) => sub.setIsConnected(false));
+        console.warn('[useChatSocket] Kết nối socket chat đang chờ thử lại:', err?.message || err);
+      });
+
+      const handleNewMessage = (msg: any) => {
+        const msgId = String(msg?.id || msg?._id || '');
+        if (msgId) {
+          if (poolEntry.seenMessageIds.has(msgId)) return;
+          poolEntry.seenMessageIds.add(msgId);
+          setTimeout(() => poolEntry.seenMessageIds.delete(msgId), 5000);
+        }
+        poolEntry.subscribers.forEach((sub) => sub.callbacksRef.current.onMessageReceived?.(msg));
+        realtimeSyncBus.publish('CHAT_MESSAGE_RECEIVED', msg);
+      };
+      socket.on('message:new', handleNewMessage);
+      socket.on('new_message', handleNewMessage);
+
+      const handleRead = (receipt: any) => {
+        poolEntry.subscribers.forEach((sub) => sub.callbacksRef.current.onMessageRead?.(receipt));
+        realtimeSyncBus.publish('CHAT_UNREAD_COUNT_CHANGED', receipt);
+      };
+      socket.on('message:read', handleRead);
+      socket.on('message_read', handleRead);
+      socket.on('conversation:read', handleRead);
+      socket.on('conversation_read', handleRead);
+
+      const handleDelivered = (receipt: any) => {
+        poolEntry.subscribers.forEach((sub) => sub.callbacksRef.current.onMessageDelivered?.(receipt));
+      };
+      socket.on('message:delivered', handleDelivered);
+      socket.on('message_delivered', handleDelivered);
+
+      const handleTyping = (data: any) => {
+        poolEntry.subscribers.forEach((sub) => sub.callbacksRef.current.onUserTyping?.(data));
+      };
+      socket.on('typing:user', handleTyping);
+      socket.on('user_typing', handleTyping);
+
+      socket.on('conversation:closed', (data: any) => {
+        poolEntry.subscribers.forEach((sub) => sub.callbacksRef.current.onConversationClosed?.(data));
+      });
+
+      sharedChatSockets.set(poolKey, poolEntry);
+    }
+
+    if (entry.cleanupTimer) {
+      clearTimeout(entry.cleanupTimer);
+      entry.cleanupTimer = undefined;
+    }
+
+    const subscriber = { callbacksRef, setIsConnected };
+    entry.subscribers.add(subscriber);
+    socketRef.current = entry.socket;
+    setIsConnected(entry.socket.connected);
+
+    if (storeId) {
+      const prevCount = entry.joinedShops.get(storeId) || 0;
+      entry.joinedShops.set(storeId, prevCount + 1);
+      if (entry.socket.connected) {
+        entry.socket.emit('shop:join', { storeId });
       }
     }
-    const socket = io(`${socketUrl}/chat`, {
-      transports: ['websocket', 'polling'],
-      auth: { token },
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 3000,
-      reconnectionDelayMax: 30000,
-      randomizationFactor: 0.5,
-      timeout: 10000,
-    });
 
-    socketRef.current = socket;
-
-    socket.on('connect', () => {
-      setIsConnected(true);
-      // Nếu là seller trực chat cho shop, tự động join room của shop
-      if (storeId) {
-        socket.emit('shop:join', { storeId });
-      }
-      // Tự động join lại tất cả các phòng hội thoại đang mở hoặc được xếp hàng trước khi socket connect xong
-      joinedRoomsRef.current.forEach((roomStoreId, convId) => {
-        socket.emit('conversation:join', {
+    joinedRoomsRef.current.forEach((roomStoreId, convId) => {
+      entry!.joinedRooms.set(convId, roomStoreId || storeId);
+      if (entry!.socket.connected) {
+        entry!.socket.emit('conversation:join', {
           conversationId: convId,
           storeId: roomStoreId || storeId,
         });
-      });
-    });
-
-    socket.on('disconnect', (reason) => {
-      setIsConnected(false);
-      // Tự động kết nối lại nếu bị server disconnect đột ngột
-      if (reason === 'io server disconnect') {
-        socket.connect();
       }
-    });
-
-    socket.on('connect_error', (err) => {
-      setIsConnected(false);
-      console.warn('[useChatSocket] Kết nối socket chat đang chờ thử lại:', err?.message || err);
-    });
-
-    // Lắng nghe tin nhắn mới (dedup nếu server phát cả message:new và new_message)
-    const seenMessageIds = new Set<string>();
-    const handleNewMessage = (msg: any) => {
-      const msgId = String(msg?.id || msg?._id || '');
-      if (msgId) {
-        if (seenMessageIds.has(msgId)) return;
-        seenMessageIds.add(msgId);
-        setTimeout(() => seenMessageIds.delete(msgId), 5000);
-      }
-      callbacksRef.current.onMessageReceived?.(msg);
-      realtimeSyncBus.publish('CHAT_MESSAGE_RECEIVED', msg);
-    };
-    socket.on('message:new', handleNewMessage);
-    socket.on('new_message', handleNewMessage);
-
-    // Lắng nghe đã đọc (đồng bộ tức thì - BUG-MOD06-14)
-    const handleRead = (receipt: any) => {
-      callbacksRef.current.onMessageRead?.(receipt);
-      realtimeSyncBus.publish('CHAT_UNREAD_COUNT_CHANGED', receipt);
-    };
-    socket.on('message:read', handleRead);
-    socket.on('message_read', handleRead);
-    socket.on('conversation:read', handleRead);
-    socket.on('conversation_read', handleRead);
-
-    // Lắng nghe đã nhận
-    const handleDelivered = (receipt: any) => {
-      callbacksRef.current.onMessageDelivered?.(receipt);
-    };
-    socket.on('message:delivered', handleDelivered);
-    socket.on('message_delivered', handleDelivered);
-
-    // Lắng nghe typing
-    const handleTyping = (data: any) => {
-      callbacksRef.current.onUserTyping?.(data);
-    };
-    socket.on('typing:user', handleTyping);
-    socket.on('user_typing', handleTyping);
-
-    // Lắng nghe đóng hội thoại
-    socket.on('conversation:closed', (data: any) => {
-      callbacksRef.current.onConversationClosed?.(data);
     });
 
     const handleFocusOrOnline = () => {
-      if (typeof window !== 'undefined' && socketRef.current && !socketRef.current.connected) {
-        socketRef.current.connect();
+      if (typeof window !== 'undefined' && entry?.socket && !entry.socket.connected) {
+        entry.socket.connect();
       }
     };
     if (typeof window !== 'undefined') {
-      window.addEventListener('focus', handleFocusOrOnline);
       window.addEventListener('online', handleFocusOrOnline);
     }
 
     return () => {
       if (typeof window !== 'undefined') {
-        window.removeEventListener('focus', handleFocusOrOnline);
         window.removeEventListener('online', handleFocusOrOnline);
       }
+      entry!.subscribers.delete(subscriber);
       if (storeId) {
-        socket.emit('shop:leave', { storeId });
+        const currentCount = entry!.joinedShops.get(storeId) || 0;
+        if (currentCount <= 1) {
+          entry!.joinedShops.delete(storeId);
+          if (entry!.socket.connected) {
+            entry!.socket.emit('shop:leave', { storeId });
+          }
+        } else {
+          entry!.joinedShops.set(storeId, currentCount - 1);
+        }
       }
-      socket.disconnect();
-      socketRef.current = null;
+      if (entry!.subscribers.size === 0) {
+        entry!.cleanupTimer = setTimeout(() => {
+          if (entry!.subscribers.size === 0) {
+            entry!.socket.disconnect();
+            sharedChatSockets.delete(poolKey);
+          }
+        }, 1500);
+      }
     };
   }, [storeId]);
 
@@ -181,6 +251,8 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
     if (!isValidConversationId(conversationId)) return;
     const effectiveStoreId = currentStoreId || storeId;
     joinedRoomsRef.current.set(conversationId, effectiveStoreId);
+    const entry = poolKeyRef.current ? sharedChatSockets.get(poolKeyRef.current) : undefined;
+    if (entry) entry.joinedRooms.set(conversationId, effectiveStoreId);
     if (socketRef.current?.connected) {
       socketRef.current.emit('conversation:join', {
         conversationId,
@@ -193,6 +265,8 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
   const leaveConversation = useCallback((conversationId: string, currentStoreId?: string) => {
     if (!isValidConversationId(conversationId)) return;
     joinedRoomsRef.current.delete(conversationId);
+    const entry = poolKeyRef.current ? sharedChatSockets.get(poolKeyRef.current) : undefined;
+    if (entry) entry.joinedRooms.delete(conversationId);
     if (socketRef.current?.connected) {
       socketRef.current.emit('conversation:leave', {
         conversationId,

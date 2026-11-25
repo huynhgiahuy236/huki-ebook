@@ -188,8 +188,8 @@ export default function FloatingAIChatbox() {
         cover: book.coverUrl,
         format: book.format || 'Sách giấy',
         type: book.format?.toLowerCase().includes('ebook') ? 'ebook' : 'physical',
-        storeId: book.storeId || 'huki-official',
-        storeName: book.storeName || 'Gian Hàng HUKI Official',
+        storeId: book.storeId || '77777777-0000-4000-8000-000000000001',
+        storeName: book.storeName || 'Nhà Sách HuKi Official',
       });
       try {
         personalizationService.recordBookInteraction(book.id);
@@ -211,12 +211,29 @@ export default function FloatingAIChatbox() {
       e.preventDefault();
       e.stopPropagation();
     }
-    await handleAddToCartItem(book);
-    // Gom đơn về 1 store duy nhất: Bỏ chọn toàn bộ sản phẩm của các store khác để checkout sạch sẽ
-    if (selectStoreExclusive) {
-      selectStoreExclusive(book.storeId || 'huki-official', book.id);
+    const isEbook = book.format?.toLowerCase().includes('ebook') || book.format?.toLowerCase().includes('drm');
+    const directItem = {
+      id: `${book.id}-direct-ai`,
+      bookId: book.id,
+      title: book.title,
+      author: book.author || 'Tác giả HUKI',
+      price: Number(book.price || 0),
+      originalPrice: Number(book.originalPrice || book.price || 0),
+      cover: book.coverUrl || '/banners/hero-library.jpg',
+      quantity: 1,
+      format: isEbook ? 'DIGITAL' : 'PHYSICAL',
+      type: isEbook ? 'ebook' : 'physical',
+      storeId: book.storeId || '77777777-0000-4000-8000-000000000001',
+      storeName: book.storeName || 'Nhà Sách HuKi Official',
+    };
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('huki_direct_checkout_item', JSON.stringify(directItem));
     }
-    router.push('/cart');
+    try {
+      personalizationService.recordBookInteraction(book.id);
+    } catch {}
+    setIsOpen(false);
+    router.push('/checkout?direct=1');
   };
 
   const handleSendMessage = async (textToSend?: string) => {

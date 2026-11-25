@@ -4,11 +4,22 @@
  * when external or malformed URLs fail to load.
  */
 
+// Known external Goodreads/Amazon URLs returning HTTP 403 upstream (avoid console 403 spam)
+const BLOCKED_EXTERNAL_COVER_IDS = [
+  'compressed.photo.goodreads.com/books/1398863674i/1362193.jpg',
+  'compressed.photo.goodreads.com/books/1327914902i/10706212.jpg',
+  'compressed.photo.goodreads.com/books/1700180941i/23692271.jpg',
+  'compressed.photo.goodreads.com/books/1360697241i/17351659.jpg',
+  'compressed.photo.goodreads.com/books/1608620242i/56379564.jpg',
+];
+
 export function sanitizeImageUrl(url?: string | null): string | undefined {
   if (!url || typeof url !== 'string') return undefined;
   const trimmed = url.trim();
   if (!trimmed || trimmed === 'null' || trimmed === 'undefined') return undefined;
-  if (trimmed.toLowerCase().startsWith('blob:')) return undefined;
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith('blob:')) return undefined;
+  if (BLOCKED_EXTERNAL_COVER_IDS.some((sig) => lower.includes(sig))) return undefined;
   return trimmed;
 }
 

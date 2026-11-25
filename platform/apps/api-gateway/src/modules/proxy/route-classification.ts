@@ -209,6 +209,10 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
   }
 
   // 6. Public read-only catalog, browsing, and content
+  if (normPath === '/discounts/batch-active' && upperMethod === 'POST') {
+    return 'PUBLIC';
+  }
+
   if (upperMethod === 'GET') {
     if (
       normPath.startsWith('/catalog') ||
@@ -216,6 +220,8 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
       normPath.startsWith('/authors') ||
       normPath.startsWith('/publishers') ||
       normPath.startsWith('/banners') ||
+      normPath.startsWith('/discounts/active') ||
+      normPath.startsWith('/analytics/recommendations/similar') ||
       normPath === '/vouchers' ||
       normPath === '/ai-audio/plans' ||
       normPath.startsWith('/ai-audio/plans') ||

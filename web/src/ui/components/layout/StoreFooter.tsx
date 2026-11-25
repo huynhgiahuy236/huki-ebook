@@ -95,7 +95,7 @@ export default function StoreFooter() {
             <span>•</span>
             <Link href="/policy/privacy" className="hover:underline text-white">Bảo Mật Dữ Liệu</Link>
             <span>•</span>
-            <span>Hotline: 1900 8866</span>
+            <span>Hotline:037 2212 378</span>
           </div>
         </div>
       </div>

@@ -511,12 +511,15 @@ function MessengerContent() {
     },
   });
 
-  // 3. Tải tin nhắn của hội thoại đang mở & join socket room
+  // 3. Tải tin nhắn của hội thoại đang mở & join socket room (tách isConnected khỏi HTTP reload tránh giật màn hình - BUG-048)
+  const lastSyncRef = useRef<number>(0);
   useEffect(() => {
     if (!activeChannel) return;
-    async function loadMessages() {
+    let isCancelled = false;
+    async function loadMessages(silent = false) {
       try {
         const res = await chatService.getMessages(activeChannel);
+        if (isCancelled) return;
         const rawList: ChatMessage[] = Array.isArray(res.data)
           ? res.data
           : (Array.isArray((res.data as any)?.data)
@@ -544,36 +547,59 @@ function MessengerContent() {
               status: (m.status?.toLowerCase() as any) || 'sent',
             };
           });
-          setMessagesMap(prev => ({ ...prev, [activeChannel]: mappedMsgs }));
-          setTimeout(() => scrollToBottom('auto'), 80);
+          let hasChanged = false;
+          setMessagesMap(prev => {
+            const prevList = prev[activeChannel] || [];
+            if (
+              silent &&
+              prevList.length === mappedMsgs.length &&
+              String(prevList[prevList.length - 1]?.id || '') === String(mappedMsgs[mappedMsgs.length - 1]?.id || '')
+            ) {
+              return prev;
+            }
+            hasChanged = prevList.length !== mappedMsgs.length;
+            return { ...prev, [activeChannel]: mappedMsgs };
+          });
+          if (!silent || hasChanged) {
+            setTimeout(() => scrollToBottom(silent ? 'smooth' : 'auto'), 80);
+          }
         }
       } catch (err) {
         console.error('Lỗi tải tin nhắn:', err);
       }
     }
-    loadMessages();
+    loadMessages(false);
+    lastSyncRef.current = Date.now();
     joinConversation(activeChannel);
     markAsRead(activeChannel);
-    // Xóa ngay unread badge của hội thoại đang mở
     setChannels(prev =>
       prev.map(c => (c.id === activeChannel ? { ...c, unread: 0 } : c))
     );
 
-    const handleVisibilityOrFocus = () => {
+    const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        loadMessages();
         joinConversation(activeChannel);
+        const now = Date.now();
+        if (now - lastSyncRef.current >= 10000) {
+          lastSyncRef.current = now;
+          loadMessages(true);
+        }
       }
     };
-    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
-    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
-      window.removeEventListener('focus', handleVisibilityOrFocus);
+      isCancelled = true;
+      document.removeEventListener('visibilitychange', handleVisibility);
       leaveConversation(activeChannel);
     };
-  }, [activeChannel, isConnected, joinConversation, leaveConversation, markAsRead, scrollToBottom]);
+  }, [activeChannel, joinConversation, leaveConversation, markAsRead, scrollToBottom]);
+
+  useEffect(() => {
+    if (isConnected && activeChannel) {
+      joinConversation(activeChannel);
+    }
+  }, [isConnected, activeChannel, joinConversation]);
 
   // Quản lý tệp đính kèm người mua (Ảnh / Video)
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

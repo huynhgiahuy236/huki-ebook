@@ -283,6 +283,8 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest123}@rabbitmq:5672
+    ports:
+      - "127.0.0.1:3015:3005"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3005/api/v1/health/live"]
       interval: 15s

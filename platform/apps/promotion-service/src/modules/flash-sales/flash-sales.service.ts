@@ -1729,6 +1729,12 @@ export class FlashSalesService
   async sellerRegisterItem(
     businessId: string,
     dto: SellerRegisterFlashSaleItemDto,
+    preloaded?: {
+      flashSale?: any;
+      book?: any;
+      participatingStoreIds?: string[];
+      skipSyncStock?: boolean;
+    },
   ) {
     if (!businessId) {
       throwForbidden(
@@ -1737,9 +1743,11 @@ export class FlashSalesService
       );
     }
 
-    const flashSale = await this.prisma.flashSale.findUnique({
-      where: { id: dto.flashSaleId },
-    });
+    const flashSale =
+      preloaded?.flashSale ||
+      (await this.prisma.flashSale.findUnique({
+        where: { id: dto.flashSaleId },
+      }));
     if (!flashSale) {
       throwNotFound(
         ErrorCode.FLASH_SALE_NOT_FOUND,
@@ -1755,7 +1763,7 @@ export class FlashSalesService
       );
     }
 
-    const book = await this.getCommerceBook(dto.bookId);
+    const book = preloaded?.book || (await this.getCommerceBookCached(dto.bookId));
     if (!book) {
       throwNotFound(
         ErrorCode.BOOK_NOT_FOUND,
@@ -1822,7 +1830,9 @@ export class FlashSalesService
         );
       }
 
-      const participatingStoreIds = await this.getParticipatingStoreIds(flashSale.id);
+      const participatingStoreIds =
+        preloaded?.participatingStoreIds ||
+        (await this.getParticipatingStoreIds(flashSale.id));
       const isAlreadyParticipating = participatingStoreIds.includes(businessId);
       const maxStores = flashSale.maxStores || 10;
       if (!isAlreadyParticipating && participatingStoreIds.length >= maxStores) {
@@ -1964,25 +1974,60 @@ export class FlashSalesService
       );
     }
 
+    // Pre-fetch books and store participation ONCE in parallel to avoid N+1 latency (BUG-051)
+    const uniqueBookIds = Array.from(new Set(dto.items.map((item) => item.bookId)));
+    const [preloadedBooks, participatingStoreIds] = await Promise.all([
+      Promise.all(
+        uniqueBookIds.map(async (bookId) => ({
+          bookId,
+          book: await this.getCommerceBookCached(bookId),
+        })),
+      ),
+      flashSale.scope === FlashSaleScope.PLATFORM
+        ? this.getParticipatingStoreIds(dto.flashSaleId)
+        : Promise.resolve([] as string[]),
+    ]);
+    const bookCacheMap = new Map<string, any>();
+    preloadedBooks.forEach(({ bookId, book }) => {
+      if (book) bookCacheMap.set(bookId, book);
+    });
+
     const results: any[] = [];
     const errors: any[] = [];
 
-    for (const itemDto of dto.items) {
-      try {
-        const registered = await this.sellerRegisterItem(businessId, {
-          flashSaleId: dto.flashSaleId,
-          bookId: itemDto.bookId,
-          salePrice: itemDto.salePrice,
-          stock: itemDto.stock,
-          maxPerUser: itemDto.maxPerUser ?? 1,
-        });
-        results.push(registered);
-      } catch (err: any) {
-        errors.push({
-          bookId: itemDto.bookId,
-          error: err?.message || "Lỗi đăng ký sản phẩm",
-        });
-      }
+    const CHUNK_SIZE = 5;
+    for (let i = 0; i < dto.items.length; i += CHUNK_SIZE) {
+      const chunk = dto.items.slice(i, i + CHUNK_SIZE);
+      const settled = await Promise.allSettled(
+        chunk.map((itemDto) =>
+          this.sellerRegisterItem(
+            businessId,
+            {
+              flashSaleId: dto.flashSaleId,
+              bookId: itemDto.bookId,
+              salePrice: itemDto.salePrice,
+              stock: itemDto.stock,
+              maxPerUser: itemDto.maxPerUser ?? 1,
+            },
+            {
+              flashSale,
+              book: bookCacheMap.get(itemDto.bookId),
+              participatingStoreIds,
+            },
+          ),
+        ),
+      );
+      settled.forEach((outcome, idx) => {
+        const itemDto = chunk[idx];
+        if (outcome.status === "fulfilled") {
+          results.push(outcome.value);
+        } else {
+          errors.push({
+            bookId: itemDto.bookId,
+            error: outcome.reason?.message || "Lỗi đăng ký sản phẩm",
+          });
+        }
+      });
     }
 
     if (results.length === 0 && errors.length > 0) {

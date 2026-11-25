@@ -154,30 +154,27 @@ export default function EscrowCountdown({
 
   if (frozen) {
     return (
-      <div className={`p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 flex items-center justify-between gap-3 shadow-xs ${className}`}>
+      <div className={`px-4 py-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${className}`}>
         <div className="flex items-center gap-2.5">
-          <span className="material-symbols-outlined text-[26px] text-amber-600 dark:text-amber-400 animate-pulse">
+          <span className="material-symbols-outlined text-[20px] text-amber-600 dark:text-amber-400 shrink-0">
             lock_clock
           </span>
-          <div>
-            <div className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-              <span>Đã Đóng Băng Ký Quỹ (Escrow Frozen)</span>
-              <span className="px-1.5 py-0.2 rounded-full bg-amber-200 dark:bg-amber-800 text-amber-950 dark:text-amber-100 text-[10px] font-bold">
-                Tạm Dừng Giải Ngân
-              </span>
-            </div>
-            <div className="text-xs text-amber-800/80 dark:text-amber-300/80 mt-0.5">
-              Đơn hàng đang có yêu cầu đổi trả/hoàn tiền. Tiền ký quỹ ({Number(amount).toLocaleString('vi-VN')}₫) đang được Sàn tạm giữ an toàn để bảo vệ quyền lợi của bạn.
-            </div>
+          <div className="text-xs">
+            <span className="font-semibold text-amber-900 dark:text-amber-200">
+              Đang tạm giữ ký quỹ ({Number(amount).toLocaleString('vi-VN')}đ):
+            </span>{' '}
+            <span className="text-amber-800/85 dark:text-amber-300/85">
+              Đơn hàng đang có yêu cầu đổi trả — tiền được Sàn bảo vệ trong lúc xử lý.
+            </span>
           </div>
         </div>
         <button
           type="button"
           onClick={() => router.push(`/returns?orderId=${orderId}&subOrderId=${subOrderId}`)}
-          className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs inline-flex items-center gap-1"
+          className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium transition-colors shrink-0 cursor-pointer inline-flex items-center gap-1 self-start sm:self-center"
         >
-          <span className="material-symbols-outlined text-[15px]">history_edu</span>
-          <span>Xem Tiến Trình</span>
+          <span className="material-symbols-outlined text-[14px]">history_edu</span>
+          <span>Xem tiến trình</span>
         </button>
       </div>
     );

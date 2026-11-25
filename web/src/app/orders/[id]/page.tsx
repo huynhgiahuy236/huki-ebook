@@ -1074,16 +1074,16 @@ export default function OrderDetailPage() {
 
                   {/* Pure Digital Banner */}
                   {isDigitalPackage && (
-                    <div className="mb-4 p-3.5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-900/30 flex items-center justify-between gap-3 flex-wrap">
-                      <div className="flex items-center gap-2.5 text-emerald-900 dark:text-emerald-200 text-xs">
-                        <span className="material-symbols-outlined text-lg text-emerald-700">verified</span>
-                        <span>Ấn phẩm Ebook số bản quyền DRM đã được kích hoạt trực tiếp vào Tủ sách của bạn.</span>
+                    <div className="mb-4 px-4 py-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-900/30 flex items-center justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-2 text-emerald-900 dark:text-emerald-200 text-xs font-medium">
+                        <span className="material-symbols-outlined text-[18px] text-emerald-700 shrink-0">verified</span>
+                        <span>Ebook bản quyền đã được kích hoạt trong Tủ sách của bạn.</span>
                       </div>
                       <Link
                         href="/library"
-                        className="h-8 px-3.5 rounded-xl bg-[#003B2B] hover:bg-[#002b1f] text-white text-xs font-medium inline-flex items-center gap-1.5 shadow-2xs transition-all"
+                        className="h-8 px-3 rounded-lg bg-[#003B2B] hover:bg-[#002b1f] text-white text-xs font-medium inline-flex items-center gap-1.5 transition-colors shrink-0"
                       >
-                        <span className="material-symbols-outlined text-sm">auto_stories</span>
+                        <span className="material-symbols-outlined text-[15px]">auto_stories</span>
                         <span>Mở Tủ Sách</span>
                       </Link>
                     </div>
@@ -1126,31 +1126,26 @@ export default function OrderDetailPage() {
                       <div className="space-y-6">
                         {/* NHÓM 1: EBOOK (NẾU CÓ) */}
                         {ebookItems.length > 0 && (
-                          <div className="p-4 rounded-2xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 space-y-3">
-                            <div className="flex items-center justify-between pb-2 border-b border-indigo-100/80 dark:border-indigo-900/40">
-                              <div className="flex items-center gap-2">
-                                <span className="material-symbols-outlined text-[20px] text-indigo-600 dark:text-indigo-400">
-                                  auto_stories
+                          <div className="rounded-2xl bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="material-symbols-outlined text-[18px] text-[#003B2B] dark:text-emerald-400">
+                                  menu_book
                                 </span>
-                                <span className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
-                                  Sách Điện Tử Ebook ({ebookItems.length})
+                                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                  Ấn phẩm Ebook ({ebookItems.length})
                                 </span>
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                                  Giao tức thì 24/7
+                                <span className="text-[11px] text-slate-500">
+                                  • Giao tức thì{isOrderPaid ? ` • Đổi trả trong ${ESCROW_CONFIG.DURATION_LABEL}` : ''}
                                 </span>
-                                {isOrderPaid && (
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                                    Đổi trả {ESCROW_CONFIG.DURATION_LABEL}
-                                  </span>
-                                )}
                               </div>
-                              <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300">
+                              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 font-mono">
                                 {ebookSubtotal.toLocaleString('vi-VN')}đ
                               </span>
                             </div>
 
-                            {/* Danh sách Ebook - 1 hàng ngang duy nhất */}
-                            <div className="divide-y divide-indigo-100/60 dark:divide-indigo-900/30 overflow-x-auto">
+                            {/* Danh sách Ebook - Bố cục 2 dòng chuẩn Shopee, luôn hiển thị trọn vẹn tên sách (BUG-053) */}
+                            <div className="divide-y divide-slate-100 dark:divide-slate-800">
                               {ebookItems.map((item: any, idx: number) => {
                                 const itTitle = item.bookTitle || item.title || 'Sách Ebook';
                                 const itPrice = Number(item.unitPrice || item.price || 0);
@@ -1203,93 +1198,99 @@ export default function OrderDetailPage() {
                                 return (
                                   <div
                                     key={item.id || idx}
-                                    className="py-3 flex items-center justify-between gap-3 whitespace-nowrap min-w-[550px]"
+                                    className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                                   >
-                                    <div className="flex items-center gap-3 min-w-0">
-                                      <div className="w-10 h-14 rounded-lg bg-indigo-100/60 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 overflow-hidden shrink-0 flex items-center justify-center">
+                                    <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                                      <div className="w-14 h-20 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
                                         {item.bookCoverUrl || item.coverUrl ? (
                                           <img
                                             src={item.bookCoverUrl || item.coverUrl}
                                             alt={itTitle}
+                                            referrerPolicy="no-referrer"
                                             className="w-full h-full object-cover"
                                           />
                                         ) : (
-                                          <span className="material-symbols-outlined text-indigo-400 text-[18px]">
+                                          <span className="material-symbols-outlined text-slate-400 text-[20px]">
                                             auto_stories
                                           </span>
                                         )}
                                       </div>
 
-                                      <div className="min-w-0">
-                                        <div className="flex items-center gap-2">
-                                          <span className="font-bold text-sm text-on-surface truncate max-w-[220px]" title={itTitle}>
-                                            {itTitle}
+                                      <div className="min-w-0 flex-1 space-y-1">
+                                        <Link
+                                          href={`/book/${item.bookId || item.id}`}
+                                          className="font-semibold text-sm text-slate-900 dark:text-slate-100 hover:text-[#003B2B] line-clamp-2 leading-snug block transition-colors"
+                                          title={itTitle}
+                                        >
+                                          {itTitle}
+                                        </Link>
+                                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                          <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-medium">
+                                            Ebook DRM
                                           </span>
-                                          <OrderItemBadge format="DIGITAL" />
+                                          <span>SL: {item.quantity || 1} × {itPrice.toLocaleString('vi-VN')}đ</span>
                                           {isOrderPaid && (
-                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
-                                              <span className="material-symbols-outlined text-[12px]">verified</span>
-                                              <span>ĐÃ NHẬN SÁCH</span>
+                                            <span className="text-emerald-700 dark:text-emerald-400 font-medium inline-flex items-center gap-0.5">
+                                              <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                                              Đã nhận sách
                                             </span>
                                           )}
-                                        </div>
-                                        <div className="text-[11px] text-on-surface-variant mt-0.5">
-                                          SL: <b className="text-on-surface">{item.quantity || 1}</b> × {itPrice.toLocaleString('vi-VN')}đ
                                         </div>
                                       </div>
                                     </div>
 
-                                    <div className="flex items-center gap-2 shrink-0">
-                                      <span className="font-bold text-sm text-slate-900 dark:text-slate-100 mr-1">
+                                    <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0 pt-1 sm:pt-0">
+                                      <span className="font-bold text-sm text-slate-900 dark:text-slate-100 font-mono">
                                         {itSubtotal.toLocaleString('vi-VN')}đ
                                       </span>
-                                      <Link
-                                        href={`/reader/${item.bookId}`}
-                                        className="h-8 px-3 rounded-xl bg-[#003B2B] hover:bg-[#002b1f] text-white text-xs font-medium inline-flex items-center gap-1.5 shadow-2xs transition-colors"
-                                      >
-                                        <span className="material-symbols-outlined text-sm">chrome_reader_mode</span>
-                                        <span>Đọc Ngay</span>
-                                      </Link>
-                                      {isOrderPaid && (
-                                        hasSubmittedReturn ? (
-                                          <button
-                                            type="button"
-                                            disabled
-                                            className="h-8 px-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-xs font-medium inline-flex items-center gap-1.5 opacity-90 cursor-not-allowed select-none"
-                                            title="Món hàng này đã gửi yêu cầu đổi trả và đang chờ xử lý"
-                                          >
-                                            <span className="material-symbols-outlined text-[15px]">assignment_turned_in</span>
-                                            <span>Đã Gửi Yêu Cầu</span>
-                                          </button>
-                                        ) : isReturnDisabled ? (
-                                          <button
-                                            type="button"
-                                            disabled
-                                            className="h-8 px-3 rounded-xl border border-slate-200 bg-slate-100 text-slate-400 text-xs font-medium inline-flex items-center gap-1.5 opacity-60 cursor-not-allowed select-none"
-                                            title="Đã hết thời hạn yêu cầu đổi trả cho Ebook này"
-                                          >
-                                            <span className="material-symbols-outlined text-[15px]">assignment_return</span>
-                                            <span>Hết Hạn Đổi Trả</span>
-                                          </button>
-                                        ) : (
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              setReturnModal({
-                                                open: true,
-                                                item,
-                                                storeName: storeDisplayName,
-                                                subOrderId: so.id,
-                                              })
-                                            }
-                                            className="h-8 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                                            title="Yêu cầu đổi trả cho Ebook này"
-                                          >
-                                            <span className="material-symbols-outlined text-[15px]">assignment_return</span>
-                                            <span>Yêu Cầu Đổi Trả</span>
-                                          </button>
-                                        )
-                                      )}
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <Link
+                                          href={`/reader/${item.bookId}`}
+                                          className="h-8 px-3 rounded-lg bg-[#003B2B] hover:bg-[#002b1f] text-white text-xs font-medium inline-flex items-center gap-1.5 transition-colors"
+                                        >
+                                          <span className="material-symbols-outlined text-[15px]">chrome_reader_mode</span>
+                                          <span>Đọc Ngay</span>
+                                        </Link>
+                                        {isOrderPaid && (
+                                          hasSubmittedReturn ? (
+                                            <button
+                                              type="button"
+                                              disabled
+                                              className="h-8 px-2.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-xs font-medium inline-flex items-center gap-1 cursor-not-allowed select-none"
+                                              title="Món hàng này đã gửi yêu cầu đổi trả và đang chờ xử lý"
+                                            >
+                                              <span className="material-symbols-outlined text-[14px]">assignment_turned_in</span>
+                                              <span>Đã gửi đổi trả</span>
+                                            </button>
+                                          ) : isReturnDisabled ? (
+                                            <button
+                                              type="button"
+                                              disabled
+                                              className="h-8 px-2.5 rounded-lg border border-slate-200 bg-slate-100 text-slate-400 text-xs font-medium inline-flex items-center gap-1 cursor-not-allowed select-none"
+                                              title="Đã hết thời hạn yêu cầu đổi trả cho Ebook này"
+                                            >
+                                              <span>Hết hạn đổi trả</span>
+                                            </button>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                setReturnModal({
+                                                  open: true,
+                                                  item,
+                                                  storeName: storeDisplayName,
+                                                  subOrderId: so.id,
+                                                })
+                                              }
+                                              className="h-8 px-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium inline-flex items-center gap-1 transition-all cursor-pointer"
+                                              title="Yêu cầu đổi trả cho Ebook này"
+                                            >
+                                              <span className="material-symbols-outlined text-[14px]">assignment_return</span>
+                                              <span>Đổi trả</span>
+                                            </button>
+                                          )
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 );
@@ -1412,39 +1413,44 @@ export default function OrderDetailPage() {
                                 return (
                                   <div
                                     key={item.id || idx}
-                                    className="py-3 flex items-center justify-between gap-3 whitespace-nowrap min-w-[550px]"
+                                    className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                                   >
-                                    <div className="flex items-center gap-3 min-w-0">
-                                      <div className="w-10 h-14 rounded-lg bg-amber-100/60 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 overflow-hidden shrink-0 flex items-center justify-center">
+                                    <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                                      <div className="w-14 h-20 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
                                         {item.bookCoverUrl || item.coverUrl ? (
                                           <img
                                             src={item.bookCoverUrl || item.coverUrl}
                                             alt={itTitle}
+                                            referrerPolicy="no-referrer"
                                             className="w-full h-full object-cover"
                                           />
                                         ) : (
-                                          <span className="material-symbols-outlined text-amber-500 text-[18px]">
+                                          <span className="material-symbols-outlined text-slate-400 text-[20px]">
                                             menu_book
                                           </span>
                                         )}
                                       </div>
 
-                                      <div className="min-w-0">
-                                        <div className="flex items-center gap-2">
-                                          <span className="font-bold text-sm text-on-surface truncate max-w-[260px]" title={itTitle}>
-                                            {itTitle}
+                                      <div className="min-w-0 flex-1 space-y-1">
+                                        <Link
+                                          href={`/book/${item.bookId || item.id}`}
+                                          className="font-semibold text-sm text-slate-900 dark:text-slate-100 hover:text-[#003B2B] line-clamp-2 leading-snug block transition-colors"
+                                          title={itTitle}
+                                        >
+                                          {itTitle}
+                                        </Link>
+                                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                          <span className="px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200/70 text-[11px] font-medium">
+                                            Sách giấy
                                           </span>
-                                          <OrderItemBadge format="PHYSICAL" />
-                                        </div>
-                                        <div className="text-[11px] text-on-surface-variant mt-0.5">
-                                          SL: <b className="text-on-surface">{item.quantity || 1}</b> × {itPrice.toLocaleString('vi-VN')}đ
-                                          {item.bookIsbn && <span className="ml-2 font-mono text-[10px]">ISBN: {item.bookIsbn}</span>}
+                                          <span>SL: {item.quantity || 1} × {itPrice.toLocaleString('vi-VN')}đ</span>
+                                          {item.bookIsbn && <span className="font-mono text-[10px]">ISBN: {item.bookIsbn}</span>}
                                         </div>
                                       </div>
                                     </div>
 
-                                    <div className="flex items-center gap-3 shrink-0">
-                                      <span className="font-bold text-sm text-theme-primary">
+                                    <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0 pt-1 sm:pt-0">
+                                      <span className="font-bold text-sm text-slate-900 dark:text-slate-100 font-mono">
                                         {itSubtotal.toLocaleString('vi-VN')}đ
                                       </span>
                                       {isPhysicalDelivered && (

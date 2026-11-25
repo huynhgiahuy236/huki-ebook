@@ -188,10 +188,15 @@ export class CheckoutService {
         }
       }
 
+      const resolvedDirectStore =
+        typeof this.cartService?.resolveCanonicalStore === 'function'
+          ? await this.cartService.resolveCanonicalStore(book.storeId)
+          : null;
+
       items = [{
         cartItemId: '',
         bookId: book.id,
-        storeId: book.storeId,
+        storeId: resolvedDirectStore?.canonicalStoreId || book.storeId,
         ownerUserId: book.ownerUserId,
         title: book.title,
         coverUrl: book.coverUrl,
@@ -272,10 +277,14 @@ export class CheckoutService {
               }
             }
           }
+          const resolvedCartStore =
+            typeof this.cartService?.resolveCanonicalStore === 'function'
+              ? await this.cartService.resolveCanonicalStore(book.storeId)
+              : null;
           return {
             cartItemId: item.id,
             bookId: book.id,
-            storeId: book.storeId,
+            storeId: resolvedCartStore?.canonicalStoreId || book.storeId,
             ownerUserId: book.ownerUserId,
             title: book.title,
             coverUrl: book.coverUrl,

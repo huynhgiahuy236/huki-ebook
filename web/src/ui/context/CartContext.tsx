@@ -3,6 +3,32 @@ import { useToast } from './ToastContext';
 import { useAuth } from './AuthContext';
 import { cartApi, type CartItemFormat } from '../api/cartApi';
 
+const OFFICIAL_STORE_ID = '77777777-0000-4000-8000-000000000001';
+const OFFICIAL_STORE_SEED_ALIASES = new Set([
+  'huki-official',
+  'default-store',
+  'nha-sach-huki-official',
+  '77777777-0000-4000-8000-000000000001',
+  '88888888-0000-4000-8000-000000000001',
+  '99999999-0000-4000-8000-000000000001',
+]);
+
+function canonicalizeCartStore(rawId?: string | null, rawName?: string | null): { storeId: string; storeName: string } {
+  const id = String(rawId || '').trim();
+  const lower = id.toLowerCase();
+  const cleanName = String(rawName || '').trim();
+  if (!id || OFFICIAL_STORE_SEED_ALIASES.has(lower)) {
+    return {
+      storeId: OFFICIAL_STORE_ID,
+      storeName: cleanName && cleanName !== 'Gian Hàng HUKI' ? cleanName : 'Nhà Sách HuKi Official',
+    };
+  }
+  return {
+    storeId: id,
+    storeName: cleanName && cleanName !== 'Gian Hàng HUKI' ? cleanName : 'Nhà Sách HuKi Official',
+  };
+}
+
 export interface CartItem {
   id: string;
   bookId: string;
@@ -134,8 +160,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const isAvailable = serverItem.isAvailable !== false && serverItem.status !== 'OUT_OF_STOCK';
 
-    // Resolve store ID strictly from server book metadata
-    const resolvedStoreId =
+    // Resolve store ID strictly from server book metadata & coalesce canonical official aliases (BUG-050)
+    const rawResolvedStoreId =
       (serverItem.book?.storeId && serverItem.book.storeId !== 'huki-official' && serverItem.book.storeId) ||
       (serverItem.book?.businessId && serverItem.book.businessId !== 'huki-official' && serverItem.book.businessId) ||
       (serverItem.storeId && serverItem.storeId !== 'huki-official' && serverItem.storeId) ||
@@ -144,28 +170,25 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       serverItem.book?.storeId ||
       'huki-official';
 
-    const resolvedBusinessId =
-      (serverItem.book?.businessId && serverItem.book.businessId !== 'huki-official' && serverItem.book.businessId) ||
-      (serverItem.book?.storeId && serverItem.book.storeId !== 'huki-official' && serverItem.book.storeId) ||
-      (serverItem.businessId && serverItem.businessId !== 'huki-official' && serverItem.businessId) ||
-      (serverItem.storeId && serverItem.storeId !== 'huki-official' && serverItem.storeId) ||
-      (existing?.businessId && existing.businessId !== 'huki-official' && existing.businessId) ||
-      resolvedStoreId;
+    const rawResolvedStoreName =
+      serverItem.book?.storeName ||
+      serverItem.storeName ||
+      serverItem.book?.store?.name ||
+      serverItem.book?.business?.displayName ||
+      serverItem.book?.business?.name ||
+      (existing?.storeName && existing.storeName !== 'Gian Hàng HUKI' ? existing.storeName : '') ||
+      'Nhà Sách HuKi Official';
+
+    const canonicalStore = canonicalizeCartStore(rawResolvedStoreId, rawResolvedStoreName);
+    const resolvedStoreId = canonicalStore.storeId;
+    const resolvedBusinessId = canonicalStore.storeId;
+    const resolvedStoreName = canonicalStore.storeName;
 
     // Separate publisher metadata from authoritative store name
     const resolvedPublisher =
       (serverItem.book?.publisher && serverItem.book.publisher !== 'Gian Hàng HUKI' && serverItem.book.publisher) ||
       (existing?.publisher && existing.publisher !== 'Gian Hàng HUKI' && existing.publisher) ||
       'Nhà xuất bản HUKI';
-
-    const resolvedStoreName =
-      serverItem.book?.storeName ||
-      serverItem.storeName ||
-      serverItem.book?.store?.name ||
-      serverItem.book?.business?.displayName ||
-      serverItem.book?.business?.name ||
-      existing?.storeName ||
-      'Nhà Sách HuKi Official';
 
     return {
       id: serverItem.id,
@@ -706,12 +729,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [cartItems, user, persistCart, showToast]
   );
 
-  // Toggle all available items in a store
+  // Toggle all available items in a store (matching canonical store ID - BUG-050)
   const toggleStoreCheck = useCallback(
     (storeId: string, isChecked: boolean) => {
+      const targetCanonicalId = canonicalizeCartStore(storeId).storeId;
       setCartItems((prev) => {
         const nextState = prev.map((item) => {
-          if (item.storeId === storeId && item.isAvailable !== false) {
+          const itemCanonicalId = canonicalizeCartStore(item.storeId || item.businessId, item.storeName).storeId;
+          if (itemCanonicalId === targetCanonicalId && item.isAvailable !== false) {
             return { ...item, checked: isChecked };
           }
           return item;
@@ -726,9 +751,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Chọn duy nhất 1 store (Bỏ chọn toàn bộ sản phẩm của các store khác khi bấm Mua Ngay)
   const selectStoreExclusive = useCallback(
     (storeId: string, targetItemId?: string) => {
+      const targetCanonicalId = canonicalizeCartStore(storeId).storeId;
       setCartItems((prev) => {
         const nextState = prev.map((item) => {
-          if (item.storeId === storeId && item.isAvailable !== false) {
+          const itemCanonicalId = canonicalizeCartStore(item.storeId || item.businessId, item.storeName).storeId;
+          if (itemCanonicalId === targetCanonicalId && item.isAvailable !== false) {
             if (targetItemId) {
               return { ...item, checked: item.id === targetItemId || item.bookId === targetItemId };
             }
@@ -785,14 +812,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const availableItems = useMemo(() => cartItems.filter((i) => i.isAvailable !== false), [cartItems]);
   const unavailableItems = useMemo(() => cartItems.filter((i) => i.isAvailable === false), [cartItems]);
 
-  // Group available items by store
+  // Group available items by canonical store (BUG-050: never split 1 seller into multiple boxes)
   const storeGroups = useMemo<StoreGroup[]>(() => {
     const groups: Record<string, StoreGroup> = {};
 
     availableItems.forEach((item) => {
-      const storeId = item.storeId || 'huki-official';
+      const canonical = canonicalizeCartStore(item.storeId || item.businessId, item.storeName);
+      const storeId = canonical.storeId;
       if (!groups[storeId]) {
-        const displayStoreName = item.storeName || 'Nhà Sách HuKi Official';
+        const displayStoreName = canonical.storeName;
         groups[storeId] = {
           id: storeId,
           name: displayStoreName,

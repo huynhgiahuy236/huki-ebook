@@ -462,7 +462,7 @@ export default function LibraryPage() {
           </div>
 
           {isLoading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 py-8">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5 py-8">
               {[...Array(6)].map((_, i) => (
                 <div key={i} className="bg-white rounded-2xl p-3 border border-slate-200 animate-pulse space-y-3">
                   <div className="aspect-[3/4] bg-slate-200 rounded-xl" />
@@ -529,7 +529,7 @@ export default function LibraryPage() {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
               {filteredBooks.map((book) => {
                 const bookKey = book.bookId || book.id;
                 const isFav = wishlistIds.includes(bookKey);
@@ -638,46 +638,53 @@ export default function LibraryPage() {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5">
+                    <div className="pt-2.5 mt-auto border-t border-slate-100 flex flex-col gap-1.5">
                       {book.status === 'WISHLIST' || book.format === 'PHYSICAL' ? (
                         <Link
                           href={`/book/${bookKey}`}
-                          className="flex-1 min-w-0 py-1.5 px-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold transition-all text-center flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap"
+                          className="w-full py-2 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 shadow-2xs whitespace-nowrap"
                         >
-                          <span className="material-symbols-outlined text-[13px] shrink-0">
+                          <span className="material-symbols-outlined text-[15px] shrink-0">
                             {book.format === 'PHYSICAL' ? 'menu_book' : 'shopping_bag'}
                           </span>
-                          <span className="truncate">{book.format === 'PHYSICAL' ? 'Xem Sách In' : 'Xem & Mua'}</span>
+                          <span>{book.format === 'PHYSICAL' ? 'Xem Sách In' : 'Xem & Mua'}</span>
                         </Link>
                       ) : (
                         <Link
                           href={`/reader?book=${bookKey}`}
-                          className="flex-1 min-w-0 py-1.5 px-2 rounded-lg bg-[#00875A] hover:bg-[#00704A] text-white text-[11px] font-bold transition-all text-center flex items-center justify-center gap-1 shadow-2xs whitespace-nowrap"
+                          className="w-full py-2 px-3 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 shadow-2xs whitespace-nowrap"
                         >
-                          <span className="material-symbols-outlined text-[13px] shrink-0">auto_stories</span>
-                          <span className="truncate">{progress > 0 ? 'Đọc Tiếp' : 'Đọc Sách'}</span>
+                          <span className="material-symbols-outlined text-[15px] shrink-0">auto_stories</span>
+                          <span>{progress > 0 ? 'Đọc Tiếp' : 'Đọc Sách'}</span>
                         </Link>
                       )}
 
-                      {/* Chỉ hiển thị nút nghe AI Audio khi sách thực sự có hỗ trợ âm thanh */}
-                      {hasAudio && (
-                        <Link
-                          href={`/reader?book=${bookKey}&autoplay=true`}
-                          className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#00875A] transition-colors flex items-center justify-center shrink-0"
-                          title="Nghe Giọng Đọc AI"
-                        >
-                          <span className="material-symbols-outlined text-[15px]">headphones</span>
-                        </Link>
-                      )}
+                      <div className="flex items-center justify-between gap-1.5">
+                        {/* Chỉ hiển thị nút nghe AI Audio khi sách thực sự có hỗ trợ âm thanh */}
+                        {hasAudio ? (
+                          <Link
+                            href={`/reader?book=${bookKey}&autoplay=true`}
+                            className="flex-1 py-1.5 px-2.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#00875A] text-[11px] font-semibold transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap"
+                            title="Nghe Giọng Đọc AI"
+                          >
+                            <span className="material-symbols-outlined text-[14px] shrink-0">headphones</span>
+                            <span>Nghe Audio</span>
+                          </Link>
+                        ) : (
+                          <span className="text-[11px] font-medium text-slate-400 px-1 truncate">
+                            {book.status === 'WISHLIST' ? 'Yêu thích' : book.format === 'PHYSICAL' ? 'Sách in' : 'Ebook DRM'}
+                          </span>
+                        )}
 
-                      <button
-                        type="button"
-                        onClick={(e) => handleRemoveBook(bookKey, book.title, e)}
-                        className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors flex items-center justify-center shrink-0 cursor-pointer"
-                        title="Bỏ khỏi tủ sách"
-                      >
-                        <span className="material-symbols-outlined text-[15px]">delete</span>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={(e) => handleRemoveBook(bookKey, book.title, e)}
+                          className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors flex items-center justify-center shrink-0 cursor-pointer"
+                          title="Bỏ khỏi tủ sách"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">delete</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );

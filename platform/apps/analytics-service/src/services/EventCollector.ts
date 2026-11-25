@@ -21,10 +21,16 @@ export class EventCollector {
     dto: CreateEventDto,
     authenticatedUserId?: string | null,
   ): Promise<IngestionResult> {
+    const eventId = dto.event_id || dto.sourceEventId;
+    const eventType = dto.event_type || dto.eventType;
+    if (!eventId || !eventType) {
+      throw new BadRequestException('event_id and event_type are required');
+    }
+
     // 1. Validate allowlist
-    if (!ALLOWED_TELEMETRY_EVENT_TYPES.includes(dto.event_type as any)) {
+    if (!ALLOWED_TELEMETRY_EVENT_TYPES.includes(eventType as any)) {
       throw new BadRequestException(
-        `Invalid event_type "${dto.event_type}". Client telemetry only accepts: ${ALLOWED_TELEMETRY_EVENT_TYPES.join(', ')}`,
+        `Invalid event_type "${eventType}". Client telemetry only accepts: ${ALLOWED_TELEMETRY_EVENT_TYPES.join(', ')}`,
       );
     }
 
@@ -33,29 +39,29 @@ export class EventCollector {
 
     // 3. Idempotent check
     const existing = await this.prisma.analyticsEvent.findUnique({
-      where: { sourceEventId: dto.event_id },
+      where: { sourceEventId: eventId },
     });
 
     if (existing) {
       return {
         status: 'deduplicated',
-        eventId: dto.event_id,
+        eventId,
         deduplicated: true,
       };
     }
 
     // 4. Persist raw event
-    const createdAt = dto.timestamp ? new Date(dto.timestamp) : new Date();
+    const createdAt = dto.timestamp ? new Date(dto.timestamp) : (dto.createdAt ? new Date(dto.createdAt) : new Date());
 
     try {
       await this.prisma.analyticsEvent.create({
         data: {
-          sourceEventId: dto.event_id,
-          eventType: dto.event_type,
+          sourceEventId: eventId,
+          eventType,
           userId: effectiveUserId,
-          sessionId: dto.session_id || null,
-          storeId: dto.store_id || null,
-          bookId: dto.book_id || null,
+          sessionId: dto.session_id || dto.sessionId || null,
+          storeId: dto.store_id || dto.storeId || null,
+          bookId: dto.book_id || dto.bookId || null,
           properties: dto.properties ? JSON.parse(JSON.stringify(dto.properties)) : undefined,
           context: dto.context ? JSON.parse(JSON.stringify(dto.context)) : undefined,
           createdAt,
@@ -64,14 +70,14 @@ export class EventCollector {
 
       return {
         status: 'success',
-        eventId: dto.event_id,
+        eventId,
       };
     } catch (err: any) {
       if (err.code === 'P2002') {
         // Unique constraint violation on sourceEventId (concurrent duplicate)
         return {
           status: 'deduplicated',
-          eventId: dto.event_id,
+          eventId,
           deduplicated: true,
         };
       }

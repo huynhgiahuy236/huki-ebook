@@ -85,6 +85,8 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
     }
     const OFFICIAL_ALIASES = [
       '77777777-0000-4000-8000-000000000001',
+      '88888888-0000-4000-8000-000000000001',
+      '99999999-0000-4000-8000-000000000001',
       '3094e54e-2549-42cc-92fb-14a8f8589277',
       '1079fc76-a467-48a9-8034-b072aaa5afea',
       'nha-sach-huki-official',
@@ -389,42 +391,64 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
     onUserTyping,
   });
 
-  // 3. Tải tin nhắn khi chọn khách hàng
+  // 3. Tải tin nhắn khi chọn khách hàng (tách isConnected & chống reload giật khi chuyển tab - BUG-048)
+  const lastSellerSyncRef = useRef<number>(0);
   useEffect(() => {
     if (!activeCustomerId) return;
-    async function loadConversationMessages() {
+    let isCancelled = false;
+    async function loadConversationMessages(silent = false) {
       try {
         const res = await chatService.getMessages(activeCustomerId, { storeId });
+        if (isCancelled) return;
         if (res.success && Array.isArray(res.data)) {
           const mapped = res.data.map((m: ChatMessage) => mapApiMessageToSellerMessage(m, storeId));
-          setMessagesByCustomer((prev) => ({
-            ...prev,
-            [activeCustomerId]: mapped,
-          }));
-          markAsRead(activeCustomerId, storeId);
+          setMessagesByCustomer((prev) => {
+            const prevList = prev[activeCustomerId] || [];
+            if (
+              silent &&
+              prevList.length === mapped.length &&
+              String(prevList[prevList.length - 1]?.id || '') === String(mapped[mapped.length - 1]?.id || '')
+            ) {
+              return prev;
+            }
+            return { ...prev, [activeCustomerId]: mapped };
+          });
+          if (!silent) {
+            markAsRead(activeCustomerId, storeId);
+          }
         }
       } catch (err) {
         console.error('Lỗi tải tin nhắn khách hàng:', err);
       }
     }
-    loadConversationMessages();
+    loadConversationMessages(false);
+    lastSellerSyncRef.current = Date.now();
     joinConversation(activeCustomerId, storeId);
 
-    const handleVisibilityOrFocus = () => {
+    const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        loadConversationMessages();
         joinConversation(activeCustomerId, storeId);
+        const now = Date.now();
+        if (now - lastSellerSyncRef.current >= 10000) {
+          lastSellerSyncRef.current = now;
+          loadConversationMessages(true);
+        }
       }
     };
-    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
-    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
-      window.removeEventListener('focus', handleVisibilityOrFocus);
+      isCancelled = true;
+      document.removeEventListener('visibilitychange', handleVisibility);
       leaveConversation(activeCustomerId, storeId);
     };
-  }, [activeCustomerId, storeId, isConnected, mapApiMessageToSellerMessage, joinConversation, leaveConversation, markAsRead]);
+  }, [activeCustomerId, storeId, mapApiMessageToSellerMessage, joinConversation, leaveConversation, markAsRead]);
+
+  useEffect(() => {
+    if (isConnected && activeCustomerId) {
+      joinConversation(activeCustomerId, storeId);
+    }
+  }, [isConnected, activeCustomerId, storeId, joinConversation]);
 
   // Khách hàng hiện tại đang mở chat
   const currentCustomer = useMemo(() => {

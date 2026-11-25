@@ -1,10 +1,20 @@
 const OFFICIAL_STORE_ALIASES = [
   '77777777-0000-4000-8000-000000000001',
+  '88888888-0000-4000-8000-000000000001',
+  '99999999-0000-4000-8000-000000000001',
   '3094e54e-2549-42cc-92fb-14a8f8589277',
   '1079fc76-a467-48a9-8034-b072aaa5afea',
   'nha-sach-huki-official',
   'huki-official',
 ];
+
+function expandOfficialAliases(ids: string[]): string[] {
+  const result = new Set(ids.filter(Boolean));
+  if (Array.from(result).some((id) => OFFICIAL_STORE_ALIASES.includes(id))) {
+    OFFICIAL_STORE_ALIASES.forEach((alias) => result.add(alias));
+  }
+  return Array.from(result);
+}
 
 import { Injectable, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
@@ -217,14 +227,12 @@ export class ChatService {
     void this.publishMessageEvent(data, conversation!, recipientIds);
     return {
       data,
-      participantIds: Array.from(
-        new Set<string>([
-          ...conversation!.participants.map((item) => item.id),
-          ...(storeId
-            ? storeId.split(',').map((s) => s.trim()).filter(Boolean)
-            : []),
-        ]),
-      ),
+      participantIds: expandOfficialAliases([
+        ...conversation!.participants.map((item) => item.id),
+        ...(storeId
+          ? storeId.split(',').map((s) => s.trim()).filter(Boolean)
+          : []),
+      ]),
       recipientIds,
     };
   }
@@ -288,14 +296,12 @@ export class ChatService {
       readerId: primaryId,
       messageIds,
       readAt: readAt.toISOString(),
-      participantIds: Array.from(
-        new Set<string>([
-          ...conversation!.participants.map((item) => item.id),
-          ...(storeId
-            ? storeId.split(',').map((s) => s.trim()).filter(Boolean)
-            : []),
-        ]),
-      ),
+      participantIds: expandOfficialAliases([
+        ...conversation!.participants.map((item) => item.id),
+        ...(storeId
+          ? storeId.split(',').map((s) => s.trim()).filter(Boolean)
+          : []),
+      ]),
     };
   }
 
