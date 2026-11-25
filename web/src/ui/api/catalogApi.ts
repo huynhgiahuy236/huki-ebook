@@ -357,12 +357,20 @@ export function toCatalogBook(book: BookData) {
     (book as any).store?.id ||
     'huki-official';
 
+  const storeName =
+    (book as any).storeName ||
+    (book as any).store?.name ||
+    (book as any).business?.displayName ||
+    (book as any).business?.name ||
+    (storeId === 'huki-official' || storeId === 'default-store' ? 'Nhà Sách HuKi Official' : 'Nhà Sách HuKi Official');
+
   return {
     id: book.id,
     slug: book.slug || book.id,
     title: book.title,
     author: book.author?.name || (typeof (book as any).author === 'string' ? (book as any).author : 'Chưa cập nhật tác giả'),
     publisher: publisherName,
+    storeName,
     storeId,
     businessId: storeId,
     category: book.category?.slug || book.category?.id || 'khac',

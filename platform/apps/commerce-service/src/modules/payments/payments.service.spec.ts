@@ -614,7 +614,11 @@ describe("PaymentsService", () => {
           },
           payment: { update: jest.fn().mockResolvedValue({}) },
           order: { update: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue({ status: 'PENDING', paymentStatus: 'PENDING' }) },
-          outboxEvent: { create: jest.fn().mockResolvedValue({}) },
+          outboxEvent: {
+            create: jest.fn().mockResolvedValue({}),
+            createMany: jest.fn().mockResolvedValue({ count: 2 }),
+          },
+          bookAccess: { upsert: jest.fn().mockResolvedValue({}) },
         };
         prisma.$transaction = jest.fn(async (cb) => cb(mockTx));
 
@@ -654,7 +658,11 @@ describe("PaymentsService", () => {
           },
           payment: { update: jest.fn().mockResolvedValue({}) },
           order: { update: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue({ status: 'PENDING', paymentStatus: 'PENDING' }) },
-          outboxEvent: { create: jest.fn().mockResolvedValue({}) },
+          outboxEvent: {
+            create: jest.fn().mockResolvedValue({}),
+            createMany: jest.fn().mockResolvedValue({ count: 2 }),
+          },
+          bookAccess: { upsert: jest.fn().mockResolvedValue({}) },
         };
         prisma.$transaction = jest.fn(async (cb) => cb(mockTx));
 
@@ -668,6 +676,78 @@ describe("PaymentsService", () => {
               orderId: "ord-cancelled",
               amount: 150000,
               status: "PENDING",
+            }),
+          }),
+        );
+      });
+
+      it("handlePayOSWebhook marks digital (Ebook) sellerOrders COMPLETED with completedAt = paidAt (BUG-043)", async () => {
+        const { service, prisma } = setup();
+        prisma.payment.findFirst.mockResolvedValue({
+          id: "pay-ebk-1",
+          orderId: "ord-ebk-1",
+          amount: 85000,
+          status: PaymentStatus.PROCESSING,
+          payosOrderId: "998877",
+          payosPaymentLinkId: "plink-1",
+          order: {
+            id: "ord-ebk-1",
+            code: "ORD-EBK-1",
+            userId: "buyer-1",
+            status: "PENDING_PAYMENT",
+            sellerOrders: [
+              {
+                id: "so-ebk-1",
+                ownerUserId: "seller-1",
+                storeId: "huki-official",
+                requiresShipping: false,
+                items: [{ id: "oi-1", bookId: "book-1", format: "DIGITAL", quantity: 1 }],
+              },
+            ],
+          },
+        });
+
+        const mockTx = {
+          payment: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+          order: { update: jest.fn().mockResolvedValue({}) },
+          sellerOrder: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+          orderStatusHistory: { create: jest.fn().mockResolvedValue({}) },
+          outboxEvent: {
+            create: jest.fn().mockResolvedValue({}),
+            createMany: jest.fn().mockResolvedValue({ count: 2 }),
+          },
+          bookAccess: { upsert: jest.fn().mockResolvedValue({}) },
+        };
+        prisma.$transaction = jest.fn(async (cb) => cb(mockTx));
+
+        const res = await service.handlePayOSWebhook({
+          code: "00",
+          desc: "success",
+          success: true,
+          signature: "valid-sig",
+          data: {
+            orderCode: 998877,
+            amount: 85000,
+            reference: "TXN-EBK-1",
+            transactionDateTime: "2026-11-25 10:15:00",
+          },
+        } as any);
+
+        expect(res).toEqual({ success: true });
+        expect(mockTx.order.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              paymentStatus: PaymentStatus.SUCCEEDED,
+              status: "COMPLETED",
+            }),
+          }),
+        );
+        expect(mockTx.sellerOrder.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { orderId: "ord-ebk-1", requiresShipping: false },
+            data: expect.objectContaining({
+              status: "COMPLETED",
+              completedAt: expect.any(Date),
             }),
           }),
         );

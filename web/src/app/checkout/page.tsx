@@ -414,7 +414,7 @@ export default function CheckoutPage() {
     }
   };
 
-  // Canonical store groups present in current checkout order
+  // Canonical store groups present in current checkout order (strictly grouped by storeId, SSOT from checkoutPreview)
   const storeGroups = useMemo(() => {
     const groups: {
       canonicalId: string;
@@ -424,88 +424,77 @@ export default function CheckoutPage() {
       subtotal: number;
     }[] = [];
 
-    // Map each bookId to actual server storeId from backend checkout preview
+    // Map each bookId(+format) and storeId to authoritative backend checkout preview group
     const serverBookStoreMap = new Map<string, string>();
+    const serverGroupInfoMap = new Map<string, { storeId: string; storeName?: string }>();
     (checkoutPreview?.groups || []).forEach((group: any) => {
+      const gStoreId = String(group.storeId || "").trim();
+      if (gStoreId) {
+        serverGroupInfoMap.set(gStoreId.toLowerCase(), {
+          storeId: gStoreId,
+          storeName: group.storeName,
+        });
+      }
       (group.items || []).forEach((item: any) => {
-        if (item.bookId) {
-          serverBookStoreMap.set(item.bookId, group.storeId);
+        if (item.bookId && gStoreId) {
+          serverBookStoreMap.set(`${item.bookId}:${item.format || ""}`, gStoreId);
+          serverBookStoreMap.set(item.bookId, gStoreId);
         }
       });
     });
 
     checkedItems.forEach((item: any) => {
-      const serverStoreId = item.bookId ? serverBookStoreMap.get(item.bookId) : undefined;
+      const itemFormat = item.apiFormat || (item.type === "ebook" ? "DIGITAL" : "PHYSICAL");
+      const serverStoreId = item.bookId
+        ? (serverBookStoreMap.get(`${item.bookId}:${itemFormat}`) || serverBookStoreMap.get(item.bookId))
+        : undefined;
 
-      const rawIds = [
-        serverStoreId,
-        item.storeId !== "huki-official" ? item.storeId : undefined,
-        item.businessId !== "huki-official" ? item.businessId : undefined,
-        item.book?.storeId !== "huki-official" ? item.book?.storeId : undefined,
-        item.book?.businessId !== "huki-official" ? item.book?.businessId : undefined,
-        item.store?.id,
-        item.store?.businessId,
-        item.book?.business?.id,
-      ]
-        .filter(Boolean)
-        .map((id: any) => String(id).toLowerCase());
+      // Resolve strict storeId (do NOT collapse distinct storeIds by businessId)
+      const strictStoreId = String(
+        serverStoreId ||
+        (item.storeId && item.storeId !== "huki-official" ? item.storeId : "") ||
+        (item.book?.storeId && item.book.storeId !== "huki-official" ? item.book.storeId : "") ||
+        item.store?.id ||
+        (item.businessId && item.businessId !== "huki-official" ? item.businessId : "") ||
+        (item.book?.businessId && item.book.businessId !== "huki-official" ? item.book.businessId : "") ||
+        "huki-official"
+      ).trim();
 
-      // Check if any raw ID or server ID matches a wallet store
-      const matchedWalletStore = walletStoresInfo.find((ws) =>
-        [ws.id, ws.businessId]
-          .filter(Boolean)
-          .some((id) => rawIds.includes(String(id).toLowerCase()))
+      const groupKey = strictStoreId.toLowerCase();
+      const serverGroupInfo = serverGroupInfoMap.get(groupKey);
+      const matchedWalletStore = walletStoresInfo.find(
+        (ws) =>
+          (ws.id && ws.id.toLowerCase() === groupKey) ||
+          (ws.businessId && ws.businessId.toLowerCase() === groupKey)
       );
 
-      if (matchedWalletStore) {
-        if (matchedWalletStore.id) rawIds.push(matchedWalletStore.id.toLowerCase());
-        if (matchedWalletStore.businessId) rawIds.push(matchedWalletStore.businessId.toLowerCase());
-      }
-
-      if (rawIds.length === 0) {
-        rawIds.push("huki-official");
-      }
-
-      let group = groups.find((g) => rawIds.some((id) => g.allIds.has(id)));
+      let group = groups.find((g) => g.canonicalId.toLowerCase() === groupKey);
       if (!group) {
-        const canonicalId = String(
-          matchedWalletStore?.id ||
-          matchedWalletStore?.businessId ||
-          serverStoreId ||
-          (item.storeId !== "huki-official" && item.storeId) ||
-          (item.book?.storeId !== "huki-official" && item.book?.storeId) ||
-          item.store?.id ||
-          (item.businessId !== "huki-official" && item.businessId) ||
-          (item.book?.businessId !== "huki-official" && item.book?.businessId) ||
-          "huki-official"
-        );
+        const genericNames = new Set(["Gian Hàng HUKI", "Gian hàng HUKI", "Gian Hàng Đối Tác"]);
+        const candidateNames = [
+          serverGroupInfo?.storeName,
+          matchedWalletStore?.name,
+          item.store?.name,
+          item.storeName,
+          item.book?.storeName,
+          item.book?.business?.displayName,
+          item.book?.business?.name,
+        ].filter((n) => n && !genericNames.has(String(n).trim()));
+
         const storeName =
-          matchedWalletStore?.name ||
-          item.store?.name ||
-          item.storeName ||
-          item.publisher ||
-          item.book?.business?.name ||
-          item.book?.business?.displayName ||
-          item.book?.publisher ||
-          (canonicalId !== "huki-official" && canonicalId ? "Gian Hàng Đối Tác" : "Gian hàng HUKI");
+          (candidateNames[0] ? String(candidateNames[0]).trim() : "") ||
+          (strictStoreId === "huki-official" ? "Nhà Sách HuKi Official" : "Gian Hàng Đối Tác");
 
         group = {
-          canonicalId,
+          canonicalId: serverGroupInfo?.storeId || strictStoreId,
           storeName,
-          allIds: new Set<string>(),
+          allIds: new Set<string>([groupKey]),
           items: [],
           subtotal: 0,
         };
+        if (matchedWalletStore?.id) group.allIds.add(matchedWalletStore.id.toLowerCase());
+        if (matchedWalletStore?.businessId) group.allIds.add(matchedWalletStore.businessId.toLowerCase());
         groups.push(group);
-      }
-
-      rawIds.forEach((id) => group!.allIds.add(id));
-      if (matchedWalletStore) {
-        if (matchedWalletStore.id) group.allIds.add(matchedWalletStore.id.toLowerCase());
-        if (matchedWalletStore.businessId) group.allIds.add(matchedWalletStore.businessId.toLowerCase());
-        if (group.storeName === "Gian hàng HUKI" || group.storeName === "Gian Hàng Đối Tác" || group.storeName.startsWith("Gian hàng (")) {
-          group.storeName = matchedWalletStore.name;
-        }
       }
 
       group.items.push(item);
@@ -873,6 +862,7 @@ export default function CheckoutPage() {
     directItem?.format,
     directItem?.quantity,
     checkedItems.length,
+    checkedItems.map((i: any) => i.id).join(','),
     effectiveHasPhysical,
     selectedAddressId,
     note,

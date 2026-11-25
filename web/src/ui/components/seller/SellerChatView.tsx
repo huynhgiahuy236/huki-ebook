@@ -105,7 +105,7 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
   const [activeCustomerId, setActiveCustomerId] = useState<string>(initialCustomers?.[0]?.id || '');
   const [filterTab, setFilterTab] = useState<'all' | 'unread' | 'orders' | 'vip'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showRightPanel, setShowRightPanel] = useState(true);
+  const [showRightPanel, setShowRightPanel] = useState(false);
   const [messageInput, setMessageInput] = useState('');
   const [internalNote, setInternalNote] = useState('');
 
@@ -409,10 +409,22 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
     }
     loadConversationMessages();
     joinConversation(activeCustomerId, storeId);
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        loadConversationMessages();
+        joinConversation(activeCustomerId, storeId);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
       leaveConversation(activeCustomerId, storeId);
     };
-  }, [activeCustomerId, storeId, mapApiMessageToSellerMessage, joinConversation, leaveConversation, markAsRead]);
+  }, [activeCustomerId, storeId, isConnected, mapApiMessageToSellerMessage, joinConversation, leaveConversation, markAsRead]);
 
   // Khách hàng hiện tại đang mở chat
   const currentCustomer = useMemo(() => {

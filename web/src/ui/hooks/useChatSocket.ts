@@ -27,6 +27,7 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
 
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+  const joinedRoomsRef = useRef<Map<string, string | undefined>>(new Map());
 
   // Lưu callbacks vào ref để tránh re-subscribe liên tục
   const callbacksRef = useRef({
@@ -76,6 +77,13 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
       if (storeId) {
         socket.emit('shop:join', { storeId });
       }
+      // Tự động join lại tất cả các phòng hội thoại đang mở hoặc được xếp hàng trước khi socket connect xong
+      joinedRoomsRef.current.forEach((roomStoreId, convId) => {
+        socket.emit('conversation:join', {
+          conversationId: convId,
+          storeId: roomStoreId || storeId,
+        });
+      });
     });
 
     socket.on('disconnect', (reason) => {
@@ -168,13 +176,15 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
            /^[a-zA-Z0-9_\-:]{3,64}$/.test(trimmed);
   };
 
-  // Join vào room hội thoại cụ thể
+  // Join vào room hội thoại cụ thể (tự động xếp hàng nếu socket chưa kết nối xong)
   const joinConversation = useCallback((conversationId: string, currentStoreId?: string) => {
     if (!isValidConversationId(conversationId)) return;
+    const effectiveStoreId = currentStoreId || storeId;
+    joinedRoomsRef.current.set(conversationId, effectiveStoreId);
     if (socketRef.current?.connected) {
       socketRef.current.emit('conversation:join', {
         conversationId,
-        storeId: currentStoreId || storeId,
+        storeId: effectiveStoreId,
       });
     }
   }, [storeId]);
@@ -182,6 +192,7 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
   // Rời khỏi room hội thoại
   const leaveConversation = useCallback((conversationId: string, currentStoreId?: string) => {
     if (!isValidConversationId(conversationId)) return;
+    joinedRoomsRef.current.delete(conversationId);
     if (socketRef.current?.connected) {
       socketRef.current.emit('conversation:leave', {
         conversationId,

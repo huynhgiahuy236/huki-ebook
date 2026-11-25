@@ -51,6 +51,7 @@ export interface CheckoutSnapshotItem {
 
 export interface CheckoutSnapshotGroup {
   storeId: string;
+  storeName?: string;
   ownerUserId: string;
   requiresShipping: boolean;
   itemSubtotal: number;
@@ -359,7 +360,8 @@ export class CheckoutService {
           province: dto.shippingAddress.province,
         };
       } else {
-        throwBadRequest(ErrorCode.SHIPPING_ADDRESS_REQUIRED);
+        // Allow previewing store groups, item prices and base shipping before an address is selected
+        resolvedAddress = null;
       }
     }
 
@@ -399,18 +401,27 @@ export class CheckoutService {
         : undefined,
     );
 
-    // Step 6: Build snapshot groups
-    const groups: CheckoutSnapshotGroup[] = pricingResult.groups.map((group) => ({
-      storeId: group.storeId,
-      ownerUserId: group.ownerUserId,
-      requiresShipping: group.requiresShipping,
-      itemSubtotal: group.itemSubtotal,
-      shippingFee: group.shippingFee,
-      storeVoucherDiscount: group.storeVoucherDiscount,
-      storeVoucherCode: group.storeVoucherCode,
-      grandTotal: group.grandTotal,
-      items: items.filter((item) => item.storeId === group.storeId),
-    }));
+    // Step 6: Build snapshot groups (include authoritative storeName from business-service)
+    const groups: CheckoutSnapshotGroup[] = await Promise.all(
+      pricingResult.groups.map(async (group) => {
+        const storeName =
+          typeof this.cartService?.resolveStoreName === 'function'
+            ? await this.cartService.resolveStoreName(group.storeId)
+            : 'Gian Hàng HUKI';
+        return {
+          storeId: group.storeId,
+          storeName,
+          ownerUserId: group.ownerUserId,
+          requiresShipping: group.requiresShipping,
+          itemSubtotal: group.itemSubtotal,
+          shippingFee: group.shippingFee,
+          storeVoucherDiscount: group.storeVoucherDiscount,
+          storeVoucherCode: group.storeVoucherCode,
+          grandTotal: group.grandTotal,
+          items: items.filter((item) => item.storeId === group.storeId),
+        };
+      }),
+    );
 
     // Step 7: Build voucher snapshot
     const voucherSnapshot: CheckoutSnapshot['vouchers'] = {
@@ -621,6 +632,9 @@ export class CheckoutService {
         }
 
         const requiresShipping = finalSnapshot.groups.some((g) => g.requiresShipping);
+        if (requiresShipping && !finalSnapshot.shippingAddress) {
+          throwBadRequest(ErrorCode.SHIPPING_ADDRESS_REQUIRED);
+        }
         const hasDigitalOrCombo = finalSnapshot.groups.some((g) =>
           g.items.some(
             (item) =>

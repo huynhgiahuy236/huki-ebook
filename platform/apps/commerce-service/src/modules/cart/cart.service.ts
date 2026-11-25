@@ -327,9 +327,9 @@ export class CartService {
 
   private readonly storeNameCache = new Map<string, { name: string; expiry: number }>();
 
-  private async resolveStoreName(storeId: string): Promise<string> {
+  public async resolveStoreName(storeId: string): Promise<string> {
     if (!storeId || storeId === 'huki-official' || storeId === 'default-store') {
-      return 'Gian Hàng HUKI';
+      return 'Nhà Sách HuKi Official';
     }
 
     const cached = this.storeNameCache.get(storeId);
@@ -342,7 +342,7 @@ export class CartService {
 
     try {
       // 1. Try store by ID
-      const resStore = await fetch(`${businessBaseUrl}/api/v1/stores/${storeId}`);
+      const resStore = await fetch(`${businessBaseUrl}/api/v1/stores/${encodeURIComponent(storeId)}`);
       if (resStore.ok) {
         const json = await resStore.json() as any;
         const data = json.data || json;
@@ -356,8 +356,23 @@ export class CartService {
     }
 
     try {
-      // 2. Try business by ID
-      const resBiz = await fetch(`${businessBaseUrl}/api/v1/businesses/${storeId}`);
+      // 2. Try store by slug
+      const resSlug = await fetch(`${businessBaseUrl}/api/v1/stores/slug/${encodeURIComponent(storeId)}`);
+      if (resSlug.ok) {
+        const json = await resSlug.json() as any;
+        const data = json.data || json;
+        if (data?.name) {
+          this.storeNameCache.set(storeId, { name: data.name, expiry: Date.now() + 60000 });
+          return data.name;
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
+    try {
+      // 3. Try business by ID
+      const resBiz = await fetch(`${businessBaseUrl}/api/v1/businesses/${encodeURIComponent(storeId)}`);
       if (resBiz.ok) {
         const json = await resBiz.json() as any;
         const data = json.data || json;
@@ -509,10 +524,11 @@ export class CartService {
       const subtotal = unitPrice * item.quantity;
 
       const storeId = book.storeId || book.businessId || 'huki-official';
-      const storeName =
+      const publisherName =
         (book.publisher && typeof book.publisher === 'object' && book.publisher.name) ||
         (typeof book.publisher === 'string' && book.publisher) ||
-        await this.resolveStoreName(storeId);
+        'Đang cập nhật';
+      const storeName = await this.resolveStoreName(storeId);
 
       const authorName =
         (book.author && typeof book.author === 'object' && book.author.name) ||
@@ -539,12 +555,13 @@ export class CartService {
           id: book.id,
           storeId,
           businessId: storeId,
+          storeName,
           title: book.title,
           slug: book.slug,
           coverUrl: book.coverUrl,
           status: book.status,
           author: authorName,
-          publisher: storeName,
+          publisher: publisherName,
         },
       });
     }
@@ -565,7 +582,7 @@ export class CartService {
     for (const item of availableItems) {
       const storeId = item.book.storeId || 'huki-official';
       if (!storeMap.has(storeId)) {
-        const storeName = item.book.publisher || 'Gian Hàng HUKI';
+        const storeName = item.book.storeName || 'Gian Hàng HUKI';
         storeMap.set(storeId, {
           id: storeId,
           name: storeName,

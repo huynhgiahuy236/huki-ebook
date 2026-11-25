@@ -8,6 +8,7 @@ import { walletApi } from '@/ui/api/walletApi';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { getUniqueBanks, VietnamBank } from '@/data/vietnam-banks';
+import { compressImageToDataUrl, sanitizeImageUrl } from '@/ui/utils/imageUtils';
 
 export default function SellerSetupStorePage() {
   const router = useRouter();
@@ -124,8 +125,8 @@ export default function SellerSetupStorePage() {
               setStoreForm({
                 name: primaryStore.name || b.name || '',
                 description: primaryStore.description || '',
-                logo: primaryStore.logo || '',
-                banner: primaryStore.banner || '',
+                logo: sanitizeImageUrl(primaryStore.logo) || '',
+                banner: sanitizeImageUrl(primaryStore.banner) || '',
               });
 
               // Check security PIN status
@@ -141,8 +142,8 @@ export default function SellerSetupStorePage() {
               setStoreForm({
                 name: b.stores?.[0]?.name || b.name || '',
                 description: b.stores?.[0]?.description || '',
-                logo: b.stores?.[0]?.logo || '',
-                banner: b.stores?.[0]?.banner || '',
+                logo: sanitizeImageUrl(b.stores?.[0]?.logo) || '',
+                banner: sanitizeImageUrl(b.stores?.[0]?.banner) || '',
               });
             }
           }
@@ -586,11 +587,16 @@ export default function SellerSetupStorePage() {
                               type="file"
                               accept="image/*"
                               className="hidden"
-                              onChange={(e) => {
+                              onChange={async (e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
-                                  setStoreForm({ ...storeForm, logo: URL.createObjectURL(file) });
-                                  showToast('Đã chọn logo gian hàng!', 'success');
+                                  try {
+                                    const compressed = await compressImageToDataUrl(file, 400, 400, 0.85);
+                                    setStoreForm((prev) => ({ ...prev, logo: compressed }));
+                                    showToast('Đã tải & tối ưu logo gian hàng!', 'success');
+                                  } catch {
+                                    showToast('Không thể đọc tệp ảnh logo. Vui lòng thử ảnh khác.', 'error');
+                                  }
                                 }
                               }}
                             />
@@ -635,11 +641,16 @@ export default function SellerSetupStorePage() {
                               type="file"
                               accept="image/*"
                               className="hidden"
-                              onChange={(e) => {
+                              onChange={async (e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
-                                  setStoreForm({ ...storeForm, banner: URL.createObjectURL(file) });
-                                  showToast('Đã chọn banner gian hàng!', 'success');
+                                  try {
+                                    const compressed = await compressImageToDataUrl(file, 1200, 400, 0.85);
+                                    setStoreForm((prev) => ({ ...prev, banner: compressed }));
+                                    showToast('Đã tải & tối ưu banner gian hàng!', 'success');
+                                  } catch {
+                                    showToast('Không thể đọc tệp ảnh banner. Vui lòng thử ảnh khác.', 'error');
+                                  }
                                 }
                               }}
                             />

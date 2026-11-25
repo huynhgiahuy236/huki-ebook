@@ -6,6 +6,8 @@ export type CartItemFormat = 'PHYSICAL' | 'DIGITAL';
 export interface CartBook {
   id: string;
   storeId: string;
+  businessId?: string;
+  storeName?: string;
   title: string;
   slug: string;
   coverUrl?: string;

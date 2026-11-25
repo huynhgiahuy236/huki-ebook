@@ -12,6 +12,8 @@ import { voucherApi } from '@/ui/api/voucherApi';
 import { useChatSocket } from '@/ui/hooks/useChatSocket';
 import { playChatPopSound, playMessageSentSound } from '@/ui/utils/chatSound';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+import { StoreLogoImg } from '@/ui/components/common/StoreLogoImg';
+import { sanitizeImageUrl } from '@/ui/utils/imageUtils';
 
 interface PinnedBook {
   id: string;
@@ -96,9 +98,9 @@ function MessengerContent() {
   const [activeTabFilter, setActiveTabFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Collapse controls for Left & Right sidebars
+  // Collapse controls for Left & Right sidebars (BUG-046: right info panel closed by default)
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
-  const [showRightPanel, setShowRightPanel] = useState(true);
+  const [showRightPanel, setShowRightPanel] = useState(false);
 
   // Accordion states in Right panel (Facebook Messenger style)
   const [expandedSection, setExpandedSection] = useState({
@@ -180,7 +182,7 @@ function MessengerContent() {
             type: 'store',
             typeLabel: 'Nhà Xuất Bản',
             verified: true,
-            avatar: conv.store?.logo || conv.store?.avatar || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=160&q=80',
+            avatar: sanitizeImageUrl(conv.store?.logo || conv.store?.avatar) || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=160&q=80',
             isOnline: true,
             lastMsg: conv.lastMessage?.content || 'Chưa có tin nhắn',
             lastTime: conv.lastMessage?.createdAt
@@ -274,7 +276,7 @@ function MessengerContent() {
                 type: 'store',
                 typeLabel: 'Nhà Xuất Bản',
                 verified: true,
-                avatar: newConv.store?.logo || newConv.store?.avatar || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=160&q=80',
+                avatar: sanitizeImageUrl(newConv.store?.logo || newConv.store?.avatar) || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=160&q=80',
                 isOnline: true,
                 lastMsg: 'Bắt đầu cuộc trò chuyện',
                 lastTime: 'Vừa xong',
@@ -445,13 +447,32 @@ function MessengerContent() {
         };
       });
 
-      setChannels(prev =>
-        prev.map(c =>
+      setChannels(prev => {
+        const exists = prev.some(c => c.id === convId || c.id === activeChannel);
+        if (!exists && convId) {
+          return [{
+            id: convId,
+            storeId: (newMsg as any).storeId || convId,
+            name: newMsg.senderName || 'Gian Hàng HUKI',
+            type: 'store',
+            typeLabel: 'Nhà Xuất Bản',
+            verified: true,
+            avatar: sanitizeImageUrl(newMsg.senderAvatar) || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=160&q=80',
+            isOnline: true,
+            lastMsg: newMsg.content,
+            lastTime: item.time,
+            unread: activeChannel === convId ? 0 : 1,
+            rating: '5.0/5',
+            reviewCount: 'CSKH',
+            responseTime: '< 5p',
+          }, ...prev];
+        }
+        return prev.map(c =>
             c.id === convId || c.id === activeChannel
             ? { ...c, lastMsg: newMsg.content, lastTime: item.time, unread: activeChannel === convId ? 0 : c.unread + 1 }
             : c
-        )
-      );
+        );
+      });
 
       if (activeChannel === convId) {
         markAsRead(convId);
@@ -538,10 +559,21 @@ function MessengerContent() {
       prev.map(c => (c.id === activeChannel ? { ...c, unread: 0 } : c))
     );
 
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        loadMessages();
+        joinConversation(activeChannel);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
       leaveConversation(activeChannel);
     };
-  }, [activeChannel, joinConversation, leaveConversation, markAsRead, scrollToBottom]);
+  }, [activeChannel, isConnected, joinConversation, leaveConversation, markAsRead, scrollToBottom]);
 
   // Quản lý tệp đính kèm người mua (Ảnh / Video)
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -983,11 +1015,16 @@ function MessengerContent() {
                 >
                   {/* Avatar with Online Badge */}
                   <div className="relative shrink-0">
-                    <img
-                      src={c.avatar}
-                      alt={c.name}
-                      className="w-12 h-12 rounded-full object-cover border border-gray-200"
-                    />
+                    <div className="w-12 h-12 rounded-full overflow-hidden border border-gray-200 bg-white">
+                      <StoreLogoImg
+                        src={c.avatar}
+                        fallbackSrc="https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=160&q=80"
+                        alt={c.name}
+                        fallbackText={c.name}
+                        className="w-full h-full object-cover"
+                        fallbackClassName="w-full h-full flex items-center justify-center bg-[#006953] text-white font-bold text-sm"
+                      />
+                    </div>
                     {c.isOnline && (
                       <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full"></span>
                     )}
@@ -1038,11 +1075,16 @@ function MessengerContent() {
               <div className="h-16 px-6 bg-white border-b border-gray-200 flex items-center justify-between shrink-0 shadow-2xs z-10">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="relative shrink-0">
-                    <img
-                      src={activeChannelData.avatar}
-                      alt={activeChannelData.name}
-                      className="w-10 h-10 rounded-full object-cover border border-gray-200 shrink-0"
-                    />
+                    <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 shrink-0 bg-white">
+                      <StoreLogoImg
+                        src={activeChannelData.avatar}
+                        fallbackSrc="https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=160&q=80"
+                        alt={activeChannelData.name}
+                        fallbackText={activeChannelData.name}
+                        className="w-full h-full object-cover"
+                        fallbackClassName="w-full h-full flex items-center justify-center bg-[#006953] text-white font-bold text-xs"
+                      />
+                    </div>
                     {activeChannelData.isOnline && (
                       <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full"></span>
                     )}
@@ -1175,11 +1217,16 @@ function MessengerContent() {
                       className={`flex items-end gap-2.5 ${isMe ? 'justify-end' : 'justify-start'}`}
                     >
                       {!isMe && (
-                        <img
-                          src={activeChannelData.avatar}
-                          alt={activeChannelData.name}
-                          className="w-8 h-8 rounded-full object-cover border border-gray-200 shrink-0"
-                        />
+                        <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 shrink-0 bg-white">
+                          <StoreLogoImg
+                            src={activeChannelData.avatar}
+                            fallbackSrc="https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=160&q=80"
+                            alt={activeChannelData.name}
+                            fallbackText={activeChannelData.name}
+                            className="w-full h-full object-cover"
+                            fallbackClassName="w-full h-full flex items-center justify-center bg-[#006953] text-white font-bold text-[10px]"
+                          />
+                        </div>
                       )}
 
                       <div className="max-w-md lg:max-w-xl space-y-1">
@@ -1499,11 +1546,16 @@ function MessengerContent() {
             {/* Profile Header (Facebook Messenger style) */}
             <div className="p-6 text-center border-b border-gray-100 flex flex-col items-center">
               <div className="relative mb-3">
-                <img
-                  src={activeChannelData.avatar}
-                  alt={activeChannelData.name}
-                  className="w-20 h-20 rounded-full object-cover border-2 border-gray-200 shadow-sm"
-                />
+                <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-gray-200 shadow-sm bg-white">
+                  <StoreLogoImg
+                    src={activeChannelData.avatar}
+                    fallbackSrc="https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=160&q=80"
+                    alt={activeChannelData.name}
+                    fallbackText={activeChannelData.name}
+                    className="w-full h-full object-cover"
+                    fallbackClassName="w-full h-full flex items-center justify-center bg-[#006953] text-white font-bold text-2xl"
+                  />
+                </div>
                 {activeChannelData.verified && (
                   <span className="absolute bottom-0 right-0 p-1 bg-[#006953] text-white rounded-full text-xs flex items-center justify-center">
                     <span className="material-symbols-outlined text-[13px]">verified</span>
@@ -1703,11 +1755,16 @@ function MessengerContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in p-4">
           <div className="bg-[#18181b] text-white rounded-3xl p-8 max-w-sm w-full text-center space-y-6 shadow-2xl border border-zinc-700">
             <div className="relative mx-auto w-24 h-24">
-              <img
-                src={activeChannelData.avatar}
-                alt={activeChannelData.name}
-                className="w-24 h-24 rounded-full object-cover border-4 border-emerald-500 shadow-xl"
-              />
+              <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-emerald-500 shadow-xl bg-white">
+                <StoreLogoImg
+                  src={activeChannelData.avatar}
+                  fallbackSrc="https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=160&q=80"
+                  alt={activeChannelData.name}
+                  fallbackText={activeChannelData.name}
+                  className="w-full h-full object-cover"
+                  fallbackClassName="w-full h-full flex items-center justify-center bg-[#006953] text-white font-bold text-2xl"
+                />
+              </div>
               <span className="absolute inset-0 rounded-full border-4 border-emerald-400 animate-ping opacity-25"></span>
             </div>
 

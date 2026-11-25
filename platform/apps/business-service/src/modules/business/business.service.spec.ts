@@ -179,4 +179,30 @@ describe('BusinessService', () => {
       expect(result).toBe(false);
     });
   });
+
+  describe('withFlattenedStoreAssets (BUG-042)', () => {
+    it('flattens logo/banner from stores[0] and strips dead blob: URLs in getAllBusinesses', async () => {
+      mockPrisma.business.findMany.mockResolvedValue([
+        {
+          id: 'biz-1',
+          name: 'HuKi Store',
+          stores: [
+            {
+              id: 'store-1',
+              name: 'HuKi Official',
+              slug: 'huki-official',
+              logo: 'https://cdn.example.com/logo.webp',
+              banner: 'blob:https://huki-uat.duckdns.org/dead-uuid',
+            },
+          ],
+        },
+      ]);
+      mockPrisma.business.count.mockResolvedValue(1);
+
+      const res = await service.getAllBusinesses({ page: 1, limit: 20 });
+      expect(res.data[0].logo).toBe('https://cdn.example.com/logo.webp');
+      expect(res.data[0].banner).toBeNull();
+      expect(res.data[0].stores[0].banner).toBeNull();
+    });
+  });
 });

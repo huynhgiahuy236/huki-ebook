@@ -315,6 +315,13 @@ export default function FlashSalePage() {
           originalPricePaper: item.originalPrice,
           cover: item.coverUrl,
           storeId: (item as any).storeId || (item as any).book?.storeId || "huki-official",
+          storeName:
+            (item as any).storeName ||
+            (item as any).book?.storeName ||
+            (item as any).book?.store?.name ||
+            (item as any).book?.business?.displayName ||
+            (item as any).book?.business?.name ||
+            "Nhà Sách HuKi Official",
           businessId: (item as any).businessId || (item as any).book?.businessId || (item as any).storeId || "huki-official",
           book: (item as any).book,
         },

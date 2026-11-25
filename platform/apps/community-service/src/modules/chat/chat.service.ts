@@ -167,7 +167,8 @@ export class ChatService {
   ): Promise<ChatDelivery> {
     this.validateAttachments(dto);
     const conversation = await this.ensureWritable(actor, conversationId, dto.storeId);
-    const effectiveActorId = dto.storeId?.trim() || actor.sub;
+    const storeId = dto.storeId;
+    const effectiveActorId = storeId?.trim() || actor.sub;
 
     const sender = this.participant(conversation!, actor.sub, dto.storeId);
     const isStoreActing = Boolean(dto.storeId && sender.type === "BUSINESS");
@@ -216,7 +217,14 @@ export class ChatService {
     void this.publishMessageEvent(data, conversation!, recipientIds);
     return {
       data,
-      participantIds: conversation!.participants.map((item) => item.id),
+      participantIds: Array.from(
+        new Set<string>([
+          ...conversation!.participants.map((item) => item.id),
+          ...(storeId
+            ? storeId.split(',').map((s) => s.trim()).filter(Boolean)
+            : []),
+        ]),
+      ),
       recipientIds,
     };
   }
@@ -280,7 +288,14 @@ export class ChatService {
       readerId: primaryId,
       messageIds,
       readAt: readAt.toISOString(),
-      participantIds: conversation!.participants.map((item) => item.id),
+      participantIds: Array.from(
+        new Set<string>([
+          ...conversation!.participants.map((item) => item.id),
+          ...(storeId
+            ? storeId.split(',').map((s) => s.trim()).filter(Boolean)
+            : []),
+        ]),
+      ),
     };
   }
 

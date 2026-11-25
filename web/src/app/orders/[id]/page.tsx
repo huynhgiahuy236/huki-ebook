@@ -517,8 +517,8 @@ export default function OrderDetailPage() {
       icon: 'home_pin',
       returnAlert: isDelivered && (() => {
         const rawTime = primarySellerOrder?.completedAt || (order as any).deliveredAt;
-        const elapsed = rawTime ? (Date.now() - new Date(rawTime).getTime()) / 1000 : 999;
-        return elapsed < 120;
+        const elapsed = rawTime ? (Date.now() - new Date(rawTime).getTime()) / 1000 : 999999;
+        return elapsed < ESCROW_CONFIG.HOLD_DURATION_SECONDS;
       })(),
     },
   ];
@@ -556,6 +556,11 @@ export default function OrderDetailPage() {
 
   const isPendingPayment =
     (order.status === 'PENDING_PAYMENT' || order.paymentStatus === 'PENDING') && !isPaid;
+
+  const digitalSellerOrder = order.sellerOrders?.find((so: any) =>
+    !so.requiresShipping ||
+    so.items?.some((it: any) => it.format?.toUpperCase().includes('DIGITAL') || it.format?.toLowerCase().includes('ebook'))
+  );
 
   const digitalSteps = [
     {
@@ -595,6 +600,12 @@ export default function OrderDetailPage() {
         : 'Chờ hoàn tất',
       status: isDelivered || isPaid ? 'completed' : 'upcoming',
       icon: 'auto_stories',
+      returnAlert: (isDelivered || isPaid) && !isCancelled && (() => {
+        const rawTime = (order as any).paidAt || digitalSellerOrder?.completedAt || order.createdAt;
+        if (!rawTime) return false;
+        const elapsed = (Date.now() - new Date(rawTime).getTime()) / 1000;
+        return elapsed < ESCROW_CONFIG.HOLD_DURATION_SECONDS;
+      })(),
     },
   ];
 
@@ -706,10 +717,10 @@ export default function OrderDetailPage() {
                 const isOrderActive = order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && order.status !== 'DELIVERED';
                 const isCompletedOrDelivered = order.status === 'COMPLETED' || order.status === 'DELIVERED';
                 const isDisputeOpen = isCompletedOrDelivered && (() => {
-                  const rawTime = primarySellerOrder?.completedAt || (order as any).deliveredAt;
+                  const rawTime = (order as any).paidAt || primarySellerOrder?.completedAt || (order as any).deliveredAt;
                   if (!rawTime) return false;
                   const elapsed = (Date.now() - new Date(rawTime).getTime()) / 1000;
-                  return elapsed < 120; // 2 minutes window on UAT / standard return window
+                  return elapsed < ESCROW_CONFIG.HOLD_DURATION_SECONDS;
                 })();
 
                 if (isOrderActive) {
@@ -863,6 +874,15 @@ export default function OrderDetailPage() {
                           {step.title}
                         </span>
                         <span className="text-[11px] text-on-surface-variant block">{step.time}</span>
+                        {(step as any).returnAlert && (
+                          <span
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 mt-0.5 rounded-md text-[9.5px] font-black bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700 animate-pulse"
+                            title={`Đang trong thời hạn đổi trả ${ESCROW_CONFIG.DURATION_LABEL}`}
+                          >
+                            <span className="material-symbols-outlined text-[11px]">history</span>
+                            <span>Hạn Đổi Trả ({ESCROW_CONFIG.DURATION_LABEL})</span>
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
@@ -1078,7 +1098,9 @@ export default function OrderDetailPage() {
                       !it.format?.toUpperCase().includes('DIGITAL') && !it.format?.toLowerCase().includes('ebook')
                     );
                     const isOrderPaid =
+                      order.paymentStatus === 'PAID' ||
                       order.paymentStatus === 'SUCCEEDED' ||
+                      order.paymentStatus === 'COMPLETED' ||
                       order.status === 'CONFIRMED' ||
                       order.status === 'PROCESSING' ||
                       order.status === 'SHIPPING' ||
@@ -1116,6 +1138,11 @@ export default function OrderDetailPage() {
                                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                                   Giao tức thì 24/7
                                 </span>
+                                {isOrderPaid && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                    Đổi trả {ESCROW_CONFIG.DURATION_LABEL}
+                                  </span>
+                                )}
                               </div>
                               <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300">
                                 {ebookSubtotal.toLocaleString('vi-VN')}đ
@@ -1133,7 +1160,7 @@ export default function OrderDetailPage() {
                                 const isEbookTimeExpired = (() => {
                                   if (so.escrowStatus === 'ESCROW_SETTLED' || (order as any).escrowStatus === 'ESCROW_SETTLED') return true;
 
-                                  const rawStart = order.paidAt || order.createdAt;
+                                  const rawStart = (order as any).paidAt || so.completedAt || order.createdAt;
                                   let startTimestamp: number | null = null;
                                   if (rawStart) {
                                     const parsed = new Date(rawStart).getTime();
@@ -1142,7 +1169,7 @@ export default function OrderDetailPage() {
                                     }
                                   }
 
-                                  if (typeof window !== 'undefined') {
+                                  if (typeof window !== 'undefined' && isOrderPaid) {
                                     const storageKey = `huki_escrow_timer_${order.id || ''}_${so.id}_ebook`;
                                     const stored = localStorage.getItem(storageKey);
                                     if (stored) {
@@ -1150,12 +1177,15 @@ export default function OrderDetailPage() {
                                       if (!isNaN(parsedStored) && parsedStored > 0) {
                                         startTimestamp = startTimestamp ? Math.min(startTimestamp, parsedStored) : parsedStored;
                                       }
+                                    } else if (!startTimestamp) {
+                                      startTimestamp = Date.now();
+                                      localStorage.setItem(storageKey, String(startTimestamp));
                                     }
                                   }
 
                                   if (startTimestamp) {
                                     const elapsed = (Date.now() - startTimestamp) / 1000;
-                                    if (elapsed >= 120) return true;
+                                    if (elapsed >= ESCROW_CONFIG.HOLD_DURATION_SECONDS) return true;
                                   }
 
                                   return false;
@@ -1274,7 +1304,7 @@ export default function OrderDetailPage() {
                                   subOrderId={`${so.id}_ebook`}
                                   storeName={`${storeDisplayName} (Ebook)`}
                                   amount={ebookSubtotal}
-                                  startTime={order.paidAt || order.createdAt}
+                                  startTime={(order as any).paidAt || so.completedAt || order.createdAt}
                                   isEbook={true}
                                   hideConfirmButton={true}
                                   isFrozen={returnRequests.some(
@@ -1293,7 +1323,7 @@ export default function OrderDetailPage() {
                                     }
                                     showToast(
                                       {
-                                        title: auto ? 'Hết hạn ký quỹ Ebook 2 phút' : 'Xác nhận thành công!',
+                                        title: auto ? `Hết hạn ký quỹ Ebook ${ESCROW_CONFIG.DURATION_LABEL}` : 'Xác nhận thành công!',
                                         message: `Đã giải ngân phần Ebook (${ebookSubtotal.toLocaleString('vi-VN')}đ) cho gian hàng #${so.code}.`,
                                       },
                                       'success'
@@ -1363,7 +1393,7 @@ export default function OrderDetailPage() {
 
                                   if (startTimestamp) {
                                     const elapsed = (Date.now() - startTimestamp) / 1000;
-                                    if (elapsed >= 120) return true;
+                                    if (elapsed >= ESCROW_CONFIG.HOLD_DURATION_SECONDS) return true;
                                   }
 
                                   return false;
@@ -1526,7 +1556,7 @@ export default function OrderDetailPage() {
                                         }
                                         showToast(
                                           {
-                                            title: auto ? 'Hết hạn ký quỹ Sách giấy 2 phút' : 'Xác nhận thành công!',
+                                            title: auto ? `Hết hạn ký quỹ Sách giấy ${ESCROW_CONFIG.DURATION_LABEL}` : 'Xác nhận thành công!',
                                             message: `Đã giải ngân phần Sách giấy (${(physicalSubtotal + Number(so.shippingFee || 0)).toLocaleString('vi-VN')}đ) cho gian hàng #${so.code}.`,
                                           },
                                           'success'
@@ -1540,7 +1570,7 @@ export default function OrderDetailPage() {
                               <div className="p-3 rounded-xl bg-amber-100/60 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 flex items-center gap-2 text-xs">
                                 <span className="material-symbols-outlined text-[18px] text-amber-600 shrink-0">local_shipping</span>
                                 <span>
-                                  <strong>Đang giao sách giấy:</strong> Thời hạn đổi trả 2 phút sẽ bắt đầu đếm ngược ngay khi quý khách nhận được sách.
+                                  <strong>Đang giao sách giấy:</strong> Thời hạn đổi trả {ESCROW_CONFIG.DURATION_LABEL} sẽ bắt đầu đếm ngược ngay khi quý khách nhận được sách.
                                 </span>
                               </div>
                             ) : null}

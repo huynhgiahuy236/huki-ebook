@@ -4,12 +4,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { businessApi } from '@/ui/api/businessApi';
 import { useToast } from '@/ui/context/ToastContext';
+import { StoreLogoImg } from '@/ui/components/common/StoreLogoImg';
+import { sanitizeImageUrl } from '@/ui/utils/imageUtils';
 
 interface Store {
   id: string;
   name: string;
   displayName: string;
   code: string;
+  logo?: string;
   color: string;
   followers: string;
   rating: number;
@@ -96,13 +99,15 @@ export default function FeaturedStoresSection() {
             'bg-blue-600 text-white',
             'bg-teal-700 text-white',
           ];
-          const mapped: Store[] = res.data.slice(0, 5).map((b, i) => {
-            const code = b.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'HB';
+          const mapped: Store[] = res.data.slice(0, 5).map((b: any, i) => {
+            const code = b.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() || 'HB';
+            const cleanLogo = sanitizeImageUrl(b.logo || b.stores?.[0]?.logo);
             return {
               id: b.slug || b.id,
               name: b.name,
               displayName: b.displayName || b.name,
               code,
+              logo: cleanLogo,
               color: colors[i % colors.length],
               followers: 'Đang mở bán',
               rating: 5.0,
@@ -222,8 +227,14 @@ export default function FeaturedStoresSection() {
               className="bg-white rounded-xl p-3 border border-gray-100 flex flex-col justify-between hover:border-[#003B2B]/30 hover:shadow-sm transition-all"
             >
               <Link href={`/shop/${store.id}`} className="flex items-center gap-2.5">
-                <div className={`w-10 h-10 rounded-xl ${store.color} flex items-center justify-center font-bold text-[13px] shadow-xs shrink-0`}>
-                  {store.code}
+                <div className={`w-10 h-10 rounded-xl ${store.color} flex items-center justify-center font-bold text-[13px] shadow-xs shrink-0 overflow-hidden`}>
+                  <StoreLogoImg
+                    src={store.logo}
+                    alt={store.name}
+                    fallbackText={store.code}
+                    className="w-full h-full object-cover"
+                    fallbackClassName="w-full h-full flex items-center justify-center font-bold text-[13px]"
+                  />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1">

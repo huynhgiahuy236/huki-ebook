@@ -73,7 +73,7 @@ export default function EscrowCountdown({
     return Math.max(0, totalDuration - elapsed);
   }, [startTime, initialSeconds, orderId, subOrderId]);
 
-  const [secondsLeft, setSecondsLeft] = useState<number>(120);
+  const [secondsLeft, setSecondsLeft] = useState<number>(initialSeconds || ESCROW_CONFIG.HOLD_DURATION_SECONDS);
   const [isCompleted, setIsCompleted] = useState(false);
   const [frozen, setFrozen] = useState(isFrozen);
   const hasTriggeredReleaseRef = useRef(false);
@@ -129,7 +129,8 @@ export default function EscrowCountdown({
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  const percent = Math.max(0, Math.min(100, (secondsLeft / 120) * 100));
+  const totalDuration = initialSeconds || ESCROW_CONFIG.HOLD_DURATION_SECONDS;
+  const percent = Math.max(0, Math.min(100, (secondsLeft / totalDuration) * 100));
 
   const handleInstantConfirm = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -212,7 +213,7 @@ export default function EscrowCountdown({
           </span>
           <div>
             <span className="text-xs font-black uppercase tracking-wider text-[var(--theme-primary,#003B2B)]">
-              Ký Quỹ Đổi Trả 2 Phút (HUKI Escrow Holding)
+              Ký Quỹ Đổi Trả {ESCROW_CONFIG.DURATION_LABEL} (HUKI Escrow Holding)
             </span>
             <p className="text-[11px] text-[var(--theme-text-muted,#49454f)]">
               Tiền của gian hàng <strong className="text-[var(--theme-text,#1c1b1f)]">{storeName}</strong> được bảo vệ tại Sàn trong thời gian quý khách kiểm tra sách.

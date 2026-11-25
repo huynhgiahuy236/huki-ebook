@@ -250,5 +250,116 @@ describe("CheckoutService (Prisma)", () => {
       }),
     );
   });
+
+  it("keeps multi-store groups separated with per-store storeName during preview even before shipping address selection (BUG-039)", async () => {
+    const multiStoreCartService = {
+      getCartEntity: jest.fn().mockResolvedValue({
+        id: "cart-multi",
+        updatedAt: new Date(),
+        items: [
+          {
+            id: "ci-huki",
+            format: CartItemFormat.PHYSICAL,
+            quantity: 1,
+            book: {
+              id: "book-huki",
+              title: "Sách HuKi",
+              status: BookStatus.PUBLISHED,
+              format: BookFormat.PHYSICAL,
+              price: 100000,
+              storeId: "huki-official",
+              ownerUserId: "seller-huki",
+              coverUrl: null,
+              isbn: null,
+              physicalDetails: { physicalEnabled: true, stock: 5, reserved: 0, weight: 300 },
+            },
+          },
+          {
+            id: "ci-kimdong",
+            format: CartItemFormat.PHYSICAL,
+            quantity: 2,
+            book: {
+              id: "book-kimdong",
+              title: "Sách Kim Đồng",
+              status: BookStatus.PUBLISHED,
+              format: BookFormat.PHYSICAL,
+              price: 50000,
+              storeId: "store-kim-dong",
+              ownerUserId: "seller-kd",
+              coverUrl: null,
+              isbn: null,
+              physicalDetails: { physicalEnabled: true, stock: 5, reserved: 0, weight: 200 },
+            },
+          },
+        ],
+      }),
+      resolveStoreName: jest.fn().mockImplementation(async (storeId: string) =>
+        storeId === "store-kim-dong" ? "Nhà Sách Kim Đồng" : "Nhà Sách HuKi Official",
+      ),
+    };
+
+    const multiPricingCalculator = {
+      calculate: jest.fn().mockImplementation(async (_userId, items) => {
+        const byStore = new Map<string, any[]>();
+        for (const it of items) {
+          const list = byStore.get(it.storeId) || [];
+          list.push(it);
+          byStore.set(it.storeId, list);
+        }
+        const groups = Array.from(byStore.entries()).map(([storeId, gItems]) => ({
+          storeId,
+          ownerUserId: gItems[0].ownerUserId,
+          requiresShipping: true,
+          itemSubtotal: gItems.reduce((s, x) => s + x.subtotal, 0),
+          shippingFee: 30000,
+          storeVoucherDiscount: 0,
+          platformVoucherDiscount: 0,
+          shippingDiscount: 0,
+          totalDiscount: 0,
+          grandTotal: gItems.reduce((s, x) => s + x.subtotal, 0) + 30000,
+          items: gItems,
+        }));
+        return {
+          groups,
+          itemSubtotal: items.reduce((s: number, x: any) => s + x.subtotal, 0),
+          shippingTotal: groups.length * 30000,
+          storeVoucherTotal: 0,
+          platformVoucherDiscount: 0,
+          shippingDiscountTotal: 0,
+          discountTotal: 0,
+          grandTotal: items.reduce((s: number, x: any) => s + x.subtotal, 0) + groups.length * 30000,
+          appliedVouchers: {},
+          vouchers: { stores: [] },
+        };
+      }),
+    };
+
+    const multiPrisma = {
+      userAddress: { findFirst: jest.fn().mockResolvedValue(null) },
+      checkoutSession: {
+        create: jest.fn().mockImplementation(({ data }) =>
+          Promise.resolve({ id: "session-multi", expiresAt: data.expiresAt }),
+        ),
+      },
+    };
+
+    const multiService = new CheckoutService(
+      multiPrisma as any,
+      multiStoreCartService as any,
+      config as any,
+      {} as any,
+      { quote: jest.fn().mockResolvedValue({ isFlashSale: false, allowed: true }), getCustomBookDiscount: jest.fn().mockResolvedValue(null) } as any,
+      {} as any,
+      {} as any,
+      multiPricingCalculator as any,
+    );
+
+    const previewRes = await multiService.preview("user-1", {} as any);
+    expect(previewRes.groups).toHaveLength(2);
+    expect(previewRes.groups.map((g: any) => ({ storeId: g.storeId, storeName: g.storeName }))).toEqual([
+      { storeId: "huki-official", storeName: "Nhà Sách HuKi Official" },
+      { storeId: "store-kim-dong", storeName: "Nhà Sách Kim Đồng" },
+    ]);
+  });
 });
 
