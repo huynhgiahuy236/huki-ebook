@@ -28,7 +28,7 @@ export default function SellerFooter() {
           </Link>
           <span>•</span>
           <a href="tel:19008866" className="text-emerald-700 dark:text-emerald-400 font-bold">
-            Hotline B2B: 1900 8866
+            Hotline B2B:037 2212 378
           </a>
         </div>
       </div>

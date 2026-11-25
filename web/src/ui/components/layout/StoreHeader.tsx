@@ -84,12 +84,12 @@ export default function StoreHeader({
   const sellerDestinationUrl = (!isMounted || !isLoggedIn)
     ? '/seller'
     : user?.business?.status === 'PENDING_APPROVAL'
-    ? '/seller/pending'
-    : (user?.business?.status === 'APPROVED' || user?.role === 'BUSINESS' || user?.hasApprovedBusiness)
-    ? isSetupCompleted
-      ? '/seller/dashboard'
-      : '/seller/stores/setup'
-    : '/seller/register';
+      ? '/seller/pending'
+      : (user?.business?.status === 'APPROVED' || user?.role === 'BUSINESS' || user?.hasApprovedBusiness)
+        ? isSetupCompleted
+          ? '/seller/dashboard'
+          : '/seller/stores/setup'
+        : '/seller/register';
 
   // Lấy tổng số lượng tin nhắn chưa đọc của người dùng
   const fetchUnreadCount = useCallback(async () => {
@@ -245,10 +245,10 @@ export default function StoreHeader({
       (user.role === 'PLATFORM_ADMIN'
         ? 'Super Admin'
         : user.role === 'BUSINESS'
-        ? 'Chủ Doanh Nghiệp'
-        : user.email
-        ? user.email.split('@')[0]
-        : 'Khách Hàng')
+          ? 'Chủ Doanh Nghiệp'
+          : user.email
+            ? user.email.split('@')[0]
+            : 'Khách Hàng')
     );
   }, [user]);
 
@@ -378,7 +378,7 @@ export default function StoreHeader({
           <span className="opacity-40">|</span>
           <span className="flex items-center gap-1">
             <span className="material-symbols-outlined text-[13px] text-[var(--theme-header-top-accent,#94f5d6)]">support_agent</span>
-            Hotline: 1900 8866 (8:00 - 21:00)
+            Hotline:037 2212 378 (8:00 - 21:00)
           </span>
         </div>
         <div className="flex items-center gap-3 whitespace-nowrap">

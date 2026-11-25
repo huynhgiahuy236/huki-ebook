@@ -79,7 +79,7 @@ export default function AccountStatusPage() {
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6b7280] hover:text-[#003b2b] transition-colors"
             >
               <span className="material-symbols-outlined text-base text-[#003b2b]">support_agent</span>
-              <span className="hidden sm:inline">Pháp chế: 1900 8866</span>
+              <span className="hidden sm:inline">Pháp chế:037 2212 378</span>
             </a>
           </div>
         </div>
@@ -221,16 +221,16 @@ export default function AccountStatusPage() {
                     {status === 'APPROVED'
                       ? 'Hồ Sơ Doanh Nghiệp Đã Được Kích Hoạt'
                       : status === 'REJECTED'
-                      ? 'Yêu Cầu Bổ Sung Hồ Sơ Pháp Lý'
-                      : 'Hồ Sơ NXB Đang Trong Tiến Trình Thẩm Định'}
+                        ? 'Yêu Cầu Bổ Sung Hồ Sơ Pháp Lý'
+                        : 'Hồ Sơ NXB Đang Trong Tiến Trình Thẩm Định'}
                   </h1>
 
                   <p className="text-xs sm:text-sm text-[#6b7280] mt-1.5 max-w-2xl leading-relaxed">
                     {status === 'APPROVED'
                       ? 'Đơn vị của bạn đã là Đối tác Cấp 1 chính thức. Bạn có toàn quyền phát hành sách giấy và sách số DRM trên toàn sàn.'
                       : status === 'REJECTED'
-                      ? 'Hội đồng thẩm định cần bạn cập nhật lại một số giấy tờ pháp lý trước khi phê duyệt.'
-                      : 'Hồ sơ của bạn đã được tiếp nhận thành công. Ban Thư ký & Pháp chế HUKI đang đối soát giấy tờ trong vòng 24–48 giờ làm việc.'}
+                        ? 'Hội đồng thẩm định cần bạn cập nhật lại một số giấy tờ pháp lý trước khi phê duyệt.'
+                        : 'Hồ sơ của bạn đã được tiếp nhận thành công. Ban Thư ký & Pháp chế HUKI đang đối soát giấy tờ trong vòng 24–48 giờ làm việc.'}
                   </p>
                 </div>
 
@@ -280,20 +280,18 @@ export default function AccountStatusPage() {
                   </div>
 
                   {/* Step 2 */}
-                  <div className={`flex items-start gap-3 p-3.5 rounded-2xl border ${
-                    status === 'APPROVED'
+                  <div className={`flex items-start gap-3 p-3.5 rounded-2xl border ${status === 'APPROVED'
                       ? 'bg-[#f2fbf9] border-[#94f5d6]/50'
                       : status === 'REJECTED'
-                      ? 'bg-red-50/50 border-red-200'
-                      : 'bg-amber-50/60 border-amber-200'
-                  }`}>
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                      status === 'APPROVED'
+                        ? 'bg-red-50/50 border-red-200'
+                        : 'bg-amber-50/60 border-amber-200'
+                    }`}>
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${status === 'APPROVED'
                         ? 'bg-[#006953] text-[#94f5d6]'
                         : status === 'REJECTED'
-                        ? 'bg-[#ac2c19] text-white'
-                        : 'bg-amber-500 text-white animate-pulse'
-                    }`}>
+                          ? 'bg-[#ac2c19] text-white'
+                          : 'bg-amber-500 text-white animate-pulse'
+                      }`}>
                       <span className="material-symbols-outlined text-lg">
                         {status === 'APPROVED' ? 'check' : status === 'REJECTED' ? 'close' : 'hourglass_top'}
                       </span>
@@ -304,23 +302,21 @@ export default function AccountStatusPage() {
                         {status === 'APPROVED'
                           ? 'Đã thẩm định hợp lệ'
                           : status === 'REJECTED'
-                          ? 'Chưa đạt yêu cầu'
-                          : 'Đang rà soát giấy tờ'}
+                            ? 'Chưa đạt yêu cầu'
+                            : 'Đang rà soát giấy tờ'}
                       </p>
                     </div>
                   </div>
 
                   {/* Step 3 */}
-                  <div className={`flex items-start gap-3 p-3.5 rounded-2xl border ${
-                    status === 'APPROVED'
+                  <div className={`flex items-start gap-3 p-3.5 rounded-2xl border ${status === 'APPROVED'
                       ? 'bg-[#f2fbf9] border-[#94f5d6]/50'
                       : 'bg-[#f8f6f1] border-[#e8e5df] opacity-75'
-                  }`}>
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                      status === 'APPROVED'
+                    }`}>
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${status === 'APPROVED'
                         ? 'bg-[#006953] text-[#94f5d6]'
                         : 'bg-gray-200 text-gray-500'
-                    }`}>
+                      }`}>
                       <span className="material-symbols-outlined text-lg">
                         {status === 'APPROVED' ? 'verified' : 'lock'}
                       </span>
@@ -449,7 +445,7 @@ export default function AccountStatusPage() {
                         className="bg-[#94f5d6] text-[#003b2b] py-2.5 px-4 rounded-xl text-xs font-bold hover:bg-white transition-all text-center flex items-center justify-center gap-1.5 shadow-sm"
                       >
                         <span className="material-symbols-outlined text-base">call</span>
-                        <span>Hotline: 1900 8866 (Pháp Chế)</span>
+                        <span>Hotline:037 2212 378 (Pháp Chế)</span>
                       </a>
                       <a
                         href="mailto:phapche@hukiebook.vn"
