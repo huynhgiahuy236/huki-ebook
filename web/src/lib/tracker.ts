@@ -33,18 +33,18 @@ export enum TrackEventType {
 }
 
 export interface TrackEvent {
-  sourceEventId: string;
-  eventType: TrackEventType;
-  userId?: string;
-  sessionId: string;
-  bookId?: string;
+  event_id: string;
+  event_type: TrackEventType;
+  user_id?: string;
+  session_id: string;
+  book_id?: string;
   properties?: Record<string, any>;
   context?: {
     url?: string;
     referrer?: string;
-    userAgent?: string;
+    user_agent?: string;
   };
-  createdAt: string;
+  timestamp: string;
 }
 
 interface TrackerConfig {
@@ -193,11 +193,11 @@ class Tracker {
     properties?: Record<string, any>,
   ): TrackEvent {
     return {
-      sourceEventId: uuidv4(),
-      eventType,
-      userId: this.userId,
-      sessionId: this.sessionId,
-      bookId: properties?.bookId,
+      event_id: uuidv4(),
+      event_type: eventType,
+      user_id: this.userId,
+      session_id: this.sessionId,
+      book_id: properties?.bookId,
       properties: {
         categoryId: properties?.categoryId,
         authorId: properties?.authorId,
@@ -209,9 +209,9 @@ class Tracker {
       context: typeof window !== 'undefined' ? {
         url: window.location.href,
         referrer: document.referrer,
-        userAgent: navigator.userAgent,
+        user_agent: navigator.userAgent,
       } : undefined,
-      createdAt: new Date().toISOString(),
+      timestamp: new Date().toISOString(),
     };
   }
 

@@ -5,7 +5,7 @@
  * 100% In-Page Expansions, Session-Based Grouping, Horizontal Scrollable Tables
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { catalogApi, type BookData } from '@/ui/api/catalogApi';
@@ -603,10 +603,19 @@ export function SellerFlashSaleView() {
     };
   }, [cancelCountdownState?.itemId, cancelCountdownState?.secondsLeft]);
 
-  // Load All Data
-  const loadData = useCallback(async () => {
+  const hasLoadedOnceRef = useRef(false);
+  const isFetchingRef = useRef(false);
+  const lastSyncAtRef = useRef(0);
+
+  // Load All Data (supports silent background refresh without resetting form or flashing skeleton - BUG-051)
+  const loadData = useCallback(async (silent = false) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+    lastSyncAtRef.current = Date.now();
     try {
-      setLoading(true);
+      if (!silent && !hasLoadedOnceRef.current) {
+        setLoading(true);
+      }
 
       let bizId = user?.business?.id || activeBusinessId;
       if (!bizId) {
@@ -657,35 +666,43 @@ export function SellerFlashSaleView() {
           : [];
       }
 
-      // catalogApi.getSellerBooks already scopes books strictly to the authenticated seller
       const finalBooks = books;
-
       setRawBooks(finalBooks);
 
-      // Initialize Book Config Map for Multi-Selection
-      const initialMap: Record<string, ConfiguredBookItem> = {};
-      finalBooks.forEach((b) => {
-        const origPrice = Number(b.price || 100000);
-        const defaultSale = Math.max(1000, Math.round(origPrice * 0.7)); // default 30% off
-        const avail = Number((b as any).available ?? b.physicalDetails?.stock ?? (b as any).stock ?? 20);
-        initialMap[b.id] = {
-          book: b,
-          isSelected: false,
-          salePrice: defaultSale,
-          stock: Math.min(10, Math.max(1, avail)),
-          maxPerUser: 1,
-        };
+      // Preserve unsaved form selection state during silent background refreshes
+      setBookConfigMap((prevMap) => {
+        const nextMap: Record<string, ConfiguredBookItem> = {};
+        finalBooks.forEach((b) => {
+          if (silent && prevMap[b.id]) {
+            nextMap[b.id] = { ...prevMap[b.id], book: b };
+            return;
+          }
+          const origPrice = Number(b.price || 100000);
+          const defaultSale = Math.max(1000, Math.round(origPrice * 0.7));
+          const avail = Number((b as any).available ?? b.physicalDetails?.stock ?? (b as any).stock ?? 20);
+          nextMap[b.id] = {
+            book: b,
+            isSelected: false,
+            salePrice: defaultSale,
+            stock: Math.min(10, Math.max(1, avail)),
+            maxPerUser: 1,
+          };
+        });
+        return nextMap;
       });
-      setBookConfigMap(initialMap);
+      hasLoadedOnceRef.current = true;
     } catch (err: any) {
-      showToast('Không thể tải dữ liệu Flash Sale: ' + (err?.message || 'Lỗi mạng'), 'error');
+      if (!silent) {
+        showToast('Không thể tải dữ liệu Flash Sale: ' + (err?.message || 'Lỗi mạng'), 'error');
+      }
     } finally {
+      isFetchingRef.current = false;
       setLoading(false);
     }
   }, [user, activeBusinessId, setActiveBusinessId, showToast]);
 
   useEffect(() => {
-    loadData();
+    loadData(false);
 
     const unsub = realtimeSyncBus.subscribe((msg) => {
       if (
@@ -694,29 +711,29 @@ export function SellerFlashSaleView() {
         msg.type === 'ADMIN_NOTIFICATIONS_UPDATED'
       ) {
         invalidateFlashSaleCache();
-        loadData();
+        loadData(true);
       }
     });
 
     const handleDomUpdate = () => {
       invalidateFlashSaleCache();
-      loadData();
+      loadData(true);
     };
     window.addEventListener('huki_flash_sale_updated', handleDomUpdate);
 
+    // Silent background sync only when returning after >= 15s (never wipes UI on tab switch)
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        loadData();
+        if (Date.now() - lastSyncAtRef.current < 15000) return;
+        loadData(true);
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', handleVisibility);
 
     return () => {
       unsub();
       window.removeEventListener('huki_flash_sale_updated', handleDomUpdate);
       document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', handleVisibility);
     };
   }, [loadData]);
 
@@ -1166,8 +1183,9 @@ export function SellerFlashSaleView() {
           });
           return reset;
         });
+        invalidateFlashSaleCache();
+        await loadData(true);
         realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: targetSlotId });
-        await loadData();
       } else {
         if (slotMode === 'CUSTOM' && targetSlotId) {
           try {

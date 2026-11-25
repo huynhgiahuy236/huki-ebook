@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { sanitizeImageUrl } from '@/ui/utils/imageUtils';
 
 // Generates consistent elegant gradient themes based on book title
 function getCoverTheme(title = '') {
@@ -30,10 +31,14 @@ export default function BookCover({
   author = 'HUKI EBOOK',
   className = ''
 }: BookCoverProps) {
+  const safeSrc = sanitizeImageUrl(src);
   const [hasError, setHasError] = useState(false);
+  useEffect(() => {
+    setHasError(false);
+  }, [safeSrc]);
   const theme = getCoverTheme(title);
 
-  if (hasError || !src) {
+  if (hasError || !safeSrc) {
     return (
       <div
         className={`w-full h-full bg-gradient-to-br ${theme.bg} text-white p-3.5 flex flex-col justify-between select-none relative overflow-hidden ${className}`}
@@ -72,7 +77,7 @@ export default function BookCover({
 
   return (
     <img
-      src={src}
+      src={safeSrc}
       alt={title || ''}
       referrerPolicy="no-referrer"
       onError={() => setHasError(true)}

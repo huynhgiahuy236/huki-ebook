@@ -43,20 +43,22 @@ export const discountApi = {
     }),
 
   /**
-   * Get active/latest discount for a book
+   * Get active discount for a book (public endpoint - avoids 403 on Buyer pages)
    */
   getDiscountByBookId: (bookId: string) =>
-    apiClient<BookDiscount | null>(`/seller/discounts/books/${encodeURIComponent(bookId)}`, {
+    apiClient<BookDiscount | null>(`/discounts/active/${encodeURIComponent(bookId)}`, {
       method: 'GET',
+      skipAuth: true,
     }),
 
   /**
-   * Get discounts for multiple books in batch
+   * Get active discounts for multiple books in batch
    */
   getDiscountsForBooks: (bookIds: string[]) =>
-    apiClient<BookDiscount[]>('/seller/discounts/batch-books', {
+    apiClient<BookDiscount[]>('/discounts/batch-active', {
       method: 'POST',
       body: JSON.stringify({ bookIds }),
+      skipAuth: true,
     }),
 
   /**
