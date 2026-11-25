@@ -289,6 +289,11 @@ export default function BookCard({
         cover: book.cover || book.coverUrl,
         author: typeof book.author === 'string' ? book.author : authorName,
         publisher: publisher,
+        storeName:
+          (book as any).storeName ||
+          (book as any).store?.name ||
+          (book as any).business?.displayName ||
+          (book as any).business?.name,
         storeId: effectiveStoreId,
         businessId: effectiveBusinessId,
         format: resolvedFormat,

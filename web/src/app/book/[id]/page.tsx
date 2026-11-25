@@ -1003,13 +1003,22 @@ export default function BookDetailPage() {
     // Track add to cart event
     trackEvent.addToCart(book.id, realBook?.categoryId);
 
+    const resolvedStoreName =
+      storeInfo?.name ||
+      (realBook as any)?.storeName ||
+      (realBook as any)?.store?.name ||
+      realBook?.business?.displayName ||
+      realBook?.business?.name ||
+      'Nhà Sách HuKi Official';
+
     addItem({
       id: `${book.id}-${selectedFormat}`,
       bookId: book.id,
       title: book.title,
       author: book.author,
-      publisher: book.publisher || storeInfo?.name || publisherProfile?.name,
-      storeId: realBook?.businessId || realBook?.storeId || storeInfo?.id || publisherProfile?.id,
+      publisher: book.publisher,
+      storeName: resolvedStoreName,
+      storeId: realBook?.storeId || realBook?.businessId || storeInfo?.id || publisherProfile?.id,
       price: flashSaleInfo ? flashSaleInfo.salePrice : currentPrice.price,
       originalPrice: flashSaleInfo ? flashSaleInfo.originalPrice : currentPrice.originalPrice,
       format: currentPrice.title,
@@ -1037,6 +1046,14 @@ export default function BookDetailPage() {
     const buyPrice = flashSaleInfo ? flashSaleInfo.salePrice : currentPrice.price;
     const buyOriginalPrice = flashSaleInfo ? flashSaleInfo.originalPrice : currentPrice.originalPrice;
 
+    const resolvedStoreName =
+      storeInfo?.name ||
+      (realBook as any)?.storeName ||
+      (realBook as any)?.store?.name ||
+      (realBook as any)?.business?.displayName ||
+      (realBook as any)?.business?.name ||
+      'Nhà Sách HuKi Official';
+
     const directItem = {
       id: `${book.id}-direct-${Date.now()}`,
       bookId: book.id,
@@ -1048,9 +1065,9 @@ export default function BookDetailPage() {
       quantity: quantity || 1,
       format: buyFormat,
       type: buyFormat === 'DIGITAL' ? 'ebook' : 'physical',
-      storeId: realBook?.businessId || realBook?.storeId || storeInfo?.id || publisherProfile?.id || 'huki-official',
-      storeName: publisherProfile?.name || storeInfo?.name || book.publisher || (realBook as any)?.business?.name || 'Gian Hàng HUKI',
-      publisher: publisherProfile?.name || book.publisher || storeInfo?.name || 'Gian Hàng HUKI',
+      storeId: realBook?.storeId || realBook?.businessId || storeInfo?.id || publisherProfile?.id || 'huki-official',
+      storeName: resolvedStoreName,
+      publisher: book.publisher || resolvedStoreName,
       flashSaleId: flashSaleInfo?.flashSaleId,
       isFlashSale: Boolean(flashSaleInfo?.isFlashSale),
     };

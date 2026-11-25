@@ -27,6 +27,88 @@ function toLocalDatetimeString(date: Date = new Date()): string {
   return year + '-' + month + '-' + day + 'T' + hours + ':' + minutes;
 }
 
+/**
+ * Isolated 1-second timer for each Flash Sale slot so ticking does not re-render
+ * the entire AdminFlashSaleView tree every second (prevents UI lag / jitter).
+ */
+function SlotCountdownBadge({
+  slot,
+  onEndEarlyClick,
+}: {
+  slot: FlashSaleSlot;
+  onEndEarlyClick: (slot: FlashSaleSlot) => void;
+}) {
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    if (slot.status !== "ACTIVE") return;
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [slot.status]);
+
+  const remainingSeconds = Math.max(0, Math.floor((new Date(slot.endsAt).getTime() - nowMs) / 1000));
+  const isEndingEarly = slot.status === "ACTIVE" && remainingSeconds <= 300 && remainingSeconds > 0;
+  const isLive = slot.status === "ACTIVE" && !isEndingEarly && remainingSeconds > 0;
+
+  if (isEndingEarly) {
+    return (
+      <button
+        disabled
+        className="px-3 py-1.5 rounded-xl font-bold text-xs border border-amber-300 bg-amber-50 text-amber-800 flex items-center gap-1.5 cursor-not-allowed shadow-2xs"
+        title="Khung giờ này đã được kích hoạt kết thúc sớm sau 5 phút"
+      >
+        <span className="material-symbols-outlined text-[15px] animate-spin text-amber-600">progress_activity</span>
+        <span>Đang kết thúc ({Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, "0")})</span>
+      </button>
+    );
+  }
+
+  if (isLive) {
+    return (
+      <button
+        onClick={() => onEndEarlyClick(slot)}
+        className="px-3 py-1.5 rounded-xl font-bold text-xs border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+        title="Kết thúc sớm đợt Flash Sale này (chờ 5 phút để khách hoàn tất thanh toán)"
+      >
+        <span className="material-symbols-outlined text-sm">timer_off</span>
+        <span>Kết Thúc Sớm</span>
+      </button>
+    );
+  }
+
+  return null;
+}
+
+function SlotStatusBadge({ slot }: { slot: FlashSaleSlot }) {
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    if (slot.status !== "ACTIVE") return;
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [slot.status]);
+
+  const remainingSeconds = Math.max(0, Math.floor((new Date(slot.endsAt).getTime() - nowMs) / 1000));
+  const isEndingEarly = slot.status === "ACTIVE" && remainingSeconds <= 300 && remainingSeconds > 0;
+  const isLive = slot.status === "ACTIVE" && !isEndingEarly && remainingSeconds > 0;
+  const isScheduled = slot.status === "SCHEDULED";
+  const isCancelled = slot.status === "CANCELLED";
+
+  if (isEndingEarly) {
+    return (
+      <AdminStatusBadge
+        status="warning"
+        label={`KẾT THÚC SAU ${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, "0")}`}
+        icon="alarm"
+      />
+    );
+  }
+  if (isLive) return <AdminStatusBadge status="danger" label="ĐANG DIỄN RA" icon="bolt" />;
+  if (isScheduled) return <AdminStatusBadge status="warning" label="ĐÃ LÊN LỊCH" icon="schedule" />;
+  if (isCancelled) return <AdminStatusBadge status="danger" label="ĐÃ HỦY" icon="cancel" />;
+  return <AdminStatusBadge status="neutral" label="ĐÃ KẾT THÚC" />;
+}
+
 export function AdminFlashSaleView() {
   const { showToast } = useToast();
 
@@ -34,6 +116,9 @@ export function AdminFlashSaleView() {
   const [pendingAppealsCount, setPendingAppealsCount] = useState<number>(0);
 
   const [loading, setLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const hasLoadedOnceRef = useRef(false);
+  const lastSilentSyncRef = useRef<number>(0);
   const [flashSales, setFlashSales] = useState<FlashSaleSlot[]>([]);
   const [catalogBooks, setCatalogBooks] = useState<BookData[]>([]);
   const [activeTab, setActiveTab] = useState<'ALL' | 'ACTIVE' | 'SCHEDULED' | 'ENDED' | 'CANCELLED'>('ALL');
@@ -83,9 +168,11 @@ export function AdminFlashSaleView() {
     maxPerUser: number;
   } | null>(null);
 
-  const fetchFlashSales = async () => {
+  const fetchFlashSales = async (silent = false) => {
+    const showBlockingLoader = !silent && !hasLoadedOnceRef.current;
     try {
-      setLoading(true);
+      if (showBlockingLoader) setLoading(true);
+      if (silent) setIsRefreshing(true);
       const res = await flashSaleApi.getAll({ scope: 'PLATFORM' });
       if (res.success && res.data) {
         const list = Array.isArray(res.data)
@@ -108,11 +195,14 @@ export function AdminFlashSaleView() {
             return s;
           });
         setFlashSales(normalized);
+        hasLoadedOnceRef.current = true;
+        lastSilentSyncRef.current = Date.now();
       }
     } catch (err) {
       console.error("Failed to load flash sales:", err);
     } finally {
-      setLoading(false);
+      if (showBlockingLoader) setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -127,15 +217,8 @@ export function AdminFlashSaleView() {
     }
   };
 
-  // 1-second dynamic ticker for real-time live countdowns and badge updates
-  const [nowTick, setNowTick] = useState<number>(Date.now());
   useEffect(() => {
-    const timer = setInterval(() => setNowTick(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    fetchFlashSales();
+    fetchFlashSales(false);
     fetchCatalog();
 
     const refreshAppealsCount = () => {
@@ -154,59 +237,33 @@ export function AdminFlashSaleView() {
         (msg.type as any) === 'FLASH_SALE_UPDATED'
       ) {
         invalidateFlashSaleCache();
-        fetchFlashSales();
+        fetchFlashSales(true);
       }
     });
 
     const handleDomUpdate = () => {
       invalidateFlashSaleCache();
-      fetchFlashSales();
+      fetchFlashSales(true);
     };
     window.addEventListener('huki_flash_sale_updated', handleDomUpdate);
 
+    // Silent background resync only when tab becomes visible after >= 15s (no 5-6s reload heartbeat)
     const handleFocusSync = () => {
-      if (document.visibilityState === 'visible') {
-        fetchFlashSales();
+      if (
+        document.visibilityState === 'visible' &&
+        Date.now() - lastSilentSyncRef.current >= 15000
+      ) {
+        fetchFlashSales(true);
       }
     };
     document.addEventListener('visibilitychange', handleFocusSync);
-    window.addEventListener('focus', handleFocusSync);
-
-    // Heartbeat auto-sync every 6s when tab is visible
-    const heartbeat = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        fetchFlashSales();
-      }
-    }, 6000);
 
     return () => {
       unsubscribePenalty();
       window.removeEventListener('huki_flash_sale_updated', handleDomUpdate);
       document.removeEventListener('visibilitychange', handleFocusSync);
-      window.removeEventListener('focus', handleFocusSync);
-      clearInterval(heartbeat);
     };
   }, []);
-
-  // Realtime auto-refresh when any slot's grace period ends (debounced / triggered once per slot)
-  const triggeredGraceRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    let shouldFetch = false;
-    flashSales.forEach((s) => {
-      if (!s.pauseEffectiveAt) {
-        triggeredGraceRef.current.delete(s.id);
-        return;
-      }
-      const rem = new Date(s.pauseEffectiveAt).getTime() - nowTick;
-      if (rem <= 0 && !triggeredGraceRef.current.has(s.id)) {
-        triggeredGraceRef.current.add(s.id);
-        shouldFetch = true;
-      }
-    });
-    if (shouldFetch) {
-      fetchFlashSales();
-    }
-  }, [nowTick, flashSales]);
 
   // Top KPI Metrics
   const stats = useMemo(() => {
@@ -453,7 +510,7 @@ export function AdminFlashSaleView() {
       showToast?.(` Đã gán thành công ${successCount}/${selectedConfigs.length} sách vào khung giờ Flash Sale!`, "success");
       setStudioSlotId(null);
       realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: activeStudioSlot.id });
-      fetchFlashSales();
+      fetchFlashSales(true);
     } catch {
       showToast?.("Có lỗi xảy ra khi gán sách hàng loạt", "error");
     } finally {
@@ -613,7 +670,7 @@ export function AdminFlashSaleView() {
           maxPerUser: 1,
         });
         realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: res.data?.id });
-        fetchFlashSales();
+        fetchFlashSales(true);
       } else {
         showToast?.(res.error?.message || "Không thể tạo khung giờ Flash Sale", "error");
       }
@@ -633,7 +690,7 @@ export function AdminFlashSaleView() {
         showToast?.(`Đã kích hoạt kết thúc sớm 5 phút cho đợt "${endEarlyModalSlot.name}"! Toàn sàn đã nhận thông báo.`, "success");
         realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: endEarlyModalSlot.id });
         setEndEarlyModalSlot(null);
-        fetchFlashSales();
+        fetchFlashSales(true);
       } else {
         showToast?.(res.error?.message || "Lỗi khi kích hoạt kết thúc sớm", "error");
       }
@@ -651,7 +708,7 @@ export function AdminFlashSaleView() {
       if (res.success) {
         showToast?.(`Đã hủy lịch khung giờ "${slot.name}" thành công!`, "success");
         realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: slot.id });
-        fetchFlashSales();
+        fetchFlashSales(true);
       } else {
         showToast?.(res.error?.message || "Lỗi khi hủy khung giờ", "error");
       }
@@ -670,7 +727,7 @@ export function AdminFlashSaleView() {
         setEditingRowId(null);
         setEditingRowData(null);
         realtimeSyncBus.publish('FLASH_SALE_UPDATED', { itemId });
-        fetchFlashSales();
+        fetchFlashSales(true);
       }
     } catch {
       showToast?.("Không thể cập nhật sách khuyến mãi", "error");
@@ -686,7 +743,7 @@ export function AdminFlashSaleView() {
         showToast?.("Đã xóa sách khỏi Flash Sale thành công! Sách đã trả về nguyên bản.", "success");
         realtimeSyncBus.publish('FLASH_SALE_UPDATED', { itemId });
         invalidateFlashSaleCache();
-        fetchFlashSales();
+        fetchFlashSales(true);
       } else {
         showToast?.(res.error?.message || (res as any)?.message || "Không thể xóa sách khỏi đợt Flash Sale", "error");
       }
@@ -709,7 +766,23 @@ export function AdminFlashSaleView() {
           </p>
         </div>
 
-        <div className="flex flex-col items-end gap-1 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              invalidateFlashSaleCache();
+              fetchFlashSales(true);
+            }}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl font-bold text-xs border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 transition-all shadow-2xs shrink-0 cursor-pointer disabled:opacity-60"
+            title="Làm mới danh sách khung giờ"
+          >
+            <span className={`material-symbols-outlined text-[16px] ${isRefreshing ? 'animate-spin text-[#00875A]' : ''}`}>
+              refresh
+            </span>
+            <span>Làm mới</span>
+          </button>
+
           <button
             onClick={() => setIsCreateFormOpen(!isCreateFormOpen)}
             className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-xs shrink-0 cursor-pointer ${
@@ -1215,11 +1288,8 @@ export function AdminFlashSaleView() {
               {/* Sessions in this group */}
               <div className="grid grid-cols-1 gap-5">
                 {group.sessions.map((slot) => {
-                  const remainingSeconds = Math.max(0, Math.floor((new Date(slot.endsAt).getTime() - nowTick) / 1000));
-                  const isEndingEarly = slot.status === "ACTIVE" && remainingSeconds <= 300 && remainingSeconds > 0;
-                  const isLive = slot.status === "ACTIVE" && !isEndingEarly;
+                  const isActive = slot.status === "ACTIVE";
                   const isScheduled = slot.status === "SCHEDULED";
-                  const isEnded = slot.status === "ENDED" || (slot.status === "ACTIVE" && remainingSeconds === 0);
                   const isCancelled = slot.status === "CANCELLED";
                   const isStudioOpen = studioSlotId === slot.id;
 
@@ -1235,7 +1305,7 @@ export function AdminFlashSaleView() {
                         <div className="flex items-center gap-3">
                           <div
                             className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 ${
-                              isLive || isEndingEarly
+                              isActive
                                 ? "bg-rose-50 text-rose-600 border border-rose-200"
                                 : isCancelled
                                 ? "bg-red-50 text-red-600 border border-red-200"
@@ -1249,21 +1319,7 @@ export function AdminFlashSaleView() {
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-extrabold text-gray-900 text-sm">{slot.name}</h3>
-                              {isEndingEarly ? (
-                                <AdminStatusBadge
-                                  status="warning"
-                                  label={`KẾT THÚC SAU ${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, "0")}`}
-                                  icon="alarm"
-                                />
-                              ) : isLive ? (
-                                <AdminStatusBadge status="danger" label="ĐANG DIỄN RA" icon="bolt" />
-                              ) : isScheduled ? (
-                                <AdminStatusBadge status="warning" label="ĐÃ LÊN LỊCH" icon="schedule" />
-                              ) : isCancelled ? (
-                                <AdminStatusBadge status="danger" label="ĐÃ HỦY" icon="cancel" />
-                              ) : (
-                                <AdminStatusBadge status="neutral" label="ĐÃ KẾT THÚC" />
-                              )}
+                              <SlotStatusBadge slot={slot} />
                               <span className="px-2 py-0.5 rounded-full font-bold text-[10.5px] bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1 font-mono">
                                 <span className="material-symbols-outlined text-[13px]">storefront</span>
                                 <span>Shop tham gia: {slot.participatingStoresCount || 0}/{slot.maxStores || 10}</span>
@@ -1296,25 +1352,8 @@ export function AdminFlashSaleView() {
                             </span>
                             <span>{isStudioOpen ? "Đóng Studio Sách" : `Studio Gán Sách (${slot.items?.length || 0})`}</span>
                           </button>
-                          {isEndingEarly ? (
-                            <button
-                              disabled
-                              className="px-3 py-1.5 rounded-xl font-bold text-xs border border-amber-300 bg-amber-50 text-amber-800 flex items-center gap-1.5 cursor-not-allowed shadow-2xs"
-                              title="Khung giờ này đã được kích hoạt kết thúc sớm sau 5 phút"
-                            >
-                              <span className="material-symbols-outlined text-[15px] animate-spin text-amber-600">progress_activity</span>
-                              <span>Đang kết thúc ({Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, "0")})</span>
-                            </button>
-                          ) : isLive ? (
-                            <button
-                              onClick={() => setEndEarlyModalSlot(slot)}
-                              className="px-3.5 py-1.5 rounded-xl font-bold text-xs cursor-pointer border transition-colors bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 flex items-center gap-1.5 shadow-2xs"
-                              title="Lên lịch kết thúc đợt sau 5 phút và bắn thông báo toàn sàn để người mua kịp thanh toán giỏ hàng"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">alarm_off</span>
-                              <span>Kết Thúc Sớm (5 phút)</span>
-                            </button>
-                          ) : isScheduled ? (
+                          <SlotCountdownBadge slot={slot} onEndEarlyClick={setEndEarlyModalSlot} />
+                          {isScheduled ? (
                             <button
                               onClick={() => handleCancelSlot(slot)}
                               className="px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer border transition-colors bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100 flex items-center gap-1 shadow-2xs"

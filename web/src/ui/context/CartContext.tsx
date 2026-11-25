@@ -10,6 +10,7 @@ export interface CartItem {
   slug?: string;
   author: string;
   publisher: string;
+  storeName?: string;
   storeId: string;
   businessId?: string;
   format: string;
@@ -122,7 +123,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Transform backend CartResponse item into frontend cart item
   const mapServerItemToLocal = useCallback((serverItem: any, existingLocalItems: CartItem[] = []): CartItem => {
     const existing = existingLocalItems.find(
-      (i) => i.id === serverItem.id || (i.bookId === serverItem.bookId && i.format === serverItem.format)
+      (i) =>
+        i.id === serverItem.id ||
+        (i.bookId === serverItem.bookId &&
+          (i.apiFormat === serverItem.format || i.format === serverItem.format))
     );
 
     const isPhysical = serverItem.format === 'PHYSICAL';
@@ -148,13 +152,20 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (existing?.businessId && existing.businessId !== 'huki-official' && existing.businessId) ||
       resolvedStoreId;
 
-    // Resolve publisher/store dynamically from server book metadata
+    // Separate publisher metadata from authoritative store name
     const resolvedPublisher =
       (serverItem.book?.publisher && serverItem.book.publisher !== 'Gian Hàng HUKI' && serverItem.book.publisher) ||
-      serverItem.book?.business?.name ||
-      serverItem.book?.business?.displayName ||
       (existing?.publisher && existing.publisher !== 'Gian Hàng HUKI' && existing.publisher) ||
-      'Gian Hàng HUKI';
+      'Nhà xuất bản HUKI';
+
+    const resolvedStoreName =
+      serverItem.book?.storeName ||
+      serverItem.storeName ||
+      serverItem.book?.store?.name ||
+      serverItem.book?.business?.displayName ||
+      serverItem.book?.business?.name ||
+      existing?.storeName ||
+      'Nhà Sách HuKi Official';
 
     return {
       id: serverItem.id,
@@ -163,6 +174,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       slug: serverItem.book?.slug || existing?.slug || serverItem.bookId,
       author: serverItem.book?.author || existing?.author || 'Đang cập nhật',
       publisher: resolvedPublisher,
+      storeName: resolvedStoreName,
       storeId: resolvedStoreId,
       businessId: resolvedBusinessId,
       format: isPhysical ? 'Sách giấy' : isEbook ? 'Ebook Số' : existing?.format || 'Sách giấy',
@@ -404,11 +416,17 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const resolvedPublisher =
           (itemOrBook.publisher && itemOrBook.publisher !== 'Gian Hàng HUKI' && itemOrBook.publisher) ||
+          itemOrBook.book?.publisher ||
+          'Nhà xuất bản HUKI';
+
+        const resolvedStoreName =
+          itemOrBook.storeName ||
+          itemOrBook.book?.storeName ||
+          (itemOrBook as any).store?.name ||
+          itemOrBook.book?.store?.name ||
           itemOrBook.business?.displayName ||
           itemOrBook.business?.name ||
-          itemOrBook.book?.publisher ||
-          itemOrBook.publisher ||
-          'Gian Hàng HUKI';
+          'Nhà Sách HuKi Official';
 
         newItem = {
           id: itemOrBook.id || `item-${Date.now()}`,
@@ -417,6 +435,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           slug: itemOrBook.slug || bookId,
           author: itemOrBook.author || 'Đang cập nhật',
           publisher: resolvedPublisher,
+          storeName: resolvedStoreName,
           storeId: resolvedStoreId,
           businessId: resolvedBusinessId,
           format: itemOrBook.format || (isCombo ? 'Combo Hybrid' : isPhysical ? 'Sách giấy' : 'Ebook Số'),
@@ -470,10 +489,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const resolvedPublisher =
           (book.publisher && book.publisher !== 'Gian Hàng HUKI' && book.publisher) ||
+          'Nhà xuất bản HUKI';
+
+        const resolvedStoreName =
+          (book as any).storeName ||
+          (book as any).store?.name ||
           book.business?.displayName ||
           book.business?.name ||
-          book.publisher ||
-          'Gian Hàng HUKI';
+          'Nhà Sách HuKi Official';
 
         newItem = {
           id: `${book.id}-${format}-${Date.now()}`,
@@ -482,6 +505,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           slug: book.slug || book.id,
           author: book.author || 'Tác giả',
           publisher: resolvedPublisher,
+          storeName: resolvedStoreName,
           storeId: resolvedStoreId,
           businessId: resolvedBusinessId,
           format: formatName,
@@ -766,14 +790,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const groups: Record<string, StoreGroup> = {};
 
     availableItems.forEach((item) => {
-      const storeId = item.storeId || 'default-store';
+      const storeId = item.storeId || 'huki-official';
       if (!groups[storeId]) {
-        const publisherName = item.publisher || 'Gian Hàng HUKI';
+        const displayStoreName = item.storeName || 'Nhà Sách HuKi Official';
         groups[storeId] = {
           id: storeId,
-          name: publisherName,
+          name: displayStoreName,
           badge: 'Chính Hãng',
-          tag: publisherName.slice(0, 2).toUpperCase(),
+          tag: displayStoreName.slice(0, 2).toUpperCase(),
           tagBg: 'bg-emerald-600',
           items: [],
           subtotal: 0,
