@@ -28,7 +28,43 @@ export interface VoucherValidationResult {
 
 @Injectable()
 export class VouchersService {
+  private readonly pgPools = new Map<string, any>();
+  private readonly relatedIdsCache = new Map<string, { ids: string[]; expiresAt: number }>();
+
   constructor(private readonly prisma: PrismaService) {}
+
+  private resolveCrossServiceDbUrl(service: 'business' | 'commerce'): string {
+    const envVar = service === 'business' ? process.env.BUSINESS_DATABASE_URL : process.env.COMMERCE_DATABASE_URL;
+    if (envVar) return envVar;
+    const defaultDb = `huki_${service}`;
+    if (process.env.DATABASE_URL) {
+      return process.env.DATABASE_URL.replace(/\/[^\/\?]+(\?.*)?$/, (match: string, p1?: string) => {
+        const query = p1 || '';
+        if (match.includes('_uat_')) return `/huki_uat_${service}${query}`;
+        if (match.includes('_prod_')) return `/huki_prod_${service}${query}`;
+        return `/${defaultDb}${query}`;
+      });
+    }
+    return `postgresql://postgres:postgres123@localhost:5432/${defaultDb}`;
+  }
+
+  private getPgPool(connectionString: string) {
+    let pool = this.pgPools.get(connectionString);
+    if (!pool) {
+      const { Pool } = require('pg');
+      pool = new Pool({
+        connectionString,
+        max: 5,
+        idleTimeoutMillis: 30_000,
+        connectionTimeoutMillis: 3_000,
+      });
+      pool.on('error', () => {
+        // Ignore idle client errors on cross-service helper pool
+      });
+      this.pgPools.set(connectionString, pool);
+    }
+    return pool;
+  }
 
   async onApplicationBootstrap() {
     // Disabled automatic sample vouchers seeding as requested
@@ -1283,30 +1319,21 @@ export class VouchersService {
 
   private async getRelatedStoreAndBusinessIds(id?: string | null): Promise<string[]> {
     if (!id) return [];
+    const cached = this.relatedIdsCache.get(id);
+    if (cached && Date.now() < cached.expiresAt) {
+      return cached.ids;
+    }
     const inputIds = id.split(',').map((s) => s.trim()).filter(Boolean);
     if (!inputIds.length) return [];
     try {
-      const { Client } = require('pg');
-      let defaultBizUrl = 'postgresql://postgres:postgres123@localhost:5432/huki_business';
-      if (process.env.DATABASE_URL) {
-        defaultBizUrl = process.env.DATABASE_URL.replace(/\/[^\/\?]+(\?.*)?$/, (match: string, p1?: string) => {
-          const query = p1 || '';
-          if (match.includes('_uat_')) return `/huki_uat_business${query}`;
-          if (match.includes('_prod_')) return `/huki_prod_business${query}`;
-          return `/huki_business${query}`;
-        });
-      }
-      const bizDbUrl = process.env.BUSINESS_DATABASE_URL || defaultBizUrl;
-      const pgClient = new Client({ connectionString: bizDbUrl });
-      await pgClient.connect();
-      const res = await pgClient.query(
+      const pool = this.getPgPool(this.resolveCrossServiceDbUrl('business'));
+      const res = await pool.query(
         `SELECT s.id as store_id, s.business_id, b.owner_id
          FROM stores s
          LEFT JOIN businesses b ON s.business_id = b.id
          WHERE s.id = ANY($1::text[]) OR s.business_id = ANY($1::text[]) OR b.id = ANY($1::text[]) OR b.owner_id = ANY($1::text[])`,
         [inputIds],
       );
-      await pgClient.end();
       const ids = new Set<string>(inputIds);
       if (res.rows && res.rows.length > 0) {
         for (const row of res.rows) {
@@ -1315,7 +1342,9 @@ export class VouchersService {
           if (row.owner_id) ids.add(row.owner_id);
         }
       }
-      return Array.from(ids);
+      const result = Array.from(ids);
+      this.relatedIdsCache.set(id, { ids: result, expiresAt: Date.now() + 30_000 });
+      return result;
     } catch {
       return inputIds;
     }
@@ -1325,26 +1354,13 @@ export class VouchersService {
     if (!userId || userId === 'anonymous' || !storeId) return { isFollower: false, daysFollowed: 0 };
     try {
       const relatedIds = await this.getRelatedStoreAndBusinessIds(storeId);
-      const { Client } = require('pg');
-      let defaultBizUrl = 'postgresql://postgres:postgres123@localhost:5432/huki_business';
-      if (process.env.DATABASE_URL) {
-        defaultBizUrl = process.env.DATABASE_URL.replace(/\/[^\/\?]+(\?.*)?$/, (match: string, p1?: string) => {
-          const query = p1 || '';
-          if (match.includes('_uat_')) return `/huki_uat_business${query}`;
-          if (match.includes('_prod_')) return `/huki_prod_business${query}`;
-          return `/huki_business${query}`;
-        });
-      }
-      const bizDbUrl = process.env.BUSINESS_DATABASE_URL || defaultBizUrl;
-      const pgClient = new Client({ connectionString: bizDbUrl });
-      await pgClient.connect();
-      const res = await pgClient.query(
+      const pool = this.getPgPool(this.resolveCrossServiceDbUrl('business'));
+      const res = await pool.query(
         `SELECT bf.id, bf.created_at FROM business_followers bf
          WHERE bf.business_id = ANY($1) AND bf.user_id = $2
          LIMIT 1`,
         [relatedIds, userId],
       );
-      await pgClient.end();
 
       if (res.rows && res.rows.length > 0) {
         const createdAt = new Date(res.rows[0].created_at);
@@ -1364,18 +1380,11 @@ export class VouchersService {
     if (!userId) return false;
     try {
       const relatedIds = await this.getRelatedStoreAndBusinessIds(storeId);
-      const { Client } = require('pg');
-      const commerceDbUrl =
-        process.env.COMMERCE_DATABASE_URL ||
-        process.env.DATABASE_URL?.replace(/\/[^\/]+$/, '/huki_commerce') ||
-        'postgresql://postgres:postgres123@localhost:5432/huki_commerce';
-      const pgClient = new Client({ connectionString: commerceDbUrl });
-      await pgClient.connect();
-      const res = await pgClient.query(
+      const pool = this.getPgPool(this.resolveCrossServiceDbUrl('commerce'));
+      const res = await pool.query(
         `SELECT id FROM orders WHERE user_id = $1 ${relatedIds.length > 0 ? 'AND (store_id = ANY($2) OR business_id = ANY($2))' : ''} AND status NOT IN ('CANCELLED', 'PAYMENT_FAILED') LIMIT 1`,
         relatedIds.length > 0 ? [userId, relatedIds] : [userId],
       );
-      await pgClient.end();
       return res.rows.length === 0;
     } catch {
       return true;
@@ -1459,24 +1468,11 @@ export class VouchersService {
     const map = new Map<string, any>();
     if (!storeIds || !storeIds.length) return map;
     try {
-      const { Client } = require('pg');
-      let defaultBizUrl = 'postgresql://postgres:postgres123@localhost:5432/huki_business';
-      if (process.env.DATABASE_URL) {
-        defaultBizUrl = process.env.DATABASE_URL.replace(/\/[^\/\?]+(\?.*)?$/, (match: string, p1?: string) => {
-          const query = p1 || '';
-          if (match.includes('_uat_')) return `/huki_uat_business${query}`;
-          if (match.includes('_prod_')) return `/huki_prod_business${query}`;
-          return `/huki_business${query}`;
-        });
-      }
-      const bizDbUrl = process.env.BUSINESS_DATABASE_URL || defaultBizUrl;
-      const pgClient = new Client({ connectionString: bizDbUrl });
-      await pgClient.connect();
-      const res = await pgClient.query(
+      const pool = this.getPgPool(this.resolveCrossServiceDbUrl('business'));
+      const res = await pool.query(
         `SELECT id, name, slug, logo, business_id FROM stores WHERE id = ANY($1) OR business_id = ANY($1)`,
         [storeIds],
       );
-      await pgClient.end();
       if (res.rows && res.rows.length > 0) {
         for (const row of res.rows) {
           const info = {
@@ -1501,27 +1497,14 @@ export class VouchersService {
   private async getUserFollowedStoreAndBusinessIds(userId: string): Promise<string[]> {
     if (!userId || userId === 'anonymous') return [];
     try {
-      const { Client } = require('pg');
-      let defaultBizUrl = 'postgresql://postgres:postgres123@localhost:5432/huki_business';
-      if (process.env.DATABASE_URL) {
-        defaultBizUrl = process.env.DATABASE_URL.replace(/\/[^\/\?]+(\?.*)?$/, (match: string, p1?: string) => {
-          const query = p1 || '';
-          if (match.includes('_uat_')) return `/huki_uat_business${query}`;
-          if (match.includes('_prod_')) return `/huki_prod_business${query}`;
-          return `/huki_business${query}`;
-        });
-      }
-      const bizDbUrl = process.env.BUSINESS_DATABASE_URL || defaultBizUrl;
-      const pgClient = new Client({ connectionString: bizDbUrl });
-      await pgClient.connect();
-      const res = await pgClient.query(
+      const pool = this.getPgPool(this.resolveCrossServiceDbUrl('business'));
+      const res = await pool.query(
         `SELECT bf.business_id, s.id as store_id 
          FROM business_followers bf
          LEFT JOIN stores s ON s.business_id = bf.business_id
          WHERE bf.user_id = $1`,
         [userId],
       );
-      await pgClient.end();
       const ids = new Set<string>();
       if (res.rows && res.rows.length > 0) {
         for (const row of res.rows) {

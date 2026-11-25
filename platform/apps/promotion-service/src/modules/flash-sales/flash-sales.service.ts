@@ -34,6 +34,8 @@ export class FlashSalesService
 {
   private readonly logger = new Logger(FlashSalesService.name);
   private statusTimer?: NodeJS.Timeout;
+  private lastStatusSyncAt = 0;
+  private statusSyncPromise: Promise<void> | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -48,10 +50,10 @@ export class FlashSalesService
       });
     }
     await this.seedDefaultCampaignsIfEmpty();
-    await this.syncStatuses();
+    await this.syncStatuses(true);
     await this.initializeRedisStock();
     this.statusTimer = setInterval(() => {
-      void this.syncStatuses().catch((error) =>
+      void this.syncStatuses(true).catch((error) =>
         this.logger.error("Unable to synchronize Flash Sale statuses", error),
       );
     }, 15_000);
@@ -215,6 +217,22 @@ export class FlashSalesService
     });
   }
 
+  /** Enrich a single flash sale item using a preloaded book map (avoids N+1 uncached HTTP fetches). */
+  private mapItemWithBook(item: any, fs: any, bookMap: Map<string, any>) {
+    const itemView = this.mapItemView(item, fs);
+    const book = bookMap.get(item.bookId);
+    if (book) {
+      itemView.bookTitle = book.title;
+      itemView.bookSlug = book.slug || book.id;
+      itemView.coverUrl = book.coverImage || book.cover || book.coverUrl;
+      (itemView as any).author =
+        book.author?.name || book.author || book.authorName || "Nhiều tác giả";
+      (itemView as any).storeId = item.storeId || book.storeId || book.businessId || fs.storeId;
+      (itemView as any).format = book.format || "PHYSICAL";
+    }
+    return { itemView, book };
+  }
+
   async findAll(query: FlashSaleQueryDto) {
     await this.syncStatuses();
     const where: any = {};
@@ -233,26 +251,14 @@ export class FlashSalesService
       this.prisma.flashSale.count({ where }),
     ]);
 
+    const allBookIds = items.flatMap((fs) => fs.items.map((it) => it.bookId));
+    const bookMap = await this.preloadCommerceBooks(allBookIds);
+
     // Recalculate dynamic status and calculate participatingStoresCount and book details
     const mapped = await Promise.all(
       items.map(async (fs) => {
         const participatingStoreIds = await this.getParticipatingStoreIds(fs.id, fs.items);
-        const enrichedItems = await Promise.all(
-          fs.items.map(async (item) => {
-            const itemView = this.mapItemView(item, fs);
-            const book = await this.getCommerceBook(item.bookId);
-            if (book) {
-              itemView.bookTitle = book.title;
-              itemView.bookSlug = book.slug || book.id;
-              itemView.coverUrl = book.coverImage || book.cover || book.coverUrl;
-              (itemView as any).author =
-                book.author?.name || book.author || book.authorName || "Nhiều tác giả";
-              (itemView as any).storeId = item.storeId || book.storeId || book.businessId || fs.storeId;
-              (itemView as any).format = book.format || "PHYSICAL";
-            }
-            return itemView;
-          }),
-        );
+        const enrichedItems = fs.items.map((item) => this.mapItemWithBook(item, fs, bookMap).itemView);
 
         const effectiveStatus = this.calculateStatus(fs.startsAt, fs.endsAt, fs.status, fs.pauseEffectiveAt);
         const nowTime = new Date();
@@ -459,28 +465,17 @@ export class FlashSalesService
       orderBy: { startsAt: "asc" },
     });
 
+    const bookMap = await this.preloadCommerceBooks(
+      campaigns.flatMap((c) => c.items.map((item) => item.bookId)),
+    );
+
     const enriched = await Promise.all(
       campaigns.map(async (c) => {
         const status = this.calculateStatus(c.startsAt, c.endsAt, c.status, c.pauseEffectiveAt);
         const participatingStoreIds = await this.getParticipatingStoreIds(c.id, c.items);
         const participatingStoresCount = participatingStoreIds.length;
         const regEnd = c.registrationEndsAt ? new Date(c.registrationEndsAt) : c.startsAt;
-        const itemsWithBooks = await Promise.all(
-          c.items.map(async (item) => {
-            const mapped = this.mapItemView(item, c);
-            const book = await this.getCommerceBook(item.bookId);
-            if (book) {
-              mapped.bookTitle = book.title;
-              mapped.bookSlug = book.slug || book.id;
-              mapped.coverUrl = book.coverImage || book.cover || book.coverUrl;
-              (mapped as any).author =
-                book.author?.name || book.author || book.authorName || "Nhiều tác giả";
-              (mapped as any).storeId = book.storeId || book.businessId || c.storeId;
-              (mapped as any).format = book.format || "PHYSICAL";
-            }
-            return mapped;
-          }),
-        );
+        const itemsWithBooks = c.items.map((item) => this.mapItemWithBook(item, c, bookMap).itemView);
 
         return {
           ...c,
@@ -531,28 +526,17 @@ export class FlashSalesService
       orderBy: { startsAt: "asc" },
     });
 
+    const bookMap = await this.preloadCommerceBooks(
+      campaigns.flatMap((c) => c.items.map((item) => item.bookId)),
+    );
+
     const enriched = await Promise.all(
       campaigns.map(async (c) => {
         const status = this.calculateStatus(c.startsAt, c.endsAt, c.status, c.pauseEffectiveAt);
         const participatingStoreIds = await this.getParticipatingStoreIds(c.id, c.items);
         const participatingStoresCount = participatingStoreIds.length;
         const regEnd = c.registrationEndsAt ? new Date(c.registrationEndsAt) : c.startsAt;
-        const itemsWithBooks = await Promise.all(
-          c.items.map(async (item) => {
-            const mapped = this.mapItemView(item, c);
-            const book = await this.getCommerceBook(item.bookId);
-            if (book) {
-              mapped.bookTitle = book.title;
-              mapped.bookSlug = book.slug || book.id;
-              mapped.coverUrl = book.coverImage || book.cover || book.coverUrl;
-              (mapped as any).author =
-                book.author?.name || book.author || book.authorName || "Nhiều tác giả";
-              (mapped as any).storeId = book.storeId || book.businessId || c.storeId;
-              (mapped as any).format = book.format || "PHYSICAL";
-            }
-            return mapped;
-          }),
-        );
+        const itemsWithBooks = c.items.map((item) => this.mapItemWithBook(item, c, bookMap).itemView);
 
         return {
           ...c,
@@ -613,6 +597,10 @@ export class FlashSalesService
       include: { items: true },
     });
 
+    const slotBookMap = await this.preloadCommerceBooks(
+      allCampaigns.flatMap((c) => c.items.map((item) => item.bookId)),
+    );
+
     const mapped = await Promise.all(
       allCampaigns.map(async (c) => {
         const status = this.calculateStatus(c.startsAt, c.endsAt, c.status);
@@ -629,22 +617,7 @@ export class FlashSalesService
                 )
               : 0;
 
-        const itemsWithBooks = await Promise.all(
-          c.items.map(async (item) => {
-            const itemView = this.mapItemView(item, c);
-            const book = await this.getCommerceBook(item.bookId);
-            if (book) {
-              itemView.bookTitle = book.title;
-              itemView.bookSlug = book.slug || book.id;
-              itemView.coverUrl = book.coverImage || book.cover || book.coverUrl;
-              (itemView as any).author =
-                book.author?.name || book.author || book.authorName || "Nhiều tác giả";
-              (itemView as any).storeId = book.storeId || book.businessId || c.storeId;
-              (itemView as any).format = book.format || "PHYSICAL";
-            }
-            return itemView;
-          }),
-        );
+        const itemsWithBooks = c.items.map((item) => this.mapItemWithBook(item, c, slotBookMap).itemView);
 
         return {
           id: c.id,
@@ -709,6 +682,10 @@ export class FlashSalesService
       orderBy: { startsAt: "asc" },
     });
 
+    const shopBookMap = await this.preloadCommerceBooks(
+      shopCampaigns.flatMap((c) => c.items.map((item) => item.bookId)),
+    );
+
     const enriched = await Promise.all(
       shopCampaigns.map(async (c) => {
         const status = this.calculateStatus(c.startsAt, c.endsAt);
@@ -724,30 +701,19 @@ export class FlashSalesService
         let storeDisplayName = "Cửa hàng HUKI";
         let storeAvatar = "/banners/hero-library.jpg";
 
-        const itemsWithBooks = await Promise.all(
-          c.items.map(async (item) => {
-            const itemView = this.mapItemView(item, c);
-            const book = await this.getCommerceBook(item.bookId);
-            if (book) {
-              itemView.bookTitle = book.title;
-              itemView.bookSlug = book.slug || book.id;
-              itemView.coverUrl = book.coverImage || book.cover || book.coverUrl;
-              (itemView as any).author =
-                book.author?.name || book.author || book.authorName || "Nhiều tác giả";
-              (itemView as any).storeId = book.storeId || book.businessId || c.storeId;
-              (itemView as any).format = book.format || "PHYSICAL";
-
-              if (book.publisher?.name || book.publisher?.displayName) {
-                storeDisplayName = book.publisher.displayName || book.publisher.name;
-              } else if (book.publisher && typeof book.publisher === "string") {
-                storeDisplayName = book.publisher;
-              } else if (book.businessName || book.storeName) {
-                storeDisplayName = book.businessName || book.storeName;
-              }
+        const itemsWithBooks = c.items.map((item) => {
+          const { itemView, book } = this.mapItemWithBook(item, c, shopBookMap);
+          if (book) {
+            if (book.publisher?.name || book.publisher?.displayName) {
+              storeDisplayName = book.publisher.displayName || book.publisher.name;
+            } else if (book.publisher && typeof book.publisher === "string") {
+              storeDisplayName = book.publisher;
+            } else if (book.businessName || book.storeName) {
+              storeDisplayName = book.businessName || book.storeName;
             }
-            return itemView;
-          }),
-        );
+          }
+          return itemView;
+        });
 
         return {
           id: c.id,
@@ -1362,68 +1328,83 @@ export class FlashSalesService
     return FlashSaleStatus.ACTIVE;
   }
 
-  private async syncStatuses() {
-    const now = new Date();
-
-    // 0. Auto-heal any legacy PAUSED campaigns to ACTIVE or ENDED to ensure no campaigns remain stuck:
-    const legacyPausedSales = await this.prisma.flashSale.findMany({
-      where: {
-        status: FlashSaleStatus.PAUSED,
-      },
-    });
-
-    if (legacyPausedSales.length > 0) {
-      for (const s of legacyPausedSales) {
-        const targetStatus = now > s.endsAt ? FlashSaleStatus.ENDED : now >= s.startsAt ? FlashSaleStatus.ACTIVE : FlashSaleStatus.SCHEDULED;
-        await this.prisma.flashSale.update({
-          where: { id: s.id },
-          data: { status: targetStatus, pauseEffectiveAt: null },
-        });
-      }
+  private async syncStatuses(force = false) {
+    const nowMs = Date.now();
+    if (!force && nowMs - this.lastStatusSyncAt < 10_000) {
+      return;
+    }
+    if (this.statusSyncPromise) {
+      return this.statusSyncPromise;
     }
 
-    // 1. Auto-cancel Platform Flash Sales that reached registrationEndsAt with fewer distinct stores than minStores
-    const pendingPlatformSales = await this.prisma.flashSale.findMany({
-      where: {
-        scope: FlashSaleScope.PLATFORM,
-        status: FlashSaleStatus.SCHEDULED,
-        registrationEndsAt: { lte: now },
-      },
-      include: { items: true },
-    });
+    this.statusSyncPromise = (async () => {
+      const now = new Date();
 
-    for (const fs of pendingPlatformSales || []) {
-      const storeIds = await this.getParticipatingStoreIds(fs.id, fs.items);
-      const minStores = fs.minStores ?? 1;
-      if (minStores > 1 && storeIds.length < minStores) {
-        await this.prisma.flashSale.update({
-          where: { id: fs.id },
-          data: { status: FlashSaleStatus.CANCELLED },
-        });
-        this.logger.warn(
-          `Flash Sale Sàn "${fs.name}" đã tự động bị HỦY do chỉ có ${storeIds.length}/${minStores} Shop tham gia khi đóng cổng đăng ký.`,
-        );
-      }
-    }
-
-    // 2. Transition SCHEDULED (non-cancelled) to ACTIVE when reaching startsAt
-    await this.prisma.$transaction([
-      this.prisma.flashSale.updateMany({
+      // 0. Auto-heal any legacy PAUSED campaigns to ACTIVE or ENDED to ensure no campaigns remain stuck:
+      const legacyPausedSales = await this.prisma.flashSale.findMany({
         where: {
+          status: FlashSaleStatus.PAUSED,
+        },
+      });
+
+      if (legacyPausedSales.length > 0) {
+        for (const s of legacyPausedSales) {
+          const targetStatus = now > s.endsAt ? FlashSaleStatus.ENDED : now >= s.startsAt ? FlashSaleStatus.ACTIVE : FlashSaleStatus.SCHEDULED;
+          await this.prisma.flashSale.update({
+            where: { id: s.id },
+            data: { status: targetStatus, pauseEffectiveAt: null },
+          });
+        }
+      }
+
+      // 1. Auto-cancel Platform Flash Sales that reached registrationEndsAt with fewer distinct stores than minStores
+      const pendingPlatformSales = await this.prisma.flashSale.findMany({
+        where: {
+          scope: FlashSaleScope.PLATFORM,
           status: FlashSaleStatus.SCHEDULED,
-          startsAt: { lte: now },
-          endsAt: { gte: now },
+          registrationEndsAt: { lte: now },
         },
-        data: { status: FlashSaleStatus.ACTIVE },
-      }),
-      this.prisma.flashSale.updateMany({
-        where: {
-          status: { in: [FlashSaleStatus.SCHEDULED, FlashSaleStatus.ACTIVE, FlashSaleStatus.PAUSED] },
-          endsAt: { lt: now },
-        },
-        data: { status: FlashSaleStatus.ENDED },
-      }),
-    ]);
+        include: { items: true },
+      });
+
+      for (const fs of pendingPlatformSales || []) {
+        const storeIds = await this.getParticipatingStoreIds(fs.id, fs.items);
+        const minStores = fs.minStores ?? 1;
+        if (minStores > 1 && storeIds.length < minStores) {
+          await this.prisma.flashSale.update({
+            where: { id: fs.id },
+            data: { status: FlashSaleStatus.CANCELLED },
+          });
+          this.logger.warn(
+            `Flash Sale Sàn "${fs.name}" đã tự động bị HỦY do chỉ có ${storeIds.length}/${minStores} Shop tham gia khi đóng cổng đăng ký.`,
+          );
+        }
+      }
+
+      // 2. Transition SCHEDULED (non-cancelled) to ACTIVE when reaching startsAt
+      await this.prisma.$transaction([
+        this.prisma.flashSale.updateMany({
+          where: {
+            status: FlashSaleStatus.SCHEDULED,
+            startsAt: { lte: now },
+            endsAt: { gte: now },
+          },
+          data: { status: FlashSaleStatus.ACTIVE },
+        }),
+        this.prisma.flashSale.updateMany({
+          where: {
+            status: { in: [FlashSaleStatus.SCHEDULED, FlashSaleStatus.ACTIVE, FlashSaleStatus.PAUSED] },
+            endsAt: { lt: now },
+          },
+          data: { status: FlashSaleStatus.ENDED },
+        }),
+      ]);
+      this.lastStatusSyncAt = Date.now();
+    })().finally(() => {
+      this.statusSyncPromise = null;
+    });
+
+    return this.statusSyncPromise;
   }
 
   private async findActiveItem(bookId: string, flashSaleId?: string) {
@@ -1453,13 +1434,18 @@ export class FlashSalesService
       where: { flashSaleId },
       select: { id: true, bookId: true, storeId: true },
     });
+    const missingStoreBookIds = items.filter((i) => !i.storeId && i.bookId).map((i) => i.bookId);
+    const missingBookMap = missingStoreBookIds.length > 0
+      ? await this.preloadCommerceBooks(missingStoreBookIds)
+      : new Map<string, any>();
+
     const storeIds = new Set<string>();
     for (const item of items) {
       if (item.storeId) {
         storeIds.add(String(item.storeId));
         continue;
       }
-      const book = await this.getCommerceBook(item.bookId);
+      const book = missingBookMap.get(item.bookId);
       const sid =
         book?.businessId ||
         book?.business?.id ||

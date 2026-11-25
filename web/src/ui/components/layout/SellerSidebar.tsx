@@ -170,7 +170,17 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
         fetchBadges();
       }
       if (eventType === 'CHAT_MESSAGE_RECEIVED' || eventType === 'CHAT_UNREAD_COUNT_CHANGED') {
-        fetchBadges();
+        const bizId = user?.business?.id || activeBusinessId;
+        if (bizId) {
+          chatService.listConversations(bizId)
+            .then((convRes) => {
+              if (!cancelled && convRes.success && Array.isArray(convRes.data)) {
+                const unreadChat = convRes.data.reduce((sum: number, c: any) => sum + (c.unreadCount || 0), 0);
+                setBadges((prev) => (prev.unreadChat === unreadChat ? prev : { ...prev, unreadChat }));
+              }
+            })
+            .catch(() => {});
+        }
       }
     });
 

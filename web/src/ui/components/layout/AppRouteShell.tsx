@@ -31,24 +31,28 @@ export default function AppRouteShell({ children }: AppRouteShellProps) {
     });
   }, []);
 
-  // Synchronize maintenance state
+  // Synchronize maintenance state without causing unnecessary tree re-renders every second
   useEffect(() => {
     const handleUpdate = () => {
-      setMaintenanceState({
-        isActive: maintenanceService.isMaintenanceActive(),
-        isDrain: maintenanceService.isUnderGracefulDrain(),
-        drainSec: maintenanceService.getRemainingDrainSeconds(),
+      const nextActive = maintenanceService.isMaintenanceActive();
+      const nextDrain = maintenanceService.isUnderGracefulDrain();
+      const nextDrainSec = nextDrain ? maintenanceService.getRemainingDrainSeconds() : 0;
+      setMaintenanceState((prev) => {
+        if (prev.isActive === nextActive && prev.isDrain === nextDrain && prev.drainSec === nextDrainSec) {
+          return prev;
+        }
+        return { isActive: nextActive, isDrain: nextDrain, drainSec: nextDrainSec };
       });
     };
 
     window.addEventListener('huki_system_maintenance_changed', handleUpdate);
-    const interval = setInterval(handleUpdate, 1000);
+    const interval = setInterval(handleUpdate, maintenanceState.isDrain ? 1000 : 5000);
 
     return () => {
       window.removeEventListener('huki_system_maintenance_changed', handleUpdate);
       clearInterval(interval);
     };
-  }, []);
+  }, [maintenanceState.isDrain]);
 
   const isShipperUser = Boolean(
     user?.role === 'DELIVERY_STAFF' ||
