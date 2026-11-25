@@ -251,7 +251,7 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
       }
     }
     const socket = io(`${socketUrl}/notifications`, {
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       auth: { token },
       reconnection: true,
       reconnectionAttempts: 10,

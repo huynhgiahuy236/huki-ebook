@@ -2532,7 +2532,8 @@ export class OrdersService {
               : (sellerOrder.completedAt
                 ? new Date(sellerOrder.completedAt).getTime()
                 : new Date(sellerOrder.updatedAt || order.updatedAt || order.createdAt).getTime());
-            const isDigitalWindowPassed = digitalStartMs > 0 ? (Date.now() - digitalStartMs) >= 3 * 60 * 1000 : false;
+            const holdMs = (Number(process.env.ESCROW_HOLD_DURATION_SECONDS) > 0 ? Number(process.env.ESCROW_HOLD_DURATION_SECONDS) : 180) * 1000;
+            const isDigitalWindowPassed = digitalStartMs > 0 ? (Date.now() - digitalStartMs) >= holdMs : false;
             escrowStatus = isDigitalWindowPassed ? 'RELEASED' : 'HOLDING';
           } else {
             // For PHYSICAL book:
@@ -2553,7 +2554,8 @@ export class OrdersService {
                 : (sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED')
                   ? new Date(sellerOrder.updatedAt || order.updatedAt).getTime()
                   : 0;
-              const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 3 * 60 * 1000 : false;
+              const holdMs = (Number(process.env.ESCROW_HOLD_DURATION_SECONDS) > 0 ? Number(process.env.ESCROW_HOLD_DURATION_SECONDS) : 180) * 1000;
+              const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= holdMs : false;
 
               escrowStatus = isReturnWindowPassed ? 'RELEASED' : 'HOLDING';
             }
@@ -2837,7 +2839,8 @@ export class OrdersService {
               : (sellerOrder.completedAt
                 ? new Date(sellerOrder.completedAt).getTime()
                 : new Date(sellerOrder.updatedAt || order.updatedAt || order.createdAt).getTime());
-            const isDigitalWindowPassed = digitalStartMs > 0 ? (Date.now() - digitalStartMs) >= 3 * 60 * 1000 : false;
+            const holdMs = (Number(process.env.ESCROW_HOLD_DURATION_SECONDS) > 0 ? Number(process.env.ESCROW_HOLD_DURATION_SECONDS) : 180) * 1000;
+            const isDigitalWindowPassed = digitalStartMs > 0 ? (Date.now() - digitalStartMs) >= holdMs : false;
             escrowStatus = isDigitalWindowPassed ? 'RELEASED' : 'HOLDING';
           } else {
             // For PHYSICAL book:
@@ -2858,7 +2861,8 @@ export class OrdersService {
                 : (sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED')
                   ? new Date(sellerOrder.updatedAt || order.updatedAt).getTime()
                   : 0;
-              const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 3 * 60 * 1000 : false;
+              const holdMs = (Number(process.env.ESCROW_HOLD_DURATION_SECONDS) > 0 ? Number(process.env.ESCROW_HOLD_DURATION_SECONDS) : 180) * 1000;
+              const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= holdMs : false;
 
               escrowStatus = isReturnWindowPassed ? 'RELEASED' : 'HOLDING';
             }
@@ -2908,6 +2912,7 @@ export class OrdersService {
                 : (sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED')
                   ? (sellerOrder.updatedAt || order.updatedAt).toISOString()
                   : null,
+              paidAt: orderPaidAt ? new Date(orderPaidAt).toISOString() : null,
               requiresShipping: sellerOrder.requiresShipping,
               storeId: sellerOrder.storeId,
               storeName: sellerOrder.storeId,

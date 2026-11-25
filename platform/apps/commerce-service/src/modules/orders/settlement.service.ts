@@ -80,12 +80,12 @@ export class SettlementService implements OnApplicationBootstrap {
   ) {}
 
   onApplicationBootstrap() {
-    this.logger.log('Starting automated escrow settlement worker (interval 60s)...');
+    this.logger.log('Starting automated escrow settlement worker (interval 15s)...');
     setInterval(() => {
       this.settleEligibleOrders().catch((err) => {
         this.logger.warn(`Automated escrow settlement worker failed: ${err?.message}`);
       });
-    }, 60_000);
+    }, 15_000);
   }
 
   /**
@@ -218,9 +218,13 @@ export class SettlementService implements OnApplicationBootstrap {
     }
 
     // 2. Payment Verification Guard
+    const isCodRemitted = Boolean(
+      (order as any).isCodRemitted === true ||
+      (order.statusHistory || []).some((h) => h.toStatus === 'COD_REMITTANCE'),
+    );
     const isPaid =
       order.paymentStatus === PaymentStatus.SUCCEEDED ||
-      (order.paymentMethod === 'COD' && order.status === OrderStatus.COMPLETED);
+      (order.paymentMethod === 'COD' && order.status === OrderStatus.COMPLETED && isCodRemitted);
 
     if (!isPaid) {
       return {
@@ -229,7 +233,9 @@ export class SettlementService implements OnApplicationBootstrap {
         orderStatus: order.status,
         paymentStatus: order.paymentStatus,
         sellerOrderStatus: sellerOrder.status,
-        reason: 'Order payment has not succeeded',
+        reason: order.paymentMethod === 'COD' && !isCodRemitted
+          ? 'COD order requires shipper cash remittance before settlement'
+          : 'Order payment has not succeeded',
       };
     }
 
@@ -293,6 +299,10 @@ export class SettlementService implements OnApplicationBootstrap {
     const now = Date.now();
     const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
     const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+    const configuredHoldSec = Number(process.env.ESCROW_HOLD_DURATION_SECONDS);
+    const hasConfiguredHold = Number.isFinite(configuredHoldSec) && configuredHoldSec > 0;
+    const digitalWindowMs = hasConfiguredHold ? configuredHoldSec * 1000 : TWENTY_FOUR_HOURS_MS;
+    const physicalWindowMs = hasConfiguredHold ? configuredHoldSec * 1000 : SEVEN_DAYS_MS;
 
     // Check early buyer confirmation in status history
     const isBuyerConfirmed = histories.some(
@@ -304,19 +314,26 @@ export class SettlementService implements OnApplicationBootstrap {
     );
 
     if (format === 'DIGITAL') {
-      // POL-14 ESC-001: EBOOK funds are held up to 24h from payment success (or instant upon auto-release window)
-      const paidTimestamp = order.createdAt ? new Date(order.createdAt).getTime() : now;
-      const is24hPassed = now >= paidTimestamp + TWENTY_FOUR_HOURS_MS;
+      const paidHistory = histories.find(
+        (h) => h.toStatus === 'PAID' || h.toStatus === 'PAYMENT_SUCCEEDED',
+      );
+      const paidTimestamp = paidHistory?.createdAt
+        ? new Date(paidHistory.createdAt).getTime()
+        : order.createdAt
+          ? new Date(order.createdAt).getTime()
+          : now;
+      const isHoldPassed = now >= paidTimestamp + digitalWindowMs;
 
-      // If within 24h and not explicitly confirmed/released
-      if (!is24hPassed && !isBuyerConfirmed) {
+      if (!isHoldPassed && !isBuyerConfirmed) {
         return {
           sellerOrderId,
           isEligible: false,
           format,
           orderStatus: order.status,
           sellerOrderStatus: sellerOrder.status,
-          reason: 'Digital safety hold active: requires 24h post-payment window or buyer confirmation',
+          reason: hasConfiguredHold
+            ? `Digital safety hold active: requires ${configuredHoldSec}s post-payment window or buyer confirmation`
+            : 'Digital safety hold active: requires 24h post-payment window or buyer confirmation',
         };
       }
 
@@ -361,16 +378,18 @@ export class SettlementService implements OnApplicationBootstrap {
         ? new Date(sellerOrder.updatedAt).getTime()
         : now;
 
-      const is7DaysPassed = now >= deliveredTimestamp + SEVEN_DAYS_MS;
+      const isHoldPassed = now >= deliveredTimestamp + physicalWindowMs;
 
-      if (!is7DaysPassed && !isBuyerConfirmed) {
+      if (!isHoldPassed && !isBuyerConfirmed) {
         return {
           sellerOrderId,
           isEligible: false,
           format,
           orderStatus: order.status,
           sellerOrderStatus: sellerOrder.status,
-          reason: 'Physical protection window active: requires 7-day holding period (168h) or buyer confirmation',
+          reason: hasConfiguredHold
+            ? `Physical protection window active: requires ${configuredHoldSec}s holding period or buyer confirmation`
+            : 'Physical protection window active: requires 7-day holding period (168h) or buyer confirmation',
         };
       }
 
@@ -761,9 +780,10 @@ export class SettlementService implements OnApplicationBootstrap {
     const candidateOrders = await this.prisma.sellerOrder.findMany({
       where: {
         status: { in: [SellerOrderStatus.COMPLETED, SellerOrderStatus.CONFIRMED, SellerOrderStatus.DELIVERED, SellerOrderStatus.SHIPPED] },
-        order: {
-          paymentStatus: PaymentStatus.SUCCEEDED,
-        },
+        OR: [
+          { order: { paymentStatus: PaymentStatus.SUCCEEDED } },
+          { order: { paymentMethod: 'COD', status: OrderStatus.COMPLETED } },
+        ],
       },
       include: {
         order: {

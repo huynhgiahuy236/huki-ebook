@@ -111,14 +111,16 @@ export interface QuotaValidationResult {
   reason?: string;
 }
 
-// In-memory cache for active flash sale items to avoid N+1 requests from BookCards
+// In-memory cache & in-flight deduplication for active flash sale items to avoid N+1 requests from BookCards
 let activeItemsCache: Map<string, FlashSaleItem> = new Map();
 let cacheTimestamp = 0;
+let activePreloadPromise: Promise<Map<string, FlashSaleItem>> | null = null;
 const CACHE_TTL_MS = 15_000;
 
 export function invalidateFlashSaleCache(): void {
   activeItemsCache.clear();
   cacheTimestamp = 0;
+  activePreloadPromise = null;
 }
 
 if (typeof window !== 'undefined') {
@@ -129,30 +131,39 @@ if (typeof window !== 'undefined') {
 
 export async function preloadActiveFlashSales(): Promise<Map<string, FlashSaleItem>> {
   const now = Date.now();
-  if (activeItemsCache.size > 0 && now - cacheTimestamp < CACHE_TTL_MS) {
+  if (cacheTimestamp > 0 && now - cacheTimestamp < CACHE_TTL_MS) {
     return activeItemsCache;
   }
-  try {
-    const res = await flashSaleApi.getActiveFlashSales();
-    if (res.success && Array.isArray(res.data)) {
-      const map = new Map<string, FlashSaleItem>();
-      res.data.forEach((slot) => {
-        if (Array.isArray(slot.items)) {
-          slot.items.forEach((it) => {
-            if (it.bookId && it.salePrice) {
-              map.set(it.bookId, it);
-            }
-          });
-        }
-      });
-      activeItemsCache = map;
-      cacheTimestamp = now;
-      return map;
-    }
-  } catch {
-    // ignore
+  if (activePreloadPromise) {
+    return activePreloadPromise;
   }
-  return activeItemsCache;
+
+  activePreloadPromise = (async () => {
+    try {
+      const res = await flashSaleApi.getActiveFlashSales();
+      if (res.success && Array.isArray(res.data)) {
+        const map = new Map<string, FlashSaleItem>();
+        res.data.forEach((slot) => {
+          if (Array.isArray(slot.items)) {
+            slot.items.forEach((it) => {
+              if (it.bookId && it.salePrice) {
+                map.set(it.bookId, it);
+              }
+            });
+          }
+        });
+        activeItemsCache = map;
+      }
+    } catch {
+      // ignore non-fatal public preload failures
+    } finally {
+      cacheTimestamp = Date.now();
+      activePreloadPromise = null;
+    }
+    return activeItemsCache;
+  })();
+
+  return activePreloadPromise;
 }
 
 export function getCachedFlashSale(bookId: string): FlashSaleItem | null {
@@ -166,21 +177,23 @@ export const flashSaleApi = {
     if (params?.status) query.set('status', params.status);
     return apiClient<FlashSaleSlot[]>(`/flash-sales?${query.toString()}`, {
       method: "GET",
+      skipAuth: true,
     });
   },
   getTimeSlots: async (scope?: FlashSaleScope): Promise<ApiResponse<FlashSaleSlot[]>> => {
     const url = scope ? `/flash-sales/slots?scope=${scope}` : "/flash-sales/slots";
-    return apiClient<FlashSaleSlot[]>(url, { method: "GET" });
+    return apiClient<FlashSaleSlot[]>(url, { method: "GET", skipAuth: true });
   },
 
   getActiveFlashSales: async (scope?: FlashSaleScope): Promise<ApiResponse<FlashSaleSlot[]>> => {
     const url = scope ? `/flash-sales/active?scope=${scope}` : "/flash-sales/active";
-    return apiClient<FlashSaleSlot[]>(url, { method: "GET" });
+    return apiClient<FlashSaleSlot[]>(url, { method: "GET", skipAuth: true });
   },
 
   getGroupedShopFlashSales: async (): Promise<ApiResponse<ShopFlashSaleGroup[]>> => {
     return apiClient<ShopFlashSaleGroup[]>("/flash-sales/shops/grouped", {
       method: "GET",
+      skipAuth: true,
     });
   },
 
@@ -188,6 +201,7 @@ export const flashSaleApi = {
     const url = scope ? `/flash-sales/upcoming?scope=${scope}` : "/flash-sales/upcoming";
     return apiClient<FlashSaleSlot[]>(url, {
       method: "GET",
+      skipAuth: true,
     });
   },
 
@@ -198,6 +212,7 @@ export const flashSaleApi = {
     }
     return apiClient<FlashSaleItem>(`/flash-sales/price/${bookId}`, {
       method: "GET",
+      skipAuth: true,
     });
   },
 
