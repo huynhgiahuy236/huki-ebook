@@ -91,6 +91,19 @@ export default function StoreHeader({
           : '/seller/stores/setup'
         : '/seller/register';
 
+  const sellerChatStoreId = useMemo(() => {
+    if (!isSeller) return undefined;
+    const ids = new Set<string>();
+    const biz = user?.business as any;
+    if (biz?.id) ids.add(biz.id);
+    if (Array.isArray(biz?.stores)) {
+      biz.stores.forEach((s: any) => {
+        if (s?.id) ids.add(s.id);
+      });
+    }
+    return ids.size > 0 ? Array.from(ids).join(',') : undefined;
+  }, [isSeller, user]);
+
   // Lấy tổng số lượng tin nhắn chưa đọc của người dùng
   const fetchUnreadCount = useCallback(async () => {
     if (!isLoggedIn) {
@@ -98,7 +111,7 @@ export default function StoreHeader({
       return;
     }
     try {
-      const res = await chatService.listConversations();
+      const res = await chatService.listConversations(sellerChatStoreId);
       if (res.success && Array.isArray(res.data)) {
         const total = res.data.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
         setUnreadChatCount(total);
@@ -106,7 +119,7 @@ export default function StoreHeader({
     } catch {
       // ignore
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, sellerChatStoreId]);
 
   useEffect(() => {
     fetchUnreadCount();
@@ -114,10 +127,17 @@ export default function StoreHeader({
 
   // Lắng nghe tin nhắn mới qua WebSocket để phát chuông, hiện Toast và cộng dồn số lượng
   useChatSocket({
+    storeId: sellerChatStoreId,
     onMessageReceived: (msg: any) => {
       const senderId = String(msg?.senderId || '');
       const myId = String(user?.id || (user as any)?._id || (user as any)?.sub || '');
-      if (senderId && senderId === myId) return;
+      const storeIds = sellerChatStoreId ? sellerChatStoreId.split(',') : [];
+      if ((senderId && senderId === myId) || (isSeller && (msg?.senderType === 'BUSINESS' || storeIds.includes(senderId)))) return;
+
+      const isChatPage = pathname.startsWith('/account/messages') || pathname.startsWith('/seller/chat');
+      if (isChatPage) {
+        return;
+      }
 
       // 1. Phát tiếng chuông báo tin nhắn đến
       playChatChimeSound();
@@ -126,24 +146,23 @@ export default function StoreHeader({
       setUnreadChatCount((prev) => prev + 1);
 
       // 3. Hiển thị Toast thông báo nếu người dùng không ở trang chat
-      const isChatPage = pathname.startsWith('/account/messages') || pathname.startsWith('/seller/chat');
-      if (!isChatPage) {
-        const senderName = msg?.senderName || 'Người bán';
-        const rawContent = msg?.content || '';
-        const snippet = typeof rawContent === 'string' && rawContent.trim()
-          ? (rawContent.length > 60 ? rawContent.slice(0, 60) + '...' : rawContent)
-          : (msg?.messageType === 'IMAGE' ? '[Đã gửi một hình ảnh]' : 'Bạn có một tin nhắn mới');
+      const senderName = msg?.senderName || 'Người bán';
+      const rawContent = msg?.content || '';
+      const snippet = typeof rawContent === 'string' && rawContent.trim()
+        ? (rawContent.length > 60 ? rawContent.slice(0, 60) + '...' : rawContent)
+        : (msg?.messageType === 'IMAGE' ? '[Đã gửi một hình ảnh]' : 'Bạn có một tin nhắn mới');
 
-        showToast({
-          title: `Tin nhắn từ ${senderName}`,
-          message: snippet,
-          type: 'info',
-          actionUrl: chatUrl,
-          actionLabel: 'Xem ngay',
-          duration: 5000,
-          playSound: false,
-        });
-      }
+      showToast({
+        title: `Tin nhắn từ ${senderName}`,
+        message: snippet,
+        type: 'info',
+        actionUrl: msg?.conversationId
+          ? `${isSeller ? '/seller/chat' : '/account/messages'}?conversationId=${msg.conversationId}`
+          : chatUrl,
+        actionLabel: 'Xem ngay',
+        duration: 5000,
+        playSound: false,
+      });
     },
     onMessageRead: () => {
       fetchUnreadCount();

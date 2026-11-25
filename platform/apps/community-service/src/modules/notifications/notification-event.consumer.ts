@@ -207,13 +207,16 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
             id,
             type: "USER",
           }))) {
+          const isBusinessRecipient = recipient.type === "BUSINESS";
           targets.push({
             recipientId: recipient.id,
-            recipientType: recipient.type === "BUSINESS" ? "BUSINESS" : "USER",
+            recipientType: isBusinessRecipient ? "BUSINESS" : "USER",
             type: "NEW_MESSAGE",
             title: `Tin nhắn mới từ ${payload.message?.senderName ?? "HUKI"}`,
             message: this.preview(payload.message?.content),
-            actionUrl: `/chat/${payload.conversationId}`,
+            actionUrl: isBusinessRecipient
+              ? `/seller/chat?conversationId=${payload.conversationId}`
+              : `/account/messages?conversationId=${payload.conversationId}`,
           });
         }
         break;

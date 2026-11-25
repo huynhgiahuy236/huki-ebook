@@ -53,6 +53,7 @@ export interface ReadReceipt {
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
+  private readonly creatingConversationLocks = new Map<string, Promise<any>>();
 
   constructor(
     @InjectModel(Conversation.name)
@@ -116,58 +117,79 @@ export class ChatService {
 
     const contextType = dto.contextType || "ORDER";
     const contextId = dto.contextId || dto.storeId || "GENERAL";
-    const storeIds = dto.storeId ? dto.storeId.split(',').map((s) => s.trim()).filter(Boolean) : [];
+    const storeIds = expandOfficialAliases(
+      dto.storeId ? dto.storeId.split(',').map((s) => s.trim()).filter(Boolean) : [],
+    );
     const primaryStoreId = storeIds[0] || dto.storeId;
+    const candidateIds = storeIds.length > 0 ? storeIds : [dto.storeId];
+    const lockKey = `${actor.sub}::${[...candidateIds].sort().join('|')}`;
 
-    const existing = await this.conversations.findOne({
-      type: "USER_TO_STORE",
-      participants: {
-        $all: [
-          { $elemMatch: { type: "USER", id: actor.sub } },
-          { $elemMatch: { type: "BUSINESS", id: { $in: storeIds.length > 0 ? storeIds : [dto.storeId] } } },
-        ],
-      },
-    });
-
-    if (existing) {
-      return {
-        message: "Conversation already exists",
-        data: this.conversationView(existing, actor.sub, storeIds),
-      };
+    const pending = this.creatingConversationLocks.get(lockKey);
+    if (pending) {
+      return pending;
     }
 
-    const participants: ConversationParticipant[] = [
-      {
-        type: "USER",
-        id: actor.sub,
-        name: this.actorName(actor),
-        avatar: actor.avatar,
-      },
-      { type: "BUSINESS", id: primaryStoreId, name: dto.storeName || "Store" },
-    ];
-    const conversation = await this.conversations.create({
-      participants,
-      type: "USER_TO_STORE",
-      context: { type: contextType, id: contextId },
-      unreadCount: { [actor.sub]: 0, [primaryStoreId]: 0 },
-    });
+    const task = (async () => {
+      const existing = await this.conversations.findOne(
+        {
+          type: "USER_TO_STORE",
+          status: { $ne: "CLOSED" },
+          participants: {
+            $all: [
+              { $elemMatch: { type: "USER", id: actor.sub } },
+              { $elemMatch: { type: "BUSINESS", id: { $in: candidateIds } } },
+            ],
+          },
+        },
+        null,
+        { sort: { "lastMessage.createdAt": -1, updatedAt: -1 } },
+      );
 
-    let delivery: ChatDelivery | undefined;
-    if (dto.initialMessage?.trim()) {
-      delivery = await this.sendMessage(actor, conversation.id, {
-        content: dto.initialMessage.trim(),
-        messageType: "TEXT",
+      if (existing) {
+        return {
+          message: "Conversation already exists",
+          data: this.conversationView(existing, actor.sub, storeIds),
+        };
+      }
+
+      const participants: ConversationParticipant[] = [
+        {
+          type: "USER",
+          id: actor.sub,
+          name: this.actorName(actor),
+          avatar: actor.avatar,
+        },
+        { type: "BUSINESS", id: primaryStoreId, name: dto.storeName || "Store" },
+      ];
+      const conversation = await this.conversations.create({
+        participants,
+        type: "USER_TO_STORE",
+        context: { type: contextType, id: contextId },
+        unreadCount: { [actor.sub]: 0, [primaryStoreId]: 0 },
       });
-    }
 
-    return {
-      message: "Conversation created",
-      data: {
-        ...this.conversationView(conversation!, actor.sub),
-        messages: delivery ? [delivery.data] : [],
-      },
-      delivery,
-    };
+      let delivery: ChatDelivery | undefined;
+      if (dto.initialMessage?.trim()) {
+        delivery = await this.sendMessage(actor, conversation.id, {
+          content: dto.initialMessage.trim(),
+          messageType: "TEXT",
+        });
+      }
+
+      return {
+        message: "Conversation created",
+        data: {
+          ...this.conversationView(conversation!, actor.sub),
+          messages: delivery ? [delivery.data] : [],
+        },
+        delivery,
+      };
+    })().finally(() => {
+      this.creatingConversationLocks.delete(lockKey);
+    });
+
+    this.creatingConversationLocks.set(lockKey, task);
+    return task;
   }
 
   async sendMessage(

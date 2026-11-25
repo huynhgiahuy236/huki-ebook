@@ -22,7 +22,18 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
   const { user } = useAuth();
   const { showToast } = useToast();
   const sellerName = user?.business?.name || user?.fullName || user?.name || "NXB Doanh Nghiệp";
-  const storeId = user?.business?.id || user?.id;
+  const storeId = React.useMemo(() => {
+    const ids = new Set<string>();
+    const biz = user?.business as any;
+    if (biz?.id) ids.add(biz.id);
+    if (Array.isArray(biz?.stores)) {
+      biz.stores.forEach((s: any) => {
+        if (s?.id) ids.add(s.id);
+      });
+    }
+    if (ids.size === 0 && user?.id) ids.add(user.id);
+    return Array.from(ids).join(',');
+  }, [user]);
 
   const [isMuted, setIsMuted] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
@@ -89,7 +100,12 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
     onMessageReceived: (msg: any) => {
       const senderId = String(msg?.senderId || '');
       const myId = String(user?.id || (user as any)?._id || (user as any)?.sub || '');
-      if (senderId && senderId === myId) return;
+      const storeIds = storeId ? storeId.split(',') : [];
+      if ((senderId && senderId === myId) || msg?.senderType === 'BUSINESS' || storeIds.includes(senderId)) return;
+
+      if (pathname.startsWith('/seller/chat')) {
+        return;
+      }
 
       if (!soundEffects.getIsMuted()) {
         playChatChimeSound();
@@ -97,26 +113,24 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
 
       setUnreadChatCount((prev) => prev + 1);
 
-      if (!pathname.startsWith('/seller/chat')) {
-        const senderName = msg?.senderName || 'Khách hàng';
-        const rawContent = msg?.content || '';
-        const snippet = typeof rawContent === 'string' && rawContent.trim()
-          ? (rawContent.length > 60 ? rawContent.slice(0, 60) + '...' : rawContent)
-          : (msg?.messageType === 'IMAGE' ? '[Đã gửi một hình ảnh]' : 'Bạn có một tin nhắn mới');
+      const senderName = msg?.senderName || 'Khách hàng';
+      const rawContent = msg?.content || '';
+      const snippet = typeof rawContent === 'string' && rawContent.trim()
+        ? (rawContent.length > 60 ? rawContent.slice(0, 60) + '...' : rawContent)
+        : (msg?.messageType === 'IMAGE' ? '[Đã gửi một hình ảnh]' : 'Bạn có một tin nhắn mới');
 
-        showToast({
-          title: `Tin nhắn từ ${senderName}`,
-          message: snippet,
-          type: 'info',
-          actionUrl: '/seller/chat',
-          actionLabel: 'Trả lời ngay',
-          duration: 5000,
-          playSound: false,
-        });
-      }
+      showToast({
+        title: `Tin nhắn từ ${senderName}`,
+        message: snippet,
+        type: 'info',
+        actionUrl: msg?.conversationId ? `/seller/chat?conversationId=${msg.conversationId}` : '/seller/chat',
+        actionLabel: 'Trả lời ngay',
+        duration: 5000,
+        playSound: false,
+      });
     },
     onMessageRead: () => {
-      fetchUnreadCount();
+      fetchUnreadCount(true);
     },
   });
 

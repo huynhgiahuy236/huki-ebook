@@ -189,6 +189,23 @@ describe("Sprint 13 chat", () => {
     );
   });
 
+  it("serializes concurrent createConversation calls for the same buyer and store", async () => {
+    conversations.findOne.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(null), 15)),
+    );
+    const created = conversationDocument();
+    conversations.create.mockResolvedValue(created);
+
+    const [first, second] = await Promise.all([
+      service.createConversation(actor, { storeId, storeName: "Shop" }),
+      service.createConversation(actor, { storeId, storeName: "Shop" }),
+    ]);
+
+    expect(conversations.create).toHaveBeenCalledTimes(1);
+    expect(first.data.id).toBe(created.id);
+    expect(second.data.id).toBe(created.id);
+  });
+
   function conversationDocument(status: "ACTIVE" | "CLOSED" = "ACTIVE") {
     const id = new Types.ObjectId();
     return {

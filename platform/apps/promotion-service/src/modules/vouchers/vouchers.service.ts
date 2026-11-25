@@ -892,7 +892,28 @@ export class VouchersService {
     }
     const eligible = await this.isUserEligible(userId, voucher);
     if (!eligible) {
-      throwBadRequest(ErrorCode.VOUCHER_NOT_APPLICABLE, 'Bạn chưa đủ điều kiện để lưu voucher này');
+      if (voucher.scope === 'STORE' && voucher.targetAudience === 'FOLLOWERS_ONLY') {
+        if (voucher.minFollowDays && voucher.minFollowDays > 0) {
+          throwBadRequest(
+            ErrorCode.VOUCHER_NOT_APPLICABLE,
+            `Mã voucher yêu cầu theo dõi Shop tối thiểu ${voucher.minFollowDays} ngày`,
+          );
+        }
+        throwBadRequest(
+          ErrorCode.VOUCHER_NOT_APPLICABLE,
+          'Mã voucher này chỉ dành cho Người theo dõi Shop. Hãy nhấn "Theo dõi" Shop để lưu và sử dụng!',
+        );
+      }
+      if (voucher.targetAudience === 'NEW_CUSTOMERS_ONLY') {
+        throwBadRequest(
+          ErrorCode.VOUCHER_NOT_APPLICABLE,
+          'Mã voucher này chỉ áp dụng cho Khách hàng mới chưa từng mua hàng',
+        );
+      }
+      throwBadRequest(
+        ErrorCode.VOUCHER_NOT_APPLICABLE,
+        'Voucher đã hết hạn, hết lượt sử dụng hoặc bạn đã dùng hết lượt tối đa',
+      );
     }
     await this.prisma.userSavedVoucher.upsert({
       where: { userId_voucherId: { userId, voucherId } },

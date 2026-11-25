@@ -8,6 +8,7 @@ import { useToast } from '@/ui/context/ToastContext';
 import { useChatSocket } from '@/ui/hooks/useChatSocket';
 import { chatService, type ChatMessage, type ChatConversation, type ChatAttachment } from '@/ui/services/chatService';
 import { voucherApi } from '@/ui/api/voucherApi';
+import { businessApi } from '@/ui/api/businessApi';
 import { playChatPopSound, playMessageSentSound } from '@/ui/utils/chatSound';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
@@ -79,14 +80,18 @@ export default function FloatingChatWidget({ initialStoreId, initialStoreName }:
       .then((res) => {
         if (res.success && res.data) {
           const map: Record<string, boolean> = {};
+          const storeVouchers = Array.isArray(res.data.stores)
+            ? res.data.stores.flatMap((g: any) => (Array.isArray(g?.vouchers) ? g.vouchers : []))
+            : [];
           const all = [
             ...(res.data.platform?.all || []),
             ...(res.data.platform?.freeship || []),
             ...(res.data.platform?.discount || []),
+            ...storeVouchers,
           ];
-          all.forEach((v) => {
-            if (v.id) map[v.id] = true;
-            if (v.code) map[v.code] = true;
+          all.forEach((v: any) => {
+            if (v?.id) map[v.id] = true;
+            if (v?.code) map[v.code] = true;
           });
           setSavedVouchers(map);
         }
@@ -271,18 +276,49 @@ export default function FloatingChatWidget({ initialStoreId, initialStoreName }:
 
     setClaimingVoucherId(idToUse);
     try {
-      if (voucherId) {
-        await voucherApi.saveVoucher(voucherId);
+      let resolvedId = voucherId;
+      if (!resolvedId && voucherCode) {
+        const lookup = await voucherApi.getVoucherByCode(voucherCode);
+        if (lookup.success && lookup.data?.id) {
+          resolvedId = lookup.data.id;
+        }
       }
-      setSavedVouchers((prev) => ({
-        ...prev,
-        [idToUse]: true,
-        ...(voucherCode ? { [voucherCode]: true } : {}),
-      }));
-      playChatPopSound();
-      realtimeSyncBus.publish('VOUCHER_CLAIMED', { voucherId, voucherCode });
-    } catch (err) {
+
+      if (!resolvedId) {
+        showToast('Không tìm thấy thông tin mã voucher hợp lệ để lưu.', 'error');
+        return;
+      }
+
+      let res = await voucherApi.saveVoucher(resolvedId);
+      const errMsg = res.error?.message || (res as any)?.message || '';
+      if (
+        !res.success &&
+        activeStore.id &&
+        activeStore.id !== 'store-huki-default' &&
+        (errMsg.toLowerCase().includes('theo dõi') || errMsg.toLowerCase().includes('chưa đủ điều kiện'))
+      ) {
+        const followRes = await businessApi.followBusiness(activeStore.id);
+        if (followRes.success) {
+          res = await voucherApi.saveVoucher(resolvedId);
+        }
+      }
+
+      if (res.success) {
+        setSavedVouchers((prev) => ({
+          ...prev,
+          [idToUse]: true,
+          [resolvedId!]: true,
+          ...(voucherCode ? { [voucherCode]: true } : {}),
+        }));
+        playChatPopSound();
+        showToast(`Đã lưu mã [${voucherCode || resolvedId}] vào kho Voucher của bạn!`, 'success');
+        realtimeSyncBus.publish('VOUCHER_CLAIMED', { voucherId: resolvedId, voucherCode });
+      } else {
+        showToast(res.error?.message || (res as any)?.message || 'Không thể lưu voucher vào ví.', 'error');
+      }
+    } catch (err: any) {
       console.error('Lỗi khi lưu voucher:', err);
+      showToast(err?.message || 'Có lỗi xảy ra khi lưu voucher.', 'error');
     } finally {
       setClaimingVoucherId(null);
     }

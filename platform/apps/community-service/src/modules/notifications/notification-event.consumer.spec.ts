@@ -60,6 +60,7 @@ describe("NotificationEventConsumer", () => {
         recipientId: "owner-1",
         recipientType: "BUSINESS",
         type: "NEW_MESSAGE",
+        actionUrl: "/seller/chat?conversationId=conversation-1",
       }),
     );
   });

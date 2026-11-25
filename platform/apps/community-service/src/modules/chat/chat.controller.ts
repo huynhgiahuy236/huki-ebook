@@ -30,7 +30,7 @@ import {
 
 @ApiTags("Chat")
 @ApiBearerAuth()
-@Throttle({ default: { limit: 60, ttl: 60_000 } })
+@Throttle({ default: { limit: 240, ttl: 60_000 } })
 @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
 @Controller("chat/conversations")
 export class ChatController {

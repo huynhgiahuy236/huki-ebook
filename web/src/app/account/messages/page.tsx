@@ -9,6 +9,7 @@ import { useAuth } from '@/ui/context/AuthContext';
 import UserAvatar from '@/ui/components/common/UserAvatar';
 import { chatService, type ChatConversation, type ChatMessage, type ChatAttachment } from '@/ui/services/chatService';
 import { voucherApi } from '@/ui/api/voucherApi';
+import { businessApi } from '@/ui/api/businessApi';
 import { useChatSocket } from '@/ui/hooks/useChatSocket';
 import { playChatPopSound, playMessageSentSound } from '@/ui/utils/chatSound';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
@@ -83,6 +84,7 @@ function MessengerContent() {
     }
   }, [isLoading, isLoggedIn, router]);
 
+  const targetConversationId = searchParams.get('conversationId') || '';
   const targetShopId = searchParams.get('shop') || searchParams.get('storeId') || searchParams.get('contact') || '';
   const targetStoreName = searchParams.get('storeName') || searchParams.get('shopName') || '';
   const targetOrderId = searchParams.get('orderId') || '';
@@ -168,11 +170,40 @@ function MessengerContent() {
     return () => clearTimeout(timer);
   }, [activeMessages.length, activeChannel, lastMessageKey, scrollToBottom]);
 
-  // 1. Tải danh sách hội thoại từ API và tự động nhảy vào đúng NXB nếu có query param
+  // 0. Nạp danh sách voucher đã lưu trong ví để đồng bộ trạng thái ĐÃ LƯU VOUCHER
   useEffect(() => {
+    if (!isLoggedIn) return;
+    voucherApi.getWalletVouchers()
+      .then((res) => {
+        if (res.success && res.data) {
+          const map: Record<string, boolean> = {};
+          const storeVouchers = Array.isArray(res.data.stores)
+            ? res.data.stores.flatMap((g: any) => (Array.isArray(g?.vouchers) ? g.vouchers : []))
+            : [];
+          const all = [
+            ...(res.data.platform?.all || []),
+            ...(res.data.platform?.freeship || []),
+            ...(res.data.platform?.discount || []),
+            ...storeVouchers,
+          ];
+          all.forEach((v: any) => {
+            if (v?.id) map[v.id] = true;
+            if (v?.code) map[v.code] = true;
+          });
+          setSavedVouchers((prev) => ({ ...prev, ...map }));
+        }
+      })
+      .catch(() => {});
+  }, [isLoggedIn]);
+
+  // 1. Tải danh sách hội thoại từ API và tự động nhảy vào đúng NXB nếu có query param
+  const creatingConvRef = useRef<Promise<any> | null>(null);
+  useEffect(() => {
+    let isCancelled = false;
     async function loadConversations() {
       try {
         const res = await chatService.listConversations();
+        if (isCancelled) return;
         let mapped: Channel[] = [];
         if (res.success && Array.isArray(res.data)) {
           mapped = res.data.map((conv: ChatConversation) => ({
@@ -248,14 +279,20 @@ function MessengerContent() {
             return;
           }
 
-          // Nếu chưa có cuộc trò chuyện trong DB: Gọi API tạo hoặc lấy sẵn hội thoại với NXB này
+          // Nếu chưa có cuộc trò chuyện trong DB: Gọi API tạo hoặc lấy sẵn hội thoại với NXB này (serialize tránh race StrictMode)
           try {
-            const createRes = await chatService.createConversation({
-              storeId: targetShopId || 'nxb-kim-dong',
-              storeName: targetStoreName || 'NXB KIM ĐỒNG',
-              contextType: 'ORDER',
-              contextId: targetOrderId || 'GENERAL',
-            });
+            if (!creatingConvRef.current) {
+              creatingConvRef.current = chatService.createConversation({
+                storeId: targetShopId || 'nxb-kim-dong',
+                storeName: targetStoreName || 'NXB KIM ĐỒNG',
+                contextType: 'ORDER',
+                contextId: targetOrderId || 'GENERAL',
+              }).finally(() => {
+                creatingConvRef.current = null;
+              });
+            }
+            const createRes = await creatingConvRef.current;
+            if (isCancelled) return;
 
             if (createRes.success && createRes.data) {
               const newConv: ChatConversation = (createRes.data as any).data || (createRes.data as any);
@@ -359,8 +396,11 @@ function MessengerContent() {
           return;
         }
 
+        if (isCancelled) return;
         setChannels(mapped);
-        if (mapped.length > 0 && !activeChannel) {
+        if (targetConversationId && mapped.some((c) => c.id === targetConversationId)) {
+          setActiveChannel(targetConversationId);
+        } else if (mapped.length > 0 && !activeChannel) {
           setActiveChannel(mapped[0].id);
         }
       } catch (err) {
@@ -368,7 +408,10 @@ function MessengerContent() {
       }
     }
     loadConversations();
-  }, [targetShopId, targetStoreName, targetOrderId, targetBookTitle, targetBookCover, targetBookPrice]);
+    return () => {
+      isCancelled = true;
+    };
+  }, [targetConversationId, targetShopId, targetStoreName, targetOrderId, targetBookTitle, targetBookCover, targetBookPrice]);
 
   // 2. Kết nối Socket Realtime
   const { isConnected, joinConversation, leaveConversation, sendMessage: sendSocketMessage, markAsRead, setTyping } = useChatSocket({
@@ -410,7 +453,8 @@ function MessengerContent() {
       };
 
       setMessagesMap(prev => {
-        const targetKey = (convId && prev[convId]) ? convId : (activeChannel && prev[activeChannel] ? activeChannel : (convId || activeChannel));
+        const targetKey = convId || activeChannel;
+        if (!targetKey) return prev;
         const currentList = prev[targetKey] || [];
 
         // 1. Kiểm tra nếu tin nhắn với ID thực này đã có trong danh sách -> cập nhật
@@ -448,7 +492,7 @@ function MessengerContent() {
       });
 
       setChannels(prev => {
-        const exists = prev.some(c => c.id === convId || c.id === activeChannel);
+        const exists = prev.some(c => c.id === convId);
         if (!exists && convId) {
           return [{
             id: convId,
@@ -468,7 +512,7 @@ function MessengerContent() {
           }, ...prev];
         }
         return prev.map(c =>
-            c.id === convId || c.id === activeChannel
+            c.id === convId
             ? { ...c, lastMsg: newMsg.content, lastTime: item.time, unread: activeChannel === convId ? 0 : c.unread + 1 }
             : c
         );
@@ -857,24 +901,51 @@ function MessengerContent() {
     setSavingVoucherId(targetKey);
 
     try {
-      if (voucherId) {
-        const res = await voucherApi.saveVoucher(voucherId);
+      let resolvedVoucherId = voucherId;
+      if (!resolvedVoucherId && code) {
+        const lookupRes = await voucherApi.getVoucherByCode(code);
+        if (lookupRes.success && lookupRes.data?.id) {
+          resolvedVoucherId = lookupRes.data.id;
+        }
+      }
+
+      if (resolvedVoucherId) {
+        let res = await voucherApi.saveVoucher(resolvedVoucherId);
+        let autoFollowed = false;
+        const errMsg = res.error?.message || (res as any)?.message || '';
+
+        // Nếu Shop gửi tặng mã FOLLOWERS_ONLY qua chat, tự động theo dõi Shop và thử lưu lại
+        if (
+          !res.success &&
+          activeChannelData?.storeId &&
+          (errMsg.toLowerCase().includes('theo dõi') || errMsg.toLowerCase().includes('chưa đủ điều kiện'))
+        ) {
+          const followRes = await businessApi.followBusiness(activeChannelData.storeId);
+          if (followRes.success) {
+            autoFollowed = true;
+            res = await voucherApi.saveVoucher(resolvedVoucherId);
+          }
+        }
+
         if (res.success) {
           setSavedVouchers(prev => ({
             ...prev,
             [targetKey]: true,
+            [resolvedVoucherId!]: true,
             ...(code ? { [code]: true } : {}),
           }));
-          showToast(`Đã lưu mã [${code || voucherId}] vào kho Voucher của bạn!`, 'success');
-          realtimeSyncBus.publish('VOUCHER_CLAIMED', { voucherId, code });
+          showToast(
+            autoFollowed
+              ? `Đã theo dõi Shop và lưu mã [${code || resolvedVoucherId}] vào kho Voucher của bạn!`
+              : `Đã lưu mã [${code || resolvedVoucherId}] vào kho Voucher của bạn!`,
+            'success'
+          );
+          realtimeSyncBus.publish('VOUCHER_CLAIMED', { voucherId: resolvedVoucherId, code });
         } else {
-          showToast((res as any)?.message || 'Không thể lưu voucher vào ví.', 'error');
+          showToast(res.error?.message || (res as any)?.message || 'Không thể lưu voucher vào ví.', 'error');
         }
       } else {
-        // Fallback lưu mã tạm
-        setSavedVouchers(prev => ({ ...prev, [targetKey]: true }));
-        showToast(`Đã lưu mã [${code}] vào kho Voucher của bạn!`, 'success');
-        realtimeSyncBus.publish('VOUCHER_CLAIMED', { code });
+        showToast('Không tìm thấy thông tin mã voucher hợp lệ để lưu vào ví.', 'error');
       }
     } catch (err: any) {
       console.error('Lỗi lưu voucher:', err);

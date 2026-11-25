@@ -240,13 +240,18 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
             };
           });
           setCustomers(mapped);
-          const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-          const targetRecipientId = searchParams?.get('recipientId');
-          const targetRecipientName = searchParams?.get('recipientName');
-          if (targetRecipientId) {
+          const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+          const targetConversationId = urlParams?.get('conversationId');
+          const targetRecipientId = urlParams?.get('recipientId');
+          const targetRecipientName = urlParams?.get('recipientName');
+          if (targetConversationId && mapped.some((c) => c.id === targetConversationId)) {
+            setActiveCustomerId(targetConversationId);
+            setCustomers((prev) => prev.map((c) => (c.id === targetConversationId ? { ...c, unread: 0 } : c)));
+          } else if (targetRecipientId) {
             const found = mapped.find((c) => c.userId === targetRecipientId || c.id === targetRecipientId);
             if (found) {
               setActiveCustomerId(found.id);
+              setCustomers((prev) => prev.map((c) => (c.id === found.id ? { ...c, unread: 0 } : c)));
             } else {
               const newCustomer: SellerChatCustomer = {
                 id: `recipient-${targetRecipientId}`,
@@ -265,6 +270,7 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
             }
           } else if (mapped.length > 0 && !activeCustomerId) {
             setActiveCustomerId(mapped[0].id);
+            setCustomers((prev) => prev.map((c) => (c.id === mapped[0].id ? { ...c, unread: 0 } : c)));
           }
         }
       } catch (err) {
@@ -309,6 +315,10 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
 
     setCustomers((prev) => {
       const exists = prev.some((c) => c.id === convId);
+      const effectiveActiveId = activeCustomerId || (prev.length === 0 ? convId : '');
+      if (!activeCustomerId && prev.length === 0) {
+        setActiveCustomerId(convId);
+      }
       if (!exists) {
         const custName = incomingMsg.senderType === 'USER' ? (incomingMsg.senderName || 'Khách Hàng') : 'Khách Hàng';
         const newCust: SellerChatCustomer = {
@@ -320,7 +330,7 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
           isOnline: true,
           lastMsg: incomingMsg.content || '',
           lastTime: new Date(incomingMsg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          unread: convId === activeCustomerId ? 0 : 1,
+          unread: convId === effectiveActiveId ? 0 : 1,
           hasOrder: false,
           isVip: false,
         };
@@ -329,7 +339,7 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
 
       return prev.map((c) => {
         if (c.id === convId) {
-          const isCurrentActive = c.id === activeCustomerId;
+          const isCurrentActive = c.id === effectiveActiveId;
           return {
             ...c,
             lastMsg: incomingMsg.content || c.lastMsg,
@@ -411,10 +421,18 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
             ) {
               return prev;
             }
-            return { ...prev, [activeCustomerId]: mapped };
+            // Merge without dropping any newer socket/optimistic messages that arrived mid-request
+            const loadedIds = new Set(mapped.map((m) => String(m.id)));
+            const trailingLocal = prevList.filter(
+              (m) => !loadedIds.has(String(m.id)) && (String(m.id).startsWith('temp-') || String(m.id).startsWith('voucher-'))
+            );
+            return { ...prev, [activeCustomerId]: [...mapped, ...trailingLocal] };
           });
           if (!silent) {
             markAsRead(activeCustomerId, storeId);
+            setCustomers((prev) =>
+              prev.map((c) => (c.id === activeCustomerId ? { ...c, unread: 0 } : c))
+            );
           }
         }
       } catch (err) {
@@ -1975,13 +1993,23 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                             <span className="material-symbols-outlined text-lg">local_activity</span>
                           </div>
                           <div className="min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-mono font-black text-xs text-slate-900 tracking-wider">
                                 {v.code}
                               </span>
                               <span className="text-[9.5px] px-1.5 py-0.2 rounded font-bold bg-emerald-100 text-emerald-800">
                                 {v.status === 'ACTIVE' ? 'ĐANG CHẠY' : v.status}
                               </span>
+                              {(v as any).targetAudience === 'FOLLOWERS_ONLY' && (
+                                <span className="text-[9.5px] px-1.5 py-0.2 rounded font-bold bg-amber-100 text-amber-800">
+                                  Follower Shop
+                                </span>
+                              )}
+                              {(v as any).targetAudience === 'NEW_CUSTOMERS_ONLY' && (
+                                <span className="text-[9.5px] px-1.5 py-0.2 rounded font-bold bg-blue-100 text-blue-800">
+                                  Khách mới
+                                </span>
+                              )}
                             </div>
                             <p className="text-xs font-bold text-amber-800 mt-0.5">{discountLabel}</p>
                             <div className="flex items-center gap-3 text-[10.5px] text-slate-500 mt-1">
