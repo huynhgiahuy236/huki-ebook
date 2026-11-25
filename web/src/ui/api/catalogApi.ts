@@ -38,6 +38,8 @@ export interface DigitalDetails {
   allowOnlineRead?: boolean;
   allowDownload?: boolean;
   drmEnabled?: boolean;
+  hasSourceFile?: boolean;
+  hasPreviewFile?: boolean;
 }
 
 export interface BookData {
@@ -58,6 +60,9 @@ export interface BookData {
   format?: BookFormat;
   physicalDetails?: PhysicalDetails | null;
   digitalDetails?: DigitalDetails | null;
+  hasPdf?: boolean;
+  hasSourceFile?: boolean;
+  hasPreviewFile?: boolean;
   status?: 'DRAFT' | 'PUBLISHED' | 'HIDDEN' | 'ARCHIVED' | 'SUSPENDED';
   storeId?: string;
   businessId?: string;

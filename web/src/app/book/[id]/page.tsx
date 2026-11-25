@@ -19,6 +19,7 @@ import { SimilarBooksSection } from '@/ui/components/recommendations/SimilarBook
 import { personalizationService } from '@/ui/services/personalizationService';
 import { realtimeSyncBus, InventoryUpdatePayload } from '@/ui/services/realtimeSyncBus';
 import { reviewSummaryService } from '@/ui/services/reviewSummaryService';
+import { useReviewSocket } from '@/ui/hooks/useReviewSocket';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 import BookAffiliateCard from '@/ui/components/affiliate/BookAffiliateCard';
 import { userApi } from '@/ui/api/userApi';
@@ -483,6 +484,80 @@ export default function BookDetailPage() {
       window.removeEventListener('storage', handleStorage);
     };
   }, [fetchBookReviews, realBook?.id, id]);
+
+  const activeReviewBookId = useMemo(() => {
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    return realBook?.id || (isUUID ? id : undefined);
+  }, [realBook?.id, id]);
+
+  useReviewSocket({
+    bookId: activeReviewBookId,
+    enabled: Boolean(activeReviewBookId),
+    onReviewCreated: (evt) => {
+      if (evt.summary) {
+        setReviewSummary(evt.summary);
+        if (activeReviewBookId) {
+          reviewSummaryService.set(activeReviewBookId, evt.summary);
+        }
+      }
+      if (evt.review) {
+        const incoming = evt.review;
+        if (!reviewsFilterRating || incoming.rating === reviewsFilterRating) {
+          setReviewsList((prev) => {
+            if (prev.some((r) => String(r.id) === String(incoming.id))) return prev;
+            return [incoming, ...prev];
+          });
+        }
+      } else {
+        fetchBookReviews({ silent: true });
+      }
+    },
+    onReviewUpdated: (evt) => {
+      if (evt.summary) {
+        setReviewSummary(evt.summary);
+        if (activeReviewBookId) {
+          reviewSummaryService.set(activeReviewBookId, evt.summary);
+        }
+      }
+      if (evt.review) {
+        const updated = evt.review;
+        setReviewsList((prev) =>
+          prev.map((r) => (String(r.id) === String(updated.id) ? { ...r, ...updated } : r)),
+        );
+      } else {
+        fetchBookReviews({ silent: true });
+      }
+    },
+    onReviewReplied: (evt) => {
+      if (evt.reviewId && evt.reply) {
+        setReviewsList((prev) =>
+          prev.map((r) =>
+            String(r.id) === String(evt.reviewId)
+              ? {
+                  ...r,
+                  replies: (r.replies || []).some((x) => String(x.id) === String(evt.reply!.id))
+                    ? r.replies
+                    : [...(r.replies || []), evt.reply!],
+                }
+              : r,
+          ),
+        );
+      } else {
+        fetchBookReviews({ silent: true });
+      }
+    },
+    onReviewHelpful: (evt) => {
+      if (evt.reviewId && typeof evt.helpfulCount === 'number') {
+        setReviewsList((prev) =>
+          prev.map((r) =>
+            String(r.id) === String(evt.reviewId)
+              ? { ...r, helpfulCount: evt.helpfulCount! }
+              : r,
+          ),
+        );
+      }
+    },
+  });
 
   // RT-03: Realtime inventory reservation watcher for this book
   useEffect(() => {
@@ -1810,7 +1885,7 @@ export default function BookDetailPage() {
                 isOpen={isReviewModalOpen}
                 onClose={() => setIsReviewModalOpen(false)}
                 onSuccess={() => {
-                  fetchBookReviews();
+                  fetchBookReviews({ silent: true });
                 }}
                 bookId={realBook?.id || id}
                 bookTitle={book.title}

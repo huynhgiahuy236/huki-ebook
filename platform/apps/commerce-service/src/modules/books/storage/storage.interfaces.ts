@@ -22,4 +22,5 @@ export interface EbookStorage {
   upload(buffer: Buffer, key: string, contentType: string): Promise<void>;
   delete(key: string): Promise<void>;
   getStream?(key: string, range?: string): Promise<EbookStreamResult>;
+  exists?(key: string): Promise<boolean>;
 }

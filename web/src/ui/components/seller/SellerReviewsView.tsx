@@ -22,6 +22,7 @@ import {
 } from '@/ui/components/seller/SellerUI';
 import { VerifiedPurchaseBadge } from '@/ui/components/review/VerifiedPurchaseBadge';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+import { useReviewSocket } from '@/ui/hooks/useReviewSocket';
 import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 import {
   DataTableFilterBar,
@@ -155,7 +156,8 @@ export function SellerReviewsView() {
         storesMap.set(String(s.id).toLowerCase(), s.name);
       });
 
-      // 2. Helper to extract review items from varied response wrappers
+      // 2. Fetch all reviews for this seller in one backend query (includes ownerId + storeId + businessId)
+      const sellerReviewsRes = await reviewApi.getSellerReviews({ limit: 100 });
       const extractReviewList = (res: any): ReviewRowItem[] => {
         if (!res) return [];
         if (Array.isArray(res.data)) return res.data;
@@ -165,48 +167,53 @@ export function SellerReviewsView() {
         return [];
       };
 
-      // 3. Fetch real reviews for all books and stores
-      const fetchPromises: Promise<any>[] = [];
+      const apiReviews: ReviewRowItem[] = extractReviewList(sellerReviewsRes);
 
-      // Fetch book reviews
-      books.forEach((b: any) => {
-        fetchPromises.push(
-          reviewApi.getBookReviews(b.id, { limit: 50 }).then((res) => {
-            const list = extractReviewList(res);
-            return list.map((r: any) => ({
-              ...r,
-              bookTitle: booksMap.get(b.id)?.title || b.title,
-              bookCover: booksMap.get(b.id)?.cover || b.cover || b.coverImage || b.coverUrl,
-              bookAuthor: booksMap.get(b.id)?.author || 'Tác giả HUKI',
-            }));
-          }).catch(() => [])
+      // Enrich missing book metadata for seeded/legacy books not returned by first 100-item catalog query
+      const missingBookIds = Array.from(
+        new Set(
+          apiReviews
+            .filter((r) => r.targetType === 'BOOK' && r.targetId && !booksMap.has(r.targetId))
+            .map((r) => r.targetId),
+        ),
+      ).slice(0, 30);
+
+      if (missingBookIds.length > 0) {
+        const extraBooks = await Promise.all(
+          missingBookIds.map((bId) =>
+            catalogApi.getBookById(bId).then((res) => (res?.success ? res.data : null)).catch(() => null),
+          ),
         );
-      });
+        extraBooks.forEach((b: any) => {
+          if (b?.id) {
+            const authorName = typeof b.author === 'string' ? b.author : b.author?.name || 'Tác giả HUKI';
+            const meta = {
+              title: b.title,
+              cover: b.cover || b.coverImage || b.coverUrl,
+              author: authorName,
+            };
+            booksMap.set(b.id, meta);
+            booksMap.set(String(b.id).toLowerCase(), meta);
+          }
+        });
+      }
 
-      // Fetch store reviews
-      stores.forEach((s: any) => {
-        fetchPromises.push(
-          reviewApi.getStoreReviews(s.id, { limit: 50 }).then((res) => {
-            const list = extractReviewList(res);
-            return list.map((r: any) => ({
-              ...r,
-              storeName: storesMap.get(s.id) || s.name,
-            }));
-          }).catch(() => [])
-        );
-      });
-
-      const results = await Promise.all(fetchPromises);
-      const apiReviews: ReviewRowItem[] = results.flat();
-
-      // Deduplicate by ID
+      // Deduplicate and attach book/store metadata
       const seenIds = new Set<string>();
       const allReviews: ReviewRowItem[] = [];
 
       for (const r of apiReviews) {
         if (!seenIds.has(r.id)) {
           seenIds.add(r.id);
-          allReviews.push(r);
+          const bMeta = r.targetId ? booksMap.get(r.targetId) || booksMap.get(String(r.targetId).toLowerCase()) : undefined;
+          const sName = r.targetId ? storesMap.get(r.targetId) || storesMap.get(String(r.targetId).toLowerCase()) : undefined;
+          allReviews.push({
+            ...r,
+            bookTitle: bMeta?.title || (r as any).bookTitle,
+            bookCover: bMeta?.cover || (r as any).bookCover,
+            bookAuthor: bMeta?.author || (r as any).bookAuthor,
+            storeName: sName || (r as any).storeName,
+          });
         }
       }
 
@@ -292,6 +299,58 @@ export function SellerReviewsView() {
       clearInterval(interval);
     };
   }, [loadData]);
+
+  const sellerRoomStoreIds = useMemo(() => {
+    const ids = new Set<string>();
+    const bizId = user?.business?.id || activeBusinessId;
+    if (bizId) ids.add(bizId);
+    if (user?.id) ids.add(user.id);
+    sellerStoreIds.forEach((id) => ids.add(id));
+    return Array.from(ids).join(',');
+  }, [user?.business?.id, user?.id, activeBusinessId, sellerStoreIds]);
+
+  useReviewSocket({
+    storeId: sellerRoomStoreIds,
+    enabled: Boolean(user?.id),
+    onReviewCreated: (evt) => {
+      if (evt.review) {
+        const incoming = evt.review as ReviewRowItem;
+        setReviews((prev) => {
+          if (prev.some((r) => String(r.id) === String(incoming.id))) return prev;
+          return [incoming, ...prev];
+        });
+      }
+      loadData(true);
+    },
+    onReviewUpdated: (evt) => {
+      if (evt.review) {
+        const updated = evt.review as ReviewRowItem;
+        setReviews((prev) =>
+          prev.map((r) => (String(r.id) === String(updated.id) ? { ...r, ...updated } : r)),
+        );
+      } else {
+        loadData(true);
+      }
+    },
+    onReviewReplied: (evt) => {
+      if (evt.reviewId && evt.reply) {
+        setReviews((prev) =>
+          prev.map((row) =>
+            String(row.id) === String(evt.reviewId)
+              ? {
+                  ...row,
+                  replies: (row.replies || []).some((x) => String(x.id) === String(evt.reply!.id))
+                    ? row.replies
+                    : [...(row.replies || []), evt.reply!],
+                }
+              : row,
+          ),
+        );
+      } else {
+        loadData(true);
+      }
+    },
+  });
 
   const handleSendInlineReply = async () => {
     if (!selectedReview) return;
@@ -638,20 +697,33 @@ export function SellerReviewsView() {
       {
         key: 'actions',
         title: 'Thao Tác',
-        width: 130,
+        width: 175,
         align: 'right',
-        render: (_val, rev) => (
-          <div className="flex items-center justify-end">
-            <button
-              type="button"
-              onClick={() => setSelectedReview(rev)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[14px]">rate_review</span>
-              <span>Chi Tiết</span>
-            </button>
-          </div>
-        ),
+        render: (_val, rev) => {
+          const hasReplies = rev.replies && rev.replies.length > 0;
+          return (
+            <div className="flex items-center justify-end gap-1.5">
+              {!hasReplies && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedReview(rev)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-[#00875A] hover:bg-[#00704A] text-white transition-colors cursor-pointer shadow-2xs"
+                >
+                  <span className="material-symbols-outlined text-[14px]">reply</span>
+                  <span>Phản Hồi</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelectedReview(rev)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[14px]">rate_review</span>
+                <span>Chi Tiết</span>
+              </button>
+            </div>
+          );
+        },
       },
     ],
     []
@@ -1111,6 +1183,22 @@ export function SellerReviewsView() {
                       {replyContent.length}/2.000
                     </span>
                   </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      'Cảm ơn bạn đã tin tưởng và ủng hộ gian hàng! Chúc bạn đọc sách vui vẻ.',
+                      'Shop đã ghi nhận góp ý của bạn và sẽ cải thiện chất lượng phục vụ tốt hơn ạ.',
+                      'Rất vui vì bạn hài lòng với cuốn sách! Hẹn gặp lại bạn ở những đơn hàng tiếp theo.',
+                    ].map((tpl) => (
+                      <button
+                        key={tpl}
+                        type="button"
+                        onClick={() => setReplyContent(tpl)}
+                        className="px-2.5 py-1 rounded-full bg-white hover:bg-emerald-100/70 border border-emerald-200 text-[11px] font-medium text-emerald-800 transition-colors cursor-pointer"
+                      >
+                        + {tpl.slice(0, 42)}...
+                      </button>
+                    ))}
+                  </div>
                   <textarea
                     value={replyContent}
                     onChange={(e) => setReplyContent(e.target.value)}
@@ -1150,9 +1238,9 @@ export function SellerReviewsView() {
               {selectedReview.targetId && (
                 <Link
                   href={`/book/${selectedReview.targetId}#reviews`}
-                  className="px-4 py-2 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-2xs"
+                  className="px-4 py-2 rounded-xl border border-[#00875A] text-[#00875A] hover:bg-emerald-50 text-xs font-bold transition-colors inline-flex items-center gap-1.5"
                 >
-                  <span>Đến Trang Sách Để Phản Hồi</span>
+                  <span>Xem Trên Trang Sách</span>
                   <span className="material-symbols-outlined text-sm">open_in_new</span>
                 </Link>
               )}

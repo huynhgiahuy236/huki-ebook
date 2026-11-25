@@ -137,6 +137,10 @@ export default function ReviewFormModal({
 
         if (res?.success) {
           showToast('Đã cập nhật đánh giá thành công!', 'success');
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('huki_review_created', { detail: { bookId } }));
+            localStorage.setItem('huki_review_sync', String(Date.now()));
+          }
           onSuccess?.();
           onClose();
         } else if (res?.error?.statusCode === 401) {

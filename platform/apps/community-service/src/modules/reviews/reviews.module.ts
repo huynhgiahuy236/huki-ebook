@@ -19,10 +19,12 @@ import {
 import { ReviewVerificationService } from "./review-verification.service";
 import { ReviewsService } from "./reviews.service";
 import { ModerationModule } from "../moderation/moderation.module";
+import { NotificationsModule } from "../notifications/notifications.module";
 
 @Module({
   imports: [
     ModerationModule,
+    NotificationsModule,
     ThrottlerModule.forRoot([{ ttl: 60 * 60_000, limit: 10 }]),
     MongooseModule.forFeature([
       { name: Review.name, schema: ReviewSchema },

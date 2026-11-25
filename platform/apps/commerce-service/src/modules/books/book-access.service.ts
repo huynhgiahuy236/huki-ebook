@@ -5,8 +5,9 @@
  * Hỗ trợ cả mua 1 lần và subscription.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EBOOK_STORAGE, EbookStorage } from './storage/storage.interfaces';
 import {
   BookAccessType,
   SubscriptionTier,
@@ -17,7 +18,10 @@ import {
 
 @Injectable()
 export class BookAccessService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() @Inject(EBOOK_STORAGE) private readonly ebookStorage?: EbookStorage,
+  ) { }
 
   /**
    * Kiểm tra xem user có thể đọc sách không
@@ -286,27 +290,37 @@ export class BookAccessService {
       },
     });
 
-    return accesses.map((acc) => ({
-      accessId: acc.id,
-      bookId: acc.bookId,
-      id: acc.bookId,
-      title: acc.book.title,
-      slug: acc.book.slug,
-      author: acc.book.author?.name || 'Tác giả HUKI',
-      publisher: acc.book.publisher?.name || 'NXB HUKI',
-      category: acc.book.category?.name || 'Sách Số',
-      categorySlug: acc.book.category?.slug,
-      coverUrl: acc.book.coverUrl,
-      cover: acc.book.coverUrl,
-      format: acc.book.format,
-      price: Number(acc.book.price),
-      readingProgress: acc.readingProgress,
-      lastReadAt: acc.lastReadAt || acc.updatedAt,
-      pdfKey: acc.book.digitalDetails?.pdfKey,
-      epubKey: acc.book.digitalDetails?.epubKey,
-      accessType: acc.accessType,
-      status: acc.status,
-    }));
+    return Promise.all(
+      accesses.map(async (acc) => {
+        const key = acc.book.digitalDetails?.pdfKey || acc.book.digitalDetails?.previewPdfKey;
+        let hasPdf = acc.book.slug === 'con-duong-phia-truoc';
+        if (!hasPdf && key) {
+          hasPdf = this.ebookStorage?.exists ? await this.ebookStorage.exists(key) : true;
+        }
+        return {
+          accessId: acc.id,
+          bookId: acc.bookId,
+          id: acc.bookId,
+          title: acc.book.title,
+          slug: acc.book.slug,
+          author: acc.book.author?.name || 'Tác giả HUKI',
+          publisher: acc.book.publisher?.name || 'NXB HUKI',
+          category: acc.book.category?.name || 'Sách Số',
+          categorySlug: acc.book.category?.slug,
+          coverUrl: acc.book.coverUrl,
+          cover: acc.book.coverUrl,
+          format: acc.book.format,
+          price: Number(acc.book.price),
+          readingProgress: acc.readingProgress,
+          lastReadAt: acc.lastReadAt || acc.updatedAt,
+          pdfKey: acc.book.digitalDetails?.pdfKey,
+          hasPdf,
+          epubKey: acc.book.digitalDetails?.epubKey,
+          accessType: acc.accessType,
+          status: acc.status,
+        };
+      }),
+    );
   }
   async removeBookFromLibrary(userId: string, bookId: string) {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(bookId);

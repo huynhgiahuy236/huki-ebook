@@ -80,9 +80,11 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
   const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState('');
 
-  // Local File Upload for Cover Image
+  // Local File Upload for Cover Image & Ebook PDF
   const coverFileInputRef = React.useRef<HTMLInputElement>(null);
   const [coverFileInfo, setCoverFileInfo] = useState<{ name: string; size: string } | null>(null);
+  const [existingPdfAvailable, setExistingPdfAvailable] = useState<boolean>(false);
+  const [newEbookFile, setNewEbookFile] = useState<File | null>(null);
 
   const handleCoverImageUpload = (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -459,6 +461,7 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
 
         setAuthorMode('EXISTING');
         setCategoryMode('EXISTING');
+        setExistingPdfAvailable(Boolean(book.hasPdf || book.hasSourceFile || book.digitalDetails?.hasSourceFile));
       } else {
         showToast?.('Không tìm thấy thông tin sản phẩm sách này.', 'error');
       }
@@ -698,6 +701,18 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
       const res = await catalogApi.updateBook(bookId, payload);
 
       if (res.success) {
+        if (isDigital && newEbookFile) {
+          const uploadRes = await catalogApi.uploadBookFile(bookId, newEbookFile);
+          if (!uploadRes.success) {
+            showToast?.(
+              uploadRes.error?.message || 'Đã cập nhật sách nhưng tải tệp PDF lên chưa thành công.',
+              'warning',
+            );
+          } else {
+            setExistingPdfAvailable(true);
+            setNewEbookFile(null);
+          }
+        }
         // Also sync store-level affiliate book setting
         if (currentBizId) {
           try {
@@ -1821,6 +1836,39 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
                       <div className="text-[10.5px] text-slate-500">Độc giả đọc ngay trên trình đọc chuyên dụng của HUKI.</div>
                     </div>
                   </label>
+
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-slate-800">Tệp Sách Điện Tử (PDF)</span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10.5px] font-bold ${
+                          newEbookFile || existingPdfAvailable
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {newEbookFile
+                          ? `Sẽ thay thế bằng: ${newEbookFile.name}`
+                          : existingPdfAvailable
+                            ? 'Đã có bản đọc PDF trên hệ thống'
+                            : 'Chưa có tệp PDF'}
+                      </span>
+                    </div>
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setNewEbookFile(file);
+                      }}
+                      className="w-full px-3 py-2 text-xs rounded-xl bg-white border border-slate-200 text-slate-800 focus:outline-none focus:border-[#00875A]"
+                    />
+                    <p className="text-[10.5px] text-slate-500">
+                      {existingPdfAvailable
+                        ? 'Chọn tệp PDF mới nếu muốn thay thế bản đọc hiện tại.'
+                        : 'Tải lên tệp PDF để độc giả có thể mở đọc trực tiếp trong Trình đọc Ebook HUKI.'}
+                    </p>
+                  </div>
                 </div>
               </section>
             )}

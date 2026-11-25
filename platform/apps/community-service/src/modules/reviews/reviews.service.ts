@@ -1,6 +1,7 @@
 import {
   Injectable,
   Logger,
+  Optional,
 } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { randomUUID } from "crypto";
@@ -21,10 +22,14 @@ import {
   CreateReviewReplyDto,
   CreateStoreReviewDto,
   ReviewListQueryDto,
+  SellerReviewListQueryDto,
   UpdateReviewDto,
 } from "./dto/review.dto";
 import { ReviewVerificationService } from "./review-verification.service";
 import { AutoModerationService } from "../moderation/auto-moderation.service";
+import { NotificationGateway } from "../notifications/notification.gateway";
+import { NotificationDeliveryService } from "../notifications/notification-delivery.service";
+import { SellerScopeResolverService } from "../notifications/seller-scope-resolver.service";
 import { throwConflict, throwNotFound, throwForbidden, throwBadRequest } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
 
@@ -40,7 +45,10 @@ export class ReviewsService {
     private readonly verification: ReviewVerificationService,
     private readonly eventBus: RabbitMqEventBus,
     private readonly autoModeration: AutoModerationService,
-  ) {}
+    @Optional() private readonly gateway?: NotificationGateway,
+    @Optional() private readonly sellerScopeResolver?: SellerScopeResolverService,
+    @Optional() private readonly notificationDelivery?: NotificationDeliveryService,
+  ) { }
 
   async list(
     targetType: ReviewTargetType,
@@ -74,9 +82,9 @@ export class ReviewsService {
     const reviewIds = reviews.map((review) => review._id);
     const replies = reviewIds.length
       ? await this.replies
-          .find({ reviewId: { $in: reviewIds }, status: "ACTIVE" })
-          .sort({ createdAt: 1 })
-          .exec()
+        .find({ reviewId: { $in: reviewIds }, status: "ACTIVE" })
+        .sort({ createdAt: 1 })
+        .exec()
       : [];
     const repliesByReview = new Map<string, ReviewReplyDocument[]>();
     for (const reply of replies) {
@@ -154,9 +162,9 @@ export class ReviewsService {
     const reviewIds = reviews.map((review) => review._id);
     const replies = reviewIds.length
       ? await this.replies
-          .find({ reviewId: { $in: reviewIds }, status: "ACTIVE" })
-          .sort({ createdAt: 1 })
-          .exec()
+        .find({ reviewId: { $in: reviewIds }, status: "ACTIVE" })
+        .sort({ createdAt: 1 })
+        .exec()
       : [];
     const repliesByReview = new Map<string, ReviewReplyDocument[]>();
     for (const reply of replies) {
@@ -174,6 +182,107 @@ export class ReviewsService {
         total,
         totalPages: Math.ceil(total / query.limit),
       },
+    };
+  }
+
+  async listSellerReviews(actor: CommunityActor, query: SellerReviewListQueryDto) {
+    const role = (actor.role ?? "").toUpperCase();
+    const isAdmin = role === "PLATFORM_ADMIN" || role === "ADMIN";
+    const isSeller = role === "BUSINESS" || role === "SELLER";
+    if (!isSeller && !isAdmin) {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT);
+    }
+
+    const baseFilter: Record<string, unknown> = {
+      status: { $ne: "DELETED" },
+    };
+
+    if (!isAdmin) {
+      const extra = actor as unknown as Record<string, unknown>;
+      const targetIds = new Set<string>([actor.sub]);
+      const ownerIds = new Set<string>([actor.sub]);
+      if (extra.storeId) targetIds.add(String(extra.storeId));
+      if (extra.businessId) targetIds.add(String(extra.businessId));
+
+      if (this.sellerScopeResolver) {
+        const scope = await this.sellerScopeResolver.resolveSellerScope(actor.sub);
+        scope.storeIds.forEach((id) => targetIds.add(id));
+        scope.businessIds.forEach((id) => targetIds.add(id));
+        scope.ownerUserIds.forEach((id) => {
+          ownerIds.add(id);
+          targetIds.add(id);
+        });
+      }
+
+      const idList = Array.from(targetIds);
+      const ownerList = Array.from(ownerIds);
+      baseFilter.$or = [
+        { storeId: { $in: idList } },
+        { storeOwnerId: { $in: ownerList } },
+        { targetType: "STORE", targetId: { $in: idList } },
+      ];
+    }
+
+    const listFilter: Record<string, unknown> = { ...baseFilter };
+    if (query.rating) {
+      listFilter.rating = query.rating;
+    }
+    if (query.targetType) {
+      listFilter.targetType = query.targetType.toUpperCase();
+    }
+    if (query.search?.trim()) {
+      const regex = new RegExp(query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      listFilter.$and = [
+        {
+          $or: [
+            { title: regex },
+            { content: regex },
+            { authorName: regex },
+          ],
+        },
+      ];
+    }
+
+    const [reviews, total, summaryRows] = await Promise.all([
+      this.reviews
+        .find(listFilter)
+        .select("+helpful")
+        .sort({ createdAt: -1 })
+        .skip((query.page - 1) * query.limit)
+        .limit(query.limit)
+        .exec(),
+      this.reviews.countDocuments(listFilter),
+      this.reviews.aggregate<{ _id: number; count: number }>([
+        { $match: baseFilter },
+        { $group: { _id: "$rating", count: { $sum: 1 } } },
+        { $sort: { _id: 1 } },
+      ]),
+    ]);
+
+    const reviewIds = reviews.map((review) => review._id);
+    const replies = reviewIds.length
+      ? await this.replies
+        .find({ reviewId: { $in: reviewIds }, status: "ACTIVE" })
+        .sort({ createdAt: 1 })
+        .exec()
+      : [];
+    const repliesByReview = new Map<string, ReviewReplyDocument[]>();
+    for (const reply of replies) {
+      const key = String(reply.reviewId);
+      repliesByReview.set(key, [...(repliesByReview.get(key) ?? []), reply]);
+    }
+
+    return {
+      data: reviews.map((review) =>
+        this.reviewView(review, actor, repliesByReview.get(review.id) ?? []),
+      ),
+      pagination: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
+      summary: this.summary(summaryRows),
     };
   }
 
@@ -287,9 +396,20 @@ export class ReviewsService {
     review!.moderatedBy = undefined;
     review!.moderationNote = this.autoModeration.note(moderation);
     await review!.save();
+    const activeReplies =
+      typeof this.replies?.find === "function"
+        ? await this.replies
+          .find({ reviewId: review!._id, status: "ACTIVE" })
+          .sort({ createdAt: 1 })
+          .exec()
+        : [];
+    const view = this.reviewView(review!, actor, activeReplies);
+    if (review!.status === "PUBLISHED") {
+      void this.emitTargetReviewEvent("review:updated", review!, { review: view });
+    }
     return {
       message: "Review updated",
-      data: this.reviewView(review!, actor, []),
+      data: view,
     };
   }
 
@@ -374,28 +494,54 @@ export class ReviewsService {
       });
 
       if (review?.authorId) {
+        const replyEventId = randomUUID();
+        const replyPayload = {
+          reviewId: String(review._id),
+          userId: review.authorId,
+          storeName: business.storeName,
+          content: dto.content.trim(),
+          bookId: review.targetType === 'BOOK' ? review.targetId : undefined,
+        };
         this.eventBus.publish({
-          eventId: randomUUID(),
+          eventId: replyEventId,
           eventType: 'review.replied',
           occurredAt: new Date().toISOString(),
           producer: 'community-service',
           version: 1,
           aggregateId: String(review._id),
-          payload: {
-            reviewId: String(review._id),
-            userId: review.authorId,
-            storeName: business.storeName,
-            content: dto.content.trim(),
-            bookId: review.targetType === 'BOOK' ? review.targetId : undefined,
-          },
+          payload: replyPayload,
         }).catch((err) => {
           this.logger.warn(`Failed to publish review.replied event: ${err?.message || err}`);
         });
+
+        if (this.notificationDelivery) {
+          void this.notificationDelivery.deliver({
+            sourceKey: `${replyEventId}:${review.authorId}:NEW_REVIEW`,
+            recipientId: review.authorId,
+            recipientType: "USER",
+            type: "NEW_REVIEW",
+            title: `${business.storeName || 'Người bán'} đã phản hồi đánh giá của bạn`,
+            message: dto.content.trim().slice(0, 140),
+            actionUrl: review.targetType === 'BOOK' ? `/book/${review.targetId}#reviews` : `/orders`,
+            payload: replyPayload,
+          }).catch(() => null);
+        }
       }
+
+      const replyViewData = this.replyView(reply);
+      this.gateway?.emitReviewEvent("review:replied", {
+        targetType: review!.targetType,
+        targetId: review!.targetId,
+        storeId: effectiveStoreId,
+        storeOwnerId: review!.storeOwnerId,
+        authorId: review!.authorId,
+        reviewId: String(review!._id),
+        reply: replyViewData,
+      });
 
       return {
         message: "Reply added",
-        data: this.replyView(reply),
+        data: replyViewData,
       };
     } catch (error) {
       if ((error as { code?: number }).code === 11000) {
@@ -552,25 +698,94 @@ export class ReviewsService {
     return undefined as never;
   }
 
+  private async computeTargetSummary(targetType: ReviewTargetType, targetId: string) {
+    const summaryRows = await this.reviews.aggregate<{ _id: number; count: number }>([
+      { $match: { targetType, targetId, status: "PUBLISHED" } },
+      { $group: { _id: "$rating", count: { $sum: 1 } } },
+      { $sort: { _id: 1 } },
+    ]);
+    return this.summary(summaryRows);
+  }
+
+  private async emitTargetReviewEvent(
+    eventName: "review:created" | "review:updated",
+    review: ReviewDocument,
+    extra: Record<string, unknown>,
+  ) {
+    if (!this.gateway) return;
+    try {
+      const summary = await this.computeTargetSummary(review.targetType, review.targetId);
+      this.gateway.emitReviewEvent(eventName, {
+        targetType: review.targetType,
+        targetId: review.targetId,
+        storeId: review.storeId,
+        storeOwnerId: review.storeOwnerId,
+        authorId: review.authorId,
+        summary,
+        ...extra,
+      });
+    } catch {
+      // ignore realtime summary errors
+    }
+  }
+
   private async publishCreated(review: ReviewDocument) {
+    const eventId = randomUUID();
+    const payload = {
+      reviewId: review.id,
+      authorId: review.authorId,
+      targetType: review.targetType,
+      targetId: review.targetId,
+      rating: review.rating,
+      verifiedPurchase: review.verifiedPurchase,
+      storeId: review.storeId,
+      storeOwnerId: review.storeOwnerId,
+      reviewerName: review.authorName,
+      comment: review.content,
+    };
+
+    if (review.status === "PUBLISHED") {
+      const view = this.reviewView(review, undefined, []);
+      void this.emitTargetReviewEvent("review:created", review, { review: view });
+    }
+
+    if (this.notificationDelivery) {
+      const sellerRecipientId = review.storeOwnerId || review.storeId;
+      if (sellerRecipientId) {
+        void this.notificationDelivery.deliver({
+          sourceKey: `${eventId}:${sellerRecipientId}:NEW_REVIEW`,
+          recipientId: sellerRecipientId,
+          recipientType: "BUSINESS",
+          type: "NEW_REVIEW",
+          title: "Có đánh giá mới",
+          message: `Khách hàng vừa gửi đánh giá ${review.rating} sao.`,
+          actionUrl: `/seller/reviews?reviewId=${review.id}`,
+          payload,
+        }).catch(() => null);
+      }
+      if (review.authorId) {
+        void this.notificationDelivery.deliver({
+          sourceKey: `${eventId}:${review.authorId}:NEW_REVIEW`,
+          recipientId: review.authorId,
+          recipientType: "USER",
+          type: "NEW_REVIEW",
+          title: "Đánh giá của bạn đã được ghi nhận",
+          message: `Cảm ơn bạn đã gửi đánh giá ${review.rating} sao. Ý kiến của bạn giúp cộng đồng độc giả chọn sách tốt hơn!`,
+          actionUrl: review.targetType === "BOOK" ? `/book/${review.targetId}#reviews` : "/orders",
+          payload,
+        }).catch(() => null);
+      }
+    }
+
     try {
       await this.eventBus.publish({
-        eventId: randomUUID(),
+        eventId,
         eventType: "review.created",
         occurredAt: new Date().toISOString(),
         producer: "community-service",
         version: 1,
         aggregateId: review.id,
-        payload: {
-          reviewId: review.id,
-          authorId: review.authorId,
-          targetType: review.targetType,
-          targetId: review.targetId,
-          rating: review.rating,
-          verifiedPurchase: review.verifiedPurchase,
-          storeId: review.storeId,
-          storeOwnerId: review.storeOwnerId,
-        },
+        payload,
       });
     } catch (error) {
       this.logger.warn(

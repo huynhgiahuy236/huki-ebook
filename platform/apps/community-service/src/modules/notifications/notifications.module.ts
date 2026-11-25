@@ -46,6 +46,11 @@ import { SellerScopeResolverService } from "./seller-scope-resolver.service";
     AuthenticatedCommunityGuard,
     SellerScopeResolverService,
   ],
-  exports: [NotificationWatchdogService, NotificationDeliveryService, SellerScopeResolverService],
+  exports: [
+    NotificationWatchdogService,
+    NotificationDeliveryService,
+    NotificationGateway,
+    SellerScopeResolverService,
+  ],
 })
 export class NotificationsModule {}

@@ -14,7 +14,13 @@ describe("ReviewsService", () => {
     findOneAndUpdate: jest.fn(),
     findOne: jest.fn(),
   };
-  const replies = { create: jest.fn() };
+  const replies = {
+    create: jest.fn(),
+    find: jest.fn().mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue([]),
+    }),
+  };
   const verification = {
     bookPurchase: jest.fn(),
     storePurchase: jest.fn(),
@@ -414,6 +420,59 @@ describe("ReviewsService", () => {
       expect.objectContaining({
         storeId: "store-99",
         storeOwnerId: "owner-99",
+      }),
+    );
+  });
+
+  it("lists seller reviews across resolved storeIds, businessIds, and ownerUserIds", async () => {
+    const gateway = { emitReviewEvent: jest.fn() };
+    const scopeResolver = {
+      resolveSellerScope: jest.fn().mockResolvedValue({
+        businessIds: ["7777-biz"],
+        storeIds: ["8888-store"],
+        ownerUserIds: ["9999-owner"],
+      }),
+    };
+    const scopedReviews = {
+      ...reviews,
+      find: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      }),
+      countDocuments: jest.fn().mockResolvedValue(0),
+      aggregate: jest.fn().mockResolvedValue([]),
+    };
+    const svc = new ReviewsService(
+      scopedReviews as any,
+      replies as any,
+      verification as any,
+      eventBus as any,
+      autoModeration as any,
+      gateway as any,
+      scopeResolver as any,
+    );
+
+    await svc.listSellerReviews(
+      { sub: "staff-1", role: "BUSINESS" },
+      { page: 1, limit: 20 },
+    );
+
+    expect(scopeResolver.resolveSellerScope).toHaveBeenCalledWith("staff-1");
+    expect(scopedReviews.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        $or: expect.arrayContaining([
+          {
+            storeId: {
+              $in: expect.arrayContaining(["staff-1", "8888-store", "7777-biz", "9999-owner"]),
+            },
+          },
+          {
+            storeOwnerId: { $in: expect.arrayContaining(["staff-1", "9999-owner"]) },
+          },
+        ]),
       }),
     );
   });

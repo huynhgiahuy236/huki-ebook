@@ -228,6 +228,79 @@ export const reviewApi = {
   },
 
   /**
+   * List all reviews across the authenticated seller's books and stores
+   */
+  async getSellerReviews(
+    query: { page?: number; limit?: number; rating?: number; targetType?: string; search?: string } = {}
+  ): Promise<ApiResponse<ReviewListResponse>> {
+    const params = new URLSearchParams();
+    if (query.page) params.set('page', String(query.page));
+    if (query.limit) params.set('limit', String(query.limit));
+    if (query.rating) params.set('rating', String(query.rating));
+    if (query.targetType) params.set('targetType', query.targetType);
+    if (query.search) params.set('search', query.search);
+
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    try {
+      const res = await apiClient<
+        ReviewListResponse | ReviewItemData[] | { data?: ReviewItemData[]; pagination?: ReviewListResponse['pagination']; summary?: ReviewSummaryData }
+      >(`/reviews/seller${qs}`, {
+        skipAuth: false,
+      });
+
+      const rawData = res?.data;
+      const items: ReviewItemData[] = Array.isArray(rawData)
+        ? rawData
+        : Array.isArray((rawData as { data?: ReviewItemData[] })?.data)
+        ? (rawData as { data?: ReviewItemData[] }).data || []
+        : [];
+
+      const rawPagination =
+        (res as { pagination?: ReviewListResponse['pagination'] })?.pagination ||
+        (rawData as { pagination?: ReviewListResponse['pagination'] })?.pagination;
+      const pagination = rawPagination || {
+        page: query.page || 1,
+        limit: query.limit || 10,
+        total: items.length,
+        totalPages: 1,
+      };
+
+      const rawSummary =
+        (res as { summary?: ReviewSummaryData })?.summary ||
+        (rawData as { summary?: ReviewSummaryData })?.summary;
+      const summary: ReviewSummaryData = rawSummary || {
+        totalReviews: pagination.total || items.length,
+        averageRating: 5.0,
+        ratingDistribution: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 },
+      };
+
+      return {
+        ...res,
+        success: Boolean(res?.success),
+        data: {
+          data: items,
+          pagination,
+          summary,
+        },
+      };
+    } catch {
+      return {
+        success: false,
+        error: { code: 'FETCH_FAILED', message: 'Không thể tải danh sách đánh giá gian hàng' },
+        data: {
+          data: [],
+          pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
+          summary: {
+            averageRating: 5.0,
+            totalReviews: 0,
+            ratingDistribution: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 },
+          },
+        },
+      };
+    }
+  },
+
+  /**
    * Create a review for a book (requires verified purchase)
    */
   async createBookReview(

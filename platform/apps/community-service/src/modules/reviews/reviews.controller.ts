@@ -42,6 +42,7 @@ import {
   ReviewIdParamDto,
   ReviewListQueryDto,
   ReviewTargetParamDto,
+  SellerReviewListQueryDto,
   UpdateReviewDto,
 } from "./dto/review.dto";
 import { ReviewTargetType } from "../../entities/review.schema";
@@ -169,6 +170,21 @@ export class ReviewsController {
     @Query() query: ReviewListQueryDto,
   ) {
     return this.reviews.listMyReviews(actor, query);
+  }
+
+  @Get("seller")
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedCommunityGuard)
+  @ApiOperation({
+    summary: "List reviews across the authenticated seller's books and stores",
+    description: "Returns paginated reviews belonging to any store, business, or book owned by the seller.",
+  })
+  @ApiResponse({ status: 200, description: "Paginated seller reviews" })
+  sellerReviews(
+    @CurrentCommunityActor() actor: CommunityActor,
+    @Query() query: SellerReviewListQueryDto,
+  ) {
+    return this.reviews.listSellerReviews(actor, query);
   }
 
   @Patch(":id")

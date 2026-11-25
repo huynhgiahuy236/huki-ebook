@@ -36,6 +36,7 @@ function ReaderContent() {
   const { user } = useAuth();
 
   const [realBook, setRealBook] = useState<BookData | null>(null);
+  const [isBookResolved, setIsBookResolved] = useState<boolean>(false);
   const [accessStatus, setAccessStatus] = useState<'LOADING' | 'ALLOWED' | 'REVOKED' | 'UNAUTHORIZED'>('ALLOWED');
   const [accessMessage, setAccessMessage] = useState<string>('');
   const [drmFingerprint, setDrmFingerprint] = useState<string>('');
@@ -47,6 +48,7 @@ function ReaderContent() {
   // 1. Tải thông tin sách thật từ CSDL Commerce Service
   useEffect(() => {
     let isMounted = true;
+    setIsBookResolved(false);
 
     async function loadBookData() {
       try {
@@ -60,7 +62,11 @@ function ReaderContent() {
           setRealBook(res.data);
         }
       } catch (err) {
-        console.warn('Không thể nạp sách thật từ CSDL, fallback sang mock:', err);
+        console.warn('Không thể nạp sách thật từ CSDL:', err);
+      } finally {
+        if (isMounted) {
+          setIsBookResolved(true);
+        }
       }
     }
 
@@ -74,10 +80,23 @@ function ReaderContent() {
   const currentTitle = realBook?.title || fallbackMockBook.title;
   const currentAuthor = realBook?.author?.name || fallbackMockBook.author || 'Tác giả HUKI';
   const effectiveBookId = realBook?.id || targetBookId;
-  const currentPdfUrl = `/api/v1/books/${encodeURIComponent(effectiveBookId)}/pdf`;
+  const bookExplicitlyMissingPdf =
+    isBookResolved &&
+    realBook !== null &&
+    (realBook.hasPdf === false ||
+      (realBook.digitalDetails !== undefined &&
+        !realBook.digitalDetails.hasSourceFile &&
+        !realBook.digitalDetails.hasPreviewFile &&
+        realBook.hasPdf !== true));
+  const currentPdfUrl = !isBookResolved
+    ? undefined
+    : bookExplicitlyMissingPdf
+      ? ''
+      : `/api/v1/books/${encodeURIComponent(effectiveBookId)}/pdf`;
 
   // 2. Kích hoạt phiên đọc DRM, Heartbeat 30s & Cưỡng Chế Thu Hồi Bản Quyền Thời Gian Thực
   useEffect(() => {
+    if (!isBookResolved) return;
     setActiveBookId(effectiveBookId);
     setTotalPages(fallbackMockBook.pages || 166);
 
@@ -200,10 +219,10 @@ function ReaderContent() {
         try {
           navigator.sendBeacon(leaveUrl, '');
         } catch {
-          fetch(leaveUrl, { method: 'POST', keepalive: true }).catch(() => {});
+          fetch(leaveUrl, { method: 'POST', keepalive: true }).catch(() => { });
         }
       } else {
-        fetch(leaveUrl, { method: 'POST', keepalive: true }).catch(() => {});
+        fetch(leaveUrl, { method: 'POST', keepalive: true }).catch(() => { });
       }
     };
 
@@ -218,7 +237,7 @@ function ReaderContent() {
       window.removeEventListener('pagehide', handleLeave);
       handleLeave();
     };
-  }, [effectiveBookId, currentTitle, setActiveBookId, setTotalPages, fallbackMockBook.pages, user?.id]);
+  }, [isBookResolved, effectiveBookId, currentTitle, setActiveBookId, setTotalPages, fallbackMockBook.pages, user?.id]);
 
   // 3. Tiến độ đọc sách & khôi phục trang
   useEffect(() => {
@@ -349,11 +368,18 @@ function ReaderContent() {
 
           {/* Center PDF Canvas Viewport */}
           <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative bg-[#121212]">
-            <PdfCanvasViewer
-              pdfUrl={currentPdfUrl}
-              bookTitle={currentTitle}
-              bookId={effectiveBookId}
-            />
+            {!isBookResolved ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-300">
+                <span className="material-symbols-outlined text-4xl text-[#00875A] animate-spin">progress_activity</span>
+                <p className="text-xs font-medium">Đang chuẩn bị bản đọc số...</p>
+              </div>
+            ) : (
+              <PdfCanvasViewer
+                pdfUrl={currentPdfUrl}
+                bookTitle={currentTitle}
+                bookId={effectiveBookId}
+              />
+            )}
           </main>
         </div>
 

@@ -225,7 +225,9 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
       normPath === '/vouchers' ||
       normPath === '/ai-audio/plans' ||
       normPath.startsWith('/ai-audio/plans') ||
-      normPath.startsWith('/reviews') ||
+      (normPath.startsWith('/reviews') &&
+        !normPath.startsWith('/reviews/me') &&
+        !normPath.startsWith('/reviews/seller')) ||
       /^\/stores\/[^/]+\/reviews/.test(normPath) ||
       /^\/books\/[^/]+\/reviews/.test(normPath) ||
       normPath === '/shipping/rates' ||

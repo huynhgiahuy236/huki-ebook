@@ -249,8 +249,44 @@ export class BooksService implements OnModuleInit {
     }
   }
 
+  private resolveStaticWebBaseUrl(): string {
+    if (process.env.WEB_INTERNAL_URL) {
+      return process.env.WEB_INTERNAL_URL.replace(/\/+$/, '');
+    }
+    if (process.env.NODE_ENV === 'staging') {
+      return 'http://web-uat:3100';
+    }
+    return process.env.NODE_ENV === 'production' ? 'http://web:3100' : 'http://localhost:3100';
+  }
+
+  private async hasReadablePdfKey(key?: string | null, slug?: string | null): Promise<boolean> {
+    if (!key && slug !== 'con-duong-phia-truoc') return false;
+    const candidateKeys = Array.from(
+      new Set([
+        ...(key ? [key] : []),
+        ...(slug === 'con-duong-phia-truoc'
+          ? ['ebooks/con-duong-phia-truoc.pdf', 'ebooks/Con_duong_phia_truoc__Bill_Gates.pdf']
+          : []),
+      ]),
+    );
+    for (const candidate of candidateKeys) {
+      if (this.ebookStorage?.exists && (await this.ebookStorage.exists(candidate))) {
+        return true;
+      }
+      if (
+        candidate.includes('con-duong-phia-truoc') ||
+        candidate.includes('Con_duong_phia_truoc')
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   async syncRealPdfKeys() {
     for (const [slug, pdfKey] of Object.entries(REAL_EBOOK_MAPPINGS)) {
+      const exists = await this.hasReadablePdfKey(pdfKey, slug);
+      if (!exists) continue;
       const book = await this.prisma.book.findFirst({
         where: { slug },
         include: { digitalDetails: true },
@@ -265,7 +301,7 @@ export class BooksService implements OnModuleInit {
               accessType: 'FREE',
             },
           }).catch(() => null);
-        } else if (book.digitalDetails.pdfKey !== pdfKey) {
+        } else if (!book.digitalDetails.pdfKey) {
           await this.prisma.digitalBookDetails.update({
             where: { bookId: book.id },
             data: { pdfKey, digitalEnabled: true },
@@ -445,7 +481,11 @@ export class BooksService implements OnModuleInit {
       },
     });
     const soldCount = sales._sum.quantity || 0;
-    return this.serializeBook(book!, canAccess, discountsMap.get(book!.id), soldCount);
+    const hasPdf = await this.hasReadablePdfKey(
+      book!.digitalDetails?.pdfKey || book!.digitalDetails?.previewPdfKey,
+      book!.slug,
+    );
+    return this.serializeBook(book!, canAccess, discountsMap.get(book!.id), soldCount, hasPdf);
   }
 
   async findAll(query: BookListQueryDto) {
@@ -558,6 +598,13 @@ export class BooksService implements OnModuleInit {
           dimensions: true,
         },
       },
+      digitalDetails: {
+        select: {
+          digitalEnabled: true,
+          pdfKey: true,
+          previewPdfKey: true,
+        },
+      },
     };
 
 
@@ -613,7 +660,14 @@ export class BooksService implements OnModuleInit {
         const resolvedIds = await resolveStoreAndBusinessIds(target, actor);
         const candidateIds = Array.from(new Set([target, ...resolvedIds]));
         const allowed = candidateIds.filter(id => scope.storeIds.includes(id) || scope.businessIds.includes(id));
-        conditions.push({ storeId: { in: allowed.length > 0 ? allowed : [target] } });
+        const ownerUserIds = Array.from(new Set([...scope.ownerUserIds, ...(actor.sub ? [actor.sub] : [])]));
+        const storeCandidates = Array.from(new Set([...(allowed.length > 0 ? allowed : [target]), ...ownerUserIds]));
+        conditions.push({
+          OR: [
+            { storeId: { in: storeCandidates } },
+            ...(ownerUserIds.length > 0 ? [{ ownerUserId: { in: ownerUserIds } }] : []),
+          ],
+        });
       } else {
         const allowedStoreIds = Array.from(new Set([...scope.storeIds, ...scope.businessIds]));
         const ownerUserIds = Array.from(new Set([...scope.ownerUserIds, ...(actor.sub ? [actor.sub] : [])]));
@@ -721,7 +775,11 @@ export class BooksService implements OnModuleInit {
       },
     });
     const soldCount = sales._sum.quantity || 0;
-    return this.serializeBook(book!, canAccess, discountsMap.get(book!.id), soldCount);
+    const hasPdf = await this.hasReadablePdfKey(
+      book!.digitalDetails?.pdfKey || book!.digitalDetails?.previewPdfKey,
+      book!.slug,
+    );
+    return this.serializeBook(book!, canAccess, discountsMap.get(book!.id), soldCount, hasPdf);
   }
 
   async update(id: string, dto: UpdateBookDto, actor: BookActor) {
@@ -975,7 +1033,13 @@ export class BooksService implements OnModuleInit {
     return map;
   }
 
-  private serializeBook(book: any, isPrivate: boolean, discount?: any, soldCount: number = 0) {
+  private serializeBook(
+    book: any,
+    isPrivate: boolean,
+    discount?: any,
+    soldCount: number = 0,
+    resolvedHasPdf?: boolean,
+  ) {
     const physical = book.physicalDetails;
     const stock = physical?.stock ?? 0;
     const reserved = physical?.reserved ?? 0;
@@ -1055,6 +1119,12 @@ export class BooksService implements OnModuleInit {
       weight: physical?.weight ?? null,
       physicalEnabled: physical?.physicalEnabled ?? true,
       isAffiliateEligible: Boolean(book.affiliateSetting?.isEligible),
+      hasPdf:
+        resolvedHasPdf !== undefined
+          ? resolvedHasPdf
+          : Boolean(book.digitalDetails?.pdfKey || book.digitalDetails?.previewPdfKey),
+      hasSourceFile: Boolean(book.digitalDetails?.pdfKey),
+      hasPreviewFile: Boolean(book.digitalDetails?.previewPdfKey),
       affiliateSetting: book.affiliateSetting
         ? {
             isEligible: book.affiliateSetting.isEligible,
@@ -1083,7 +1153,6 @@ export class BooksService implements OnModuleInit {
         where: {
           OR: [
             { slug: { startsWith: cleanSlug } },
-            { slug: { contains: cleanSlug } },
             { normalizedTitle: { contains: cleanSlug.replace(/-/g, ' ') } },
           ],
         },
@@ -1092,42 +1161,58 @@ export class BooksService implements OnModuleInit {
     }
 
     if (!book) {
-      book = {
-        id: idOrSlug,
-        slug: idOrSlug,
-        title: 'Bản Đọc Thử Ebook HUKI',
-        digitalDetails: { pdfKey: 'ebooks/default-ebook.pdf' },
-      } as any;
+      res.status(HttpStatus.NOT_FOUND).json({
+        statusCode: HttpStatus.NOT_FOUND,
+        code: 'BOOK_NOT_FOUND',
+        message: 'Không tìm thấy tác phẩm này.',
+      });
+      return;
     }
 
-    let pdfKey = book.digitalDetails?.pdfKey;
-    if (!pdfKey && REAL_EBOOK_MAPPINGS[book.slug]) {
-      pdfKey = REAL_EBOOK_MAPPINGS[book.slug];
-      if (!book.digitalDetails) {
-        await this.prisma.digitalBookDetails.create({
-          data: {
-            bookId: book.id,
-            pdfKey,
-            digitalEnabled: true,
-            accessType: 'FREE',
-          },
-        }).catch(() => null);
-      } else {
-        await this.prisma.digitalBookDetails.update({
-          where: { bookId: book.id },
-          data: { pdfKey, digitalEnabled: true },
-        }).catch(() => null);
-      }
-    }
+    const mappedSlugKey = REAL_EBOOK_MAPPINGS[book.slug];
+    const pdfKey =
+      book.digitalDetails?.pdfKey ||
+      book.digitalDetails?.previewPdfKey ||
+      mappedSlugKey;
 
-    // Default sample PDF key if unassigned
     if (!pdfKey) {
-      pdfKey = 'ebooks/default-ebook.pdf';
+      res.status(HttpStatus.NOT_FOUND).json({
+        statusCode: HttpStatus.NOT_FOUND,
+        code: 'NO_PDF_AVAILABLE',
+        message: 'Tác phẩm này hiện chưa có bản đọc số điện tử.',
+      });
+      return;
     }
 
-    const serveLocalFallback = () => {
-      // Strictly look up pdfKey or clean localized PDF; never serve Bill Gates PDF for unrelated books
-      const isBillGatesBook = (book.slug && book.slug.includes('con-duong-phia-truoc')) || (book.title && book.title.includes('Con Đường Phía Trước'));
+    const streamLocalFile = (filePath: string) => {
+      const stat = fs.statSync(filePath);
+      const fileSize = stat.size;
+      const range = req.headers?.range;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(book.slug || book.id)}.pdf"`);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+
+      if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunksize = end - start + 1;
+        res.status(HttpStatus.PARTIAL_CONTENT);
+        res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+        res.setHeader('Content-Length', chunksize.toString());
+        fs.createReadStream(filePath, { start, end }).pipe(res);
+      } else {
+        res.setHeader('Content-Length', fileSize.toString());
+        fs.createReadStream(filePath).pipe(res);
+      }
+    };
+
+    const serveLocalFallback = async () => {
+      const isBillGatesBook =
+        (book.slug && book.slug.includes('con-duong-phia-truoc')) ||
+        (book.title && book.title.includes('Con Đường Phía Trước'));
       const relativeKey = pdfKey.replace(/^ebooks[\/\\]/, '');
       const candidates = [
         path.resolve(process.cwd(), 'platform/apps/commerce-service/assets', pdfKey),
@@ -1136,8 +1221,8 @@ export class BooksService implements OnModuleInit {
         path.resolve(process.cwd(), 'apps/commerce-service/assets', relativeKey),
         path.resolve(process.cwd(), '../web/public/ebooks', relativeKey),
         path.resolve(process.cwd(), 'web/public/ebooks', relativeKey),
-        path.resolve(__dirname, '../../assets', relativeKey),
         path.resolve(__dirname, '../../assets', pdfKey),
+        path.resolve(__dirname, '../../assets', relativeKey),
       ];
       if (isBillGatesBook) {
         candidates.push(
@@ -1145,67 +1230,52 @@ export class BooksService implements OnModuleInit {
           path.resolve(process.cwd(), 'web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
         );
       }
-      let fallbackPath: string | null = null;
-      for (const c of candidates) {
-        if (fs.existsSync(c)) {
-          fallbackPath = c;
-          break;
+
+      for (const candidate of candidates) {
+        if (fs.existsSync(candidate)) {
+          streamLocalFile(candidate);
+          return;
         }
       }
-      if (!fallbackPath) {
-        // Universal fallback: if specific PDF key not found, serve sample reading PDF so reader never fails with 404
-        const universalCandidates = [
-          path.resolve(process.cwd(), 'platform/apps/commerce-service/assets/default-ebook.pdf'),
-          path.resolve(process.cwd(), 'apps/commerce-service/assets/default-ebook.pdf'),
-          path.resolve(__dirname, '../../assets/default-ebook.pdf'),
-          path.resolve(process.cwd(), '../web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
-          path.resolve(process.cwd(), 'web/public/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf'),
-          path.resolve(process.cwd(), 'web/public/Con_duong_phia_truoc__Bill_Gates.pdf'),
-        ];
-        for (const u of universalCandidates) {
-          if (fs.existsSync(u)) {
-            fallbackPath = u;
-            break;
+
+      // If this book maps to the tracked web public PDF (e.g. Con Đường Phía Trước), fetch & cache it once from the web container
+      if (isBillGatesBook) {
+        try {
+          const webRes = await fetch(
+            `${this.resolveStaticWebBaseUrl()}/ebooks/Con_duong_phia_truoc__Bill_Gates.pdf`,
+            { signal: AbortSignal.timeout(10_000) },
+          );
+          if (webRes.ok) {
+            const buf = Buffer.from(await webRes.arrayBuffer());
+            const cachePath = path.resolve(process.cwd(), 'apps/commerce-service/assets/ebooks/con-duong-phia-truoc.pdf');
+            try {
+              fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+              fs.writeFileSync(cachePath, buf);
+            } catch {
+              // ignore cache write failure
+            }
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Length', buf.length.toString());
+            res.setHeader('Accept-Ranges', 'bytes');
+            res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(book.slug || book.id)}.pdf"`);
+            res.send(buf);
+            return;
           }
+        } catch {
+          // ignore static fetch failure
         }
       }
-      if (!fallbackPath) {
-        res.status(HttpStatus.NOT_FOUND).json({
-          statusCode: HttpStatus.NOT_FOUND,
-          code: 'NO_PDF_AVAILABLE',
-          message: 'Tác phẩm này hiện chưa có bản đọc số điện tử.',
-        });
-        return;
-      }
 
-      const stat = fs.statSync(fallbackPath);
-      const fileSize = stat.size;
-      const range = req.headers?.range;
-
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Accept-Ranges', 'bytes');
-      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(book.slug || book.id)}.pdf"`);
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-
-      if (range) {
-        const parts = range.replace(/bytes=/, '').split('-');
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-        const chunksize = end - start + 1;
-        const fileStream = fs.createReadStream(fallbackPath, { start, end });
-        res.status(HttpStatus.PARTIAL_CONTENT);
-        res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
-        res.setHeader('Content-Length', chunksize.toString());
-        fileStream.pipe(res);
-      } else {
-        res.setHeader('Content-Length', fileSize.toString());
-        fs.createReadStream(fallbackPath).pipe(res);
-      }
+      res.status(HttpStatus.NOT_FOUND).json({
+        statusCode: HttpStatus.NOT_FOUND,
+        code: 'NO_PDF_AVAILABLE',
+        message: 'Tác phẩm này hiện chưa có bản đọc số điện tử.',
+      });
     };
 
     try {
       if (!this.ebookStorage?.getStream) {
-        serveLocalFallback();
+        await serveLocalFallback();
         return;
       }
 
@@ -1215,7 +1285,7 @@ export class BooksService implements OnModuleInit {
       res.setHeader('Content-Type', fileData.contentType || 'application/pdf');
       res.setHeader('Accept-Ranges', 'bytes');
       res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(book.slug || book.id)}.pdf"`);
-      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
 
       if (rangeHeader && fileData.contentRange) {
         res.status(HttpStatus.PARTIAL_CONTENT);
@@ -1230,7 +1300,7 @@ export class BooksService implements OnModuleInit {
       fileData.stream.pipe(res);
     } catch (err: any) {
       console.warn(`[BooksService] Storage stream error for ${pdfKey}, falling back to local asset: ${err?.message || err}`);
-      serveLocalFallback();
+      await serveLocalFallback();
     }
   }
 }

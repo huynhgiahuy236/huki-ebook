@@ -649,6 +649,11 @@ export default function LibraryPage() {
                           </span>
                           <span>{book.format === 'PHYSICAL' ? 'Xem Sách In' : 'Xem & Mua'}</span>
                         </Link>
+                      ) : book.hasPdf === false ? (
+                        <div className="w-full py-2 px-3 rounded-xl bg-slate-100 text-slate-500 text-xs font-semibold text-center flex items-center justify-center gap-1.5 border border-slate-200">
+                          <span className="material-symbols-outlined text-[15px] shrink-0">description</span>
+                          <span>Chưa có bản đọc PDF</span>
+                        </div>
                       ) : (
                         <Link
                           href={`/reader?book=${bookKey}`}

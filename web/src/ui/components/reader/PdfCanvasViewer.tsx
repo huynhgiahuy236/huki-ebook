@@ -52,28 +52,47 @@ export default function PdfCanvasViewer({
     setLoading(true);
     setError(null);
 
+    if (pdfUrl === undefined) {
+      return;
+    }
+
     if (!pdfUrl) {
       setError('Tác phẩm này hiện chưa có bản đọc số điện tử.');
       setLoading(false);
       return;
     }
 
+    let cancelled = false;
     loadPdfDocument(pdfUrl)
       .then((doc) => {
-        if (!isMounted) return;
+        if (!isMounted || cancelled) return;
         setPdfDoc(doc);
         setTotalPages(doc.numPages);
         setLoading(false);
       })
-      .catch((err) => {
-        if (!isMounted) return;
+      .catch(async (err) => {
+        if (!isMounted || cancelled) return;
         console.error('Lỗi khi tải PDF:', err);
-        setError('Tác phẩm này hiện chưa có bản đọc số điện tử.');
-        setLoading(false);
+        let msg = 'Tác phẩm này hiện chưa có bản đọc số điện tử.';
+        try {
+          const checkRes = await fetch(pdfUrl, { method: 'GET' });
+          if (checkRes.status >= 500) {
+            msg = 'Máy chủ đang bận khi tải tệp PDF. Vui lòng thử lại sau giây lát.';
+          } else if (checkRes.status !== 404 && !checkRes.ok) {
+            msg = 'Không thể truy cập tệp PDF của tác phẩm này. Vui lòng thử lại.';
+          }
+        } catch {
+          // keep default message if network failed
+        }
+        if (isMounted && !cancelled) {
+          setError(msg);
+          setLoading(false);
+        }
       });
 
     return () => {
       isMounted = false;
+      cancelled = true;
     };
   }, [pdfUrl, setTotalPages]);
 

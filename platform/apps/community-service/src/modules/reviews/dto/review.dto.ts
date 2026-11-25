@@ -39,6 +39,18 @@ export class ReviewListQueryDto {
   rating?: number;
 }
 
+export class SellerReviewListQueryDto extends ReviewListQueryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  targetType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  search?: string;
+}
+
 export class ReviewContentDto {
   @ApiProperty({ minimum: 1, maximum: 5 })
   @Type(() => Number)

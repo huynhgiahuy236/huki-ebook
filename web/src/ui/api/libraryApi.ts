@@ -17,6 +17,7 @@ export interface UserLibraryBook {
   readingProgress: number; // 0 - 100
   lastReadAt?: string;
   pdfKey?: string;
+  hasPdf?: boolean;
   epubKey?: string;
   accessType?: string;
   status: string;

@@ -1,7 +1,10 @@
 import { Logger, Optional } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import {
+  ConnectedSocket,
+  MessageBody,
   OnGatewayConnection,
+  SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
 } from "@nestjs/websockets";
@@ -137,6 +140,77 @@ export class NotificationGateway implements OnGatewayConnection {
     this.server
       ?.to(this.room(recipientId))
       .emit("notification_read_all", { unreadCount: 0 });
+  }
+
+  @SubscribeMessage("join_book")
+  async handleJoinBook(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: { bookId?: string } | string,
+  ) {
+    const bookId = typeof payload === "string" ? payload : payload?.bookId;
+    if (bookId) {
+      await client.join(`book:${bookId}`);
+    }
+    return { joined: bookId ?? null };
+  }
+
+  @SubscribeMessage("leave_book")
+  async handleLeaveBook(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: { bookId?: string } | string,
+  ) {
+    const bookId = typeof payload === "string" ? payload : payload?.bookId;
+    if (bookId) {
+      await client.leave(`book:${bookId}`);
+    }
+    return { left: bookId ?? null };
+  }
+
+  @SubscribeMessage("join_store")
+  async handleJoinStore(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: { storeId?: string } | string,
+  ) {
+    const storeId = typeof payload === "string" ? payload : payload?.storeId;
+    if (storeId) {
+      await client.join(`store:${storeId}`);
+    }
+    return { joined: storeId ?? null };
+  }
+
+  emitReviewEvent(
+    eventName: "review:created" | "review:updated" | "review:replied" | "review:helpful",
+    data: {
+      targetType?: string;
+      targetId?: string;
+      storeId?: string;
+      storeOwnerId?: string;
+      authorId?: string;
+      [key: string]: unknown;
+    },
+  ) {
+    if (!this.server) return;
+    const rooms = new Set<string>();
+    if (data.targetType === "BOOK" && data.targetId) {
+      rooms.add(`book:${data.targetId}`);
+    }
+    if (data.targetType === "STORE" && data.targetId) {
+      rooms.add(`store:${data.targetId}`);
+      rooms.add(`business:${data.targetId}`);
+    }
+    if (data.storeId) {
+      rooms.add(`store:${data.storeId}`);
+      rooms.add(`business:${data.storeId}`);
+    }
+    if (data.storeOwnerId) {
+      rooms.add(`business_user:${data.storeOwnerId}`);
+    }
+    if (data.authorId) {
+      rooms.add(`user:${data.authorId}`);
+    }
+    for (const targetRoom of rooms) {
+      this.server.to(targetRoom).emit(eventName, data);
+    }
   }
 
   private room(recipientId: string) {
