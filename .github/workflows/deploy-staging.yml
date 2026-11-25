@@ -205,6 +205,7 @@ jobs:
             echo "=== [4/5] Starting UAT services ==="
             docker compose -f docker-compose.uat.yml up -d --remove-orphans
             docker restart huki-uat-promotion-service || true
+            docker restart huki-uat-nginx || true
 
             echo "=== [5/5] Verifying UAT health routes ==="
             sleep 30

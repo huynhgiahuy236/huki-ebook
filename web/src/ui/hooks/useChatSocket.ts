@@ -332,7 +332,7 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
       });
     }
     // Đồng bộ REST API để backend cập nhật database và broadcast cho các thiết bị khác
-    chatService.markAsRead(conversationId).catch(() => {});
+    chatService.markAsRead(conversationId, currentStoreId || storeId).catch(() => {});
   }, [storeId]);
 
   // Báo trạng thái đang soạn tin (typing)

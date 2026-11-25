@@ -212,8 +212,9 @@ export const chatService = {
   /**
    * Đánh dấu cuộc trò chuyện đã đọc (REST API sync - BUG-MOD06-14)
    */
-  async markAsRead(conversationId: string): Promise<ApiResponse<{ message: string }>> {
-    return apiClient<{ message: string }>(`/chat/conversations/${conversationId}/read`, {
+  async markAsRead(conversationId: string, storeId?: string): Promise<ApiResponse<{ message: string }>> {
+    const query = storeId ? `?storeId=${encodeURIComponent(storeId)}` : '';
+    return apiClient<{ message: string }>(`/chat/conversations/${conversationId}/read${query}`, {
       method: 'PATCH',
     });
   },
