@@ -144,6 +144,38 @@ export class BusinessService {
     return business;
   }
 
+  // ==================== HELPER: SANITIZE & FLATTEN STORE ASSETS ====================
+  private sanitizeAssetUrl(url?: string | null): string | null {
+    if (!url || typeof url !== 'string') return null;
+    const trimmed = url.trim();
+    if (!trimmed || trimmed.toLowerCase().startsWith('blob:')) return null;
+    return trimmed;
+  }
+
+  private withFlattenedStoreAssets<T extends Record<string, any>>(
+    business: T,
+  ): T & { logo?: string | null; banner?: string | null } {
+    if (!business) return business;
+    const result: Record<string, any> = { ...business };
+    if (Array.isArray(business.stores)) {
+      result.stores = business.stores.map((s: any) => ({
+        ...s,
+        ...(s.logo !== undefined ? { logo: this.sanitizeAssetUrl(s.logo) } : {}),
+        ...(s.banner !== undefined ? { banner: this.sanitizeAssetUrl(s.banner) } : {}),
+      }));
+    }
+    const primaryStore = Array.isArray(result.stores) ? result.stores[0] : undefined;
+    const flattenedLogo = this.sanitizeAssetUrl(result.logo) || primaryStore?.logo || null;
+    const flattenedBanner = this.sanitizeAssetUrl(result.banner) || primaryStore?.banner || null;
+    if ('logo' in result || primaryStore) {
+      result.logo = flattenedLogo;
+    }
+    if ('banner' in result || primaryStore) {
+      result.banner = flattenedBanner;
+    }
+    return result as T;
+  }
+
   // ==================== READ ====================
   async getBusinessById(id: string) {
     const business = await this.prisma.business.findUnique({
@@ -186,10 +218,10 @@ export class BusinessService {
       : null;
     const extData = (latestApprovedRequest?.requestedData as Record<string, any>) || {};
 
-    return {
+    return this.withFlattenedStoreAssets({
       ...business,
       ...extData,
-    };
+    });
   }
 
   async getBusinessByOwner(userId: string) {
@@ -214,14 +246,14 @@ export class BusinessService {
         : null;
       const extData = (latestApprovedRequest?.requestedData as Record<string, any>) || {};
 
-      return {
+      return this.withFlattenedStoreAssets({
         ...business,
         ...extData,
         currentMember: {
           role: 'OWNER',
           permissions: ['*'],
         },
-      };
+      });
     }
 
     // Check if user is an active member of a business
@@ -295,7 +327,7 @@ export class BusinessService {
     ]);
 
     return {
-      data: businesses,
+      data: businesses.map((b) => this.withFlattenedStoreAssets(b)),
       pagination: {
         page,
         limit,
@@ -950,8 +982,14 @@ export class BusinessService {
       const storeUpdateData: any = {};
       if (data.storeName || data.name) storeUpdateData.name = data.storeName || data.name;
       if (data.description || data.storeDescription) storeUpdateData.description = data.description || data.storeDescription;
-      if (data.logo || data.storeLogo) storeUpdateData.logo = data.logo || data.storeLogo;
-      if (data.banner || data.storeBanner) storeUpdateData.banner = data.banner || data.storeBanner;
+      if (data.logo || data.storeLogo) {
+        const cleanLogo = this.sanitizeAssetUrl(data.logo || data.storeLogo);
+        if (cleanLogo) storeUpdateData.logo = cleanLogo;
+      }
+      if (data.banner || data.storeBanner) {
+        const cleanBanner = this.sanitizeAssetUrl(data.banner || data.storeBanner);
+        if (cleanBanner) storeUpdateData.banner = cleanBanner;
+      }
       if (data.email || data.storeEmail) storeUpdateData.email = data.email || data.storeEmail;
       if (data.phone || data.storePhone) storeUpdateData.phone = data.phone || data.storePhone;
       if (data.storeAddress || data.address) storeUpdateData.address = data.storeAddress || data.address;

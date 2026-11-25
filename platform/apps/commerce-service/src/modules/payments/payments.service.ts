@@ -540,16 +540,38 @@ export class PaymentsService
       });
       if (updated.count === 0) return { success: true, message: 'Giao dịch đã được ghi nhận trước đó' };
 
+      const hasPhysicalOrders = (payment.order.sellerOrders || []).some(
+        (so: any) => so.requiresShipping,
+      );
+
       await tx.order.update({
         where: { id: payment.orderId },
-        data: { paymentStatus: PaymentStatus.SUCCEEDED, status: "PROCESSING" },
+        data: {
+          paymentStatus: PaymentStatus.SUCCEEDED,
+          status: hasPhysicalOrders ? "PROCESSING" : "COMPLETED",
+          cancelledAt: null,
+          cancelReason: null,
+        },
       });
       await tx.sellerOrder.updateMany({
         where: {
           orderId: payment.orderId,
+          requiresShipping: true,
           status: SellerOrderStatus.PENDING_PAYMENT,
         },
         data: { status: SellerOrderStatus.PENDING_CONFIRMATION },
+      });
+      await tx.sellerOrder.updateMany({
+        where: {
+          orderId: payment.orderId,
+          requiresShipping: false,
+        },
+        data: {
+          status: SellerOrderStatus.COMPLETED,
+          completedAt: paidAt,
+          cancelledAt: null,
+          cancelReason: null,
+        },
       });
       await tx.orderStatusHistory.create({
         data: {

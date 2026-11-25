@@ -12,6 +12,8 @@ import { catalogApi, toCatalogBook, type BookData } from '@/ui/api/catalogApi';
 import { voucherApi } from '@/ui/api/voucherApi';
 import { formatFollowerRequirement } from '@/ui/api/sellerVoucherApi';
 import { reviewSummaryService } from '@/ui/services/reviewSummaryService';
+import { StoreLogoImg } from '@/ui/components/common/StoreLogoImg';
+import { compressImageToDataUrl, sanitizeImageUrl } from '@/ui/utils/imageUtils';
 
 export default function ShopPage() {
   const params = useParams();
@@ -146,7 +148,7 @@ export default function ShopPage() {
   );
 
   // Xử lý chọn tệp từ máy trong modal
-  const handleModalFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleModalFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -163,11 +165,22 @@ export default function ShopPage() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPreviewImage(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    const isAvatar = activeImageModal === 'avatar';
+    try {
+      const compressed = await compressImageToDataUrl(
+        file,
+        isAvatar ? 400 : 1200,
+        isAvatar ? 400 : 400,
+        0.85,
+      );
+      setPreviewImage(compressed);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setPreviewImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   // Xử lý bấm Áp dụng cập nhật ảnh vào DB
@@ -722,7 +735,10 @@ export default function ShopPage() {
   };
 
   const legacyProfile = business?.stores?.[0];
-  const bannerImg = business?.banner || legacyProfile?.banner || 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1600&q=80';
+  const bannerImg =
+    sanitizeImageUrl(business?.banner) ||
+    sanitizeImageUrl(legacyProfile?.banner) ||
+    'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1600&q=80';
 
   if (isLoadingStore) {
     return (
@@ -768,12 +784,17 @@ export default function ShopPage() {
       {/* Publisher Hero Header & Profile Card */}
       <section className="relative rounded-3xl shadow-sm bg-theme-surface border border-theme-border mb-8 z-30">
         {/* Panoramic Banner */}
-        <div
-          className="h-56 md:h-72 w-full relative bg-cover bg-center rounded-t-3xl overflow-hidden"
-          style={{ backgroundImage: `url('${bannerImg}')` }}
-        >
+        <div className="h-56 md:h-72 w-full relative rounded-t-3xl overflow-hidden bg-slate-900">
+          <StoreLogoImg
+            src={bannerImg}
+            fallbackSrc="https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1600&q=80"
+            alt={business?.name || 'Ảnh bìa gian hàng'}
+            fallbackText={business?.name || 'HUKI'}
+            className="absolute inset-0 w-full h-full object-cover"
+            fallbackClassName="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-[#003b2b] to-[#006953] text-white/30 font-black text-4xl"
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent"></div>
-          <div className="absolute bottom-6 left-6 right-6 text-white flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div className="absolute bottom-6 left-6 right-6 text-white flex flex-col md:flex-row md:items-end justify-between gap-4 z-10">
             <div>
               <span className="px-3 py-1 bg-theme-accent text-white text-xs font-bold rounded-full uppercase tracking-wider mb-2 inline-block shadow-sm">
                 NXB Đối Tác Độc Quyền Mall
@@ -798,17 +819,15 @@ export default function ShopPage() {
         {/* Info & Stats Bar Below Banner */}
         <div className="p-6 md:p-8 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 border-t border-theme-border/30 bg-theme-surface rounded-b-3xl relative">
           <div className="flex items-center gap-4">
-            {business?.logo || legacyProfile?.logo ? (
-              <img
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border-2 border-white shadow-md -mt-10 lg:-mt-12 bg-white shrink-0 relative z-10 overflow-hidden">
+              <StoreLogoImg
                 src={business?.logo || legacyProfile?.logo}
-                alt={business?.name}
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-white shadow-md -mt-10 lg:-mt-12 bg-white shrink-0 relative z-10"
+                alt={business?.name || 'Logo gian hàng'}
+                fallbackText={(business?.name || 'H').slice(0, 1).toUpperCase()}
+                className="w-full h-full object-cover"
+                fallbackClassName="w-full h-full bg-[#003b2b] text-white font-black text-2xl sm:text-3xl flex items-center justify-center"
               />
-            ) : (
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-[#003b2b] text-white font-black text-2xl sm:text-3xl flex items-center justify-center border-2 border-white shadow-md -mt-10 lg:-mt-12 shrink-0 relative z-10">
-                {(business?.name || 'H').slice(0, 1).toUpperCase()}
-              </div>
-            )}
+            </div>
 
             <div>
               <div className="flex items-center gap-2">

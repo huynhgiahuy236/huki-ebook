@@ -69,7 +69,10 @@ export class OrdersService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.order.findMany({
         where,
-        include: { sellerOrders: { include: { items: true } } },
+        include: {
+          sellerOrders: { include: { items: true } },
+          payments: { where: { status: 'SUCCEEDED' }, orderBy: { paidAt: 'desc' }, take: 1 },
+        },
         orderBy: { createdAt: "desc" },
         skip: (query.page - 1) * query.limit,
         take: query.limit,
@@ -91,7 +94,10 @@ export class OrdersService {
         OR: [{ id }, { code: id }],
         userId,
       },
-      include: { sellerOrders: { include: { items: true } } },
+      include: {
+        sellerOrders: { include: { items: true } },
+        payments: { where: { status: 'SUCCEEDED' }, orderBy: { paidAt: 'desc' }, take: 1 },
+      },
     });
     if (!order) throwNotFound(ErrorCode.ORDER_NOT_FOUND);
     return await this.buyerView(order);
@@ -285,7 +291,10 @@ export class OrdersService {
         OR: [{ id }, { code: id }],
         userId,
       },
-      include: { sellerOrders: { include: { items: true } } },
+      include: {
+        sellerOrders: { include: { items: true } },
+        payments: { where: { status: 'SUCCEEDED' }, orderBy: { paidAt: 'desc' }, take: 1 },
+      },
     });
     if (!order) throwNotFound(ErrorCode.ORDER_NOT_FOUND);
 
@@ -1180,6 +1189,18 @@ export class OrdersService {
       })
     );
 
+    const succeededPayment = Array.isArray(order.payments)
+      ? order.payments.find((p: any) => p.paidAt) || order.payments[0]
+      : null;
+    const digitalCompletedAt = sellerOrders.find(
+      (so: any) => !so.requiresShipping && so.completedAt,
+    )?.completedAt;
+    const paidAt =
+      order.paidAt ||
+      succeededPayment?.paidAt ||
+      digitalCompletedAt ||
+      null;
+
     return {
       id: order.id,
       code: order.code,
@@ -1191,6 +1212,7 @@ export class OrdersService {
       paymentMethod: order.paymentMethod,
       paymentProvider: order.paymentProvider,
       paymentStatus: order.paymentStatus,
+      paidAt,
       status: order.status,
       shippingAddress: order.shippingAddress,
       note: order.note,
@@ -2434,13 +2456,13 @@ export class OrdersService {
               escrowStatus = 'PENDING_PAYMENT';
             } else {
               // Đã giao hàng (nếu là COD thì shipper ĐÃ nộp cho sàn, nếu là ONLINE thì đã thanh toán):
-              // Ký quỹ 2 phút (120 giây) tính từ lúc giao hàng
+              // Ký quỹ 3 phút (180 giây) tính từ lúc giao hàng
               const deliveredTimestamp = sellerOrder.completedAt
                 ? new Date(sellerOrder.completedAt).getTime()
                 : (sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED')
                   ? new Date(sellerOrder.updatedAt || order.updatedAt).getTime()
                   : 0;
-              const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 2 * 60 * 1000 : false;
+              const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 3 * 60 * 1000 : false;
 
               if (isReturnWindowPassed || unfreezeEntry) {
                 // Hết hạn đổi trả (>= 2 phút) -> Tiền qua Seller!
@@ -2728,13 +2750,13 @@ export class OrdersService {
               escrowStatus = 'PENDING_PAYMENT';
             } else {
               // Đã giao hàng (nếu là COD thì shipper ĐÃ nộp cho sàn, nếu là ONLINE thì đã thanh toán):
-              // Ký quỹ 2 phút (120 giây) tính từ lúc giao hàng
+              // Ký quỹ 3 phút (180 giây) tính từ lúc giao hàng
               const deliveredTimestamp = sellerOrder.completedAt
                 ? new Date(sellerOrder.completedAt).getTime()
                 : (sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED')
                   ? new Date(sellerOrder.updatedAt || order.updatedAt).getTime()
                   : 0;
-              const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 2 * 60 * 1000 : false;
+              const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 3 * 60 * 1000 : false;
 
               if (isReturnWindowPassed || unfreezeEntry) {
                 // Hết hạn 2 phút đổi trả -> Tiền qua Seller!
@@ -4182,7 +4204,7 @@ export class OrdersService {
             sellerOrderId: so.id,
             fromStatus: 'ESCROW_HOLDING',
             toStatus: 'ESCROW_RELEASED',
-            title: 'Giải ngân ký quỹ Ebook (Hết hạn đổi trả 2 phút)',
+            title: 'Giải ngân ký quỹ Ebook (Hết hạn đổi trả 3 phút)',
             description: `Dòng tiền phần Ebook ${ebookSubtotal.toLocaleString('vi-VN')}₫ đã được giải ngân vào Ví của Gian hàng #${so.code}. Phần sách giấy vẫn duy trì tiến độ vận chuyển.`,
             actorType: 'USER',
             actorId: userId,
@@ -4912,7 +4934,7 @@ export class OrdersService {
         },
       });
 
-      // Check return window (2 mins): if already expired, release directly to seller
+      // Check return window (3 mins): if already expired, release directly to seller
       let escrowReleased = false;
       for (const so of order.sellerOrders) {
         const deliveredTime = so.completedAt
@@ -4920,7 +4942,7 @@ export class OrdersService {
           : (so.status === 'DELIVERED' || so.status === 'COMPLETED')
             ? new Date(so.updatedAt || order.updatedAt).getTime()
             : 0;
-        const isReturnWindowPassed = deliveredTime > 0 ? (now.getTime() - deliveredTime) >= 2 * 60 * 1000 : false;
+        const isReturnWindowPassed = deliveredTime > 0 ? (now.getTime() - deliveredTime) >= 3 * 60 * 1000 : false;
 
         if (isReturnWindowPassed) {
           escrowReleased = true;
@@ -4929,11 +4951,11 @@ export class OrdersService {
               orderId: order.id,
               sellerOrderId: so.id,
               toStatus: 'ESCROW_RELEASED',
-              title: 'Hết hạn đổi trả 2 phút - Tiền chuyển về số dư khả dụng của Người Bán',
+              title: 'Hết hạn đổi trả 3 phút - Tiền chuyển về số dư khả dụng của Người Bán',
               actorType: 'PLATFORM_ESCROW',
               actorId: 'HUKI_ESCROW_ENGINE',
               metadata: {
-                reason: 'Hết thời hạn đổi trả 2 phút sau khi bưu tá đã nộp tiền COD cho Sàn',
+                reason: 'Hết thời hạn đổi trả 3 phút sau khi bưu tá đã nộp tiền COD cho Sàn',
                 autoReleased: true,
                 timestamp: now.toISOString(),
               },

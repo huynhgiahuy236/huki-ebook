@@ -7,6 +7,8 @@ import { businessApi, type BusinessData } from '@/ui/api/businessApi';
 import { catalogApi } from '@/ui/api/catalogApi';
 import { useToast } from '@/ui/context/ToastContext';
 import { useAuth } from '@/ui/context/AuthContext';
+import { StoreLogoImg } from '@/ui/components/common/StoreLogoImg';
+import { sanitizeImageUrl } from '@/ui/utils/imageUtils';
 
 // Số lượng phần tử mỗi trang
 const PUBLISHERS_PER_PAGE = 6;
@@ -235,8 +237,8 @@ function StoresContent() {
             name: st.name,
             slug: st.slug || st.id,
             category: 'Nhà Xuất Bản & Đối Tác',
-            logo: st.logo || null,
-            banner: st.banner || 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=800&q=80',
+            logo: sanitizeImageUrl(st.logo) || sanitizeImageUrl(biz.logo) || null,
+            banner: sanitizeImageUrl(st.banner) || sanitizeImageUrl(biz.banner) || 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=800&q=80',
             rating: 5.0,
             reviewsCount: 'Mới',
             followersCount: followedIds[st.id] ? 'Đang theo dõi' : (totalBooks > 0 ? `${totalBooks} ấn phẩm` : 'Gian hàng'),
@@ -266,8 +268,8 @@ function StoresContent() {
           name: biz.name,
           slug: biz.slug || biz.id,
           category: 'Doanh nghiệp Xuất bản',
-          logo: biz.logo || null,
-          banner: biz.banner || 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=800&q=80',
+          logo: sanitizeImageUrl(biz.logo) || null,
+          banner: sanitizeImageUrl(biz.banner) || 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=800&q=80',
           rating: 5.0,
           reviewsCount: 'Mới',
           followersCount: followedIds[biz.id] ? 'Đang theo dõi' : (totalBooks > 0 ? `${totalBooks} ấn phẩm` : 'Gian hàng'),
@@ -654,10 +656,13 @@ function StoresContent() {
                       >
                         {/* Banner Header */}
                         <div className="relative h-28 bg-surface-container-low overflow-hidden">
-                          <img
+                          <StoreLogoImg
                             src={pub.banner}
+                            fallbackSrc="https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=800&q=80"
                             alt={pub.name}
+                            fallbackText={pub.name}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90"
+                            fallbackClassName="w-full h-full flex items-center justify-center bg-[#003b2b]/15 text-[#003b2b] font-bold text-2xl"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
@@ -678,13 +683,13 @@ function StoresContent() {
                             {/* Logo & Follow Button Row */}
                             <div className="flex items-start justify-between gap-3 -mt-10 mb-3">
                               <div className="w-14 h-14 rounded-2xl bg-surface-container-lowest p-1 border-2 border-surface-container-lowest shadow-md shrink-0 flex items-center justify-center overflow-hidden ring-1 ring-outline-variant/30 z-10">
-                                {pub.logo ? (
-                                  <img src={pub.logo} alt={pub.name} className="w-full h-full object-cover rounded-xl" />
-                                ) : (
-                                  <div className="w-full h-full rounded-xl bg-primary text-on-primary font-bold text-xl flex items-center justify-center">
-                                    {pub.name.charAt(0).toUpperCase()}
-                                  </div>
-                                )}
+                                <StoreLogoImg
+                                  src={pub.logo}
+                                  alt={pub.name}
+                                  fallbackText={pub.name.charAt(0).toUpperCase()}
+                                  className="w-full h-full object-cover rounded-xl"
+                                  fallbackClassName="w-full h-full rounded-xl bg-primary text-on-primary font-bold text-xl flex items-center justify-center"
+                                />
                               </div>
 
                               <button

@@ -666,6 +666,7 @@ export default function HomePage() {
     };
 
     if (activeFlashSale?.items && activeFlashSale.items.length > 0) {
+      const isLivePhase = platformSalePhase === 'LIVE';
       const mappedItems = activeFlashSale.items.map((item: FlashSaleItem) => {
         const book = realBooks.find((entry) => entry.id === item.bookId);
         const resolvedTitle = book?.title || item.bookTitle || "Tác phẩm Flash Sale";
@@ -674,8 +675,10 @@ export default function HomePage() {
         const resolvedPublisher = book?.publisher?.name || "Nhà xuất bản";
         const resolvedCover = book?.coverUrl || item.coverUrl || "/banners/hero-library.jpg";
         const resolvedRating = Number(book?.rating || (book as any)?.averageRating || 5);
-        const discountPct = Number(item.discountPercent || 0);
+        const rawOriginalPrice = Number(item.originalPrice || book?.price || item.salePrice || 0);
         const salePrice = Number(item.salePrice || 0);
+        const discountPct = isLivePhase ? Number(item.discountPercent || 0) : 0;
+        const displayPrice = isLivePhase ? salePrice : rawOriginalPrice;
 
         return {
           id: item.bookId,
@@ -687,16 +690,20 @@ export default function HomePage() {
           author: resolvedAuthor,
           publisher: resolvedPublisher,
           cover: resolvedCover,
-          price: salePrice,
-          originalPrice: item.originalPrice,
-          discount: `-${discountPct}%`,
+          price: displayPrice,
+          originalPrice: isLivePhase ? item.originalPrice : undefined,
+          discount: isLivePhase && discountPct > 0 ? `-${discountPct}%` : null,
           discountPercent: discountPct,
           rating: resolvedRating,
           sales: item.sold,
-          soldText: item.isSoldOut ? "Đã bán hết 100%" : `Đã bán ${item.sold} cuốn`,
+          soldText: isLivePhase
+            ? item.isSoldOut
+              ? "Đã bán hết 100%"
+              : `Đã bán ${item.sold} cuốn`
+            : "Sắp mở bán",
           format: item.format === 'DIGITAL' ? "Sách số (Ebook)" : "Sách giấy",
           formatType: item.format === 'DIGITAL' ? "ebook" : "physical",
-          compositeScore: calculateCompositeScore(resolvedRating, discountPct, salePrice),
+          compositeScore: calculateCompositeScore(resolvedRating, Number(item.discountPercent || 0), salePrice),
         };
       });
 
@@ -782,7 +789,7 @@ export default function HomePage() {
         formatType: b.format === "DIGITAL" ? "ebook" : "physical",
       };
     });
-  }, [activeFlashSale, realBooks]);
+  }, [activeFlashSale, platformSalePhase, realBooks]);
 
   const flashCountdown = useMemo(() => {
     const hours = Math.floor(flashSeconds / 3600);
@@ -1509,12 +1516,27 @@ export default function HomePage() {
         <section className="bg-[#FAF3EE] rounded-2xl p-2.5 sm:p-3.5 border border-[#EADBCE] shadow-2xs flex flex-col gap-2.5">
           <div className="flex items-center justify-between flex-wrap gap-2 pb-1.5 border-b border-[#EADBCE]/80">
             <div className="flex items-center gap-2">
-              <div className="bg-[#003b2b] text-white px-2.5 py-1 rounded-lg font-bold text-xs sm:text-sm tracking-wide shadow-xs uppercase">
-                <span>{activeFlashSale ? "FLASH SALE ĐANG LIVE" : "ƯU ĐÃI ĐẶC BIỆT"}</span>
+              <div
+                className={`px-2.5 py-1 rounded-lg font-bold text-xs sm:text-sm tracking-wide shadow-xs uppercase text-white ${
+                  platformSalePhase === 'TEASER' ? 'bg-amber-600' : 'bg-[#003b2b]'
+                }`}
+              >
+                <span>
+                  {platformSalePhase === 'LIVE'
+                    ? "FLASH SALE ĐANG LIVE"
+                    : platformSalePhase === 'TEASER'
+                    ? "FLASH SALE SẮP MỞ BÁN"
+                    : "ƯU ĐÃI ĐẶC BIỆT"}
+                </span>
               </div>
 
               {activeFlashSale && (
                 <div className="flex items-center gap-1 text-xs font-mono font-bold text-[#17201F]">
+                  {platformSalePhase === 'TEASER' && (
+                    <span className="text-[11px] font-sans font-semibold text-amber-800 mr-1">
+                      Mở bán sau:
+                    </span>
+                  )}
                   <span className="bg-[#17201F] text-white px-1.5 py-0.5 rounded text-[11px] font-mono font-bold">
                     {flashCountdown.h}
                   </span>

@@ -6,11 +6,11 @@
  * hệ thống sẽ tự động cập nhật đồng bộ!
  */
 export const ESCROW_CONFIG = {
-  /** Thời gian đếm ngược (giây): 120 = 2 phút | 7 * 86400 = 7 ngày */
-  HOLD_DURATION_SECONDS: 120,
+  /** Thời gian đếm ngược (giây): 180 = 3 phút | 7 * 86400 = 7 ngày */
+  HOLD_DURATION_SECONDS: 180,
 
-  /** Nhãn hiển thị trên thẻ, tab và thông báo: '2 phút' (hoặc '7 ngày') */
-  DURATION_LABEL: '2 phút',
+  /** Nhãn hiển thị trên thẻ, tab và thông báo: '3 phút' (hoặc '7 ngày') */
+  DURATION_LABEL: '3 phút',
 
   /** Tiêu đề chính sách */
   POLICY_TITLE: 'Bảo chứng an toàn đổi trả',

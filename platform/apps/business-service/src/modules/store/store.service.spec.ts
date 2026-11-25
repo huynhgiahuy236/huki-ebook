@@ -161,4 +161,23 @@ describe('StoreService', () => {
       expect(result.status).toBe('SUSPENDED');
     });
   });
+
+  describe('store asset sanitization (BUG-042)', () => {
+    it('strips blob: logo and keeps valid HTTPS banner on getStoreById', async () => {
+      mockPrisma.store.findUnique.mockResolvedValue({
+        id: 'store-1',
+        name: 'Test Store',
+        logo: 'blob:https://example.com/temp-id',
+        banner: 'https://cdn.example.com/banner.jpg',
+        status: 'APPROVED',
+        isActive: true,
+        deletedAt: null,
+        business: { status: 'APPROVED' },
+      });
+
+      const result = await service.getStoreById('store-1');
+      expect(result.logo).toBeNull();
+      expect(result.banner).toBe('https://cdn.example.com/banner.jpg');
+    });
+  });
 });

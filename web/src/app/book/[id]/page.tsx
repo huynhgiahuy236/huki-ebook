@@ -22,6 +22,8 @@ import { reviewSummaryService } from '@/ui/services/reviewSummaryService';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 import BookAffiliateCard from '@/ui/components/affiliate/BookAffiliateCard';
 import { userApi } from '@/ui/api/userApi';
+import { StoreLogoImg } from '@/ui/components/common/StoreLogoImg';
+import { sanitizeImageUrl } from '@/ui/utils/imageUtils';
 
 export interface TableOfContentItem {
   id: number | string;
@@ -764,12 +766,12 @@ export default function BookDetailPage() {
       'gian-hang';
 
     const storeLogo =
-      storeInfo?.logo ||
-      storeInfo?.stores?.[0]?.logo ||
-      storeInfo?.avatar ||
-      realBook?.business?.logo ||
-      realBook?.business?.stores?.[0]?.logo ||
-      realBook?.business?.avatar ||
+      sanitizeImageUrl(storeInfo?.logo) ||
+      sanitizeImageUrl(storeInfo?.stores?.[0]?.logo) ||
+      sanitizeImageUrl(storeInfo?.avatar) ||
+      sanitizeImageUrl(realBook?.business?.logo) ||
+      sanitizeImageUrl(realBook?.business?.stores?.[0]?.logo) ||
+      sanitizeImageUrl(realBook?.business?.avatar) ||
       null;
 
     if (storeInfo) {
@@ -1429,7 +1431,13 @@ export default function BookDetailPage() {
               <Link href={`/shop/${publisherProfile.slug || publisherProfile.id}`} className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2 group hover:opacity-95 transition-opacity">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-8 h-8 rounded-full bg-[#006953] text-white font-bold flex items-center justify-center text-xs overflow-hidden shrink-0 shadow-2xs">
-                    {publisherProfile.logo ? <img src={publisherProfile.logo} alt={publisherProfile.name} className="w-full h-full object-cover" /> : publisherProfile.name.charAt(0).toUpperCase()}
+                    <StoreLogoImg
+                      src={publisherProfile.logo}
+                      alt={publisherProfile.name}
+                      fallbackText={publisherProfile.name.charAt(0).toUpperCase()}
+                      className="w-full h-full object-cover"
+                      fallbackClassName="w-full h-full flex items-center justify-center bg-[#006953] text-white font-bold text-xs"
+                    />
                   </div>
                   <div className="min-w-0">
                     <span className="font-bold text-xs text-gray-900 block truncate group-hover:text-[#006953] transition-colors">{publisherProfile.name}</span>
@@ -1536,11 +1544,13 @@ export default function BookDetailPage() {
                       href={`/shop/${publisherProfile.slug || publisherProfile.id}`}
                       className="relative w-14 h-14 rounded-2xl bg-white border border-[#006953]/20 flex items-center justify-center shrink-0 overflow-hidden group shadow-2xs hover:border-[#006953] transition-colors"
                     >
-                      {publisherProfile.logo ? (
-                        <img src={publisherProfile.logo} alt={publisherProfile.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-[#006953] font-bold text-xl font-editorial">{publisherProfile.name.charAt(0).toUpperCase()}</span>
-                      )}
+                      <StoreLogoImg
+                        src={publisherProfile.logo}
+                        alt={publisherProfile.name}
+                        fallbackText={publisherProfile.name.charAt(0).toUpperCase()}
+                        className="w-full h-full object-cover"
+                        fallbackClassName="w-full h-full flex items-center justify-center text-[#006953] font-bold text-xl font-editorial bg-white"
+                      />
                       <div className="absolute bottom-0 inset-x-0 bg-[#006953] text-white text-[8px] font-bold text-center py-0.5 uppercase tracking-wider">
                         Official
                       </div>

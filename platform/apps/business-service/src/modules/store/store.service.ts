@@ -54,8 +54,8 @@ export class StoreService {
         name: dto.name,
         slug: dto.slug,
         description: dto.description,
-        logo: dto.logo,
-        banner: dto.banner,
+        logo: this.sanitizeAssetUrl(dto.logo),
+        banner: this.sanitizeAssetUrl(dto.banner),
         email: dto.email,
         phone: dto.phone,
         address: dto.address,
@@ -95,7 +95,7 @@ export class StoreService {
 
     this.ensurePublicStore(store);
 
-    return store;
+    return this.sanitizeStoreAssets(store);
   }
 
   async getStoreBySlug(slug: string) {
@@ -149,7 +149,7 @@ export class StoreService {
 
     this.ensurePublicStore(store);
 
-    return store;
+    return this.sanitizeStoreAssets(store);
   }
 
   async getStoresByBusiness(businessId: string, userId: string) {
@@ -194,13 +194,14 @@ export class StoreService {
       }
     }
 
-    return this.prisma.store.findMany({
+    const list = await this.prisma.store.findMany({
       where: {
         businessId: targetBusinessId,
         deletedAt: null,
       },
       orderBy: { createdAt: 'desc' },
     });
+    return list.map((s) => this.sanitizeStoreAssets(s));
   }
 
   async getAllStores(filters: {
@@ -253,7 +254,7 @@ export class StoreService {
     ]);
 
     return {
-      data: stores,
+      data: stores.map((s) => this.sanitizeStoreAssets(s)),
       pagination: {
         page,
         limit,
@@ -276,10 +277,19 @@ export class StoreService {
 
     await this.checkStorePermission(store!.businessId, userId, ['OWNER', 'MANAGER']);
 
-    return this.prisma.store.update({
+    const sanitizedData: UpdateStoreDto = { ...dto };
+    if (sanitizedData.logo !== undefined) {
+      sanitizedData.logo = this.sanitizeAssetUrl(sanitizedData.logo) ?? undefined;
+    }
+    if (sanitizedData.banner !== undefined) {
+      sanitizedData.banner = this.sanitizeAssetUrl(sanitizedData.banner) ?? undefined;
+    }
+
+    const updated = await this.prisma.store.update({
       where: { id },
-      data: dto,
+      data: sanitizedData,
     });
+    return this.sanitizeStoreAssets(updated);
   }
 
   // ==================== APPROVAL ====================
@@ -311,6 +321,25 @@ export class StoreService {
   }
 
   // ==================== HELPERS ====================
+  private sanitizeAssetUrl(url?: string | null): string | null {
+    if (!url || typeof url !== 'string') return null;
+    const trimmed = url.trim();
+    if (!trimmed || trimmed.toLowerCase().startsWith('blob:')) return null;
+    return trimmed;
+  }
+
+  private sanitizeStoreAssets<T extends { logo?: string | null; banner?: string | null }>(store: T): T {
+    if (!store) return store;
+    const result: any = { ...store };
+    if (store.logo !== undefined) {
+      result.logo = this.sanitizeAssetUrl(store.logo);
+    }
+    if (store.banner !== undefined) {
+      result.banner = this.sanitizeAssetUrl(store.banner);
+    }
+    return result;
+  }
+
   private ensurePublicStore(store: any) {
     if (
       store.deletedAt ||

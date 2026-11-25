@@ -254,8 +254,8 @@ export class WalletService {
               ? new Date(so.updatedAt || order?.updatedAt || 0).getTime()
               : 0;
 
-            // Holding window: 2 minutes in test mode / 120,000 ms
-            const isReturnWindowPassed = deliveredTimestamp > 0 && (now - deliveredTimestamp) >= 2 * 60 * 1000;
+            // Holding window: 3 minutes in UAT mode / 180,000 ms
+            const isReturnWindowPassed = deliveredTimestamp > 0 && (now - deliveredTimestamp) >= 3 * 60 * 1000;
 
             const isReleased = isPhysicalDelivered && (isBuyerConfirmed || isEscrowReleased || isReturnWindowPassed);
 
