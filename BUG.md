@@ -1596,6 +1596,45 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
    - `npm test` (tại `web/`, Vitest) — **PASS (`Test Files: 10 passed (10); Tests: 71 passed (71)`)**.
    - `$env:NODE_ENV='production'; npm run build` (tại `web/`, Next.js `16.3.3`) — **PASS (`142/142` routes compiled)**.
 
+---
+
+## 11. ĐỢT NÂNG CẤP TRANG CHI TIẾT SÁCH (`BUG-17`, `BUG-18`) — NHÁNH `feat/book-detail-specs-related`
+
+> **Nhánh làm việc:** `feat/book-detail-specs-related` (khởi tạo từ `develop` `b18f78b`)  
+> **Quy trình áp dụng:** [`readme-bug.md`](file:///e:/HuKi/readme-bug.md) (Bước 1 → Bước 12).
+
+### Bước 1: Thu thập & Tái hiện Thực trạng (`tu-huyet-cam-xuc`) (26/11/2026)
+
+| Mã | Yêu cầu từ Người dùng | Bằng chứng thực trạng khi probe API & đọc source | Mức độ |
+| :--- | :--- | :--- | :--- |
+| **`BUG-17`** | Trang chi tiết sách (`/book/[id]`, VD: `tu-huyet-cam-xuc`) **thiếu mục sách liên quan cùng thể loại phía dưới** bám sát UI đang có. | - Kiểm tra live UAT `GET /api/v1/analytics/recommendations/similar/5ae1c197-9109-4d27-b80b-2d4ecd8e9b8c?limit=6` trả về `"data": []`.<br>- [`SimilarBooksSection.tsx`](file:///e:/HuKi/web/src/ui/components/recommendations/SimilarBooksSection.tsx#L34-L40) tự return `null` khi mảng rỗng (biến mất hoàn toàn khỏi trang), và nằm ngoài container `max-w-[1240px]` của [`web/src/app/book/[id]/page.tsx`](file:///e:/HuKi/web/src/app/book/%5Bid%5D/page.tsx#L2142-L2144), chưa fallback theo `categoryId` / tác giả / định dạng trong catalog thật. | **High** |
+| **`BUG-18`** | Phần **Giới Thiệu** cần hiển thị chi tiết nhiều thông tin hơn: **trọng lượng, kích thước, số trang, định dạng tệp, DRM... tùy theo sách vật lý / sách điện tử / hay cả hai (`BOTH`)**. | - [`BooksService.serializeBook`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/books.service.ts#L1249-L1273) trả `weight: 350` ở root nhưng **thiếu `dimensions`, `digitalEnabled`, `accessType`, `hasEpub`, `categoryId`** ở chế độ public, và ẩn `physicalDetails`/`digitalDetails` khi `!isPrivate`.<br>- [`web/src/app/book/[id]/page.tsx`](file:///e:/HuKi/web/src/app/book/%5Bid%5D/page.tsx#L1713) lại kiểm tra `realBook?.physicalDetails?.weight || realBook?.physicalDetails?.dimensions` (đang là `undefined` với Buyer!) → làm **mất trắng dòng Trọng lượng & Quy cách** ngay cả khi DB đã có `weight: 350`, đồng thời thiếu khối thông số chuyên biệt cho Sách Vật Lý và Ebook. | **Medium** |
+
+---
+
+### Bước 2: Phân tích Nguyên nhân Gốc rễ 4 Tầng & Ma trận Rủi ro Domino
+
+1. **`BUG-17` (Mục Sách Liên Quan Cùng Thể Loại):**
+   - *Tầng 2 (Backend - `commerce-service`):* Thiếu endpoint `GET /api/v1/books/:id/related` truy vấn trực tiếp bảng `books` theo thứ tự ưu tiên: cùng `categoryId` → cùng `authorId` / `publisherId` → cùng `format`, loại trừ sách hiện tại và chỉ lấy `PUBLISHED`.
+   - *Tầng 4 (Frontend - `SimilarBooksSection.tsx`, `book/[id]/page.tsx`):* Phụ thuộc 100% `analytics/recommendations/similar` (vốn rỗng khi chưa đủ co-view hoặc sách chưa gắn categoryId); khi bọc gọn trong card `max-w-[1240px] mx-auto px-4 sm:px-6` với header `#006953`, link "Khám phá thêm" và grid `BookCard`, UI sẽ thống nhất 1-1 với trang chi tiết hiện tại.
+2. **`BUG-18` (Phần Giới Thiệu & Thông Số Chi Tiết Theo Định Dạng):**
+   - *Tầng 2 (Backend - `books.service.ts`):* Cần map trực tiếp `dimensions`, `categoryId`, `digitalEnabled`, `accessType`, `hasEpub` ra public response của `serializeBook(...)` mà không làm rò rỉ `pdfKey`/`epubKey` nội bộ.
+   - *Tầng 4 (Frontend - `book/[id]/page.tsx`):* Đọc fallback cả root (`realBook.weight`, `realBook.dimensions`, `realBook.pageCount`) lẫn `physicalDetails` (nếu có); chia phần Giới Thiệu thành các khối rõ ràng bám sát UI `#f8f6f1` / `#e8e5df` / `#006953` hiện tại: Thông tin xuất bản & pháp lý, Khối Sách Vật Lý (khi `PHYSICAL` hoặc `BOTH`: trọng lượng gram/kg, kích thước, số trang, tồn kho khả dụng, đóng gói), Khối Sách Điện Tử (khi `DIGITAL` hoặc `BOTH`: định dạng PDF/EPUB, đọc thử, bản quyền HUKI DRM 5 thiết bị, lưu tiến độ/ghi chú).
+- **Rủi ro Domino:** Không thay đổi schema DB, không làm lộ storage key bảo mật của Ebook khi ở chế độ public.
+
+---
+
+### Bước 3: Phương án Đề Xuất & Tiêu chuẩn Nghiệm thu (`BUG-17`, `BUG-18`) — `[CHỜ PHÊ DUYỆT]`
+
+- **Phương án 1 — `(Khuyến nghị) [Backend Related Endpoint + Public Specs + Editorial UI Card đồng bộ 1-1]`:**
+  1. Bổ sung `GET /books/:id/related` (ưu tiên cùng thể loại `categoryId`, fallback cùng tác giả/NXB/định dạng) và xuất đầy đủ `dimensions`, `categoryId`, `digitalEnabled`, `accessType`, `hasEpub` trong `BooksService.serializeBook()`.
+  2. Thiết kế lại [`SimilarBooksSection.tsx`](file:///e:/HuKi/web/src/ui/components/recommendations/SimilarBooksSection.tsx) đặt đúng trong container `max-w-[1240px]`, UI card trắng bo tròn `rounded-2xl border-[#e8e5df]` đồng bộ với trang chi tiết, kết hợp `analytics/similar` + `/books/:id/related` + hiển thị badge định dạng & giá Flash Sale/giảm giá thật.
+  3. Nâng cấp tab **Giới Thiệu** trong [`book/[id]/page.tsx`](file:///e:/HuKi/web/src/app/book/%5Bid%5D/page.tsx) hiển thị đầy đủ thông số chuyên biệt theo định dạng `PHYSICAL` / `DIGITAL` / `BOTH` (trọng lượng g/kg, kích thước, số trang, ISBN, giấy phép, năm phát hành, tiểu sử tác giả, định dạng file PDF/EPUB, DRM 5 thiết bị, tồn kho sẵn sàng).
+- **Phương án 2 — `[Chỉ sửa Frontend từ realBook.weight & gọi catalogApi.getPublicBooks]`:** Không bổ sung endpoint backend; kích thước `dimensions` và `accessType` vẫn bị thiếu do API hiện tại không trả về.
+- **Acceptance Criteria (BDD/Gherkin):**
+  - `Given` người dùng mở `/book/tu-huyet-cam-xuc` (format `BOTH`, weight `350g`), `When` trang tải xong, `Then` tab Giới Thiệu hiển thị đầy đủ 3 khối: Thông tin xuất bản/tác giả, Thông số Sách Vật Lý (trọng lượng `350g (0.35 kg)`, kích thước, số trang/tồn kho), và Thông số Ebook (`DRM 5 thiết bị`, định dạng file, kích hoạt tức thì); đồng thời cuối trang luôn hiển thị mục **"Sách Cùng Thể Loại & Gợi Ý Liên Quan"** với tối đa 6 đầu sách thật cùng UI `#006953`.
+
+
 
 
 
