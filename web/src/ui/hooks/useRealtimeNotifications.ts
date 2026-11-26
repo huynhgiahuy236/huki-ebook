@@ -331,8 +331,8 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
           newNoti.priority === 'CRITICAL'
             ? 'error'
             : newNoti.priority === 'HIGH'
-            ? 'warning'
-            : 'info';
+              ? 'warning'
+              : 'info';
 
         const chatMsgId = (newNoti.payload as any)?.message?.id;
         showToast({
@@ -349,6 +349,16 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
 
       // 5. Broadcast to internal app bus
       realtimeSyncBus.publish('NOTIFICATIONS_UPDATED', newNoti);
+      const evtType = String((newNoti.payload as any)?.eventType || '');
+      if (evtType === 'business.update_requested' || newNoti.actionUrl === '/admin/business-requests') {
+        realtimeSyncBus.publish('BUSINESS_REVISION_SUBMITTED', newNoti.payload as any);
+      } else if (
+        evtType === 'business.update_approved' ||
+        evtType === 'business.update_rejected' ||
+        newNoti.actionUrl === '/seller/business/notifications'
+      ) {
+        realtimeSyncBus.publish('BUSINESS_STATUS_UPDATED', newNoti.payload as any);
+      }
       if (newNoti.recipientType === 'ADMIN' || newNoti.type === 'WATCHDOG_ALERT') {
         realtimeSyncBus.publish('MODERATION_UPDATED' as any, newNoti);
       }

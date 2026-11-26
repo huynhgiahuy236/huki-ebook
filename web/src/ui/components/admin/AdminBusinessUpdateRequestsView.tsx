@@ -30,6 +30,180 @@ const STATUS_CONFIG = {
   },
 };
 
+function parseHqList(val: any): string[] {
+  if (!val) return [];
+  if (Array.isArray(val)) return val.map((v) => String(v || '').trim()).filter(Boolean);
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed.map((v) => String(v || '').trim()).filter(Boolean);
+    } catch {
+      // plain text
+    }
+    return [trimmed];
+  }
+  return [String(val)];
+}
+
+function formatBusinessTypeLabel(val?: string): string {
+  if (!val) return 'Chưa cập nhật';
+  const map: Record<string, string> = {
+    INDIVIDUAL: 'Hộ Kinh Doanh Cá Thể',
+    LLC: 'Công Ty TNHH',
+    CORPORATION: 'Công Ty Cổ Phần',
+    PARTNERSHIP: 'Công Ty Hợp Danh',
+  };
+  return map[val] || val;
+}
+
+interface DiffRow {
+  key: string;
+  label: string;
+  beforeText: string;
+  afterText: string;
+  changed: boolean;
+  isHeadquarters?: boolean;
+  beforeList?: string[];
+  afterList?: string[];
+}
+
+function buildComparisonRows(req: any): DiffRow[] {
+  if (!req) return [];
+  const snap = req.currentSnapshot || {};
+  const biz = req.business || {};
+  const primaryStore = Array.isArray(biz.stores) && biz.stores.length > 0 ? biz.stores[0] : {};
+  const next = req.requestedData || {};
+
+  const beforeHq = parseHqList(
+    Array.isArray(snap.headquarters) && snap.headquarters.length > 0 ? snap.headquarters : biz.address,
+  );
+  const afterHq = parseHqList(
+    Array.isArray(next.headquarters) && next.headquarters.length > 0 ? next.headquarters : next.address || beforeHq,
+  );
+
+  const pickBefore = (key: string, fallback = '') => {
+    const v = snap[key] ?? biz[key] ?? primaryStore[key] ?? fallback;
+    return v === null || v === undefined ? '' : String(v).trim();
+  };
+  const pickAfter = (key: string, beforeVal: string) => {
+    if (next[key] === undefined || next[key] === null) return beforeVal;
+    const str = String(next[key]).trim();
+    return str === '' ? beforeVal : str;
+  };
+
+  const specs: Array<{ key: string; label: string; isType?: boolean; isHq?: boolean; beforeOverride?: string }> = [
+    { key: 'name', label: 'Tên pháp nhân / Hộ KD' },
+    { key: 'taxCode', label: 'Mã số thuế' },
+    { key: 'businessType', label: 'Loại hình tổ chức', isType: true },
+    { key: 'internationalName', label: 'Tên quốc tế' },
+    { key: 'shortName', label: 'Tên viết tắt' },
+    { key: 'businessLicenseNumber', label: 'Số giấy phép ĐKKD', beforeOverride: pickBefore('businessLicenseNumber', biz.registryNumber || '') },
+    { key: 'issueDate', label: 'Ngày cấp ĐKKD' },
+    { key: 'issuePlace', label: 'Cơ quan cấp ĐKKD' },
+    { key: 'ecommerceIndustryCodes', label: 'Mã ngành TMĐT' },
+    { key: 'website', label: 'Website chính thức' },
+    { key: 'repName', label: 'Chủ hộ / Người đại diện' },
+    { key: 'repPosition', label: 'Chức danh / Vị trí' },
+    { key: 'repIdCardNumber', label: 'Số CCCD / CMND' },
+    { key: 'repIdCardIssueDate', label: 'Ngày cấp CCCD' },
+    { key: 'repIdCardIssuePlace', label: 'Nơi cấp CCCD' },
+    { key: 'operatorName', label: 'Người vận hành gian hàng' },
+    { key: 'operatorPhone', label: 'SĐT vận hành' },
+    { key: 'operatorEmail', label: 'Email vận hành' },
+    { key: 'phone', label: 'Hotline CSKH' },
+    { key: 'email', label: 'Email nhận thông báo' },
+    { key: 'bankName', label: 'Ngân hàng KYC' },
+    { key: 'bankAccountNumber', label: 'Số tài khoản ngân hàng' },
+    { key: 'bankAccountHolderName', label: 'Chủ tài khoản ngân hàng' },
+    { key: 'bankBranch', label: 'Chi nhánh ngân hàng' },
+    { key: 'headquarters', label: 'Trụ sở & Chi nhánh', isHq: true },
+    { key: 'storeName', label: 'Tên gian hàng hiển thị', beforeOverride: snap.storeName || primaryStore.name || biz.name || '' },
+    { key: 'storeDescription', label: 'Mô tả gian hàng', beforeOverride: snap.storeDescription || primaryStore.description || '' },
+  ];
+
+  const rows: DiffRow[] = [];
+  for (const spec of specs) {
+    if (spec.isHq) {
+      const bStr = beforeHq.join(' | ');
+      const aStr = afterHq.join(' | ');
+      rows.push({
+        key: spec.key,
+        label: spec.label,
+        beforeText: bStr || 'Chưa cập nhật',
+        afterText: aStr || 'Chưa cập nhật',
+        changed: bStr !== aStr,
+        isHeadquarters: true,
+        beforeList: beforeHq,
+        afterList: afterHq,
+      });
+      continue;
+    }
+
+    const rawBefore = spec.beforeOverride !== undefined ? spec.beforeOverride : pickBefore(spec.key);
+    const rawAfter = pickAfter(spec.key, rawBefore);
+    if (!rawBefore && !rawAfter) continue;
+
+    const beforeText = spec.isType ? formatBusinessTypeLabel(rawBefore) : rawBefore || 'Chưa cập nhật';
+    const afterText = spec.isType ? formatBusinessTypeLabel(rawAfter) : rawAfter || 'Chưa cập nhật';
+
+    rows.push({
+      key: spec.key,
+      label: spec.label,
+      beforeText,
+      afterText,
+      changed: rawBefore !== rawAfter,
+    });
+  }
+
+  // Sort changed rows first so Admin spots edits immediately
+  return rows.sort((a, b) => Number(b.changed) - Number(a.changed));
+}
+
+function renderTokenDiffHighlight(text: string, compareText: string, side: 'before' | 'after') {
+  const aWords = text.split(/\s+/);
+  const bSet = new Set(compareText.split(/\s+/));
+  if (aWords.length <= 1) {
+    return (
+      <span
+        className={
+          side === 'before'
+            ? 'bg-rose-100 text-rose-800 px-1 rounded line-through decoration-rose-500/70'
+            : 'bg-emerald-100 text-emerald-900 px-1 rounded font-extrabold'
+        }
+      >
+        {text}
+      </span>
+    );
+  }
+  return (
+    <span>
+      {aWords.map((word, idx) => {
+        const isDifferent = !bSet.has(word);
+        return (
+          <React.Fragment key={`${word}-${idx}`}>
+            {idx > 0 ? ' ' : ''}
+            {isDifferent ? (
+              <span
+                className={
+                  side === 'before'
+                    ? 'bg-rose-100 text-rose-800 px-1 rounded line-through decoration-rose-500/70 font-semibold'
+                    : 'bg-emerald-200/80 text-emerald-950 px-1 rounded font-extrabold ring-1 ring-emerald-400'
+                }
+              >
+                {word}
+              </span>
+            ) : (
+              <span>{word}</span>
+            )}
+          </React.Fragment>
+        );
+      })}
+    </span>
+  );
+}
+
 export function AdminBusinessUpdateRequestsView() {
   const { showToast } = useToast();
   const [requests, setRequests] = useState<any[]>([]);
@@ -45,6 +219,7 @@ export function AdminBusinessUpdateRequestsView() {
 
   // Review State (Before vs After)
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [onlyShowChanged, setOnlyShowChanged] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
   // Reject State
@@ -79,26 +254,58 @@ export function AdminBusinessUpdateRequestsView() {
     }
   }, []);
 
-  const fetchRequests = useCallback(async () => {
-    setLoading(true);
+  const fetchRequests = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await businessApi.getAllUpdateRequests({ limit: 100 });
       if (res.success && res.data) {
         const list = Array.isArray(res.data) ? res.data : res.data.data || [];
         setRequests(list);
-      } else {
+        setSelectedRequest((prev: any) => {
+          if (!prev) return prev;
+          const updated = list.find((r: any) => r.id === prev.id);
+          return updated || prev;
+        });
+      } else if (!silent) {
         setRequests([]);
       }
     } catch (err) {
       console.warn('Lỗi khi tải danh sách yêu cầu cập nhật:', err);
-      showToast?.('Không thể kết nối đến máy chủ quản trị.', 'error');
+      if (!silent) showToast?.('Không thể kết nối đến máy chủ quản trị.', 'error');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [showToast]);
 
   useEffect(() => {
-    fetchRequests();
+    void fetchRequests(false);
+
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      const payload = (msg.payload || {}) as any;
+      const isBusinessEvent =
+        msg.type === 'BUSINESS_REVISION_SUBMITTED' ||
+        msg.type === 'BUSINESS_STATUS_UPDATED' ||
+        msg.type === 'BUSINESS_APPROVED' ||
+        (msg.type === 'NOTIFICATIONS_UPDATED' &&
+          (payload?.actionUrl === '/admin/business-requests' ||
+            String(payload?.payload?.eventType || payload?.eventType || '').startsWith('business.update_')));
+
+      if (isBusinessEvent) {
+        void fetchRequests(true);
+      }
+    });
+
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        void fetchRequests(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      unsubscribe();
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [fetchRequests]);
 
   // Đánh dấu 1 yêu cầu là đã đọc / đã xem
@@ -216,6 +423,7 @@ export function AdminBusinessUpdateRequestsView() {
   // Mở modal so sánh và đánh dấu đã xem
   const handleOpenDetail = (req: any) => {
     markAsRead(req.id);
+    setOnlyShowChanged(true);
     setSelectedRequest(req);
   };
 
@@ -349,7 +557,7 @@ export function AdminBusinessUpdateRequestsView() {
 
           <button
             type="button"
-            onClick={fetchRequests}
+            onClick={() => void fetchRequests(false)}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 shadow-2xs transition-all cursor-pointer"
           >
             <span className="material-symbols-outlined text-base">refresh</span>
@@ -434,10 +642,13 @@ export function AdminBusinessUpdateRequestsView() {
             <tbody className="divide-y divide-gray-100">
               {paginatedRequests.map((req: any, idx: number) => {
                 const data = req.requestedData || {};
+                const diffRows = buildComparisonRows(req);
+                const changedRows = diffRows.filter((r) => r.changed);
                 const isPending = req.status === 'PENDING';
                 const isUnread = isPending && !readMap[req.id];
                 const isExpanded = expandedReqIds.has(req.id);
                 const itemIndex = (currentPage - 1) * pageSize + idx + 1;
+                const cleanHqDisplay = parseHqList(data.headquarters || data.address).join(' • ');
 
                 return (
                   <React.Fragment key={req.id}>
@@ -498,19 +709,20 @@ export function AdminBusinessUpdateRequestsView() {
                       {/* Thay đổi đề xuất */}
                       <td className="py-2 px-3">
                         <div className="text-gray-800 font-medium text-xs break-words line-clamp-2 leading-snug">
-                          {data.name && data.name !== req.business?.name ? (
+                          {changedRows.length > 0 ? (
+                            <span className="text-[#00875A] font-bold">
+                              Sửa {changedRows.length} mục: {changedRows.slice(0, 2).map((c) => c.label).join(', ')}
+                              {changedRows.length > 2 ? ` (+${changedRows.length - 2})` : ''}
+                            </span>
+                          ) : data.name && data.name !== req.business?.name ? (
                             <span className="text-[#00875A] font-bold">Đổi tên: {data.name}</span>
-                          ) : data.address ? (
-                            <span>Đổi trụ sở: {data.address}</span>
-                          ) : data.phone ? (
-                            <span>Đổi SĐT: {data.phone}</span>
                           ) : (
                             <span className="text-gray-500">Cập nhật hồ sơ thông tin chung</span>
                           )}
                         </div>
-                        {data.address && data.name && (
+                        {cleanHqDisplay && (
                           <div className="text-[10.5px] text-gray-400 truncate max-w-[260px] mt-0.5">
-                            Trụ sở: {data.address}
+                            Trụ sở: {cleanHqDisplay}
                           </div>
                         )}
                       </td>
@@ -552,13 +764,15 @@ export function AdminBusinessUpdateRequestsView() {
                             <div className="space-y-2 text-xs border-r border-gray-100 pr-3">
                               <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
                                 <span className="material-symbols-outlined text-[14px]">history</span>
-                                <span>Hồ Sơ Hiện Tại</span>
+                                <span>Hồ Sơ Hiện Tại ({changedRows.length} thay đổi)</span>
                               </div>
                               <div className="space-y-1 pt-1 text-[11px] text-gray-700">
-                                <div><span className="text-gray-400">Tên: </span><span className="font-semibold">{req.business?.name || 'N/A'}</span></div>
-                                <div><span className="text-gray-400">MST: </span><span className="font-mono">{req.business?.taxCode || 'N/A'}</span></div>
-                                <div><span className="text-gray-400">Địa chỉ: </span><span>{req.business?.address || 'N/A'}</span></div>
-                                <div><span className="text-gray-400">SĐT: </span><span>{req.business?.phone || 'N/A'}</span></div>
+                                {(changedRows.length > 0 ? changedRows.slice(0, 4) : diffRows.slice(0, 4)).map((row) => (
+                                  <div key={row.key}>
+                                    <span className="text-gray-400">{row.label}: </span>
+                                    <span className="font-semibold text-gray-800">{row.beforeText}</span>
+                                  </div>
+                                ))}
                               </div>
                             </div>
 
@@ -566,13 +780,15 @@ export function AdminBusinessUpdateRequestsView() {
                             <div className="space-y-2 text-xs border-r border-gray-100 pr-3">
                               <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
                                 <span className="material-symbols-outlined text-[14px]">edit_note</span>
-                                <span>Thông Tin Mới Yêu Cầu Thay Đổi</span>
+                                <span>Giá Trị Đề Xuất Mới</span>
                               </div>
                               <div className="space-y-1 pt-1 text-[11px]">
-                                {data.name && <div><span className="text-gray-400">Tên mới: </span><span className="font-bold text-[#00875A]">{data.name}</span></div>}
-                                {data.taxCode && <div><span className="text-gray-400">MST mới: </span><span className="font-mono font-bold text-[#00875A]">{data.taxCode}</span></div>}
-                                {data.address && <div><span className="text-gray-400">Địa chỉ mới: </span><span className="font-medium text-[#00875A]">{data.address}</span></div>}
-                                {data.phone && <div><span className="text-gray-400">SĐT mới: </span><span className="font-medium text-[#00875A]">{data.phone}</span></div>}
+                                {(changedRows.length > 0 ? changedRows.slice(0, 4) : diffRows.slice(0, 4)).map((row) => (
+                                  <div key={row.key}>
+                                    <span className="text-gray-400">{row.label}: </span>
+                                    <span className="font-bold text-[#00875A]">{row.afterText}</span>
+                                  </div>
+                                ))}
                                 {req.reason && <div><span className="text-gray-400">Lý do: </span><span className="text-gray-600 italic">"{req.reason}"</span></div>}
                               </div>
                             </div>
@@ -594,12 +810,12 @@ export function AdminBusinessUpdateRequestsView() {
                                   className="px-3 py-1.5 rounded-lg bg-[#003B2B] hover:bg-[#00281D] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                                 >
                                   <span className="material-symbols-outlined text-[14px]">compare_arrows</span>
-                                  <span>Xem So Sánh 2 Cột</span>
+                                  <span>Đối Chiếu Từng Trường</span>
                                 </button>
                                 {isPending && (
                                   <>
                                     <button
-                                      onClick={() => handleApprove(req)}
+                                      onClick={() => handleApprove(req.id)}
                                       disabled={actionLoading}
                                       className="px-3 py-1.5 rounded-lg bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
                                     >
@@ -673,176 +889,156 @@ export function AdminBusinessUpdateRequestsView() {
             </button>
           </div>
 
-          {/* Panel Body: 2 Cột So sánh */}
-          <div className="space-y-6 text-xs">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* CỘT 1: THÔNG TIN HIỆN TẠI TRONG DB */}
-              <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-3">
-                <h4 className="font-bold text-sm text-gray-700 pb-2 border-b border-gray-200 flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-base text-gray-500">history</span>
-                  1. Dữ liệu Hiện Tại (Trong DB)
-                </h4>
+          {/* Panel Body: Bảng Đối Chiếu Song Hàng 3 Cột (Trường | Hiện Tại DB | Đề Xuất Mới) */}
+          {(() => {
+            const allRows = buildComparisonRows(selectedRequest);
+            const changedOnly = allRows.filter((r) => r.changed);
+            const visibleRows = onlyShowChanged && changedOnly.length > 0 ? changedOnly : allRows;
 
-                <div className="space-y-2">
-                  <div>
-                    <span className="text-gray-500 font-medium">Tên pháp nhân:</span>
-                    <p className="font-bold text-gray-900 mt-0.5">{selectedRequest.business?.name || 'N/A'}</p>
+            return (
+              <div className="space-y-4 text-xs">
+                {/* Summary & Toggle Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 border border-slate-200 px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs">
+                      <span className="material-symbols-outlined text-[15px]">difference</span>
+                      <span>
+                        {changedOnly.length > 0
+                          ? `Có ${changedOnly.length} trường thay đổi / ${allRows.length} trường hồ sơ`
+                          : `Chưa phát hiện thay đổi rõ rệt (${allRows.length} trường)`}
+                      </span>
+                    </span>
+                    {changedOnly.slice(0, 3).map((row) => (
+                      <span
+                        key={row.key}
+                        className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold text-[11px]"
+                      >
+                        {row.label}
+                      </span>
+                    ))}
                   </div>
 
-                  <div>
-                    <span className="text-gray-500 font-medium">Mã số thuế:</span>
-                    <p className="font-mono font-bold text-gray-900 mt-0.5">{selectedRequest.business?.taxCode || 'N/A'}</p>
-                  </div>
-
-                  <div>
-                    <span className="text-gray-500 font-medium">Loại hình:</span>
-                    <p className="font-semibold text-gray-900 mt-0.5">{selectedRequest.business?.businessType || 'N/A'}</p>
-                  </div>
-
-                  <div>
-                    <span className="text-gray-500 font-medium">Hotline &amp; Email:</span>
-                    <p className="text-gray-800 mt-0.5">
-                      {selectedRequest.business?.phone || 'Chưa có SĐT'} &bull; {selectedRequest.business?.email}
-                    </p>
-                  </div>
-
-                  <div>
-                    <span className="text-gray-500 font-medium">Địa chỉ trụ sở hiện tại:</span>
-                    <p className="text-gray-800 mt-0.5 leading-relaxed bg-white p-2.5 rounded-lg border border-gray-200">
-                      {selectedRequest.business?.address || 'Chưa cập nhật'}
-                    </p>
-                  </div>
+                  {changedOnly.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setOnlyShowChanged((v) => !v)}
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold text-xs border transition-colors cursor-pointer ${
+                        onlyShowChanged
+                          ? 'bg-[#003B2B] text-white border-[#003B2B]'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[15px]">
+                        {onlyShowChanged ? 'filter_alt' : 'view_list'}
+                      </span>
+                      <span>
+                        {onlyShowChanged
+                          ? `Đang lọc chỉ ${changedOnly.length} trường sửa (Bấm xem cả ${allRows.length} trường)`
+                          : `Thu gọn chỉ xem ${changedOnly.length} trường sửa`}
+                      </span>
+                    </button>
+                  )}
                 </div>
-              </div>
 
-              {/* CỘT 2: THÔNG TIN YÊU CẦU CẬP NHẬT (MỚI) */}
-              <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-300 space-y-3">
-                <h4 className="font-bold text-sm text-amber-900 pb-2 border-b border-amber-200 flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-base text-amber-600">new_releases</span>
-                  2. Đề Xuất Cập Nhật Mới
-                </h4>
-
-                <div className="space-y-2">
-                  <div>
-                    <span className="text-gray-500 font-medium">Tên mới:</span>
-                    <p className="font-bold text-[#003b2b] mt-0.5 text-sm bg-white p-1.5 rounded-md border border-amber-200">
-                      {selectedRequest.requestedData?.name ? selectedRequest.requestedData.name : <span className="text-gray-400 italic font-normal">— (Giữ nguyên)</span>}
-                    </p>
-                  </div>
-
-                  {selectedRequest.requestedData?.internationalName && (
-                    <div>
-                      <span className="text-gray-500 font-medium">Tên quốc tế:</span>
-                      <p className="font-semibold text-gray-800 mt-0.5">{selectedRequest.requestedData.internationalName}</p>
-                    </div>
-                  )}
-
-                  {selectedRequest.requestedData?.shortName && (
-                    <div>
-                      <span className="text-gray-500 font-medium">Tên viết tắt:</span>
-                      <p className="font-semibold text-gray-800 mt-0.5">{selectedRequest.requestedData.shortName}</p>
-                    </div>
-                  )}
-
-                  <div>
-                    <span className="text-gray-500 font-medium">Mã số thuế:</span>
-                    <p className="font-mono font-bold text-gray-900 mt-0.5">
-                      {selectedRequest.requestedData?.taxCode ? selectedRequest.requestedData.taxCode : <span className="text-gray-400 italic font-normal">— (Giữ nguyên)</span>}
-                    </p>
-                  </div>
-
-                  <div>
-                    <span className="text-gray-500 font-medium">Loại hình mới:</span>
-                    <p className="font-semibold text-gray-900 mt-0.5">
-                      {selectedRequest.requestedData?.businessType ? (
-                        selectedRequest.requestedData.businessType === 'INDIVIDUAL' 
-                          ? 'Hộ Kinh Doanh Cá Thể' 
-                          : `Doanh Nghiệp (${selectedRequest.requestedData.businessType})`
-                      ) : (
-                        <span className="text-gray-400 italic font-normal">— (Giữ nguyên)</span>
-                      )}
-                    </p>
-                  </div>
-
-                  {selectedRequest.requestedData?.businessLicenseNumber && (
-                    <div>
-                      <span className="text-gray-500 font-medium">Số Giấy phép:</span>
-                      <p className="font-mono font-semibold text-gray-800 mt-0.5">
-                        {selectedRequest.requestedData.businessLicenseNumber} 
-                        {selectedRequest.requestedData.issuePlace ? ` (Cấp bởi: ${selectedRequest.requestedData.issuePlace})` : ''}
-                      </p>
-                    </div>
-                  )}
-
-                  {selectedRequest.requestedData?.repName && (
-                    <div>
-                      <span className="text-gray-500 font-medium">Người đại diện / Chủ hộ:</span>
-                      <p className="font-semibold text-gray-800 mt-0.5">
-                        {selectedRequest.requestedData.repName} ({selectedRequest.requestedData.repPosition || 'Đại diện'}) &bull; CCCD: {selectedRequest.requestedData.repIdCardNumber || 'N/A'}
-                      </p>
-                    </div>
-                  )}
-
-                  {selectedRequest.requestedData?.bankAccountNumber && (
-                    <div>
-                      <span className="text-gray-500 font-medium">Tài khoản Ngân hàng (KYC):</span>
-                      <p className="font-semibold text-emerald-800 mt-0.5 bg-emerald-50 p-1.5 rounded border border-emerald-200">
-                        {selectedRequest.requestedData.bankName} &bull; STK: {selectedRequest.requestedData.bankAccountNumber} &bull; Chủ TK: {selectedRequest.requestedData.bankAccountHolderName}
-                      </p>
-                    </div>
-                  )}
-
-                  {selectedRequest.requestedData?.storeName && (
-                    <div>
-                      <span className="text-gray-500 font-medium">Tên gian hàng hiển thị:</span>
-                      <p className="font-bold text-[#00875A] mt-0.5">{selectedRequest.requestedData.storeName}</p>
-                    </div>
-                  )}
-
-                  <div>
-                    <span className="text-gray-500 font-medium">Hotline &amp; Email mới:</span>
-                    <p className="text-gray-800 mt-0.5">
-                      {selectedRequest.requestedData?.phone} &bull; {selectedRequest.requestedData?.email}
-                    </p>
-                  </div>
-
-                  <div>
-                    <span className="text-gray-500 font-bold">Danh sách Trụ sở &amp; Chi nhánh mới:</span>
-                    <div className="space-y-1.5 mt-1">
-                      {Array.isArray(selectedRequest.requestedData?.headquarters) ? (
-                        selectedRequest.requestedData.headquarters.map((hq: any, idx: any) => (
-                          <div
-                            key={idx}
-                            className="p-2 rounded-lg bg-white border border-amber-200 text-gray-900 flex items-start gap-2"
-                          >
-                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[10px] shrink-0">
-                              Trụ sở {idx + 1}
-                            </span>
-                            <span className="font-medium leading-relaxed">{hq}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="p-2 rounded bg-white border border-amber-200">
-                          {selectedRequest.requestedData?.address || 'N/A'}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                {/* Aligned Side-by-Side Comparison Table */}
+                <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-2xs">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-700 border-b border-gray-200 text-[11px] uppercase tracking-wider">
+                        <th className="py-3 px-4 w-56 font-bold border-r border-gray-200">Trường thông tin</th>
+                        <th className="py-3 px-4 font-bold border-r border-gray-200">
+                          <span className="inline-flex items-center gap-1.5 text-gray-700">
+                            <span className="material-symbols-outlined text-[15px] text-gray-500">history</span>
+                            1. Dữ liệu Hiện Tại (Trong DB)
+                          </span>
+                        </th>
+                        <th className="py-3 px-4 font-bold bg-amber-50/70 text-amber-950">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[15px] text-amber-600">new_releases</span>
+                            2. Đề Xuất Cập Nhật Mới
+                          </span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {visibleRows.map((row) => (
+                        <tr
+                          key={row.key}
+                          className={
+                            row.changed
+                              ? 'bg-amber-50/45 border-l-4 border-l-amber-500'
+                              : 'bg-white hover:bg-gray-50/70'
+                          }
+                        >
+                          <td className="py-3 px-4 align-top font-semibold text-gray-700 border-r border-gray-200">
+                            <div className="flex items-center justify-between gap-2">
+                              <span>{row.label}</span>
+                              {row.changed && (
+                                <span className="px-1.5 py-0.5 rounded bg-amber-500 text-white text-[9.5px] font-extrabold shrink-0">
+                                  ĐÃ SỬA
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 align-top border-r border-gray-200 text-gray-800 break-words">
+                            {row.isHeadquarters && row.beforeList && row.beforeList.length > 0 ? (
+                              <div className="space-y-1">
+                                {row.beforeList.map((hq, idx) => (
+                                  <div key={idx} className="flex items-start gap-1.5">
+                                    <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 font-bold text-[10px] shrink-0">
+                                      Trụ sở {idx + 1}
+                                    </span>
+                                    <span>{hq}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : row.changed ? (
+                              <div className="font-medium leading-relaxed">
+                                {renderTokenDiffHighlight(row.beforeText, row.afterText, 'before')}
+                              </div>
+                            ) : (
+                              <span className="text-gray-600">{row.beforeText}</span>
+                            )}
+                          </td>
+                          <td className={`py-3 px-4 align-top break-words ${row.changed ? 'bg-amber-50/70' : ''}`}>
+                            {row.isHeadquarters && row.afterList && row.afterList.length > 0 ? (
+                              <div className="space-y-1">
+                                {row.afterList.map((hq, idx) => (
+                                  <div key={idx} className="flex items-start gap-1.5">
+                                    <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px] shrink-0">
+                                      Trụ sở {idx + 1}
+                                    </span>
+                                    <span className={row.changed ? 'font-bold text-emerald-900' : 'text-gray-700'}>{hq}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : row.changed ? (
+                              <div className="font-semibold leading-relaxed">
+                                {renderTokenDiffHighlight(row.afterText, row.beforeText, 'after')}
+                              </div>
+                            ) : (
+                              <span className="text-gray-500">{row.afterText}</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-            </div>
 
-            {/* Thông tin phản hồi nếu đã bị từ chối */}
-            {selectedRequest.status === 'REJECTED' && (
-              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 space-y-1">
-                <p className="font-bold flex items-center gap-1">
-                  <span className="material-symbols-outlined text-sm">cancel</span>
-                  Lý do đã từ chối yêu cầu này:
-                </p>
-                <p className="italic text-xs font-medium">"{selectedRequest.rejectionReason}"</p>
+                {/* Thông tin phản hồi nếu đã bị từ chối */}
+                {selectedRequest.status === 'REJECTED' && (
+                  <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 space-y-1">
+                    <p className="font-bold flex items-center gap-1">
+                      <span className="material-symbols-outlined text-sm">cancel</span>
+                      Lý do đã từ chối yêu cầu này:
+                    </p>
+                    <p className="italic text-xs font-medium">"{selectedRequest.rejectionReason}"</p>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })()}
 
           {/* Panel Footer */}
           <div className="pt-4 border-t border-gray-200 flex items-center justify-between shrink-0">

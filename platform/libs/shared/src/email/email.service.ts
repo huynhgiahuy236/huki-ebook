@@ -168,6 +168,22 @@ export class EmailService {
     });
   }
 
+  sendBusinessUpdateOtpEmail(to: string, otp: string, businessName?: string) {
+    const shopLabel = businessName?.trim() || "Gian hàng đối tác HUKI";
+    const profileUrl = this.frontendUrl("/seller/business", "");
+    return this.send({
+      to,
+      subject: `[HUKI EBOOK] Mã OTP ${otp} xác thực cập nhật hồ sơ ${shopLabel}`,
+      text: `Mã OTP xác thực cập nhật hồ sơ cửa hàng "${shopLabel}" là: ${otp}. Mã có hiệu lực trong 10 phút. Tuyệt đối không chia sẻ mã này cho bất kỳ ai.`,
+      html: this.templateWithOtp(
+        `Xác thực cập nhật hồ sơ: ${shopLabel}`,
+        `Chúng tôi nhận được yêu cầu chỉnh sửa thông tin pháp lý / vận hành / tài khoản của gian hàng <strong>${shopLabel}</strong>. Vui lòng nhập mã OTP 6 chữ số bên dưới vào hộp thoại xác thực trên trình duyệt:`,
+        otp,
+        profileUrl,
+      ),
+    });
+  }
+
   private frontendUrl(path: string, token: string, email?: string) {
     const isProd = this.config.get<string>("NODE_ENV") === "production";
     const defaultUrl = isProd ? "https://hukiebook.duckdns.org" : "http://localhost:3100";

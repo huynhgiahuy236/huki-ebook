@@ -44,6 +44,9 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
     "flash_sale.grace_started",
     "flash_sale.resumed",
     "flash_sale.status_changed",
+    "business.update_requested",
+    "business.update_approved",
+    "business.update_rejected",
   ];
 
   constructor(
@@ -67,7 +70,10 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
         this.delivery.deliver({
           ...target,
           sourceKey: `${event.eventId}:${target.recipientId}:${target.type}`,
-          payload: event.payload,
+          payload: {
+            ...(event.payload || {}),
+            eventType: event.eventType,
+          },
         }),
       ),
     );
@@ -481,6 +487,67 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
           message,
           actionUrl: "/admin/flash-sales",
         });
+        break;
+      }
+      case "business.update_requested": {
+        const shopName = payload.businessName || "Đối tác Nhà bán hàng";
+        const changedList = Array.isArray(payload.changedFields) && payload.changedFields.length > 0
+          ? payload.changedFields.slice(0, 3).join(", ")
+          : "Thông tin hồ sơ";
+        targets.push({
+          recipientId: "admin_channel",
+          recipientType: "ADMIN",
+          type: "SYSTEM",
+          priority: "HIGH",
+          title: "Yêu cầu cập nhật hồ sơ Shop mới",
+          message: `${shopName} vừa gửi yêu cầu cập nhật (${changedList}) đã xác thực OTP 6 số.`,
+          actionUrl: "/admin/business-requests",
+        });
+        break;
+      }
+      case "business.update_approved": {
+        const shopName = payload.businessName || "Gian hàng đối tác";
+        const recipientTargets = Array.from(
+          new Set(
+            [payload.ownerId, payload.requestedBy, payload.businessId]
+              .map((v) => (v ? String(v) : ""))
+              .filter(Boolean),
+          ),
+        );
+        for (const recId of recipientTargets) {
+          targets.push({
+            recipientId: recId,
+            recipientType: "BUSINESS",
+            type: "SYSTEM",
+            priority: "HIGH",
+            title: "Hồ sơ doanh nghiệp đã được phê duyệt",
+            message: `Yêu cầu cập nhật hồ sơ "${shopName}" của bạn đã được Admin phê duyệt và áp dụng.`,
+            actionUrl: "/seller/business/notifications",
+          });
+        }
+        break;
+      }
+      case "business.update_rejected": {
+        const shopName = payload.businessName || "Gian hàng đối tác";
+        const reason = payload.reason || "Thông tin chưa đạt yêu cầu.";
+        const recipientTargets = Array.from(
+          new Set(
+            [payload.ownerId, payload.requestedBy, payload.businessId]
+              .map((v) => (v ? String(v) : ""))
+              .filter(Boolean),
+          ),
+        );
+        for (const recId of recipientTargets) {
+          targets.push({
+            recipientId: recId,
+            recipientType: "BUSINESS",
+            type: "SYSTEM",
+            priority: "HIGH",
+            title: "Yêu cầu cập nhật hồ sơ bị từ chối",
+            message: `Yêu cầu cập nhật hồ sơ "${shopName}" chưa được duyệt: ${reason}`,
+            actionUrl: "/seller/business/notifications",
+          });
+        }
         break;
       }
     }

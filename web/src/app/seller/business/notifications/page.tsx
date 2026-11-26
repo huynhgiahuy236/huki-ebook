@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { businessApi } from '@/ui/api/businessApi';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 interface UpdateRequestNotification {
   id: string;
@@ -94,11 +95,21 @@ export default function SellerBusinessNotificationsPage() {
     };
     window.addEventListener('huki_noti_updated', handleSync);
     window.addEventListener('storage', handleSync);
+    const unsubRealtime = realtimeSyncBus.subscribe((msg) => {
+      if (
+        msg.type === 'BUSINESS_STATUS_UPDATED' ||
+        msg.type === 'BUSINESS_APPROVED' ||
+        msg.type === 'BUSINESS_REVISION_SUBMITTED'
+      ) {
+        void loadNotifications();
+      }
+    });
     return () => {
       window.removeEventListener('huki_noti_updated', handleSync);
       window.removeEventListener('storage', handleSync);
+      unsubRealtime();
     };
-  }, [bizId]);
+  }, [bizId, loadNotifications]);
 
   // Danh sách thông báo chưa bị xóa
   const nonDeletedRequests = useMemo(() => {

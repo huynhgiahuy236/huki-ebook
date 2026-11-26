@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { createHash, createHmac, randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateBusinessDto, UpdateBusinessDto } from './dto/business.dto';
 import { BusinessStatus, BusinessType, StoreStatus, MemberStatus } from '../../../prisma/generated/client';
@@ -7,8 +8,9 @@ import { throwConflict, throwNotFound, throwBadRequest, throwForbidden } from '@
 import { ErrorCode } from '@huki/shared/errors';
 import { BUSINESS_EVENTS } from '@huki/shared/events';
 import { AuditService } from '../audit/audit.service';
-import { AuditAction, AuditActorContext } from '@huki/shared';
+import { AuditAction, AuditActorContext, EmailService } from '@huki/shared';
 import { IdentityClientService } from '../identity/identity-client.service';
+import { BusinessOutboxService } from '../outbox/outbox.service';
 
 @Injectable()
 export class BusinessService {
@@ -17,6 +19,8 @@ export class BusinessService {
     private eventEmitter: EventEmitter2,
     private readonly identity: IdentityClientService,
     private auditService?: AuditService,
+    @Optional() private readonly outboxService?: BusinessOutboxService,
+    @Optional() private readonly emailService?: EmailService,
   ) {}
 
   // ==================== CREATE ====================
@@ -792,15 +796,338 @@ export class BusinessService {
   }
 
   // ==================== BUSINESS PROFILE UPDATE REQUESTS ====================
-  async createUpdateRequest(userId: string, requestedData: any) {
-    const business = await this.prisma.business.findFirst({
+  private otpSecret(): string {
+    return (
+      process.env.BUSINESS_OTP_SECRET ||
+      process.env.JWT_SECRET ||
+      'huki-business-update-otp-secret-v1'
+    );
+  }
+
+  private hashOtpCode(nonce: string, otpCode: string, businessId: string, userId: string): string {
+    return createHash('sha256')
+      .update(`${nonce}:${otpCode}:${businessId}:${userId}:${this.otpSecret()}`)
+      .digest('hex');
+  }
+
+  private signOtpToken(payload: {
+    nonce: string;
+    codeHash: string;
+    businessId: string;
+    userId: string;
+    email: string;
+    exp: number;
+  }): string {
+    const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+    const sig = createHmac('sha256', this.otpSecret()).update(encoded).digest('base64url');
+    return `${encoded}.${sig}`;
+  }
+
+  private verifyOtpTokenSignature(token: string): {
+    nonce: string;
+    codeHash: string;
+    businessId: string;
+    userId: string;
+    email: string;
+    exp: number;
+  } | null {
+    if (!token || typeof token !== 'string' || !token.includes('.')) return null;
+    const parts = token.split('.');
+    if (parts.length !== 2) return null;
+    const [encoded, sig] = parts;
+    const expectedSig = createHmac('sha256', this.otpSecret()).update(encoded).digest('base64url');
+    const a = Buffer.from(sig, 'utf8');
+    const b = Buffer.from(expectedSig, 'utf8');
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+    try {
+      const parsed = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+      if (!parsed?.nonce || !parsed?.codeHash || !parsed?.businessId || !parsed?.userId || !parsed?.exp) {
+        return null;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  private maskEmailAddress(email: string): string {
+    const trimmed = String(email || '').trim();
+    const atIdx = trimmed.indexOf('@');
+    if (atIdx <= 1) return trimmed;
+    const local = trimmed.slice(0, atIdx);
+    const domain = trimmed.slice(atIdx);
+    const visible = local.slice(0, Math.min(2, local.length));
+    return `${visible}${'*'.repeat(Math.max(2, local.length - visible.length))}${domain}`;
+  }
+
+  private parseHeadquartersList(address: unknown): string[] {
+    if (!address) return [];
+    if (Array.isArray(address)) return address.map((x) => String(x || '').trim()).filter(Boolean);
+    if (typeof address === 'string') {
+      const trimmed = address.trim();
+      if (!trimmed) return [];
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return parsed.map((x) => String(x || '').trim()).filter(Boolean);
+      } catch {
+        // plain string address
+      }
+      return [trimmed];
+    }
+    return [String(address)];
+  }
+
+  private buildBusinessSnapshot(business: any, approvedExt: Record<string, any> = {}, ownerName?: string) {
+    const primaryStore = Array.isArray(business?.stores) && business.stores.length > 0 ? business.stores[0] : null;
+    const hq = this.parseHeadquartersList(
+      approvedExt?.headquarters && Array.isArray(approvedExt.headquarters) && approvedExt.headquarters.length > 0
+        ? approvedExt.headquarters
+        : business?.address,
+    );
+    const isIndividual = (approvedExt?.businessType || business?.businessType) === 'INDIVIDUAL';
+    return {
+      name: business?.name || approvedExt?.name || '',
+      taxCode: business?.taxCode || approvedExt?.taxCode || '',
+      businessType: business?.businessType || approvedExt?.businessType || 'INDIVIDUAL',
+      email: business?.email || approvedExt?.email || '',
+      phone: business?.phone || approvedExt?.phone || '',
+      headquarters: hq,
+      address: hq.join(' | '),
+      internationalName: approvedExt?.internationalName || '',
+      shortName: approvedExt?.shortName || '',
+      businessLicenseNumber: approvedExt?.businessLicenseNumber || approvedExt?.registryNumber || business?.registryNumber || '',
+      issueDate: approvedExt?.issueDate || '',
+      issuePlace: approvedExt?.issuePlace || '',
+      ecommerceIndustryCodes: approvedExt?.ecommerceIndustryCodes || '',
+      website: approvedExt?.website || '',
+      repName: approvedExt?.repName || ownerName || '',
+      repPosition: approvedExt?.repPosition || (isIndividual ? 'Chủ hộ kinh doanh' : 'Người đại diện'),
+      repIdCardNumber: approvedExt?.repIdCardNumber || '',
+      repIdCardIssueDate: approvedExt?.repIdCardIssueDate || '',
+      repIdCardIssuePlace: approvedExt?.repIdCardIssuePlace || '',
+      operatorName: approvedExt?.operatorName || ownerName || '',
+      operatorPhone: approvedExt?.operatorPhone || business?.phone || '',
+      operatorEmail: approvedExt?.operatorEmail || business?.email || '',
+      bankName: business?.bankName || approvedExt?.bankName || '',
+      bankAccountNumber: business?.bankAccountNumber || approvedExt?.bankAccountNumber || '',
+      bankAccountHolderName: business?.bankAccountHolderName || approvedExt?.bankAccountHolderName || '',
+      bankBranch: business?.bankBranch || approvedExt?.bankBranch || '',
+      storeName: primaryStore?.name || approvedExt?.storeName || business?.name || '',
+      storeDescription: primaryStore?.description || approvedExt?.storeDescription || '',
+    };
+  }
+
+  private computeSnapshotChangedLabels(beforeSnap: Record<string, any>, afterData: Record<string, any>): string[] {
+    const fieldLabels: Array<[string, string]> = [
+      ['name', 'Tên pháp nhân'],
+      ['taxCode', 'Mã số thuế'],
+      ['businessType', 'Loại hình'],
+      ['phone', 'Hotline'],
+      ['email', 'Email nhận thông báo'],
+      ['headquarters', 'Trụ sở & Chi nhánh'],
+      ['businessLicenseNumber', 'Số giấy phép ĐKKD'],
+      ['repName', 'Người đại diện / Chủ hộ'],
+      ['repPosition', 'Chức danh'],
+      ['repIdCardNumber', 'Số CCCD'],
+      ['operatorName', 'Người vận hành'],
+      ['operatorPhone', 'SĐT vận hành'],
+      ['operatorEmail', 'Email vận hành'],
+      ['bankName', 'Ngân hàng KYC'],
+      ['bankAccountNumber', 'Số tài khoản'],
+      ['bankAccountHolderName', 'Chủ tài khoản'],
+      ['storeName', 'Tên gian hàng'],
+      ['storeDescription', 'Mô tả gian hàng'],
+    ];
+    const changed: string[] = [];
+    for (const [key, label] of fieldLabels) {
+      if (afterData[key] === undefined) continue;
+      const beforeVal = key === 'headquarters'
+        ? this.parseHeadquartersList(beforeSnap[key]).join(' | ')
+        : String(beforeSnap[key] ?? '').trim();
+      const afterVal = key === 'headquarters'
+        ? this.parseHeadquartersList(afterData[key]).join(' | ')
+        : String(afterData[key] ?? '').trim();
+      if (beforeVal !== afterVal) {
+        changed.push(label);
+      }
+    }
+    return changed;
+  }
+
+  private async resolveBusinessForOwnerOrMember(userId: string) {
+    let business = await this.prisma.business.findFirst({
       where: { ownerId: userId, deletedAt: null },
       include: { stores: { where: { deletedAt: null } } },
     });
+    if (!business) {
+      const member = await (this.prisma as any).member?.findFirst?.({
+        where: { userId, status: 'ACTIVE', role: { in: ['OWNER', 'MANAGER'] }, deletedAt: null },
+        include: { business: { include: { stores: { where: { deletedAt: null } } } } },
+      });
+      if (member?.business && !member.business.deletedAt) {
+        business = member.business;
+      }
+    }
+    return business;
+  }
+
+  async sendUpdateRequestOtp(userId: string, actorEmail?: string) {
+    const business = await this.resolveBusinessForOwnerOrMember(userId);
+    if (!business) {
+      return throwNotFound(ErrorCode.BUSINESS_NOT_FOUND, 'Bạn chưa có doanh nghiệp nào trên hệ thống.');
+    }
+
+    // Check 120s submission cooldown before sending new OTP
+    const latestRequest = await (this.prisma as any).businessUpdateRequest?.findFirst?.({
+      where: { businessId: business.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (latestRequest) {
+      const diffSeconds = Math.floor((Date.now() - new Date(latestRequest.createdAt).getTime()) / 1000);
+      if (diffSeconds < 120) {
+        const remaining = 120 - diffSeconds;
+        throwBadRequest(
+          ErrorCode.BUSINESS_NOT_APPROVED,
+          `Mỗi doanh nghiệp chỉ có thể gửi yêu cầu cập nhật sau mỗi 2 phút. Vui lòng chờ ${remaining} giây nữa.`,
+        );
+      }
+    }
+
+    // Check 60s OTP resend cooldown via auditLog if available
+    const resendWindowStart = new Date(Date.now() - 60 * 1000);
+    const recentOtpLog = await (this.prisma as any).auditLog?.findFirst?.({
+      where: {
+        actorId: userId,
+        resource: 'BusinessUpdateOtp',
+        action: 'UPDATE_REQUEST_OTP_SENT',
+        resourceId: business.id,
+        createdAt: { gte: resendWindowStart },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (recentOtpLog) {
+      const waitSeconds = Math.max(
+        1,
+        60 - Math.floor((Date.now() - new Date(recentOtpLog.createdAt).getTime()) / 1000),
+      );
+      throwBadRequest(
+        ErrorCode.BUSINESS_NOT_APPROVED,
+        `Vui lòng chờ ${waitSeconds} giây trước khi yêu cầu gửi lại mã OTP mới.`,
+      );
+    }
+
+    const targetEmail = String(business.email || actorEmail || '').trim();
+    if (!targetEmail || !targetEmail.includes('@')) {
+      throwBadRequest(
+        ErrorCode.VALIDATION_ERROR,
+        'Không tìm thấy email hợp lệ của chủ gian hàng để gửi mã OTP xác thực.',
+      );
+    }
+
+    const otpCode = String(randomInt(100000, 1000000));
+    const nonce = randomUUID();
+    const exp = Date.now() + 10 * 60 * 1000;
+    const codeHash = this.hashOtpCode(nonce, otpCode, business.id, userId);
+    const otpToken = this.signOtpToken({
+      nonce,
+      codeHash,
+      businessId: business.id,
+      userId,
+      email: targetEmail,
+      exp,
+    });
+
+    if (this.emailService) {
+      await this.emailService.sendBusinessUpdateOtpEmail(targetEmail, otpCode, business.name);
+    }
+
+    await (this.prisma as any).auditLog?.create?.({
+      data: {
+        actorId: userId,
+        actorRole: 'BUSINESS',
+        service: 'business-service',
+        module: 'business',
+        action: 'UPDATE_REQUEST_OTP_SENT',
+        resource: 'BusinessUpdateOtp',
+        resourceId: business.id,
+        storeId: business.id,
+        metadata: {
+          nonce,
+          targetEmail: this.maskEmailAddress(targetEmail),
+          expiresAt: new Date(exp).toISOString(),
+        },
+      },
+    }).catch(() => null);
+
+    return {
+      otpToken,
+      maskedEmail: this.maskEmailAddress(targetEmail),
+      expiresInSeconds: 600,
+      resendCooldownSeconds: 60,
+    };
+  }
+
+  async createUpdateRequest(userId: string, rawBody: any) {
+    const business = await this.resolveBusinessForOwnerOrMember(userId);
 
     if (!business) {
       throwNotFound(ErrorCode.BUSINESS_NOT_FOUND, 'Bạn chưa có doanh nghiệp nào trên hệ thống.');
       return;
+    }
+
+    const { otpCode, otpToken, _previousSnapshot: _ignoredSnap, ...cleanRequestedData } = rawBody || {};
+    const trimmedCode = String(otpCode || '').trim();
+    if (!/^\d{6}$/.test(trimmedCode) || !otpToken) {
+      throwBadRequest(
+        ErrorCode.VALIDATION_ERROR,
+        'Vui lòng nhập đầy đủ mã OTP 6 chữ số được gửi về email của bạn để xác thực thay đổi.',
+      );
+    }
+
+    const decodedToken = this.verifyOtpTokenSignature(String(otpToken));
+    if (!decodedToken) {
+      throwBadRequest(
+        ErrorCode.VALIDATION_ERROR,
+        'Phiên xác thực OTP không hợp lệ. Vui lòng yêu cầu gửi lại mã OTP.',
+      );
+    }
+    if (Date.now() > decodedToken!.exp) {
+      throwBadRequest(
+        ErrorCode.VALIDATION_ERROR,
+        'Mã OTP đã hết hạn (quá 10 phút). Vui lòng bấm gửi lại mã OTP mới.',
+      );
+    }
+    if (decodedToken!.businessId !== business.id || decodedToken!.userId !== userId) {
+      throwForbidden(
+        ErrorCode.AUTHZ_FORBIDDEN,
+        'Mã OTP không thuộc về tài khoản hoặc gian hàng hiện tại.',
+      );
+    }
+
+    const candidateHash = this.hashOtpCode(decodedToken!.nonce, trimmedCode, business.id, userId);
+    const hashBufA = Buffer.from(candidateHash, 'utf8');
+    const hashBufB = Buffer.from(decodedToken!.codeHash, 'utf8');
+    if (hashBufA.length !== hashBufB.length || !timingSafeEqual(hashBufA, hashBufB)) {
+      throwBadRequest(
+        ErrorCode.VALIDATION_ERROR,
+        'Mã OTP 6 chữ số không chính xác. Vui lòng kiểm tra lại hộp thư.',
+      );
+    }
+
+    // Single-use replay protection
+    const usedKey = `${business.id}:${decodedToken!.nonce}`;
+    const alreadyUsed = await (this.prisma as any).auditLog?.findFirst?.({
+      where: {
+        resource: 'BusinessUpdateOtp',
+        action: 'UPDATE_REQUEST_OTP_USED',
+        resourceId: usedKey,
+      },
+    });
+    if (alreadyUsed) {
+      throwBadRequest(
+        ErrorCode.VALIDATION_ERROR,
+        'Mã OTP này đã được sử dụng. Vui lòng yêu cầu mã OTP mới.',
+      );
     }
 
     // Rate Limit: 1 request every 2 minutes (120 seconds)
@@ -824,33 +1151,123 @@ export class BusinessService {
       }
     }
 
+    // Capture full BEFORE snapshot so Admin sees accurate line-by-line diff
+    const latestApproved = await (this.prisma as any).businessUpdateRequest?.findFirst?.({
+      where: { businessId: business.id, status: 'APPROVED' },
+      orderBy: { reviewedAt: 'desc' },
+    });
+    let ownerProfileName = '';
+    try {
+      const profiles = await this.identity?.getProfiles?.([business.ownerId]);
+      if (Array.isArray(profiles) && profiles[0]?.fullName) {
+        ownerProfileName = String(profiles[0].fullName);
+      }
+    } catch {
+      // optional identity lookup
+    }
+    const previousSnapshot = this.buildBusinessSnapshot(
+      business,
+      (latestApproved?.requestedData as Record<string, any>) || {},
+      ownerProfileName,
+    );
+    const changedFields = this.computeSnapshotChangedLabels(previousSnapshot, cleanRequestedData);
+
+    // Mark OTP nonce consumed
+    await (this.prisma as any).auditLog?.create?.({
+      data: {
+        actorId: userId,
+        actorRole: 'BUSINESS',
+        service: 'business-service',
+        module: 'business',
+        action: 'UPDATE_REQUEST_OTP_USED',
+        resource: 'BusinessUpdateOtp',
+        resourceId: usedKey,
+        storeId: business.id,
+        metadata: { email: decodedToken!.email },
+      },
+    }).catch(() => null);
+
     const updateRequest = await (this.prisma as any).businessUpdateRequest.create({
       data: {
         businessId: business.id,
         requestedBy: userId,
-        requestedData: requestedData || {},
+        requestedData: {
+          ...(cleanRequestedData || {}),
+          _previousSnapshot: previousSnapshot,
+        },
         status: 'PENDING',
       },
       include: {
         business: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            taxCode: true,
+          include: {
+            stores: { where: { deletedAt: null } },
           },
         },
       },
     });
 
-    return updateRequest;
+    await this.outboxService?.addToOutbox('business.update_requested', updateRequest.id, {
+      eventType: 'business.update_requested',
+      requestId: updateRequest.id,
+      businessId: business.id,
+      businessName: business.name,
+      ownerId: business.ownerId,
+      requestedBy: userId,
+      changedFields,
+      createdAt: updateRequest.createdAt,
+    }).catch(() => null);
+
+    return {
+      ...updateRequest,
+      currentSnapshot: previousSnapshot,
+      changedFields,
+    };
+  }
+
+  private async hydrateUpdateRequestSnapshot(req: any) {
+    if (!req) return req;
+    const rawRequested = (req.requestedData && typeof req.requestedData === 'object') ? { ...req.requestedData } : {};
+    const savedSnapshot = rawRequested._previousSnapshot;
+    delete rawRequested._previousSnapshot;
+
+    let currentSnapshot = savedSnapshot;
+    if (!currentSnapshot && req.business) {
+      const priorApproved = await (this.prisma as any).businessUpdateRequest?.findFirst?.({
+        where: {
+          businessId: req.businessId,
+          status: 'APPROVED',
+          id: { not: req.id },
+          ...(req.createdAt ? { reviewedAt: { lte: new Date(req.createdAt) } } : {}),
+        },
+        orderBy: { reviewedAt: 'desc' },
+      });
+      let ownerName = '';
+      try {
+        if (req.business?.ownerId) {
+          const profiles = await this.identity?.getProfiles?.([req.business.ownerId]);
+          if (Array.isArray(profiles) && profiles[0]?.fullName) {
+            ownerName = String(profiles[0].fullName);
+          }
+        }
+      } catch {
+        // ignore identity fallback
+      }
+      currentSnapshot = this.buildBusinessSnapshot(
+        req.business,
+        (priorApproved?.requestedData as Record<string, any>) || {},
+        ownerName,
+      );
+    }
+
+    return {
+      ...req,
+      requestedData: rawRequested,
+      currentSnapshot: currentSnapshot || this.buildBusinessSnapshot(req.business || {}, {}),
+    };
   }
 
   async getMyUpdateRequests(userId: string) {
-    const business = await this.prisma.business.findFirst({
-      where: { ownerId: userId, deletedAt: null },
-    });
+    const business = await this.resolveBusinessForOwnerOrMember(userId);
 
     if (!business) {
       return { data: [], latest: null, cooldownRemaining: 0 };
@@ -861,9 +1278,18 @@ export class BusinessService {
       orderBy: { createdAt: 'desc' },
     });
 
+    const sanitized = requests.map((r: any) => {
+      const { _previousSnapshot, ...cleanReqData } = (r.requestedData || {}) as Record<string, any>;
+      return {
+        ...r,
+        requestedData: cleanReqData,
+        currentSnapshot: _previousSnapshot || undefined,
+      };
+    });
+
     let cooldownRemaining = 0;
-    if (requests.length > 0) {
-      const lastCreatedTime = new Date(requests[0].createdAt).getTime();
+    if (sanitized.length > 0) {
+      const lastCreatedTime = new Date(sanitized[0].createdAt).getTime();
       const diffSeconds = Math.floor((Date.now() - lastCreatedTime) / 1000);
       if (diffSeconds < 120) {
         cooldownRemaining = 120 - diffSeconds;
@@ -871,8 +1297,8 @@ export class BusinessService {
     }
 
     return {
-      data: requests,
-      latest: requests[0] || null,
+      data: sanitized,
+      latest: sanitized[0] || null,
       cooldownRemaining,
     };
   }
@@ -902,8 +1328,10 @@ export class BusinessService {
       (this.prisma as any).businessUpdateRequest.count({ where }),
     ]);
 
+    const hydrated = await Promise.all(requests.map((r: any) => this.hydrateUpdateRequestSnapshot(r)));
+
     return {
-      data: requests,
+      data: hydrated,
       pagination: {
         page,
         limit,
@@ -931,7 +1359,7 @@ export class BusinessService {
       throwNotFound(ErrorCode.BUSINESS_NOT_FOUND, 'Không tìm thấy yêu cầu cập nhật.');
     }
 
-    return request;
+    return this.hydrateUpdateRequestSnapshot(request);
   }
 
   async approveUpdateRequest(id: string, adminId: string, actorContext?: Partial<AuditActorContext>) {
@@ -1029,6 +1457,18 @@ export class BusinessService {
       changedFields: ['status', 'reviewedBy'],
     });
 
+    await this.outboxService?.addToOutbox('business.update_approved', id, {
+      eventType: 'business.update_approved',
+      requestId: id,
+      businessId: request.businessId,
+      businessName: businessUpdateData.name || request.business?.name,
+      requestedBy: request.requestedBy,
+      ownerId: request.business?.ownerId,
+      adminId,
+      status: 'APPROVED',
+      reviewedAt: updatedRequest.reviewedAt,
+    }).catch(() => null);
+
     return {
       message: 'Đã phê duyệt và cập nhật thông tin doanh nghiệp thành công',
       data: updatedRequest,
@@ -1038,6 +1478,7 @@ export class BusinessService {
   async rejectUpdateRequest(id: string, adminId: string, reason: string, actorContext?: Partial<AuditActorContext>) {
     const request = await (this.prisma as any).businessUpdateRequest.findUnique({
       where: { id },
+      include: { business: { select: { id: true, name: true, ownerId: true } } },
     });
 
     if (!request) {
@@ -1077,6 +1518,19 @@ export class BusinessService {
       afterState: { status: 'REJECTED', rejectionReason: reason, reviewedBy: adminId },
       changedFields: ['status', 'rejectionReason', 'reviewedBy'],
     });
+
+    await this.outboxService?.addToOutbox('business.update_rejected', id, {
+      eventType: 'business.update_rejected',
+      requestId: id,
+      businessId: request.businessId,
+      businessName: request.business?.name,
+      requestedBy: request.requestedBy,
+      ownerId: request.business?.ownerId,
+      adminId,
+      status: 'REJECTED',
+      reason: updatedRequest.rejectionReason,
+      reviewedAt: updatedRequest.reviewedAt,
+    }).catch(() => null);
 
     return {
       message: 'Đã từ chối yêu cầu cập nhật thông tin',
