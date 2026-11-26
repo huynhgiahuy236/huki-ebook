@@ -115,17 +115,19 @@ export class BooksController {
   @ApiOperation({ summary: 'Get a book by id or slug' })
   async findOne(
     @Param('id') id: string,
+    @Query('light') light?: string,
     @CurrentBookActor() actor?: BookActor,
   ) {
+    const isLight = light === '1' || light === 'true';
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
     if (isUuid) {
       try {
-        return { data: await this.booksService.findOne(id, actor) };
+        return { data: await this.booksService.findOne(id, actor, { light: isLight }) };
       } catch (err: any) {
         if (err?.status !== 404 && err?.response?.statusCode !== 404) throw err;
       }
     }
-    return { data: await this.booksService.findBySlug(id, actor) };
+    return { data: await this.booksService.findBySlug(id, actor, { light: isLight }) };
   }
 
   @Post()

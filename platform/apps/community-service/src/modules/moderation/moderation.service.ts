@@ -58,6 +58,7 @@ export class ModerationService {
       throwForbidden(ErrorCode.AUTHZ_NOT_OWNER);
     }
     try {
+      const isLanguage = ['OFFENSIVE', 'LANGUAGE_VIOLATION'].includes(dto.reason);
       const report = await this.reports.create({
         reporterId: actor.sub,
         targetType,
@@ -65,6 +66,9 @@ export class ModerationService {
         targetAuthorId: target!.authorId,
         reason: dto.reason,
         description: dto.description?.trim(),
+        detectionSource: 'USER_REPORT',
+        violationCategory: isLanguage ? 'LANGUAGE_VIOLATION' : dto.reason,
+        matchedKeywords: [],
         status: 'PENDING',
       });
       const updatedTarget = await this.model(targetType).findOneAndUpdate(
@@ -93,17 +97,26 @@ export class ModerationService {
           recipientType: 'ADMIN',
           type: 'WATCHDOG_ALERT' as any,
           priority: 'HIGH',
-          title: 'Báo cáo vi phạm đánh giá mới',
+          title: isLanguage
+            ? 'Báo cáo vi phạm ngôn từ mới'
+            : 'Báo cáo vi phạm đánh giá mới',
           message: `Có báo cáo ${dto.reason} cho đánh giá #${targetId}. Cần kiểm duyệt xử lý.`,
-          actionUrl: '/admin/moderation',
+          actionUrl: isLanguage
+            ? '/admin/moderation?reason=LANGUAGE_VIOLATION'
+            : '/admin/moderation',
           payload: {
             reportId: report.id,
             targetType,
             targetId,
             reason: dto.reason,
+            violationCategory: isLanguage ? 'LANGUAGE_VIOLATION' : dto.reason,
+            detectionSource: 'USER_REPORT',
           },
         }).catch(() => null);
       }
+      this.gateway?.emitAdminModerationEvent?.('moderation:created', {
+        report: this.reportView(report),
+      });
       this.gateway?.emitReviewEvent('review:updated', {
         targetType: target!.targetType,
         targetId: target!.targetId,
@@ -132,11 +145,103 @@ export class ModerationService {
     }
   }
 
+  async createAutoFlagReport(params: {
+    targetType: ContentType;
+    targetId: string;
+    targetAuthorId?: string;
+    reasons: string[];
+    matchedKeywords?: string[];
+    contentPreview?: string;
+    bookOrStoreId?: string;
+  }) {
+    const isLanguageViolation = params.reasons.includes('PROFANITY');
+    const reason: any = isLanguageViolation ? 'LANGUAGE_VIOLATION' : 'SPAM';
+    const violationCategory = isLanguageViolation ? 'LANGUAGE_VIOLATION' : 'SPAM';
+    const keywords = Array.from(new Set((params.matchedKeywords || []).filter(Boolean)));
+    const keywordSuffix = keywords.length > 0 ? ` (Từ khóa: ${keywords.join(', ')})` : '';
+    const previewSuffix = params.contentPreview ? ` — "${params.contentPreview.slice(0, 120)}"` : '';
+    const description = isLanguageViolation
+      ? `Hệ thống tự động phát hiện bình luận vi phạm ngôn từ${keywordSuffix}${previewSuffix}`
+      : `Hệ thống tự động gắn cờ nội dung (${params.reasons.join(', ')})${previewSuffix}`;
+
+    const reporterId = 'system:auto-moderation';
+    const report = await this.reports.findOneAndUpdate(
+      {
+        reporterId,
+        targetType: params.targetType,
+        targetId: params.targetId,
+      },
+      {
+        $set: {
+          targetAuthorId: params.targetAuthorId,
+          reason,
+          description,
+          detectionSource: 'AUTO_MODERATION',
+          violationCategory,
+          matchedKeywords: keywords,
+          status: 'PENDING',
+        },
+        $setOnInsert: {
+          reporterId,
+          targetType: params.targetType,
+          targetId: params.targetId,
+        },
+      },
+      { upsert: true, new: true },
+    );
+
+    const reportViewData = this.reportView(report);
+    const notifTitle = isLanguageViolation
+      ? 'Phát hiện bình luận vi phạm ngôn từ'
+      : 'Phát hiện bình luận nghi vấn tự động';
+    const notifMsg = isLanguageViolation
+      ? `Bình luận chứa từ ngữ vi phạm${keywordSuffix} đã được gắn nhãn và chuyển về hàng đợi kiểm duyệt.`
+      : `Hệ thống tự động gắn cờ bình luận (${params.reasons.join(', ')}). Cần Admin kiểm duyệt.`;
+
+    if (this.notificationDelivery) {
+      void this.notificationDelivery
+        .deliver({
+          sourceKey: `auto-mod:${reportViewData.id}:${Date.now()}`,
+          recipientId: 'admin_channel',
+          recipientType: 'ADMIN',
+          type: 'WATCHDOG_ALERT' as any,
+          priority: isLanguageViolation ? 'HIGH' : 'NORMAL',
+          title: notifTitle,
+          message: notifMsg,
+          actionUrl: `/admin/moderation?reason=${reason}`,
+          payload: {
+            reportId: reportViewData.id,
+            targetType: params.targetType,
+            targetId: params.targetId,
+            reason,
+            violationCategory,
+            detectionSource: 'AUTO_MODERATION',
+            matchedKeywords: keywords,
+            targetBookOrStoreId: params.bookOrStoreId,
+          },
+        })
+        .catch(() => null);
+    }
+
+    this.gateway?.emitAdminModerationEvent?.('moderation:created', {
+      report: reportViewData,
+    });
+
+    return reportViewData;
+  }
+
   async listReports(query: ReportListQueryDto) {
-    const where = {
+    const where: Record<string, unknown> = {
       ...(query.status ? { status: query.status } : {}),
       ...(query.targetType ? { targetType: query.targetType } : {}),
+      ...(query.detectionSource ? { detectionSource: query.detectionSource } : {}),
     };
+    if (query.reason) {
+      where.reason =
+        query.reason === 'LANGUAGE_VIOLATION'
+          ? { $in: ['LANGUAGE_VIOLATION', 'OFFENSIVE'] }
+          : query.reason;
+    }
     const [items, total] = await Promise.all([
       this.reports
         .find(where)
@@ -290,7 +395,11 @@ export class ModerationService {
       targetId: report!.targetId,
       resolvedBy: actor.sub,
     });
-    return { message: 'Report resolved', data: this.reportView(report!) };
+    const resolvedView = this.reportView(report!);
+    this.gateway?.emitAdminModerationEvent?.('moderation:resolved', {
+      report: resolvedView,
+    });
+    return { message: 'Report resolved', data: resolvedView };
   }
 
   async queue(query: ModerationQueueQueryDto) {
@@ -461,6 +570,7 @@ export class ModerationService {
   }
 
   private reportView(report: any) {
+    const isLanguage = ['LANGUAGE_VIOLATION', 'OFFENSIVE'].includes(report.reason);
     return {
       id: report._id?.toString() ?? report.id,
       reporterId: report.reporterId,
@@ -469,6 +579,17 @@ export class ModerationService {
       targetAuthorId: report.targetAuthorId,
       reason: report.reason,
       description: report.description,
+      detectionSource:
+        report.detectionSource ??
+        (report.reporterId === 'system:auto-moderation'
+          ? 'AUTO_MODERATION'
+          : 'USER_REPORT'),
+      violationCategory:
+        report.violationCategory ??
+        (isLanguage ? 'LANGUAGE_VIOLATION' : report.reason),
+      matchedKeywords: Array.isArray(report.matchedKeywords)
+        ? report.matchedKeywords
+        : [],
       status: report.status,
       reviewedBy: report.reviewedBy,
       reviewedAt: report.reviewedAt,

@@ -2,7 +2,15 @@ import { apiClient } from './apiClient';
 import type { ApiResponse } from './types';
 
 export type ReportStatus = 'PENDING' | 'REVIEWING' | 'RESOLVED' | 'DISMISSED';
-export type ReportReason = 'SPAM' | 'HARASSMENT' | 'OFFENSIVE' | 'MISINFORMATION' | 'COPYRIGHT' | 'OTHER';
+export type ReportReason =
+  | 'SPAM'
+  | 'HARASSMENT'
+  | 'OFFENSIVE'
+  | 'LANGUAGE_VIOLATION'
+  | 'MISINFORMATION'
+  | 'COPYRIGHT'
+  | 'OTHER';
+export type ReportDetectionSource = 'USER_REPORT' | 'AUTO_MODERATION';
 export type ModerationAction = 'NONE' | 'WARN' | 'HIDE' | 'DELETE' | 'BAN';
 export type ReportTargetType = 'POST' | 'COMMENT' | 'REVIEW' | 'USER' | 'STORE';
 
@@ -27,6 +35,9 @@ export interface ModerationReportItem {
   targetId: string;
   reason: ReportReason;
   description?: string;
+  detectionSource?: ReportDetectionSource;
+  violationCategory?: string;
+  matchedKeywords?: string[];
   status: ReportStatus;
   reviewedBy?: string;
   reviewedAt?: string;

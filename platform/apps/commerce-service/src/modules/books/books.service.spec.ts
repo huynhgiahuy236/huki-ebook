@@ -212,4 +212,87 @@ describe('BooksService (Prisma)', () => {
       expect.objectContaining({ code: 'EBOOK_STORAGE_UNAVAILABLE' }),
     );
   });
+
+  it('skips orderItem.aggregate and ebookStorage.exists when findOne({ light: true }) is called', async () => {
+    const ebookStorage = {
+      upload: jest.fn(),
+      delete: jest.fn(),
+      exists: jest.fn().mockResolvedValue(true),
+      getStream: jest.fn(),
+    };
+    const prismaLight = {
+      ...prisma,
+      book: {
+        ...prisma.book,
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'book-light-1',
+          slug: 'book-light-1',
+          title: 'Light Lookup Book',
+          status: 'PUBLISHED',
+          storeId: 'store-1',
+          digitalDetails: { pdfKey: 'stores/s1/books/b1/pdf-1.pdf' },
+          variants: [],
+          store: { id: 'store-1', name: 'Shop 1' },
+        }),
+      },
+      orderItem: {
+        aggregate: jest.fn().mockResolvedValue({ _sum: { quantity: 10 } }),
+      },
+    };
+    const svc = new BooksService(prismaLight as any, undefined, undefined, ebookStorage as any);
+
+    const book = await svc.findOne('book-light-1', undefined, { light: true });
+
+    expect(book.id).toBe('book-light-1');
+    expect(prismaLight.orderItem.aggregate).not.toHaveBeenCalled();
+    expect(ebookStorage.exists).not.toHaveBeenCalled();
+  });
+
+  it('includes safe diagnostic summary (without secret keys) in 503 EBOOK_STORAGE_UNAVAILABLE', async () => {
+    const ebookStorage = {
+      upload: jest.fn(),
+      delete: jest.fn(),
+      getStream: jest.fn().mockRejectedValue(Object.assign(new Error('R2 auth error'), { name: 'InvalidAccessKeyId' })),
+      getDiagnostics: jest.fn().mockReturnValue({
+        configured: true,
+        bucket: 'huki-ebooks',
+        activeCandidate: 'cf:path',
+        candidateCount: 2,
+        publicBaseUrlConfigured: true,
+        circuitBreakerActive: true,
+      }),
+    };
+    const prismaDiag = {
+      ...prisma,
+      book: {
+        ...prisma.book,
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'book-diag-1',
+          slug: 'sach-diag',
+          title: 'Diag Book',
+          digitalDetails: { pdfKey: 'stores/s1/books/b1/pdf-1.pdf' },
+        }),
+      },
+    };
+    const svc = new BooksService(prismaDiag as any, undefined, undefined, ebookStorage as any);
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+      setHeader: jest.fn(),
+    };
+
+    await svc.streamPdf('sach-diag', { headers: {} }, res);
+
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'EBOOK_STORAGE_UNAVAILABLE',
+        diagnostic: expect.objectContaining({
+          bucket: 'huki-ebooks',
+          activeCandidate: 'cf:path',
+          errorCode: 'InvalidAccessKeyId',
+        }),
+      }),
+    );
+  });
 });

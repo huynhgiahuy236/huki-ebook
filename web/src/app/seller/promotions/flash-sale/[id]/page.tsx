@@ -327,11 +327,23 @@ export default function SellerFlashSaleDetailPage() {
 
       if (res.success) {
         showToast('Đã cập nhật thông số Flash Sale', 'success');
+        setItems((prev) =>
+          prev.map((it) =>
+            it.id === itemId
+              ? {
+                  ...it,
+                  salePrice: editForm.salePrice,
+                  stock: editForm.stock,
+                  maxPerUser: editForm.maxPerUser,
+                }
+              : it,
+          ),
+        );
         setEditingItemId(null);
         setEditForm(null);
         invalidateFlashSaleCache();
         realtimeSyncBus.publish('FLASH_SALE_UPDATED', { slotId, itemId });
-        await loadDetail(true);
+        void loadDetail(true);
       } else {
         showToast((res as any)?.message || 'Cập nhật thất bại', 'error');
       }
@@ -348,10 +360,11 @@ export default function SellerFlashSaleDetailPage() {
       const res = await flashSaleApi.sellerCancelItem(itemId);
       if (res.success) {
         showToast('Đã gỡ ấn phẩm khỏi đợt Flash Sale', 'success');
+        setItems((prev) => prev.filter((it) => it.id !== itemId));
         setConfirmCancelId(null);
         invalidateFlashSaleCache();
         realtimeSyncBus.publish('FLASH_SALE_UPDATED', { slotId, itemId });
-        await loadDetail(true);
+        void loadDetail(true);
       } else {
         showToast((res as any)?.message || 'Không thể gỡ sách khỏi Flash Sale', 'error');
       }

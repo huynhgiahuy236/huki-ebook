@@ -33,6 +33,6 @@ import { NotificationsModule } from '../notifications/notifications.module';
     AuthenticatedCommunityGuard,
     PlatformAdminCommunityGuard,
   ],
-  exports: [AutoModerationService],
+  exports: [AutoModerationService, ModerationService],
 })
 export class ModerationModule {}

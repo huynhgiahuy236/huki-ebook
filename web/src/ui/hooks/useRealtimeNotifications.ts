@@ -349,6 +349,17 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
 
       // 5. Broadcast to internal app bus
       realtimeSyncBus.publish('NOTIFICATIONS_UPDATED', newNoti);
+      if (newNoti.recipientType === 'ADMIN' || newNoti.type === 'WATCHDOG_ALERT') {
+        realtimeSyncBus.publish('MODERATION_UPDATED' as any, newNoti);
+      }
+    });
+
+    socket.on('moderation:created', (evt: any) => {
+      realtimeSyncBus.publish('MODERATION_UPDATED' as any, evt);
+    });
+
+    socket.on('moderation:resolved', (evt: any) => {
+      realtimeSyncBus.publish('MODERATION_UPDATED' as any, evt);
     });
 
     socket.on('notification_read', ({ notificationId }: { notificationId: string }) => {

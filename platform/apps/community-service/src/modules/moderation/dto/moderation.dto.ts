@@ -14,9 +14,11 @@ import {
 import {
   MODERATION_ACTIONS,
   ModerationAction,
+  REPORT_DETECTION_SOURCES,
   REPORT_REASONS,
   REPORT_STATUSES,
   REPORT_TARGET_TYPES,
+  ReportDetectionSource,
   ReportReason,
   ReportStatus,
   ReportTargetType,
@@ -64,6 +66,14 @@ export class ReportListQueryDto {
   @IsOptional()
   @IsIn(REPORT_TARGET_TYPES)
   targetType?: ReportTargetType;
+
+  @IsOptional()
+  @IsIn(REPORT_REASONS)
+  reason?: ReportReason;
+
+  @IsOptional()
+  @IsIn(REPORT_DETECTION_SOURCES)
+  detectionSource?: ReportDetectionSource;
 }
 
 export class ModerationQueueQueryDto {

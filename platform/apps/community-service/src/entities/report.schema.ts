@@ -12,10 +12,12 @@ export const REPORT_REASONS = [
   'SPAM',
   'HARASSMENT',
   'OFFENSIVE',
+  'LANGUAGE_VIOLATION',
   'MISINFORMATION',
   'COPYRIGHT',
   'OTHER',
 ] as const;
+export const REPORT_DETECTION_SOURCES = ['USER_REPORT', 'AUTO_MODERATION'] as const;
 export const REPORT_STATUSES = [
   'PENDING',
   'REVIEWING',
@@ -32,6 +34,7 @@ export const MODERATION_ACTIONS = [
 
 export type ReportTargetType = (typeof REPORT_TARGET_TYPES)[number];
 export type ReportReason = (typeof REPORT_REASONS)[number];
+export type ReportDetectionSource = (typeof REPORT_DETECTION_SOURCES)[number];
 export type ReportStatus = (typeof REPORT_STATUSES)[number];
 export type ModerationAction = (typeof MODERATION_ACTIONS)[number];
 export type ReportDocument = HydratedDocument<Report>;
@@ -55,6 +58,19 @@ export class Report {
 
   @Prop({ type: String, trim: true, maxlength: 2_000 })
   description?: string;
+
+  @Prop({
+    type: String,
+    enum: REPORT_DETECTION_SOURCES,
+    default: 'USER_REPORT',
+  })
+  detectionSource?: ReportDetectionSource;
+
+  @Prop({ type: String, trim: true })
+  violationCategory?: string;
+
+  @Prop({ type: [String], default: [] })
+  matchedKeywords?: string[];
 
   @Prop({
     required: true,
