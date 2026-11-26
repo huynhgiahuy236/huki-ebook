@@ -35,10 +35,25 @@ export default () => ({
       apiSecret: process.env.CLOUDINARY_API_SECRET,
     },
     r2: {
-      endpoint: process.env.CLOUDFLARE_R2_ENDPOINT,
-      accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID,
-      secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY,
-      bucket: process.env.CLOUDFLARE_R2_BUCKET || 'huki-ebooks',
+      endpoint:
+        process.env.CLOUDFLARE_R2_ENDPOINT?.trim() ||
+        process.env.R2_ENDPOINT?.trim() ||
+        (process.env.R2_ACCOUNT_ID?.trim()
+          ? `https://${process.env.R2_ACCOUNT_ID.trim()}.r2.cloudflarestorage.com`
+          : undefined),
+      accessKeyId:
+        process.env.CLOUDFLARE_R2_ACCESS_KEY_ID?.trim() ||
+        process.env.R2_ACCESS_KEY_ID?.trim(),
+      secretAccessKey:
+        process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY?.trim() ||
+        process.env.R2_SECRET_ACCESS_KEY?.trim(),
+      bucket:
+        process.env.CLOUDFLARE_R2_BUCKET?.trim() ||
+        process.env.R2_BUCKET_NAME?.trim() ||
+        'huki-ebooks',
+      publicDomain:
+        process.env.CLOUDFLARE_R2_PUBLIC_DOMAIN?.trim() ||
+        process.env.R2_PUBLIC_URL?.trim(),
     },
   },
 });

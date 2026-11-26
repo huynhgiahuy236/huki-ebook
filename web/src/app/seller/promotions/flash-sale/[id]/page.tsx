@@ -10,6 +10,7 @@ import { businessApi } from '@/ui/api/businessApi';
 import { flashSaleApi, invalidateFlashSaleCache, type FlashSaleSlot } from '@/ui/api/flashSaleApi';
 import { SellerActionButton, SellerStatusBadge } from '@/ui/components/seller/SellerUI';
 import { StandardPaginationBar } from '@/ui/components/common/GroupedDataTable';
+import CountdownConfirmModal from '@/ui/components/common/CountdownConfirmModal';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 interface AddableBookConfig {
@@ -76,6 +77,7 @@ export default function SellerFlashSaleDetailPage() {
 
   // Delete Slot state
   const [deletingSlot, setDeletingSlot] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // Add Books inline panel state
   const [isAddPanelOpen, setIsAddPanelOpen] = useState(false);
@@ -360,20 +362,19 @@ export default function SellerFlashSaleDetailPage() {
     }
   };
 
-  const handleDeleteSlot = async () => {
+  const handleDeleteSlot = () => {
     if (!slot) return;
-    if (
-      !window.confirm(
-        `Bạn có chắc chắn muốn xóa đợt Flash Sale "${slot.name}"? Toàn bộ sách đã đăng ký trong đợt sẽ bị hủy.`
-      )
-    ) {
-      return;
-    }
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDeleteSlot = async () => {
+    if (!slot) return;
     try {
       setDeletingSlot(true);
       const res = await flashSaleApi.sellerDeleteSlot(slot.id);
       if (res.success) {
         showToast('Đã xóa đợt Flash Sale thành công', 'success');
+        setIsDeleteModalOpen(false);
         invalidateFlashSaleCache();
         realtimeSyncBus.publish('FLASH_SALE_UPDATED', { slotId: slot.id });
         router.push('/seller/promotions/flash-sale');
@@ -979,6 +980,23 @@ export default function SellerFlashSaleDetailPage() {
           </section>
         </div>
       </div>
+
+      <CountdownConfirmModal
+        isOpen={isDeleteModalOpen}
+        title="Xác nhận xóa đợt Flash Sale"
+        description={
+          <>
+            Bạn có chắc chắn muốn xóa đợt Flash Sale{' '}
+            <strong className="text-slate-900">&ldquo;{slot.name}&rdquo;</strong>? Toàn bộ sách đã
+            đăng ký trong đợt này sẽ bị hủy và trở về giá niêm yết ban đầu.
+          </>
+        }
+        countdownSeconds={5}
+        confirmLabel="Xác nhận xóa"
+        loading={deletingSlot}
+        onConfirm={handleConfirmDeleteSlot}
+        onCancel={() => !deletingSlot && setIsDeleteModalOpen(false)}
+      />
     </div>
   );
 }

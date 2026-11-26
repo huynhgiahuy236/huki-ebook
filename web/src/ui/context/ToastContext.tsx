@@ -39,6 +39,7 @@ const ToastContext = createContext<ToastContextType | null>(null);
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastMessageState[]>([]);
   const timeoutsMap = useRef<Map<string, number>>(new Map());
+  const recentIdsRef = useRef<Map<string, number>>(new Map());
 
   const dismissToast = useCallback((id?: string) => {
     setToasts((prev) => {
@@ -74,6 +75,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       let actionUrl: string | undefined;
       let actionLabel: string | undefined;
       let shouldPlaySound = true;
+      let customId: string | undefined;
 
       if (typeof msgOrObj === 'object' && msgOrObj !== null) {
         title = msgOrObj.title || '';
@@ -82,12 +84,22 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         toastDuration = msgOrObj.duration || duration;
         actionUrl = msgOrObj.actionUrl;
         actionLabel = msgOrObj.actionLabel;
+        customId = msgOrObj.id;
         if (msgOrObj.playSound === false) shouldPlaySound = false;
       } else {
         message = String(msgOrObj || '');
       }
 
-      const id = `toast_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      if (customId) {
+        const now = Date.now();
+        const prevTs = recentIdsRef.current.get(customId);
+        if (prevTs && now - prevTs < 8000) {
+          return;
+        }
+        recentIdsRef.current.set(customId, now);
+      }
+
+      const id = customId || `toast_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
       const newToast: ToastMessageState = {
         id,

@@ -16,12 +16,13 @@ function expandOfficialAliases(ids: string[]): string[] {
   return Array.from(result);
 }
 
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { randomUUID } from "crypto";
 import { Model, Types } from "mongoose";
 import { RabbitMqEventBus } from "@huki/shared";
 import { CommunityActor } from "../../common/community-auth.guard";
+import { SellerScopeResolverService } from "../notifications/seller-scope-resolver.service";
 import {
   Conversation,
   ConversationDocument,
@@ -61,6 +62,8 @@ export class ChatService {
     @InjectModel(Message.name)
     private readonly messages: Model<MessageDocument>,
     private readonly eventBus: RabbitMqEventBus,
+    @Optional()
+    private readonly sellerScopeResolver?: SellerScopeResolverService,
   ) {}
 
   async listConversations(actor: CommunityActor, storeId?: string) {
@@ -245,12 +248,32 @@ export class ChatService {
       throwBadRequest(ErrorCode.CHAT_BUSINESS_SUSPENDED);
     }
 
+    const resolvedBusinessIds: string[] = [];
+    if (this.sellerScopeResolver) {
+      const businessParticipants = conversation!.participants.filter(
+        (item) => item.type === "BUSINESS",
+      );
+      const resolvedScopes = await Promise.all(
+        businessParticipants.map((item) =>
+          this.sellerScopeResolver!.resolveTarget(item.id),
+        ),
+      );
+      for (const scope of resolvedScopes) {
+        resolvedBusinessIds.push(
+          ...scope.businessIds,
+          ...scope.storeIds,
+          ...scope.ownerUserIds,
+        );
+      }
+    }
+
     const data = this.messageView(message);
     void this.publishMessageEvent(data, conversation!, recipientIds);
     return {
       data,
       participantIds: expandOfficialAliases([
         ...conversation!.participants.map((item) => item.id),
+        ...resolvedBusinessIds,
         ...(storeId
           ? storeId.split(',').map((s) => s.trim()).filter(Boolean)
           : []),

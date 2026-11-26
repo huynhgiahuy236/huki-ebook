@@ -128,4 +128,48 @@ describe("NotificationEventConsumer", () => {
       }),
     ]);
   });
+
+  it("expands BUSINESS chat recipients to store owner user IDs so bell, badge, and push reach the seller", async () => {
+    const resolver = {
+      resolveTarget: jest.fn().mockResolvedValue({
+        businessIds: ["biz-1"],
+        storeIds: ["store-1"],
+        ownerUserIds: ["owner-user-1", "staff-user-2"],
+      }),
+    };
+    const resolvedConsumer = new NotificationEventConsumer(
+      bus as any,
+      delivery as any,
+      resolver as any,
+    );
+
+    await (resolvedConsumer as any).handle({
+      eventId: "evt-chat-1",
+      eventType: "chat.message.sent",
+      payload: {
+        conversationId: "conv-1",
+        recipients: [{ id: "store-1", type: "BUSINESS" }],
+        message: { id: "msg-1", senderName: "Buyer A", content: "Sách còn không shop?" },
+      },
+    });
+
+    expect(resolver.resolveTarget).toHaveBeenCalledWith("store-1");
+    expect(delivery.deliver).toHaveBeenCalledTimes(2);
+    expect(delivery.deliver).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: "owner-user-1",
+        recipientType: "BUSINESS",
+        type: "NEW_MESSAGE",
+        sourceKey: "evt-chat-1:owner-user-1:NEW_MESSAGE",
+      }),
+    );
+    expect(delivery.deliver).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: "staff-user-2",
+        recipientType: "BUSINESS",
+        type: "NEW_MESSAGE",
+        sourceKey: "evt-chat-1:staff-user-2:NEW_MESSAGE",
+      }),
+    );
+  });
 });

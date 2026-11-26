@@ -1,4 +1,4 @@
-import { Injectable, OnApplicationBootstrap } from "@nestjs/common";
+import { Injectable, OnApplicationBootstrap, Optional } from "@nestjs/common";
 import {
   DomainEvent,
   ORDER_EVENTS,
@@ -10,6 +10,7 @@ import {
   NotificationInput,
   NotificationDeliveryService,
 } from "./notification-delivery.service";
+import { SellerScopeResolverService } from "./seller-scope-resolver.service";
 
 type Target = Omit<NotificationInput, "sourceKey" | "payload">;
 
@@ -48,6 +49,7 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
   constructor(
     private readonly bus: RabbitMqEventBus,
     private readonly delivery: NotificationDeliveryService,
+    @Optional() private readonly sellerScopeResolver?: SellerScopeResolverService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -59,7 +61,7 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
   }
 
   private async handle(event: DomainEvent): Promise<void> {
-    const targets = this.targets(event);
+    const targets = await this.resolveTargets(event);
     await Promise.all(
       targets.map((target) =>
         this.delivery.deliver({
@@ -69,6 +71,43 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
         }),
       ),
     );
+  }
+
+  private async resolveTargets(event: DomainEvent): Promise<Target[]> {
+    const baseTargets = this.targets(event);
+    if (event.eventType !== "chat.message.sent" || !this.sellerScopeResolver) {
+      return baseTargets;
+    }
+
+    const expanded: Target[] = [];
+    const seen = new Set<string>();
+    const pushUnique = (target: Target) => {
+      const key = `${target.recipientType}:${target.recipientId}:${target.type}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      expanded.push(target);
+    };
+
+    for (const target of baseTargets) {
+      if (target.recipientType !== "BUSINESS") {
+        pushUnique(target);
+        continue;
+      }
+
+      const resolved = await this.sellerScopeResolver.resolveTarget(target.recipientId);
+      if (resolved.ownerUserIds.length > 0) {
+        for (const ownerUserId of resolved.ownerUserIds) {
+          pushUnique({
+            ...target,
+            recipientId: ownerUserId,
+          });
+        }
+      } else {
+        pushUnique(target);
+      }
+    }
+
+    return expanded;
   }
 
   private targets(event: DomainEvent): Target[] {

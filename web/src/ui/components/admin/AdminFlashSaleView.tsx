@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useToast } from "../../context/ToastContext";
 import { flashSaleApi, invalidateFlashSaleCache, type FlashSaleSlot } from "../../api/flashSaleApi";
 import { catalogApi, type BookData } from "../../api/catalogApi";
-import { AdminStatusBadge, AdminPagination } from './AdminUI';
+import { AdminStatusBadge } from './AdminUI';
+import GroupedDataTable, { type Column } from '../common/GroupedDataTable';
+import CountdownConfirmModal from '../common/CountdownConfirmModal';
 import { AdminPenaltyArbitrationView } from './AdminPenaltyArbitrationView';
 import { sellerPenaltyService } from '../../services/sellerPenaltyService';
 import { realtimeSyncBus } from '../../services/realtimeSyncBus';
@@ -167,6 +169,14 @@ export function AdminFlashSaleView() {
     stock: number;
     maxPerUser: number;
   } | null>(null);
+  const [expandedRowKeys, setExpandedRowKeys] = useState<(string | number)[]>([]);
+  const [confirmModal, setConfirmModal] = useState<{
+    kind: 'CANCEL_SLOT' | 'REMOVE_ITEM';
+    slot?: FlashSaleSlot;
+    itemId?: string;
+    bookTitle?: string;
+  } | null>(null);
+  const [submittingConfirmModal, setSubmittingConfirmModal] = useState(false);
 
   const fetchFlashSales = async (silent = false) => {
     const showBlockingLoader = !silent && !hasLoadedOnceRef.current;
@@ -316,57 +326,16 @@ export function AdminFlashSaleView() {
     setCurrentPage(1);
   }, [activeTab, searchQuery]);
 
-  const paginatedFlashSales = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredFlashSales.slice(start, start + pageSize);
-  }, [filteredFlashSales, currentPage, pageSize]);
-
-  // Grouped Sessions (Grouped Data Table Structure)
-  const groupedSessions = useMemo(() => {
-    const live = paginatedFlashSales.filter((s) => s.status === 'ACTIVE');
-    const scheduled = paginatedFlashSales.filter((s) => s.status === 'SCHEDULED');
-    const cancelled = paginatedFlashSales.filter((s) => s.status === 'CANCELLED');
-    const ended = paginatedFlashSales.filter((s) => s.status === 'ENDED');
-
-    const result = [];
-    if (live.length > 0 || activeTab === 'ACTIVE') {
-      result.push({
-        groupKey: 'ACTIVE',
-        title: '🔥 Phiên Flash Sale Đang Diễn Ra (Live)',
-        badgeColor: 'bg-rose-50 text-rose-700 border-rose-200',
-        icon: 'local_fire_department',
-        sessions: live,
-      });
-    }
-    if (scheduled.length > 0 || activeTab === 'SCHEDULED') {
-      result.push({
-        groupKey: 'SCHEDULED',
-        title: '⏳ Phiên Flash Sale Sắp Diễn Ra (Đã Lên Lịch / Đang Đăng Ký)',
-        badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
-        icon: 'schedule',
-        sessions: scheduled,
-      });
-    }
-    if (cancelled.length > 0 || activeTab === 'CANCELLED') {
-      result.push({
-        groupKey: 'CANCELLED',
-        title: 'Phiên Flash Sale Đã Hủy (Không Đủ Shop Tham Gia)',
-        badgeColor: 'bg-red-50 text-red-700 border-red-200',
-        icon: 'cancel',
-        sessions: cancelled,
-      });
-    }
-    if (ended.length > 0 || activeTab === 'ENDED') {
-      result.push({
-        groupKey: 'ENDED',
-        title: 'Phiên Flash Sale Đã Kết Thúc (Lịch Sử)',
-        badgeColor: 'bg-gray-100 text-gray-700 border-gray-200',
-        icon: 'history',
-        sessions: ended,
-      });
-    }
-    return result;
-  }, [paginatedFlashSales, activeTab]);
+  // Sort Filtered Flash Sales consistently (LIVE -> SCHEDULED -> ENDED -> CANCELLED)
+  const sortedFlashSales = useMemo(() => {
+    const statusOrder: Record<string, number> = { ACTIVE: 1, SCHEDULED: 2, ENDED: 3, CANCELLED: 4 };
+    return [...filteredFlashSales].sort((a, b) => {
+      const orderA = statusOrder[a.status] ?? 99;
+      const orderB = statusOrder[b.status] ?? 99;
+      if (orderA !== orderB) return orderA - orderB;
+      return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
+    });
+  }, [filteredFlashSales]);
 
   // Categories for studio filtering
   const categories = useMemo(() => {
@@ -383,29 +352,31 @@ export function AdminFlashSaleView() {
   }, [flashSales, studioSlotId]);
 
   // Open Studio for a Slot
-  const handleOpenStudio = (slot: FlashSaleSlot) => {
+  const handleOpenStudio = useCallback((slot: FlashSaleSlot) => {
     if (studioSlotId === slot.id) {
       setStudioSlotId(null);
       return;
     }
-    setStudioSlotId(slot.id);
     const initialMap: Record<string, ConfiguredBookItem> = {};
     const existingBookIds = new Set((slot.items || []).map((it) => it.bookId));
 
     catalogBooks.forEach((b) => {
       const origPrice = Number(b.price || (b as any).pricePaper || (b as any).priceEbook || 100000);
-      const discountPct = 30;
+      const discountPct = Number(slot.discountPercent || 30);
       const sale = Math.round((origPrice * (100 - discountPct)) / 100);
       initialMap[b.id] = {
         book: b,
         isSelected: existingBookIds.has(b.id),
         salePrice: sale,
         stock: 20,
-        maxPerUser: 1,
+        maxPerUser: Number(slot.maxPerUser || 1),
       };
     });
-    setBookConfigMap(initialMap);
-  };
+    React.startTransition(() => {
+      setBookConfigMap(initialMap);
+      setStudioSlotId(slot.id);
+    });
+  }, [studioSlotId, catalogBooks]);
 
   // Filter books in studio
   const studioFilteredBooks = useMemo(() => {
@@ -494,23 +465,31 @@ export function AdminFlashSaleView() {
     try {
       setSubmittingBatch(true);
       let successCount = 0;
-      for (const config of selectedConfigs) {
-        const orig = Number(config.book.price || (config.book as any).pricePaper || 100000);
-        const res = await flashSaleApi.addItem({
-          flashSaleId: activeStudioSlot.id,
-          bookId: config.book.id,
-          originalPrice: orig,
-          salePrice: config.salePrice,
-          stock: config.stock,
-          maxPerUser: config.maxPerUser,
+      const CHUNK_SIZE = 5;
+      for (let i = 0; i < selectedConfigs.length; i += CHUNK_SIZE) {
+        const chunk = selectedConfigs.slice(i, i + CHUNK_SIZE);
+        const results = await Promise.allSettled(
+          chunk.map((config) => {
+            const orig = Number(config.book.price || (config.book as any).pricePaper || 100000);
+            return flashSaleApi.addItem({
+              flashSaleId: activeStudioSlot.id,
+              bookId: config.book.id,
+              originalPrice: orig,
+              salePrice: config.salePrice,
+              stock: config.stock,
+              maxPerUser: config.maxPerUser,
+            });
+          }),
+        );
+        results.forEach((r) => {
+          if (r.status === 'fulfilled' && r.value?.success) successCount++;
         });
-        if (res.success) successCount++;
       }
 
       showToast?.(` Đã gán thành công ${successCount}/${selectedConfigs.length} sách vào khung giờ Flash Sale!`, "success");
       setStudioSlotId(null);
       realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: activeStudioSlot.id });
-      fetchFlashSales(true);
+      void fetchFlashSales(true);
     } catch {
       showToast?.("Có lỗi xảy ra khi gán sách hàng loạt", "error");
     } finally {
@@ -701,21 +680,12 @@ export function AdminFlashSaleView() {
     }
   };
 
-  const handleCancelSlot = async (slot: FlashSaleSlot) => {
-    if (!window.confirm(`Xác nhận hủy lịch mở bán khung giờ "${slot.name}"? Đợt sẽ chuyển sang trạng thái ĐÃ HỦY và lưu vết lịch sử.`)) return;
-    try {
-      const res = await flashSaleApi.cancelFlashSale(slot.id);
-      if (res.success) {
-        showToast?.(`Đã hủy lịch khung giờ "${slot.name}" thành công!`, "success");
-        realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: slot.id });
-        fetchFlashSales(true);
-      } else {
-        showToast?.(res.error?.message || "Lỗi khi hủy khung giờ", "error");
-      }
-    } catch {
-      showToast?.("Lỗi kết nối khi hủy khung giờ", "error");
-    }
-  };
+  const handleCancelSlot = useCallback((slot: FlashSaleSlot) => {
+    setConfirmModal({
+      kind: 'CANCEL_SLOT',
+      slot,
+    });
+  }, []);
 
   // Inline edit item in slot
   const handleSaveInlineEdit = async (itemId: string) => {
@@ -734,23 +704,227 @@ export function AdminFlashSaleView() {
     }
   };
 
-  // Remove item from slot and return to original state
-  const handleRemoveItem = async (itemId: string, bookTitle?: string) => {
-    if (!window.confirm(`Xác nhận xóa cuốn sách "${bookTitle || 'này'}" khỏi khung giờ Flash Sale? Sách sẽ được trả về trạng thái nguyên bản ngay lập tức.`)) return;
+  // Remove item from slot and return to original state (via 5s CountdownConfirmModal)
+  const handleRemoveItem = useCallback((itemId: string, bookTitle?: string) => {
+    setConfirmModal({
+      kind: 'REMOVE_ITEM',
+      itemId,
+      bookTitle,
+    });
+  }, []);
+
+  const handleConfirmModalAction = async () => {
+    if (!confirmModal) return;
     try {
-      const res = await flashSaleApi.sellerCancelItem(itemId);
-      if (res.success) {
-        showToast?.("Đã xóa sách khỏi Flash Sale thành công! Sách đã trả về nguyên bản.", "success");
-        realtimeSyncBus.publish('FLASH_SALE_UPDATED', { itemId });
-        invalidateFlashSaleCache();
-        fetchFlashSales(true);
-      } else {
-        showToast?.(res.error?.message || (res as any)?.message || "Không thể xóa sách khỏi đợt Flash Sale", "error");
+      setSubmittingConfirmModal(true);
+      if (confirmModal.kind === 'CANCEL_SLOT' && confirmModal.slot) {
+        const slot = confirmModal.slot;
+        const res = await flashSaleApi.cancelFlashSale(slot.id);
+        if (res.success) {
+          showToast?.(`Đã hủy lịch khung giờ "${slot.name}" thành công!`, "success");
+          setConfirmModal(null);
+          realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: slot.id });
+          void fetchFlashSales(true);
+        } else {
+          showToast?.(res.error?.message || "Lỗi khi hủy khung giờ", "error");
+        }
+      } else if (confirmModal.kind === 'REMOVE_ITEM' && confirmModal.itemId) {
+        const itemId = confirmModal.itemId;
+        const res = await flashSaleApi.sellerCancelItem(itemId);
+        if (res.success) {
+          showToast?.("Đã xóa sách khỏi Flash Sale thành công! Sách đã trả về nguyên bản.", "success");
+          setConfirmModal(null);
+          realtimeSyncBus.publish('FLASH_SALE_UPDATED', { itemId });
+          invalidateFlashSaleCache();
+          void fetchFlashSales(true);
+        } else {
+          showToast?.(res.error?.message || (res as any)?.message || "Không thể xóa sách khỏi đợt Flash Sale", "error");
+        }
       }
     } catch {
-      showToast?.("Lỗi kết nối khi xóa sách", "error");
+      showToast?.(
+        confirmModal.kind === 'CANCEL_SLOT' ? "Lỗi kết nối khi hủy khung giờ" : "Lỗi kết nối khi xóa sách",
+        "error",
+      );
+    } finally {
+      setSubmittingConfirmModal(false);
     }
   };
+
+  const sessionColumns: Column<FlashSaleSlot>[] = useMemo(
+    () => [
+      {
+        key: 'name',
+        title: 'Đợt Flash Sale & Khung Giờ',
+        width: 310,
+        render: (_val, slot) => {
+          const isStudioOpen = studioSlotId === slot.id;
+          const startTimeStr = new Date(slot.startsAt).toLocaleTimeString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          const endTimeStr = new Date(slot.endsAt).toLocaleTimeString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          const dateStr = new Date(slot.startsAt).toLocaleDateString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          });
+          return (
+            <div className="py-1 space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-slate-900 line-clamp-1">{slot.name}</span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                  Sàn HUKI
+                </span>
+                {isStudioOpen && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                    Đang mở Studio
+                  </span>
+                )}
+              </div>
+              <div className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">
+                <span className="material-symbols-outlined text-[13px] text-slate-400">schedule</span>
+                <span className="font-mono font-medium text-slate-700">
+                  {startTimeStr} – {endTimeStr}
+                </span>
+                <span className="text-slate-400">({dateStr})</span>
+              </div>
+              {slot.registrationStartsAt && slot.registrationEndsAt && (
+                <div className="text-[10.5px] text-amber-800 bg-amber-50/80 px-1.5 py-0.5 rounded border border-amber-200/60 inline-block font-mono">
+                  ĐK: {new Date(slot.registrationStartsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} –{' '}
+                  {new Date(slot.registrationEndsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                </div>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        key: 'policy',
+        title: 'Shop & Chính Sách',
+        width: 190,
+        render: (_val, slot) => (
+          <div className="py-1 space-y-1 text-xs">
+            <div className="flex items-center gap-1.5 font-mono font-bold text-slate-800">
+              <span className="material-symbols-outlined text-[14px] text-emerald-600">storefront</span>
+              <span>
+                {slot.participatingStoresCount || 0}/{slot.maxStores || 10} Shop
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap text-[10.5px]">
+              <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold">
+                Trợ giá -{slot.discountPercent ?? 30}%
+              </span>
+              <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-bold">
+                Max {slot.maxPerUser ?? 1}/khách
+              </span>
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: 'items',
+        title: 'Ấn Phẩm Đăng Ký',
+        width: 220,
+        render: (_val, slot) => {
+          const items = slot.items || [];
+          const previewTitles = items
+            .slice(0, 2)
+            .map((it: any) => it.bookTitle || it.book?.title)
+            .filter(Boolean);
+          return (
+            <div className="py-1 space-y-0.5">
+              <div className="text-xs font-bold text-slate-800">{items.length} ấn phẩm</div>
+              {previewTitles.length > 0 ? (
+                <p className="text-[11px] text-slate-500 line-clamp-1">
+                  {previewTitles.join(', ')}
+                  {items.length > 2 ? ` (+${items.length - 2})` : ''}
+                </p>
+              ) : (
+                <p className="text-[11px] text-slate-400 italic">Chưa có sách đăng ký</p>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        key: 'progress',
+        title: 'Tiến Độ & Doanh Thu',
+        width: 200,
+        render: (_val, slot) => {
+          const items = slot.items || [];
+          const sold = items.reduce((s: number, i: any) => s + Number(i.sold || 0), 0);
+          const stock = items.reduce((s: number, i: any) => s + Number(i.stock || 0), 0);
+          const total = sold + stock;
+          const pct = total > 0 ? Math.min(100, Math.round((sold / total) * 100)) : 0;
+          const rev = items.reduce((s: number, i: any) => s + Number(i.sold || 0) * Number(i.salePrice || 0), 0);
+
+          return (
+            <div className="py-1 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-600">
+                  Đã bán <strong className="text-slate-900">{sold}</strong>/{total}
+                </span>
+                <span className="font-mono text-slate-500">{pct}%</span>
+              </div>
+              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-[#00875A] rounded-full" style={{ width: `${pct}%` }} />
+              </div>
+              <div className="text-[11px] font-mono font-bold text-slate-900">
+                {rev.toLocaleString('vi-VN')} đ
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'actions',
+        title: 'Trạng Thái & Thao Tác',
+        width: 310,
+        align: 'right',
+        render: (_val, slot) => {
+          const isScheduled = slot.status === 'SCHEDULED';
+          const isStudioOpen = studioSlotId === slot.id;
+
+          return (
+            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+              <SlotStatusBadge slot={slot} />
+              <button
+                type="button"
+                onClick={() => handleOpenStudio(slot)}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs ${
+                  isStudioOpen
+                    ? 'bg-emerald-700 text-white hover:bg-emerald-800'
+                    : 'bg-gray-900 hover:bg-gray-800 text-white'
+                }`}
+              >
+                <span className="material-symbols-outlined text-sm">
+                  {isStudioOpen ? 'expand_less' : 'library_add'}
+                </span>
+                <span>{isStudioOpen ? 'Đóng Studio' : `Studio Sách (${slot.items?.length || 0})`}</span>
+              </button>
+              <SlotCountdownBadge slot={slot} onEndEarlyClick={setEndEarlyModalSlot} />
+              {isScheduled && (
+                <button
+                  type="button"
+                  onClick={() => handleCancelSlot(slot)}
+                  className="px-2.5 py-1.5 rounded-xl font-bold text-xs cursor-pointer border transition-colors bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 flex items-center gap-1 shadow-2xs"
+                  title="Hủy lịch mở bán khung giờ này"
+                >
+                  <span className="material-symbols-outlined text-[15px]">event_busy</span>
+                  <span>Hủy Lịch</span>
+                </button>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [studioSlotId, handleOpenStudio, handleCancelSlot],
+  );
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto pb-16 animate-in fade-in duration-200">
@@ -1260,497 +1434,442 @@ export function AdminFlashSaleView() {
         </div>
       </div>
 
-      {/* 5. GROUPED SESSIONS & DATA TABLES */}
-      {loading ? (
-        <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
-          <div className="w-8 h-8 border-4 border-[#00875A] border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-xs text-gray-500 mt-2 font-medium">Đang tải danh sách phiên Flash Sale...</p>
-        </div>
-      ) : groupedSessions.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
-          <span className="material-symbols-outlined text-4xl text-gray-300">bolt</span>
-          <h3 className="text-sm font-bold text-gray-700 mt-2">Chưa có khung giờ Flash Sale nào trong mục này</h3>
-          <p className="text-xs text-gray-500 mt-1">Bấm "+ Thiết Lập Khung Giờ Mới Toàn Sàn" để mở phiên giờ vàng đầu tiên!</p>
-        </div>
-      ) : (
-        <div className="space-y-8">
-          {groupedSessions.map((group) => (
-            <div key={group.groupKey} className="space-y-4">
-              {/* Group Title */}
-              <div className="flex items-center gap-2 px-1">
-                <span className="material-symbols-outlined text-lg text-gray-700">{group.icon}</span>
-                <h2 className="font-extrabold text-gray-900 text-sm sm:text-base tracking-tight">{group.title}</h2>
-                <span className={`px-2 py-0.5 rounded-full font-mono font-bold text-[10.5px] border ${group.badgeColor}`}>
-                  {group.sessions.length} phiên
+      {/* 5. IN-PAGE STUDIO GÁN SÁCH HÀNG LOẠT (KHI MỞ CHO 1 PHIÊN) */}
+      {activeStudioSlot && (
+        <div className="bg-white rounded-3xl border-2 border-emerald-500/70 shadow-lg overflow-hidden animate-in slide-in-from-top-3 duration-150">
+          <div className="px-5 py-3.5 bg-emerald-950 text-white flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="material-symbols-outlined text-xl text-emerald-300">library_add</span>
+              <div>
+                <h3 className="font-bold text-sm">
+                  Studio Gán Sách Hàng Loạt — {activeStudioSlot.name}
+                </h3>
+                <p className="text-[11px] text-emerald-200/90">
+                  Chọn nhanh đầu sách &amp; đồng bộ giá trợ giá sàn (-{activeStudioSlot.discountPercent ?? 30}%)
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStudioSlotId(null)}
+              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-sm">close</span>
+              <span>Đóng Studio</span>
+            </button>
+          </div>
+
+          <div className="p-5 bg-gray-50/50">
+            {/* Bulk Preset Tool Strip */}
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-xs font-bold text-emerald-900 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-base">tune</span>
+                  <span>Công cụ hàng loạt:</span>
+                </span>
+
+                <div className="flex items-center gap-1 text-xs">
+                  <span className="text-gray-600">Giảm</span>
+                  <input
+                    type="number"
+                    value={bulkDiscountPercent}
+                    onChange={(e) => setBulkDiscountPercent(e.target.value)}
+                    className="w-14 px-2 py-1 rounded-lg bg-white border border-gray-300 text-center font-bold font-mono text-xs"
+                  />
+                  <span className="text-gray-600">%</span>
+                </div>
+
+                <div className="flex items-center gap-1 text-xs">
+                  <span className="text-gray-600">Phân bổ</span>
+                  <input
+                    type="number"
+                    value={bulkStockQuota}
+                    onChange={(e) => setBulkStockQuota(e.target.value)}
+                    className="w-16 px-2 py-1 rounded-lg bg-white border border-gray-300 text-center font-bold font-mono text-xs"
+                  />
+                  <span className="text-gray-600">cuốn</span>
+                </div>
+
+                <div className="flex items-center gap-1 text-xs">
+                  <span className="text-gray-600">Hạn mức</span>
+                  <input
+                    type="number"
+                    value={bulkMaxPerUser}
+                    onChange={(e) => setBulkMaxPerUser(e.target.value)}
+                    className="w-12 px-2 py-1 rounded-lg bg-white border border-gray-300 text-center font-bold font-mono text-xs"
+                  />
+                  <span className="text-gray-600">cuốn/khách</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleApplyBulkSettings}
+                className="px-3.5 py-1.5 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-colors cursor-pointer shadow-2xs flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-sm">done_all</span>
+                <span>Áp Dụng Cho ({selectedBooksCount}) Sách Đã Chọn</span>
+              </button>
+            </div>
+
+            {/* Filter Search Bar */}
+            <div className="flex flex-wrap items-center gap-2.5 pb-3">
+              <div className="relative flex-1 min-w-[200px]">
+                <input
+                  type="text"
+                  placeholder="Tìm theo tên sách, tác giả..."
+                  value={bookSearchQuery}
+                  onChange={(e) => setBookSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-gray-300 text-xs focus:outline-none focus:border-[#00875A]"
+                />
+                <span className="material-symbols-outlined absolute left-2.5 top-2 text-gray-400 text-sm">
+                  search
                 </span>
               </div>
 
-              {/* Sessions in this group */}
-              <div className="grid grid-cols-1 gap-5">
-                {group.sessions.map((slot) => {
-                  const isActive = slot.status === "ACTIVE";
-                  const isScheduled = slot.status === "SCHEDULED";
-                  const isCancelled = slot.status === "CANCELLED";
-                  const isStudioOpen = studioSlotId === slot.id;
+              <select
+                value={bookCategoryFilter}
+                onChange={(e) => setBookCategoryFilter(e.target.value)}
+                className="px-3 py-1.5 rounded-xl border border-gray-300 bg-white text-xs font-medium focus:border-[#00875A]"
+              >
+                <option value="ALL">Tất Cả Danh Mục</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
 
-                  return (
-                    <div
-                      key={slot.id}
-                      className={`bg-white rounded-3xl border transition-all shadow-2xs overflow-hidden ${
-                        isStudioOpen ? 'border-2 border-emerald-500/80 shadow-md' : 'border-[#E2E8F0]'
-                      }`}
-                    >
-                      {/* Slot Header */}
-                      <div className="p-4 bg-gray-50/90 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 ${
-                              isActive
-                                ? "bg-rose-50 text-rose-600 border border-rose-200"
-                                : isCancelled
-                                ? "bg-red-50 text-red-600 border border-red-200"
-                                : "bg-gray-100 text-gray-600 border border-gray-200"
+              <select
+                value={bookFormatFilter}
+                onChange={(e) => setBookFormatFilter(e.target.value)}
+                className="px-3 py-1.5 rounded-xl border border-gray-300 bg-white text-xs font-medium focus:border-[#00875A]"
+              >
+                <option value="ALL">Tất Cả Định Dạng</option>
+                <option value="PHYSICAL">Sách Giấy</option>
+                <option value="DIGITAL">Ebook DRM</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={handleSelectAllFiltered}
+                className="px-3 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-bold shrink-0 cursor-pointer"
+              >
+                Chọn Tất Cả ({studioFilteredBooks.length})
+              </button>
+            </div>
+
+            {/* Selection Table */}
+            <div className="max-h-80 overflow-y-auto border border-gray-300 rounded-2xl bg-white">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-[#003B2B] text-[10.5px] font-bold text-white uppercase tracking-wider border-b border-[#00281D] sticky top-0 z-10">
+                  <tr>
+                    <th className="py-2.5 px-3 w-10 text-center">Chọn</th>
+                    <th className="py-2.5 px-3">Tác Phẩm &amp; Danh Mục</th>
+                    <th className="py-2.5 px-3 text-right">Giá Gốc</th>
+                    <th className="py-2.5 px-3 text-right">Giá Flash Sale</th>
+                    <th className="py-2.5 px-3 text-center">Tồn Kho Phân Bổ</th>
+                    <th className="py-2.5 px-3 text-center">Hạn mức</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {studioFilteredBooks.map((b) => {
+                    const cfg = bookConfigMap[b.id];
+                    const origPrice = Number(b.price || (b as any).pricePaper || 100000);
+                    const isSelected = Boolean(cfg?.isSelected);
+
+                    return (
+                      <tr
+                        key={b.id}
+                        onClick={() => handleToggleSelectBook(b.id)}
+                        className={`transition-colors cursor-pointer ${
+                          isSelected ? 'bg-emerald-50/60' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelectBook(b.id)}
+                            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                          />
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className="font-bold text-gray-900 block break-words line-clamp-2 leading-snug">{b.title}</span>
+                          <span className="text-[10px] text-gray-400">
+                            {(typeof b.author === 'object' ? b.author?.name : b.author) || 'HUKI Author'} • {b.category?.name || 'Văn học'}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-gray-400 line-through">
+                          {origPrice.toLocaleString('vi-VN')}₫
+                        </td>
+                        <td className="py-2.5 px-3 text-right" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="number"
+                            value={cfg?.salePrice ?? 0}
+                            disabled={!isSelected}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setBookConfigMap((prev) => ({
+                                ...prev,
+                                [b.id]: { ...prev[b.id], salePrice: val },
+                              }));
+                            }}
+                            className={`w-24 px-2 py-1 rounded border font-mono font-extrabold text-right text-xs ${
+                              isSelected ? 'border-rose-300 text-rose-600 bg-white' : 'border-gray-200 text-gray-400 bg-gray-50'
                             }`}
-                          >
-                            <span className="material-symbols-outlined text-2xl">
-                              {isCancelled ? "cancel" : "bolt"}
-                            </span>
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-extrabold text-gray-900 text-sm">{slot.name}</h3>
-                              <SlotStatusBadge slot={slot} />
-                              <span className="px-2 py-0.5 rounded-full font-bold text-[10.5px] bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1 font-mono">
-                                <span className="material-symbols-outlined text-[13px]">storefront</span>
-                                <span>Shop tham gia: {slot.participatingStoresCount || 0}/{slot.maxStores || 10}</span>
-                              </span>
-                            </div>
-                            <div className="text-[11px] text-gray-500 mt-1 flex items-center gap-3 flex-wrap font-mono">
-                              {slot.registrationStartsAt && slot.registrationEndsAt && (
-                                <span className="text-amber-800 bg-amber-50/80 px-1.5 py-0.5 rounded border border-amber-200/60">
-                                  ĐK: <strong>{new Date(slot.registrationStartsAt).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' })} - {new Date(slot.registrationEndsAt).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}</strong>
-                                </span>
-                              )}
-                              <span>
-                                Mở bán: <strong>{new Date(slot.startsAt).toLocaleString("vi-VN")}</strong> - <strong>{new Date(slot.endsAt).toLocaleString("vi-VN")}</strong>
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            onClick={() => handleOpenStudio(slot)}
-                            className={`px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs ${
-                              isStudioOpen
-                                ? "bg-gray-800 text-white hover:bg-gray-700"
-                                : "bg-gray-900 hover:bg-gray-800 text-white"
+                          />
+                        </td>
+                        <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="number"
+                            value={cfg?.stock ?? 0}
+                            disabled={!isSelected}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setBookConfigMap((prev) => ({
+                                ...prev,
+                                [b.id]: { ...prev[b.id], stock: val },
+                              }));
+                            }}
+                            className={`w-16 px-2 py-1 rounded border font-mono font-bold text-center text-xs ${
+                              isSelected ? 'border-gray-300 bg-white text-gray-800' : 'border-gray-200 text-gray-400 bg-gray-50'
                             }`}
-                          >
-                            <span className="material-symbols-outlined text-sm">
-                              {isStudioOpen ? "expand_less" : "library_add"}
-                            </span>
-                            <span>{isStudioOpen ? "Đóng Studio Sách" : `Studio Gán Sách (${slot.items?.length || 0})`}</span>
-                          </button>
-                          <SlotCountdownBadge slot={slot} onEndEarlyClick={setEndEarlyModalSlot} />
-                          {isScheduled ? (
-                            <button
-                              onClick={() => handleCancelSlot(slot)}
-                              className="px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer border transition-colors bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100 flex items-center gap-1 shadow-2xs"
-                              title="Hủy lịch mở bán khung giờ này"
-                            >
-                              <span className="material-symbols-outlined text-[15px]">event_busy</span>
-                              <span>Hủy Lịch</span>
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
+                          />
+                        </td>
+                        <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="number"
+                            value={cfg?.maxPerUser ?? 1}
+                            disabled={!isSelected}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setBookConfigMap((prev) => ({
+                                ...prev,
+                                [b.id]: { ...prev[b.id], maxPerUser: val },
+                              }));
+                            }}
+                            className={`w-14 px-2 py-1 rounded border font-mono font-bold text-center text-xs ${
+                              isSelected ? 'border-gray-300 bg-white text-gray-800' : 'border-gray-200 text-gray-400 bg-gray-50'
+                            }`}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
-                      {/* IN-PAGE MULTI-BOOK BULK REGISTRATION STUDIO (100% IN-PAGE, ZERO MODAL) */}
-                      {isStudioOpen && (
-                        <div className="p-5 bg-gray-50/50 border-b border-gray-200 animate-in slide-in-from-top-3 duration-150">
-                          {/* Bulk Preset Tool Strip */}
-                          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-wrap items-center justify-between gap-3 mb-4">
-                            <div className="flex items-center gap-3 flex-wrap">
-                              <span className="text-xs font-bold text-emerald-900 flex items-center gap-1">
-                                <span className="material-symbols-outlined text-base">tune</span>
-                                <span>Công cụ hàng loạt:</span>
-                              </span>
+            {/* Footer Studio Action */}
+            <div className="pt-3.5 flex items-center justify-between">
+              <div className="text-xs text-gray-600">
+                Đã chọn: <strong className="text-emerald-700 font-mono text-sm">{selectedBooksCount}</strong> cuốn sách
+              </div>
 
-                              <div className="flex items-center gap-1 text-xs">
-                                <span className="text-gray-600">Giảm</span>
-                                <input
-                                  type="number"
-                                  value={bulkDiscountPercent}
-                                  onChange={(e) => setBulkDiscountPercent(e.target.value)}
-                                  className="w-14 px-2 py-1 rounded-lg bg-white border border-gray-300 text-center font-bold font-mono text-xs"
-                                />
-                                <span className="text-gray-600">%</span>
-                              </div>
-
-                              <div className="flex items-center gap-1 text-xs">
-                                <span className="text-gray-600">Phân bổ</span>
-                                <input
-                                  type="number"
-                                  value={bulkStockQuota}
-                                  onChange={(e) => setBulkStockQuota(e.target.value)}
-                                  className="w-16 px-2 py-1 rounded-lg bg-white border border-gray-300 text-center font-bold font-mono text-xs"
-                                />
-                                <span className="text-gray-600">cuốn</span>
-                              </div>
-
-                              <div className="flex items-center gap-1 text-xs">
-                                <span className="text-gray-600">Hạn mức</span>
-                                <input
-                                  type="number"
-                                  value={bulkMaxPerUser}
-                                  onChange={(e) => setBulkMaxPerUser(e.target.value)}
-                                  className="w-12 px-2 py-1 rounded-lg bg-white border border-gray-300 text-center font-bold font-mono text-xs"
-                                />
-                                <span className="text-gray-600">cuốn/khách</span>
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={handleApplyBulkSettings}
-                              className="px-3.5 py-1.5 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-colors cursor-pointer shadow-2xs flex items-center gap-1"
-                            >
-                              <span className="material-symbols-outlined text-sm">done_all</span>
-                              <span>Áp Dụng Cho ({selectedBooksCount}) Sách Đã Chọn</span>
-                            </button>
-                          </div>
-
-                          {/* Filter Search Bar */}
-                          <div className="flex items-center gap-2.5 pb-3">
-                            <div className="relative flex-1">
-                              <input
-                                type="text"
-                                placeholder="Tìm theo tên sách, tác giả..."
-                                value={bookSearchQuery}
-                                onChange={(e) => setBookSearchQuery(e.target.value)}
-                                className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-gray-300 text-xs focus:outline-none focus:border-[#00875A]"
-                              />
-                              <span className="material-symbols-outlined absolute left-2.5 top-2 text-gray-400 text-sm">
-                                search
-                              </span>
-                            </div>
-
-                            <select
-                              value={bookCategoryFilter}
-                              onChange={(e) => setBookCategoryFilter(e.target.value)}
-                              className="px-3 py-1.5 rounded-xl border border-gray-300 bg-white text-xs font-medium focus:border-[#00875A]"
-                            >
-                              <option value="ALL">Tất Cả Danh Mục</option>
-                              {categories.map((cat) => (
-                                <option key={cat} value={cat}>{cat}</option>
-                              ))}
-                            </select>
-
-                            <select
-                              value={bookFormatFilter}
-                              onChange={(e) => setBookFormatFilter(e.target.value)}
-                              className="px-3 py-1.5 rounded-xl border border-gray-300 bg-white text-xs font-medium focus:border-[#00875A]"
-                            >
-                              <option value="ALL">Tất Cả Định Dạng</option>
-                              <option value="PHYSICAL">Sách Giấy</option>
-                              <option value="DIGITAL">Ebook DRM</option>
-                            </select>
-
-                            <button
-                              type="button"
-                              onClick={handleSelectAllFiltered}
-                              className="px-3 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-bold shrink-0 cursor-pointer"
-                            >
-                              Chọn Tất Cả ({studioFilteredBooks.length})
-                            </button>
-                          </div>
-
-                          {/* Selection Table */}
-                          <div className="max-h-80 overflow-y-auto border border-gray-300 rounded-2xl bg-white">
-                            <table className="w-full text-left text-xs border-collapse">
-                              <thead className="bg-[#003B2B] text-[10.5px] font-bold text-white uppercase tracking-wider border-b border-[#00281D] sticky top-0 z-10">
-                                <tr>
-                                  <th className="py-2.5 px-3 w-10 text-center">Chọn</th>
-                                  <th className="py-2.5 px-3">Tác Phẩm &amp; Danh Mục</th>
-                                  <th className="py-2.5 px-3 text-right">Giá Gốc</th>
-                                  <th className="py-2.5 px-3 text-right">Giá Flash Sale</th>
-                                  <th className="py-2.5 px-3 text-center">Tồn Kho Phân Bổ</th>
-                                  <th className="py-2.5 px-3 text-center">Hạn mức</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-gray-100">
-                                {studioFilteredBooks.map((b) => {
-                                  const cfg = bookConfigMap[b.id];
-                                  const origPrice = Number(b.price || (b as any).pricePaper || 100000);
-                                  const isSelected = cfg?.isSelected;
-
-                                  return (
-                                    <tr
-                                      key={b.id}
-                                      onClick={() => handleToggleSelectBook(b.id)}
-                                      className={`transition-colors cursor-pointer ${
-                                        isSelected ? 'bg-emerald-50/60' : 'hover:bg-gray-50'
-                                      }`}
-                                    >
-                                      <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
-                                        <input
-                                          type="checkbox"
-                                          checked={isSelected}
-                                          onChange={() => handleToggleSelectBook(b.id)}
-                                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                                        />
-                                      </td>
-                                      <td className="py-2.5 px-3">
-                                        <span className="font-bold text-gray-900 block break-words line-clamp-2 leading-snug">{b.title}</span>
-                                        <span className="text-[10px] text-gray-400">
-                                          {(typeof b.author === 'object' ? b.author?.name : b.author) || 'HUKI Author'} • {b.category?.name || 'Văn học'}
-                                        </span>
-                                      </td>
-                                      <td className="py-2.5 px-3 text-right font-mono text-gray-400 line-through">
-                                        {origPrice.toLocaleString('vi-VN')}₫
-                                      </td>
-                                      <td className="py-2.5 px-3 text-right" onClick={(e) => e.stopPropagation()}>
-                                        <input
-                                          type="number"
-                                          value={cfg?.salePrice}
-                                          disabled={!isSelected}
-                                          onChange={(e) => {
-                                            const val = Number(e.target.value);
-                                            setBookConfigMap((prev) => ({
-                                              ...prev,
-                                              [b.id]: { ...prev[b.id], salePrice: val },
-                                            }));
-                                          }}
-                                          className={`w-24 px-2 py-1 rounded border font-mono font-extrabold text-right text-xs ${
-                                            isSelected ? 'border-rose-300 text-rose-600 bg-white' : 'border-gray-200 text-gray-400 bg-gray-50'
-                                          }`}
-                                        />
-                                      </td>
-                                      <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
-                                        <input
-                                          type="number"
-                                          value={cfg?.stock}
-                                          disabled={!isSelected}
-                                          onChange={(e) => {
-                                            const val = Number(e.target.value);
-                                            setBookConfigMap((prev) => ({
-                                              ...prev,
-                                              [b.id]: { ...prev[b.id], stock: val },
-                                            }));
-                                          }}
-                                          className={`w-16 px-2 py-1 rounded border font-mono font-bold text-center text-xs ${
-                                            isSelected ? 'border-gray-300 bg-white text-gray-800' : 'border-gray-200 text-gray-400 bg-gray-50'
-                                          }`}
-                                        />
-                                      </td>
-                                      <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
-                                        <input
-                                          type="number"
-                                          value={cfg?.maxPerUser}
-                                          disabled={!isSelected}
-                                          onChange={(e) => {
-                                            const val = Number(e.target.value);
-                                            setBookConfigMap((prev) => ({
-                                              ...prev,
-                                              [b.id]: { ...prev[b.id], maxPerUser: val },
-                                            }));
-                                          }}
-                                          className={`w-14 px-2 py-1 rounded border font-mono font-bold text-center text-xs ${
-                                            isSelected ? 'border-gray-300 bg-white text-gray-800' : 'border-gray-200 text-gray-400 bg-gray-50'
-                                          }`}
-                                        />
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-
-                          {/* Footer Studio Action */}
-                          <div className="pt-3.5 flex items-center justify-between">
-                            <div className="text-xs text-gray-600">
-                              Đã chọn: <strong className="text-emerald-700 font-mono text-sm">{selectedBooksCount}</strong> cuốn sách
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setStudioSlotId(null)}
-                                className="px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-xs cursor-pointer"
-                              >
-                                Đóng Studio
-                              </button>
-                              <button
-                                type="button"
-                                disabled={submittingBatch || selectedBooksCount === 0}
-                                onClick={handleBatchSubmit}
-                                className="px-5 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:bg-gray-300 text-white font-bold text-xs transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
-                              >
-                                {submittingBatch ? (
-                                  <span>Đang gán sách...</span>
-                                ) : (
-                                  <>
-                                    <span className="material-symbols-outlined text-base">cloud_upload</span>
-                                    <span>Xác Nhận Đưa {selectedBooksCount} Sách Vào Phiên</span>
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Slot Items Table */}
-                      {slot.items && slot.items.length > 0 ? (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left text-xs border-collapse min-w-[1000px]">
-                            <thead className="bg-[#003B2B] text-[10.5px] font-bold text-white uppercase tracking-wider border-b border-[#00281D]">
-                              <tr>
-                                <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
-                                <th className="py-3 px-3.5 whitespace-nowrap">Tác phẩm & Mã</th>
-                                <th className="py-3 px-3 whitespace-nowrap text-right">Giá Gốc</th>
-                                <th className="py-3 px-3 whitespace-nowrap text-right">Giá Flash Sale</th>
-                                <th className="py-3 px-3 whitespace-nowrap text-center">Giảm Giá</th>
-                                <th className="py-3 px-3 whitespace-nowrap text-center">Tồn kho KM</th>
-                                <th className="py-3 px-3.5 whitespace-nowrap">Tiến Độ Bán</th>
-                                <th className="py-3 px-4 whitespace-nowrap text-center">Hạn Mức/Khách</th>
-                                <th className="py-3 px-4 whitespace-nowrap text-right">Thao tác</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                              {slot.items.map((item: any, idx: number) => {
-                                const isEditing = editingRowId === item.id;
-                                return (
-                                  <tr
-                                    key={item.id}
-                                    className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}
-                                  >
-                                    <td className="py-3 px-3.5 whitespace-nowrap text-center font-mono text-[11px] text-gray-400">
-                                      {idx + 1}
-                                    </td>
-                                    <td className="py-3 px-3.5 whitespace-nowrap">
-                                      <span className="font-bold text-gray-900 block break-words line-clamp-2 leading-snug">
-                                        {item.bookTitle || `Sách #${item.bookId.slice(0, 8)}`}
-                                      </span>
-                                      <span className="font-mono text-[10px] text-gray-400">Mã: #{item.bookId.slice(0, 8)}</span>
-                                    </td>
-                                    <td className="py-3 px-3 whitespace-nowrap text-right text-gray-400 line-through font-mono">
-                                      {Number(item.originalPrice).toLocaleString("vi-VN")}₫
-                                    </td>
-                                    <td className="py-3 px-3 whitespace-nowrap text-right font-extrabold text-rose-600 font-mono">
-                                      {Number(item.salePrice).toLocaleString("vi-VN")}₫
-                                    </td>
-                                    <td className="py-3 px-3 whitespace-nowrap text-center font-bold text-emerald-600">
-                                      -{item.discountPercent}%
-                                    </td>
-                                    <td className="py-3 px-3 whitespace-nowrap text-center font-semibold text-gray-800">
-                                      {isEditing ? (
-                                        <input
-                                          type="number"
-                                          value={editingRowData?.stock}
-                                          onChange={(e) =>
-                                            setEditingRowData((prev) =>
-                                              prev ? { ...prev, stock: Number(e.target.value) } : null,
-                                            )
-                                          }
-                                          className="w-20 px-2 py-1 rounded border border-emerald-500 font-mono font-bold text-center"
-                                        />
-                                      ) : (
-                                        <span>{item.stock} cuốn</span>
-                                      )}
-                                    </td>
-                                    <td className="py-3 px-3.5 whitespace-nowrap">
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-20 bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                                          <div
-                                            className="bg-rose-500 h-full rounded-full"
-                                            style={{ width: `${item.soldPercent || 0}%` }}
-                                          ></div>
-                                        </div>
-                                        <span className="text-[11px] font-bold text-gray-700">
-                                          {item.sold || 0} đã bán
-                                        </span>
-                                      </div>
-                                    </td>
-                                    <td className="py-3 px-4 whitespace-nowrap text-center">
-                                      <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold text-[10.5px] border border-amber-200">
-                                        Max {item.maxPerUser || 1} cuốn
-                                      </span>
-                                    </td>
-                                    <td className="py-3 px-4 whitespace-nowrap text-right">
-                                      {isEditing ? (
-                                        <div className="flex items-center justify-end gap-1">
-                                          <button
-                                            onClick={() => handleSaveInlineEdit(item.id)}
-                                            className="px-2 py-1 bg-emerald-600 text-white rounded text-[11px] font-bold cursor-pointer"
-                                          >
-                                            Lưu
-                                          </button>
-                                          <button
-                                            onClick={() => {
-                                              setEditingRowId(null);
-                                              setEditingRowData(null);
-                                            }}
-                                            className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-[11px] cursor-pointer"
-                                          >
-                                            Hủy
-                                          </button>
-                                        </div>
-                                      ) : (
-                                        <div className="flex items-center justify-end gap-1.5">
-                                          <button
-                                            onClick={() => {
-                                              setEditingRowId(item.id);
-                                              setEditingRowData({
-                                                salePrice: item.salePrice,
-                                                stock: item.stock,
-                                                maxPerUser: item.maxPerUser,
-                                              });
-                                            }}
-                                            className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold cursor-pointer"
-                                          >
-                                            Sửa Tồn
-                                          </button>
-                                          <button
-                                            onClick={() => handleRemoveItem(item.id, item.bookTitle)}
-                                            title="Xóa sách này khỏi khung giờ Flash Sale (Trả về nguyên bản)"
-                                            className="px-2 py-1 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold cursor-pointer transition-colors inline-flex items-center gap-0.5"
-                                          >
-                                            <span className="material-symbols-outlined text-[13px]">delete</span>
-                                            <span>Xóa</span>
-                                          </button>
-                                        </div>
-                                      )}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : (
-                        <div className="p-6 text-center text-xs text-gray-400">
-                          Chưa có sách nào trong khung giờ này. Hãy bấm <strong>"Studio Gán Sách"</strong> để chọn hàng loạt sản phẩm!
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStudioSlotId(null)}
+                  className="px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-xs cursor-pointer"
+                >
+                  Đóng Studio
+                </button>
+                <button
+                  type="button"
+                  disabled={submittingBatch || selectedBooksCount === 0}
+                  onClick={handleBatchSubmit}
+                  className="px-5 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:bg-gray-300 text-white font-bold text-xs transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
+                >
+                  <span className={`material-symbols-outlined text-base ${submittingBatch ? 'animate-spin' : ''}`}>
+                    {submittingBatch ? 'progress_activity' : 'cloud_upload'}
+                  </span>
+                  <span>
+                    {submittingBatch ? 'Đang gán sách...' : `Xác Nhận Đưa ${selectedBooksCount} Sách Vào Phiên`}
+                  </span>
+                </button>
               </div>
             </div>
-          ))}
-
-          <AdminPagination
-            currentPage={currentPage}
-            totalPages={Math.ceil(filteredFlashSales.length / pageSize) || 1}
-            totalItems={filteredFlashSales.length}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-          />
+          </div>
         </div>
       )}
+
+      {/* 6. STANDARDIZED GROUPED DATA TABLE (1-1 SYNC WITH SELLER FLASH SALE) */}
+      <div className="w-full max-w-full min-w-0">
+        <GroupedDataTable<FlashSaleSlot>
+          columns={sessionColumns}
+          data={sortedFlashSales}
+          keyField="id"
+          loading={loading}
+          emptyTitle="Chưa có khung giờ Flash Sale nào trong mục này"
+          emptyMessage='Bấm "+ Thiết Lập Khung Giờ Mới Toàn Sàn" để mở phiên giờ vàng đầu tiên!'
+          emptyIcon="bolt"
+          pagination={{
+            currentPage,
+            totalItems: sortedFlashSales.length,
+            pageSize,
+            onPageChange: setCurrentPage,
+            itemLabel: 'phiên Flash Sale',
+          }}
+          expandable={true}
+          expandedRowKeys={expandedRowKeys}
+          onExpandedRowsChange={setExpandedRowKeys}
+          expandedRowRender={(slot) => {
+            const items = slot.items || [];
+            if (items.length === 0) {
+              return (
+                <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-200/70 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+                  <span>
+                    Chưa có sách nào trong khung giờ này. Bấm &quot;Studio Sách&quot; để gán hàng loạt sản phẩm!
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenStudio(slot)}
+                    className="px-3 py-1.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white font-bold text-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm">library_add</span>
+                    <span>Mở Studio Sách</span>
+                  </button>
+                </div>
+              );
+            }
+
+            return (
+              <div className="bg-white rounded-2xl border border-slate-200/80 overflow-x-auto shadow-2xs">
+                <table className="w-full text-left text-xs border-collapse min-w-[920px]">
+                  <thead className="bg-[#003B2B] text-[10.5px] font-bold text-white uppercase tracking-wider border-b border-[#00281D]">
+                    <tr>
+                      <th className="py-2.5 px-3 whitespace-nowrap w-12 text-center">STT</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap">Tác phẩm &amp; Mã</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap text-right">Giá Gốc</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap text-right">Giá Flash Sale</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap text-center">Giảm Giá</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap text-center">Tồn kho KM</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap">Tiến Độ Bán</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap text-center">Hạn Mức/Khách</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap text-right">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {items.map((item: any, idx: number) => {
+                      const isEditing = editingRowId === item.id;
+                      const displayTitle = item.bookTitle || item.book?.title || `Sách #${String(item.bookId || '').slice(0, 8)}`;
+                      return (
+                        <tr
+                          key={item.id}
+                          className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}
+                        >
+                          <td className="py-2.5 px-3 whitespace-nowrap text-center font-mono text-[11px] text-gray-400">
+                            {idx + 1}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="font-bold text-gray-900 block break-words line-clamp-2 leading-snug">
+                              {displayTitle}
+                            </span>
+                            <span className="font-mono text-[10px] text-gray-400">
+                              Mã: #{String(item.bookId || '').slice(0, 8)}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap text-right text-gray-400 line-through font-mono">
+                            {Number(item.originalPrice || 0).toLocaleString("vi-VN")}₫
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap text-right font-extrabold text-rose-600 font-mono">
+                            {Number(item.salePrice || 0).toLocaleString("vi-VN")}₫
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap text-center font-bold text-emerald-600">
+                            -{item.discountPercent ?? slot.discountPercent ?? 0}%
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap text-center font-semibold text-gray-800">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                value={editingRowData?.stock ?? 0}
+                                onChange={(e) =>
+                                  setEditingRowData((prev) =>
+                                    prev ? { ...prev, stock: Number(e.target.value) } : null,
+                                  )
+                                }
+                                className="w-20 px-2 py-1 rounded border border-emerald-500 font-mono font-bold text-center"
+                              />
+                            ) : (
+                              <span>{item.stock} cuốn</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <div className="w-20 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                <div
+                                  className="bg-rose-500 h-full rounded-full"
+                                  style={{ width: `${item.soldPercent || 0}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-[11px] font-bold text-gray-700">
+                                {item.sold || 0} đã bán
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap text-center">
+                            <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold text-[10.5px] border border-amber-200">
+                              Max {item.maxPerUser || 1} cuốn
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap text-right">
+                            {isEditing ? (
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveInlineEdit(item.id)}
+                                  className="px-2 py-1 bg-emerald-600 text-white rounded text-[11px] font-bold cursor-pointer"
+                                >
+                                  Lưu
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingRowId(null);
+                                    setEditingRowData(null);
+                                  }}
+                                  className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-[11px] cursor-pointer"
+                                >
+                                  Hủy
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingRowId(item.id);
+                                    setEditingRowData({
+                                      salePrice: item.salePrice,
+                                      stock: item.stock,
+                                      maxPerUser: item.maxPerUser,
+                                    });
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold cursor-pointer"
+                                >
+                                  Sửa Tồn
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveItem(item.id, displayTitle)}
+                                  title="Xóa sách này khỏi khung giờ Flash Sale (Trả về nguyên bản)"
+                                  className="px-2 py-1 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold cursor-pointer transition-colors inline-flex items-center gap-0.5"
+                                >
+                                  <span className="material-symbols-outlined text-[13px]">delete</span>
+                                  <span>Xóa</span>
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          }}
+        />
+      </div>
     </>
   )}
       {/* MODAL XÁC NHẬN KẾT THÚC SỚM (5 PHÚT) */}
@@ -1822,6 +1941,41 @@ export function AdminFlashSaleView() {
           </div>
         </div>
       )}
+
+      {/* MODAL XÁC NHẬN ĐẾM NGƯỢC 5S (HỦY LỊCH / XÓA SÁCH) */}
+      <CountdownConfirmModal
+        isOpen={Boolean(confirmModal)}
+        title={
+          confirmModal?.kind === 'CANCEL_SLOT'
+            ? 'Xác nhận hủy lịch Flash Sale toàn sàn'
+            : 'Xác nhận xóa sách khỏi khung giờ Flash Sale'
+        }
+        description={
+          confirmModal?.kind === 'CANCEL_SLOT' ? (
+            <span>
+              Bạn có chắc chắn muốn hủy lịch mở bán khung giờ{' '}
+              <strong className="text-slate-900">&quot;{confirmModal?.slot?.name}&quot;</strong>?
+              Đợt sẽ chuyển sang trạng thái <strong>ĐÃ HỦY</strong> và lưu vết lịch sử.
+            </span>
+          ) : (
+            <span>
+              Bạn có chắc chắn muốn xóa cuốn sách{' '}
+              <strong className="text-slate-900">&quot;{confirmModal?.bookTitle || 'này'}&quot;</strong>{' '}
+              khỏi khung giờ Flash Sale? Sách sẽ được trả về trạng thái nguyên bản ngay lập tức.
+            </span>
+          )
+        }
+        countdownSeconds={5}
+        confirmLabel={
+          confirmModal?.kind === 'CANCEL_SLOT' ? 'Xác nhận hủy lịch' : 'Xác nhận xóa sách'
+        }
+        cancelLabel="Giữ lại"
+        loading={submittingConfirmModal}
+        onConfirm={handleConfirmModalAction}
+        onCancel={() => {
+          if (!submittingConfirmModal) setConfirmModal(null);
+        }}
+      />
     </div>
   );
 }

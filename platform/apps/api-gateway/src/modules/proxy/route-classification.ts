@@ -89,7 +89,7 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
     normPath === '/seller-penalties' ||
     normPath.startsWith('/seller-penalties')
   ) {
-    if (upperMethod === 'GET') {
+    if (upperMethod === 'GET' || upperMethod === 'HEAD') {
       return 'PUBLIC';
     }
   }
@@ -213,7 +213,7 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
     return 'PUBLIC';
   }
 
-  if (upperMethod === 'GET') {
+  if (upperMethod === 'GET' || upperMethod === 'HEAD') {
     if (
       normPath.startsWith('/catalog') ||
       normPath.startsWith('/categories') ||

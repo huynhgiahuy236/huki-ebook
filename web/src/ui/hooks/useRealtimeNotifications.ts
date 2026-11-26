@@ -308,8 +308,15 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
         }
       }
 
-      // 1. Play priority sound
-      soundEffects.playPriorityAlert(newNoti.priority || 'NORMAL');
+      // 1. Play priority sound (skip toast & sound if user is already viewing chat page for NEW_MESSAGE)
+      const isChatMsg = newNoti.type === 'NEW_MESSAGE';
+      const activePath = typeof window !== 'undefined' ? window.location.pathname : '';
+      const isOnChatRoute =
+        activePath.startsWith('/seller/chat') || activePath.startsWith('/account/messages');
+
+      if (!(isChatMsg && isOnChatRoute)) {
+        soundEffects.playPriorityAlert(newNoti.priority || 'NORMAL');
+      }
 
       // 2. Prepend to list
       setNotifications((prev) => [newNoti, ...prev.filter((n) => n.id !== newNoti.id)]);
@@ -319,22 +326,26 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
       setTotalCount((prev) => prev + 1);
 
       // 4. Show Toast popup with appropriate priority style
-      const toastType =
-        newNoti.priority === 'CRITICAL'
-          ? 'error'
-          : newNoti.priority === 'HIGH'
-          ? 'warning'
-          : 'info';
+      if (!(isChatMsg && isOnChatRoute)) {
+        const toastType =
+          newNoti.priority === 'CRITICAL'
+            ? 'error'
+            : newNoti.priority === 'HIGH'
+            ? 'warning'
+            : 'info';
 
-      showToast({
-        title: `${newNoti.priority === 'CRITICAL' ? '' : newNoti.priority === 'HIGH' ? '' : ''}${newNoti.title}`,
-        message: newNoti.message,
-        type: toastType,
-        actionUrl: newNoti.actionUrl,
-        actionLabel: newNoti.actionUrl ? 'Xem ngay' : undefined,
-        duration: newNoti.priority === 'CRITICAL' ? 10000 : 6000,
-        playSound: false, // already played priority sound above
-      });
+        const chatMsgId = (newNoti.payload as any)?.message?.id;
+        showToast({
+          id: isChatMsg && chatMsgId ? `chat_msg_${chatMsgId}` : undefined,
+          title: `${newNoti.priority === 'CRITICAL' ? '' : newNoti.priority === 'HIGH' ? '' : ''}${newNoti.title}`,
+          message: newNoti.message,
+          type: toastType,
+          actionUrl: newNoti.actionUrl,
+          actionLabel: newNoti.actionUrl ? 'Xem ngay' : undefined,
+          duration: newNoti.priority === 'CRITICAL' ? 10000 : 6000,
+          playSound: false, // already played priority sound above
+        });
+      }
 
       // 5. Broadcast to internal app bus
       realtimeSyncBus.publish('NOTIFICATIONS_UPDATED', newNoti);

@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { EventsModule } from "@huki/shared";
+import { NotificationsModule } from "../notifications/notifications.module";
 import { AuthenticatedCommunityGuard } from "../../common/community-auth.guard";
 import {
   Conversation,
@@ -21,6 +22,7 @@ import { QuickReplyService } from "./quick-reply.service";
 @Module({
   imports: [
     EventsModule,
+    NotificationsModule,
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
     MongooseModule.forFeature([
       { name: Conversation.name, schema: ConversationSchema },

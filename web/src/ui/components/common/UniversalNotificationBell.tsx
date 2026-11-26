@@ -624,6 +624,27 @@ export default function UniversalNotificationBell({
       }
 
 
+      // Kiểm tra có phải thông báo Tin nhắn Chat mới
+      if (n.type === 'NEW_MESSAGE') {
+        const convId = payload.conversationId ? String(payload.conversationId) : '';
+        const defaultChatAction = isSeller
+          ? (convId ? `/seller/chat?conversationId=${encodeURIComponent(convId)}` : '/seller/chat')
+          : (convId ? `/account/messages?conversationId=${encodeURIComponent(convId)}` : '/account/messages');
+        list.push({
+          id: n.id,
+          notifId: n.id,
+          category: 'SYSTEM',
+          title: n.title || 'Tin nhắn mới từ khách hàng',
+          message: n.message,
+          content: n.message,
+          actionUrl: n.actionUrl || defaultChatAction,
+          actionLabel: 'Trả lời ngay',
+          createdAt: n.createdAt,
+          isRead: n.isRead,
+        });
+        return;
+      }
+
       // Kiểm tra có phải thông báo Tài chính / Ví
       const isFinanceNotif =
         n.type === 'PAYMENT_SUCCESS' ||
