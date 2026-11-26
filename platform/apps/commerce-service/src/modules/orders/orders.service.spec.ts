@@ -1113,6 +1113,71 @@ describe("OrdersService (Prisma)", () => {
       const detail: any = await service.buyerDetail("buyer-1", "ord-ebook-1");
       expect(detail.paidAt).toEqual(paidTimestamp);
     });
+
+    it("BUG-27: exposes canonical and compatibility fields (bookTitle/title, bookCoverUrl/coverUrl, unitPrice/price, shippingTotal/shippingFee)", async () => {
+      prisma.order.findFirst = jest.fn().mockResolvedValue({
+        id: "ord-pay-1",
+        code: "ORD-PAY-1",
+        userId: "buyer-1",
+        itemSubtotal: 552000,
+        shippingTotal: 30000,
+        discountTotal: 15000,
+        grandTotal: 567000,
+        paymentMethod: "ONLINE_PAYMENT",
+        paymentProvider: "PAYOS",
+        paymentStatus: "PROCESSING",
+        status: "PENDING_PAYMENT",
+        shippingAddress: { recipientName: "Huỳnh Gia Huy", phone: "0901234567" },
+        note: null,
+        createdAt: new Date("2026-11-26T09:00:00Z"),
+        updatedAt: new Date("2026-11-26T09:00:00Z"),
+        payments: [],
+        sellerOrders: [
+          {
+            id: "so-pay-1",
+            orderId: "ord-pay-1",
+            code: "ORD-PAY-1-S1",
+            storeId: "77777777-0000-4000-8000-000000000001",
+            ownerUserId: "99999999-0000-4000-8000-000000000001",
+            requiresShipping: true,
+            itemSubtotal: 552000,
+            shippingFee: 30000,
+            grandTotal: 567000,
+            status: SellerOrderStatus.PENDING_PAYMENT,
+            createdAt: new Date("2026-11-26T09:00:00Z"),
+            updatedAt: new Date("2026-11-26T09:00:00Z"),
+            items: [
+              {
+                id: "oi-1",
+                bookId: "book-1",
+                bookTitle: "Nhà Giả Kim",
+                bookCoverUrl: "https://cdn.huki.vn/alchemist.jpg",
+                bookIsbn: "978-604-53-7890-1",
+                format: "PHYSICAL",
+                quantity: 2,
+                unitPrice: 98000,
+                subtotal: 196000,
+              },
+            ],
+          },
+        ],
+      });
+
+      const detail: any = await service.buyerDetail("buyer-1", "ord-pay-1");
+      expect(detail.shippingTotal).toBe(30000);
+      expect(detail.shippingFee).toBe(30000);
+      expect(detail.discountTotal).toBe(15000);
+      expect(detail.discountAmount).toBe(15000);
+      const item = detail.sellerOrders[0].items[0];
+      expect(item.bookTitle).toBe("Nhà Giả Kim");
+      expect(item.title).toBe("Nhà Giả Kim");
+      expect(item.bookCoverUrl).toBe("https://cdn.huki.vn/alchemist.jpg");
+      expect(item.coverUrl).toBe("https://cdn.huki.vn/alchemist.jpg");
+      expect(item.coverImage).toBe("https://cdn.huki.vn/alchemist.jpg");
+      expect(item.unitPrice).toBe(98000);
+      expect(item.price).toBe(98000);
+      expect(item.subtotal).toBe(196000);
+    });
   });
 
   describe("BUG-045: Admin Escrow SSOT synced with Ledger/Wallet settlements & 3-min rule", () => {

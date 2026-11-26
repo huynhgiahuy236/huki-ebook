@@ -391,7 +391,17 @@ function translateValidationRule(msg: string): string {
   if (/physicalDetails\.width/i.test(trimmed)) return 'Chiều rộng sách phải là số dương';
   if (/physicalDetails\.height/i.test(trimmed)) return 'Chiều cao sách phải là số dương';
   if (/email.*email/i.test(trimmed)) return 'Email không đúng định dạng';
-  if (/phone/i.test(trimmed)) return 'Số điện thoại không hợp lệ';
+  if (/phone/i.test(trimmed)) return 'Số điện thoại không đúng định dạng Việt Nam (VD: 0912345678)';
+  if (/(shippingAddress\.)?ward\b/i.test(trimmed)) return 'Vui lòng chọn Phường/Xã giao hàng hợp lệ';
+  if (/(shippingAddress\.)?district\b/i.test(trimmed)) return 'Vui lòng chọn Quận/Huyện hoặc khu vực giao hàng hợp lệ';
+  if (/(shippingAddress\.)?province\b/i.test(trimmed)) return 'Vui lòng chọn Tỉnh/Thành phố giao hàng hợp lệ';
+  if (/(shippingAddress\.)?(line1|address)\b/i.test(trimmed)) return 'Vui lòng nhập địa chỉ giao hàng chi tiết (tối đa 250 ký tự)';
+  if (/recipientName/i.test(trimmed)) return 'Vui lòng nhập họ tên người nhận hàng hợp lệ';
+  if (/note.*shorter|note.*max/i.test(trimmed)) return 'Ghi chú đơn hàng (bao gồm thông tin hóa đơn) vượt quá 500 ký tự';
+  if (/sessionId.*UUID/i.test(trimmed)) return 'Phiên thanh toán không hợp lệ, vui lòng tải lại trang';
+  if (/addressId.*UUID/i.test(trimmed)) return 'Mã địa chỉ giao hàng không hợp lệ, vui lòng chọn lại địa chỉ';
+  if (/(returnUrl|cancelUrl).*URL/i.test(trimmed)) return 'Đường dẫn chuyển hướng thanh toán không hợp lệ';
+  if (/affiliateToken/i.test(trimmed)) return 'Mã giới thiệu (affiliate) vượt quá độ dài cho phép';
   if (/tax.*code/i.test(trimmed)) return 'Mã số thuế không hợp lệ';
   if (/maxStores.*greater than 10/i.test(trimmed)) return 'Số lượng gian hàng tham gia tối đa không được vượt quá 10';
   if (/maxItemsPerStore/i.test(trimmed)) return 'Số lượng sản phẩm mỗi gian hàng không hợp lệ';
@@ -400,7 +410,24 @@ function translateValidationRule(msg: string): string {
   return trimmed;
 }
 
-export function extractHumanErrorMessage(body: unknown, status: number): { title?: string; message: string; code: string } {
+function extractDetailsList(details: unknown): string[] {
+  if (!Array.isArray(details) || details.length === 0) return [];
+  return details
+    .map((detail: unknown) => {
+      if (typeof detail === 'string') return translateValidationRule(detail);
+      if (!detail || typeof detail !== 'object') return null;
+      const item = detail as Record<string, unknown>;
+      const raw = typeof item.message === 'string'
+        ? item.message
+        : typeof item.field === 'string'
+          ? item.field
+          : null;
+      return raw ? translateValidationRule(raw) : null;
+    })
+    .filter((detail): detail is string => Boolean(detail));
+}
+
+export function extractHumanErrorMessage(body: unknown, status: number): { title?: string; message: string; code: string; details?: unknown } {
   const defaultHttp = HTTP_STATUS_TRANSLATIONS[status] || {
     title: 'Thông báo',
     message: `Hệ thống gặp sự cố khi xử lý yêu cầu (Mã: ${status}). Vui lòng thử lại sau.`,
@@ -427,32 +454,11 @@ export function extractHumanErrorMessage(body: unknown, status: number): { title
       title: BUSINESS_ERROR_TRANSLATIONS[rawCode].title,
       message: BUSINESS_ERROR_TRANSLATIONS[rawCode].message,
       code: rawCode,
+      details: obj.details ?? nestedError?.details,
     };
   }
 
-  // 2. Ưu tiên message cụ thể từ backend nếu có (ví dụ: số lần thử còn lại, tài khoản chưa tồn tại...)
-  const rawMessage = obj.message
-    || nestedError?.message
-    || (typeof obj.error === 'string' ? obj.error : null);
-
-  if (typeof rawMessage === 'string' && rawMessage.trim()) {
-    const trimmed = rawMessage.trim();
-    const lower = trimmed.toLowerCase();
-    if (
-      lower !== 'internal server error' &&
-      lower !== 'bad request' &&
-      lower !== 'unauthorized' &&
-      lower !== 'not found' &&
-      lower !== 'forbidden' &&
-      lower !== 'conflict'
-    ) {
-      return {
-        title: defaultHttp.title,
-        message: translateValidationRule(trimmed),
-        code: rawCode || defaultHttp.code,
-      };
-    }
-  }
+  const detailList = extractDetailsList(obj.details ?? nestedError?.details);
 
   // 2. Xử lý mảng validation errors từ NestJS (Class Validator)
   if (Array.isArray(obj.message) && obj.message.length > 0) {
@@ -470,51 +476,72 @@ export function extractHumanErrorMessage(body: unknown, status: number): { title
       title: 'Thông tin chưa hợp lệ',
       message: cleanItems.join('. '),
       code: 'VALIDATION_ERROR',
+      details: obj.details ?? nestedError?.details,
     };
   }
 
-  // 3. Xử lý chi tiết lỗi validation P3 (details: [{ field, message }])
-  if (Array.isArray(obj.details) && obj.details.length > 0) {
-    const detailList = obj.details
-      .map((detail: unknown) => {
-        if (!detail || typeof detail !== 'object') return null;
-        const item = detail as Record<string, unknown>;
-        const raw = typeof item.message === 'string'
-          ? item.message
-          : typeof item.field === 'string'
-            ? item.field
-            : null;
-        return raw ? translateValidationRule(raw) : null;
-      })
-      .filter((detail): detail is string => Boolean(detail));
-    if (detailList.length > 0) {
+  // 3. Nếu có chi tiết lỗi cụ thể (P3 details: [{ field, message }]) và message chung là Validation failed / Bad Request -> ưu tiên dịch details
+  const rawMessage = obj.message
+    || nestedError?.message
+    || (typeof obj.error === 'string' ? obj.error : null);
+  const trimmedMsg = typeof rawMessage === 'string' ? rawMessage.trim() : '';
+  const lowerMsg = trimmedMsg.toLowerCase();
+
+  if (detailList.length > 0 && (!trimmedMsg || lowerMsg === 'validation failed' || lowerMsg === 'bad request')) {
+    return {
+      title: 'Thông tin chưa hợp lệ',
+      message: detailList.join('. '),
+      code: rawCode || 'VALIDATION_ERROR',
+      details: obj.details ?? nestedError?.details,
+    };
+  }
+
+  // 4. Ưu tiên message cụ thể từ backend nếu có (ví dụ: số lần thử còn lại, tài khoản chưa tồn tại...)
+  if (trimmedMsg) {
+    if (
+      lowerMsg !== 'internal server error' &&
+      lowerMsg !== 'bad request' &&
+      lowerMsg !== 'unauthorized' &&
+      lowerMsg !== 'not found' &&
+      lowerMsg !== 'forbidden' &&
+      lowerMsg !== 'conflict' &&
+      lowerMsg !== 'validation failed'
+    ) {
       return {
-        title: 'Thông tin chưa hợp lệ',
-        message: detailList.join('. '),
-        code: rawCode || 'VALIDATION_ERROR',
+        title: defaultHttp.title,
+        message: translateValidationRule(trimmedMsg),
+        code: rawCode || defaultHttp.code,
+        details: obj.details ?? nestedError?.details,
       };
     }
   }
 
-  // 4. Lấy chuỗi message thô nếu có và làm sạch
-  if (typeof rawMessage === 'string' && rawMessage.trim()) {
-    const trimmed = rawMessage.trim();
+  if (detailList.length > 0) {
+    return {
+      title: 'Thông tin chưa hợp lệ',
+      message: detailList.join('. '),
+      code: rawCode || 'VALIDATION_ERROR',
+      details: obj.details ?? nestedError?.details,
+    };
+  }
 
-    if (BUSINESS_ERROR_TRANSLATIONS[trimmed]) {
+  // 5. Lấy chuỗi message thô nếu có và làm sạch
+  if (trimmedMsg) {
+    if (BUSINESS_ERROR_TRANSLATIONS[trimmedMsg]) {
       return {
-        title: BUSINESS_ERROR_TRANSLATIONS[trimmed].title,
-        message: BUSINESS_ERROR_TRANSLATIONS[trimmed].message,
+        title: BUSINESS_ERROR_TRANSLATIONS[trimmedMsg].title,
+        message: BUSINESS_ERROR_TRANSLATIONS[trimmedMsg].message,
         code: rawCode,
       };
     }
 
-    if (trimmed.toLowerCase() === 'internal server error' || trimmed.toLowerCase() === 'bad request') {
+    if (lowerMsg === 'internal server error' || lowerMsg === 'bad request') {
       return defaultHttp;
     }
 
     return {
       title: defaultHttp.title,
-      message: translateValidationRule(trimmed),
+      message: translateValidationRule(trimmedMsg),
       code: rawCode || defaultHttp.code,
     };
   }
@@ -555,6 +582,7 @@ async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
       code: human.code,
       message: human.message,
       statusCode: response.status,
+      ...(human.details !== undefined ? { details: human.details } : {}),
     },
   };
 }
