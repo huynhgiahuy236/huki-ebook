@@ -134,7 +134,7 @@ export default function AccountStatusPage() {
                 {[
                   { icon: 'menu_book', title: 'Sách Giấy & Ebook', desc: 'Phát hành đa định dạng linh hoạt' },
                   { icon: 'verified_user', title: 'Bảo Vệ Bản Quyền DRM', desc: 'Mã hóa chống sao chép trái phép' },
-                  { icon: 'percent', title: 'Chiết Khấu 85% NXB', desc: 'Mức chia sẻ doanh thu tốt nhất' },
+                  { icon: 'percent', title: 'Chiết Khấu 95% NXB', desc: 'Phí sàn chỉ 5% — Chia sẻ doanh thu tối đa' },
                   { icon: 'monitoring', title: 'Báo Cáo Tự Động', desc: 'Theo dõi dòng tiền thời gian thực' },
                 ].map((item, idx) => (
                   <div key={idx} className="p-4 rounded-2xl bg-[#fbf9f4] border border-[#e8e5df]">

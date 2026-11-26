@@ -26,6 +26,108 @@ interface UpdateRequestNotification {
   };
 }
 
+interface BusinessAuditLogEntry {
+  id: string;
+  actorId?: string;
+  actorRole?: string;
+  action: string;
+  resource: string;
+  resourceId?: string;
+  beforeState?: Record<string, any> | null;
+  afterState?: Record<string, any> | null;
+  changedFields?: string[];
+  metadata?: Record<string, any> | null;
+  createdAt: string;
+}
+
+function describeBusinessAuditLog(log: BusinessAuditLogEntry): {
+  title: string;
+  badgeText: string;
+  badgeClass: string;
+  icon: string;
+  summary: string;
+} {
+  const key = `${log.resource}:${log.action}`;
+  const table: Record<string, { title: string; badgeText: string; badgeClass: string; icon: string }> = {
+    'Business:CREATE': {
+      title: 'Đăng ký hồ sơ doanh nghiệp & gian hàng',
+      badgeText: 'ĐĂNG KÝ HỒ SƠ',
+      badgeClass: 'bg-sky-600 text-white',
+      icon: 'domain_add',
+    },
+    'Business:APPROVE': {
+      title: 'Ban quản trị sàn phê duyệt hồ sơ doanh nghiệp',
+      badgeText: 'ĐÃ PHÊ DUYỆT',
+      badgeClass: 'bg-emerald-600 text-white',
+      icon: 'verified',
+    },
+    'Business:REJECT': {
+      title: 'Hồ sơ doanh nghiệp bị từ chối',
+      badgeText: 'TỪ CHỐI HỒ SƠ',
+      badgeClass: 'bg-rose-600 text-white',
+      icon: 'cancel',
+    },
+    'Business:SUSPEND': {
+      title: 'Hồ sơ doanh nghiệp bị tạm ngưng hoạt động',
+      badgeText: 'TẠM NGƯNG',
+      badgeClass: 'bg-rose-700 text-white',
+      icon: 'block',
+    },
+    'Business:UPDATE': {
+      title: 'Cập nhật thông tin hồ sơ doanh nghiệp',
+      badgeText: 'CẬP NHẬT HỒ SƠ',
+      badgeClass: 'bg-amber-600 text-white',
+      icon: 'edit_note',
+    },
+    'BusinessUpdateOtp:UPDATE_REQUEST_OTP_SENT': {
+      title: 'Gửi mã OTP 6 số xác thực qua Email',
+      badgeText: 'GỬI MÃ OTP',
+      badgeClass: 'bg-teal-600 text-white',
+      icon: 'mark_email_read',
+    },
+    'BusinessUpdateOtp:UPDATE_REQUEST_OTP_USED': {
+      title: 'Xác thực mã OTP 6 số hợp lệ',
+      badgeText: 'XÁC THỰC OTP',
+      badgeClass: 'bg-emerald-700 text-white',
+      icon: 'password',
+    },
+    'BusinessUpdateRequest:CREATE': {
+      title: 'Gửi yêu cầu cập nhật hồ sơ doanh nghiệp',
+      badgeText: 'GỬI YÊU CẦU',
+      badgeClass: 'bg-amber-600 text-white',
+      icon: 'send',
+    },
+    'BusinessUpdateRequest:APPROVE': {
+      title: 'Admin sàn phê duyệt yêu cầu cập nhật hồ sơ',
+      badgeText: 'DUYỆT CẬP NHẬT',
+      badgeClass: 'bg-emerald-600 text-white',
+      icon: 'task_alt',
+    },
+    'BusinessUpdateRequest:REJECT': {
+      title: 'Admin sàn từ chối yêu cầu cập nhật hồ sơ',
+      badgeText: 'TỪ CHỐI CẬP NHẬT',
+      badgeClass: 'bg-rose-600 text-white',
+      icon: 'gpp_bad',
+    },
+  };
+
+  const preset = table[key] || {
+    title: `${log.action} (${log.resource})`,
+    badgeText: log.action,
+    badgeClass: 'bg-slate-600 text-white',
+    icon: 'history',
+  };
+
+  const summary =
+    log.metadata?.summary ||
+    (log.metadata?.reason ? `Lý do: ${log.metadata.reason}` : '') ||
+    (log.afterState?.rejectionReason ? `Lý do: ${log.afterState.rejectionReason}` : '') ||
+    (log.metadata?.email ? `Email xác thực: ${log.metadata.email}` : '') ||
+    (log.afterState?.name ? `Đơn vị: ${log.afterState.name}` : 'Ghi nhận kiểm toán hệ thống tự động');
+
+  return { ...preset, summary };
+}
+
 export default function SellerBusinessNotificationsPage() {
   const router = useRouter();
   const { user, activeBusinessId } = useAuth();
@@ -33,7 +135,9 @@ export default function SellerBusinessNotificationsPage() {
 
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<UpdateRequestNotification[]>([]);
-  const [activeTab, setActiveTab] = useState<'ALL' | 'APPROVED' | 'REJECTED' | 'PENDING'>('ALL');
+  const [auditLogs, setAuditLogs] = useState<BusinessAuditLogEntry[]>([]);
+  const [resolvedBusinessId, setResolvedBusinessId] = useState<string | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState<'ALL' | 'APPROVED' | 'REJECTED' | 'PENDING' | 'AUDIT'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<UpdateRequestNotification | null>(null);
 
@@ -44,7 +148,7 @@ export default function SellerBusinessNotificationsPage() {
   const [readMap, setReadMap] = useState<Record<string, boolean>>({});
   const [deletedMap, setDeletedMap] = useState<Record<string, boolean>>({});
 
-  const bizId = user?.business?.id || activeBusinessId;
+  const bizId = user?.business?.id || activeBusinessId || resolvedBusinessId;
 
   // Load read & deleted maps from localStorage
   useEffect(() => {
@@ -59,14 +163,32 @@ export default function SellerBusinessNotificationsPage() {
     }
   }, [bizId]);
 
-  // Tải danh sách yêu cầu cập nhật hồ sơ & phản hồi từ Admin
+  // Tải danh sách yêu cầu cập nhật hồ sơ & nhật ký Audit Log từ hệ thống
   const loadNotifications = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await businessApi.getMyUpdateRequests();
-      if (res.success && res.data) {
-        const list = Array.isArray(res.data) ? res.data : (res.data as any).data || [];
+      const [reqRes, auditRes, bizRes] = await Promise.all([
+        businessApi.getMyUpdateRequests(),
+        businessApi.getMyAuditLogs({ limit: 50 }).catch(() => ({ success: false, data: null as any })),
+        businessApi.getMyBusiness().catch(() => ({ success: false, data: null as any })),
+      ]);
+
+      if (bizRes?.success && bizRes.data?.id) {
+        setResolvedBusinessId(bizRes.data.id);
+      }
+
+      if (reqRes.success && reqRes.data) {
+        const list = Array.isArray(reqRes.data) ? reqRes.data : (reqRes.data as any).data || [];
         setRequests(list);
+      }
+
+      if (auditRes?.success && auditRes.data) {
+        const logItems = Array.isArray(auditRes.data.items)
+          ? auditRes.data.items
+          : Array.isArray(auditRes.data)
+          ? auditRes.data
+          : [];
+        setAuditLogs(logItems);
       }
     } catch (err) {
       console.error('Failed to load business update notifications:', err);
@@ -137,8 +259,25 @@ export default function SellerBusinessNotificationsPage() {
       rejected: nonDeletedRequests.filter((r) => r.status === 'REJECTED').length,
       pending: nonDeletedRequests.filter((r) => r.status === 'PENDING').length,
       unread: nonDeletedRequests.filter((r) => !readMap[r.id]).length,
+      audit: auditLogs.length,
     };
-  }, [nonDeletedRequests, readMap]);
+  }, [nonDeletedRequests, readMap, auditLogs]);
+
+  const filteredAuditLogs = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return auditLogs;
+    return auditLogs.filter((log) => {
+      const desc = describeBusinessAuditLog(log);
+      return (
+        log.id.toLowerCase().includes(q) ||
+        log.action.toLowerCase().includes(q) ||
+        log.resource.toLowerCase().includes(q) ||
+        desc.title.toLowerCase().includes(q) ||
+        desc.summary.toLowerCase().includes(q) ||
+        (log.changedFields || []).some((f) => f.toLowerCase().includes(q))
+      );
+    });
+  }, [auditLogs, searchTerm]);
 
   // Đánh dấu 1 thông báo đã đọc
   const markAsRead = (reqId: string) => {
@@ -319,6 +458,19 @@ export default function SellerBusinessNotificationsPage() {
             <span className="material-symbols-outlined text-base">hourglass_top</span>
             <span>Đang chờ ({counts.pending})</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('AUDIT')}
+            className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 ${
+              activeTab === 'AUDIT'
+                ? 'bg-slate-800 text-white shadow-sm'
+                : 'bg-white dark:bg-[#1a1622] border border-theme-border text-slate-700 dark:text-slate-300 hover:bg-slate-50/80'
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">history</span>
+            <span>Nhật ký hệ thống ({counts.audit})</span>
+          </button>
         </div>
 
         {/* Search input */}
@@ -346,7 +498,7 @@ export default function SellerBusinessNotificationsPage() {
       </div>
 
       {/* 3. Bulk Actions Toolbar */}
-      {filteredRequests.length > 0 && (
+      {activeTab !== 'AUDIT' && filteredRequests.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-[#1a1622] border border-theme-border shadow-xs">
           <div className="flex items-center gap-3">
             <label className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-on-surface cursor-pointer select-none">
@@ -398,19 +550,21 @@ export default function SellerBusinessNotificationsPage() {
           <span className="w-10 h-10 border-3 border-theme-primary/20 border-t-theme-primary rounded-full animate-spin inline-block"></span>
           <p className="text-sm text-on-surface-variant font-medium">Đang tải lịch sử thông báo từ hệ thống...</p>
         </div>
-      ) : filteredRequests.length === 0 ? (
-        <div className="bg-white dark:bg-[#1a1622] rounded-3xl border border-theme-border p-12 text-center space-y-3 shadow-xs">
-          <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-white/5 text-gray-400 flex items-center justify-center mx-auto">
+      ) : activeTab !== 'AUDIT' && filteredRequests.length === 0 ? (
+        <div className="bg-white dark:bg-[#1a1622] rounded-3xl border border-theme-border p-10 text-center space-y-3 shadow-xs">
+          <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-white/5 text-gray-400 flex items-center justify-center mx-auto">
             <span className="material-symbols-outlined text-3xl">notifications_off</span>
           </div>
-          <h3 className="font-editorial text-lg font-bold text-on-surface">Không tìm thấy thông báo nào</h3>
-          <p className="text-xs sm:text-sm text-on-surface-variant max-w-md mx-auto">
+          <h3 className="font-editorial text-lg font-bold text-on-surface">Chưa có yêu cầu chỉnh sửa hồ sơ nào</h3>
+          <p className="text-xs sm:text-sm text-on-surface-variant max-w-lg mx-auto">
             {searchTerm
-              ? 'Không có thông báo nào khớp với từ khóa tìm kiếm của bạn.'
+              ? 'Không có yêu cầu chỉnh sửa nào khớp với từ khóa tìm kiếm của bạn.'
+              : counts.audit > 0
+              ? 'Bạn chưa gửi yêu cầu chỉnh sửa hồ sơ nào. Toàn bộ lịch sử đăng ký, phê duyệt và xác thực bảo mật được ghi nhận ở Nhật ký hệ thống bên dưới.'
               : 'Hiện tại bạn chưa gửi yêu cầu chỉnh sửa hồ sơ nào hoặc các thông báo đã được xóa.'}
           </p>
         </div>
-      ) : (
+      ) : activeTab !== 'AUDIT' ? (
         <div className="space-y-4">
           {filteredRequests.map((req) => {
             const isApproved = req.status === 'APPROVED';
@@ -560,6 +714,91 @@ export default function SellerBusinessNotificationsPage() {
             );
           })}
         </div>
+      ) : null}
+
+      {/* 5. Nhật ký Audit Log hồ sơ doanh nghiệp */}
+      {!loading && (activeTab === 'ALL' || activeTab === 'AUDIT') && (
+        <section className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-theme-primary/10 text-theme-primary flex items-center justify-center">
+                <span className="material-symbols-outlined text-xl">history</span>
+              </div>
+              <div>
+                <h2 className="font-editorial text-lg sm:text-xl font-bold text-on-surface">
+                  Nhật Ký Hoạt Động &amp; Kiểm Toán Hồ Sơ (Audit Log)
+                </h2>
+                <p className="text-xs text-on-surface-variant">
+                  Ghi nhận tự động mọi thao tác đăng ký, phê duyệt, gửi OTP 6 số và chỉnh sửa hồ sơ theo thời gian thực.
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-bold px-3 py-1 rounded-full bg-theme-primary/10 text-theme-primary self-start sm:self-center">
+              {filteredAuditLogs.length} bản ghi nhật ký
+            </span>
+          </div>
+
+          {filteredAuditLogs.length === 0 ? (
+            <div className="bg-white dark:bg-[#1a1622] rounded-2xl border border-theme-border p-8 text-center text-xs sm:text-sm text-on-surface-variant">
+              Chưa ghi nhận nhật ký kiểm toán phù hợp với từ khóa hiện tại.
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-[#1a1622] rounded-2xl border border-theme-border divide-y divide-theme-border/60 shadow-xs overflow-hidden">
+              {filteredAuditLogs.map((log) => {
+                const desc = describeBusinessAuditLog(log);
+                const actorLabel =
+                  log.actorRole === 'PLATFORM_ADMIN'
+                    ? 'Ban Quản Trị Sàn'
+                    : log.actorRole === 'SYSTEM'
+                    ? 'Hệ Thống'
+                    : 'Chủ Doanh Nghiệp / Đối Tác';
+
+                return (
+                  <div key={log.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-gray-50/70 dark:hover:bg-white/[0.02] transition-colors">
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-10 h-10 rounded-xl bg-theme-primary/10 text-theme-primary flex items-center justify-center shrink-0 mt-0.5">
+                        <span className="material-symbols-outlined text-xl">{desc.icon}</span>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${desc.badgeClass}`}>
+                            {desc.badgeText}
+                          </span>
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-gray-100 dark:bg-white/10 text-on-surface-variant">
+                            {actorLabel}
+                          </span>
+                          <span className="font-mono text-[11px] text-on-surface-variant">
+                            #{String(log.id).slice(0, 12)}
+                          </span>
+                        </div>
+                        <h3 className="text-sm font-bold text-on-surface">{desc.title}</h3>
+                        <p className="text-xs text-on-surface-variant leading-relaxed">{desc.summary}</p>
+                        {Array.isArray(log.changedFields) && log.changedFields.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                            <span className="text-[11px] text-on-surface-variant font-medium">Trường dữ liệu:</span>
+                            {log.changedFields.slice(0, 6).map((field) => (
+                              <span
+                                key={field}
+                                className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-theme-secondary-subtle text-theme-primary border border-theme-border/60"
+                              >
+                                {field}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-xs text-on-surface-variant font-medium shrink-0 sm:text-right">
+                      <span className="material-symbols-outlined text-sm text-theme-primary">schedule</span>
+                      <span>{new Date(log.createdAt).toLocaleString('vi-VN')}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
       )}
 
       {/* MODAL POPUP */}

@@ -812,7 +812,7 @@ export default function SellerBusinessProfilePage() {
           <div className="flex flex-row lg:flex-col items-center lg:items-end justify-between lg:justify-center border-t lg:border-t-0 lg:border-l border-theme-border/60 pt-5 lg:pt-0 lg:pl-8 gap-4 shrink-0">
             <div className="text-left lg:text-right">
               <span className="text-[11px] uppercase font-bold text-on-surface-variant tracking-wider">Tỷ lệ phân chia doanh thu</span>
-              <p className="text-xl sm:text-2xl font-bold text-theme-primary">85% Đối tác &bull; 15% Sàn</p>
+              <p className="text-xl sm:text-2xl font-bold text-theme-primary">95% Đối tác &bull; 5% Sàn</p>
             </div>
             <div className="text-left lg:text-right">
               <span className="text-[11px] uppercase font-bold text-on-surface-variant tracking-wider">Bảo vệ bản quyền số</span>

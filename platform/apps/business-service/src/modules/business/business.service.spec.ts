@@ -319,5 +319,131 @@ describe('BusinessService', () => {
         }),
       ).rejects.toThrow();
     });
+
+    it('should record AuditLog on registerBusiness, updateBusiness, createUpdateRequest and return unified Seller logs', async () => {
+      const recordedAuditCalls: any[] = [];
+      const mockAuditService = {
+        record: jest.fn().mockImplementation(async (params: any) => {
+          recordedAuditCalls.push(params);
+          return { id: `audit-${recordedAuditCalls.length}`, ...params, createdAt: new Date() };
+        }),
+        queryAuditLogs: jest.fn().mockImplementation(async (query: any) => ({
+          items: recordedAuditCalls
+            .filter((r) => r.storeId === query.businessScopeId || r.resourceId === query.businessScopeId)
+            .map((r, idx) => ({
+              id: `audit-${idx + 1}`,
+              action: r.action,
+              resource: r.resource,
+              resourceId: r.resourceId,
+              storeId: r.storeId,
+              changedFields: r.changedFields,
+              createdAt: new Date().toISOString(),
+            })),
+          total: recordedAuditCalls.length,
+          page: query.page || 1,
+          limit: query.limit || 20,
+        })),
+      };
+
+      const fullPrisma: any = {
+        business: {
+          findFirst: jest.fn().mockResolvedValue(null),
+          findUnique: jest.fn().mockResolvedValue({
+            id: 'biz-audit-1',
+            ownerId: 'seller-audit-u1',
+            name: 'Tiệm Sách Phố Cổ',
+            taxCode: '0319998887',
+            status: 'APPROVED',
+            createdAt: new Date('2026-11-26T07:00:00Z'),
+            approvedAt: new Date('2026-11-26T07:25:15Z'),
+            approvedBy: 'admin-1',
+            stores: [{ id: 'store-audit-1', name: 'Tiệm Sách Phố Cổ' }],
+          }),
+          create: jest.fn().mockResolvedValue({
+            id: 'biz-audit-1',
+            ownerId: 'seller-audit-u1',
+            name: 'Tiệm Sách Phố Cổ',
+            taxCode: '0319998887',
+            businessType: 'INDIVIDUAL',
+            email: 'phoco@huki.com',
+            phone: '0909111222',
+            address: 'Hà Nội',
+            status: 'PENDING_APPROVAL',
+          }),
+          update: jest.fn().mockResolvedValue({
+            id: 'biz-audit-1',
+            ownerId: 'seller-audit-u1',
+            name: 'Tiệm Sách Phố Cổ Mới',
+            email: 'phoco@huki.com',
+            phone: '0909111222',
+            address: 'Hà Nội',
+            bankName: 'VCB',
+          }),
+        },
+        store: {
+          findUnique: jest.fn().mockResolvedValue(null),
+          create: jest.fn().mockResolvedValue({ id: 'store-audit-1' }),
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        member: {
+          create: jest.fn().mockResolvedValue({ id: 'mem-audit-1' }),
+          findFirst: jest.fn().mockResolvedValue(null),
+        },
+      };
+
+      const svcWithAudit = new BusinessService(
+        fullPrisma,
+        mockEventEmitter as any,
+        mockIdentity as any,
+        mockAuditService as any,
+      );
+
+      await svcWithAudit.registerBusiness('seller-audit-u1', {
+        name: 'Tiệm Sách Phố Cổ',
+        taxCode: '0319998887',
+        email: 'phoco@huki.com',
+        phone: '0909111222',
+        address: 'Hà Nội',
+        businessType: 'INDIVIDUAL' as any,
+      });
+
+      expect(mockAuditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'CREATE',
+          resource: 'Business',
+          resourceId: 'biz-audit-1',
+          storeId: 'biz-audit-1',
+        }),
+      );
+
+      await svcWithAudit.updateBusiness('biz-audit-1', 'seller-audit-u1', { name: 'Tiệm Sách Phố Cổ Mới' });
+
+      expect(mockAuditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'UPDATE',
+          resource: 'Business',
+          resourceId: 'biz-audit-1',
+          changedFields: ['name'],
+        }),
+      );
+
+      // Simulate approved pre-existing business lookup in getMyAuditLogs (missing CREATE/APPROVE in empty DB)
+      mockAuditService.queryAuditLogs.mockResolvedValueOnce({ items: [], total: 0, page: 1, limit: 20 });
+      fullPrisma.business.findFirst.mockResolvedValueOnce({
+        id: 'biz-audit-1',
+        ownerId: 'seller-audit-u1',
+        name: 'Tiệm Sách Phố Cổ',
+        taxCode: '0319998887',
+        status: 'APPROVED',
+        createdAt: new Date('2026-11-26T07:00:00Z'),
+        approvedAt: new Date('2026-11-26T07:25:15Z'),
+        approvedBy: 'admin-1',
+        stores: [{ id: 'store-audit-1', name: 'Tiệm Sách Phố Cổ' }],
+      });
+
+      const sellerLogs = await svcWithAudit.getMyAuditLogs('seller-audit-u1', { page: 1, limit: 20 });
+      expect(sellerLogs.items.length).toBe(2);
+      expect(sellerLogs.items.map((x: any) => x.action)).toEqual(['APPROVE', 'CREATE']);
+    });
   });
 });

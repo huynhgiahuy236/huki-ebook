@@ -37,6 +37,7 @@ export interface AuditQueryParams {
   limit?: number;
   action?: string;
   storeId?: string;
+  businessScopeId?: string;
 }
 
 export interface PaginatedAuditLogs {
@@ -104,6 +105,13 @@ export class AuditService {
     const skip = (page - 1) * limit;
 
     const where: any = {};
+    if (params.businessScopeId) {
+      where.OR = [
+        { storeId: params.businessScopeId },
+        { resource: 'Business', resourceId: params.businessScopeId },
+      ];
+    }
+
     if (params.resource) {
       where.resource = params.resource;
     }

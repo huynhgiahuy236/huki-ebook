@@ -61,7 +61,7 @@ export function AdminPublishersView() {
           revenue: '0₫',
           bookCount: b.status === 'APPROVED' ? '0 đầu sách' : '0 đầu sách',
           ebookDrmCount: '0 Ebook DRM',
-          split: '85% NXB - 15% HUKI',
+          split: '95% NXB - 5% HUKI',
           status: b.status,
           statusLabel: b.status === 'APPROVED' ? 'Đang hoạt động' : b.status === 'PENDING_APPROVAL' ? 'Chờ thẩm định hồ sơ' : b.status === 'SUSPENDED' ? 'Bị đình chỉ / Khóa quyền' : 'Từ chối',
           rating: b.status === 'APPROVED' ? 5.0 : 0,

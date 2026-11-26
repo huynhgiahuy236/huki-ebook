@@ -15,7 +15,7 @@ export function AdminSettingsView() {
   const [platformSettings, setPlatformSettings] = useState({
     platformName: 'HUKI Ebook & Sách Giấy Chính Hãng',
     supportHotline: '1900 6868',
-    defaultCommission: 15,
+    defaultCommission: 5,
     maxDevicesPerUser: 5,
     watermarkEnabled: true,
     blockScreenshots: true,
@@ -173,7 +173,7 @@ export function AdminSettingsView() {
                   onChange={(e: any) => setPlatformSettings({ ...platformSettings, defaultCommission: Number(e.target.value) })}
                   className="w-full p-2.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 font-bold"
                 />
-                <span className="text-[10px] text-gray-400 mt-0.5 block">NXB nhận 85% - Sàn nhận 15%</span>
+                <span className="text-[10px] text-gray-400 mt-0.5 block">NXB nhận {100 - (Number(platformSettings.defaultCommission) || 5)}% - Sàn nhận {Number(platformSettings.defaultCommission) || 5}%</span>
               </div>
 
               <div>
