@@ -1172,5 +1172,49 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 - **Ma trận Rủi ro Domino (`BUG-10`):**
   - Tác động chủ yếu tại [`AdminFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminFlashSaleView.tsx) sử dụng component dùng chung [`GroupedDataTable.tsx`](file:///e:/HuKi/web/src/ui/components/common/GroupedDataTable.tsx). Không làm thay đổi contract backend; phải bảo toàn 100% các nghiệp vụ Admin hiện có (Tạo khung giờ 4 mốc, Studio Gán Sách, Sửa tồn kho inline, Xóa sách khỏi phiên, Kết thúc sớm 5 phút, Hủy lịch, và Tab Sao Quả Tạ & Kháng nghị).
 
+---
+
+### Bước 3 — Giai đoạn 1: Phương án Kiến trúc Chuẩn Shopee & Tiêu chuẩn Nghiệm thu (`BUG-07`, `BUG-08`, `BUG-09`)
+
+#### 1. Phương án cho `BUG-07` (Ebook Reader & Cloudflare R2 Storage)
+- **Phương án 1 — `(Khuyến nghị) [Chuẩn Shopee / Tiki Digital]`:** Chuẩn hóa R2 đa biến môi trường (`CLOUDFLARE_R2_*` + `R2_*`), bật `forcePathStyle: true` và log lỗi S3 chi tiết trong `R2EbookStorage`; `BooksService` đồng bộ kiểm tra cả `digitalDetails.pdfKey` / `previewPdfKey` lẫn `REAL_EBOOK_MAPPINGS`, tách rõ lỗi kết nối R2 (`502/503`) khỏi `404 NO_PDF_AVAILABLE`, mở `HEAD` cho `/books/:id/pdf` tại Gateway; `ReaderPage` vẫn thử stream PDF khi `hasSourceFile || hasPreviewFile || hasPdf`.
+  - *Ưu điểm:* Bảo mật DRM qua backend stream (hỗ trợ Byte-Range 206), không lộ URL R2 công khai, xử lý triệt để cả sách seed sẵn lẫn sách Seller upload R2.
+  - *Nhược điểm:* Lưu lượng stream đi qua `commerce-service` và `api-gateway`.
+- **Phương án 2 — `[Presigned URL / R2 Public Redirect]`:** Backend cấp Presigned URL ngắn hạn để trình duyệt tải thẳng từ R2.
+  - *Ưu điểm:* Giảm băng thông qua backend.
+  - *Nhược điểm:* Phụ thuộc CORS R2 cho domain UAT và khó kiểm soát DRM/thu hồi phiên ngay lập tức.
+- **Acceptance Criteria (BDD/Gherkin):**
+  - `Given` sách Ebook có `pdfKey` hợp lệ trên R2 (`b1e92cf0...`, `dac-nhan-tam`, hoặc sách mới upload R2), `When` người mua mở `/reader/[id]` hoặc gọi `GET /api/v1/books/:id/pdf`, `Then` backend trả `HTTP 200/206` với `Content-Type: application/pdf`, `hasPdf: true`, trình đọc hiển thị đủ trang sách, phản hồi metadata/first-chunk `< 500ms`, 0 lỗi console.
+  - `Given` sách chưa có tệp số trong DB và không có file trên R2, `When` mở reader, `Then` trả `404 NO_PDF_AVAILABLE` và hiển thị trạng thái *"Chưa Có Bản Đọc Số"*.
+
+#### 2. Phương án cho `BUG-08` (Thông báo Buyer ➔ Seller: Chuông / Badge / Push / Toast)
+- **Phương án 1 — `(Khuyến nghị) [Chuẩn Shopee Seller Center]`:**
+  1. `NotificationEventConsumer` phân giải `recipient.type === "BUSINESS"` (`storeId`/`businessId`/alias) qua `BusinessService` (`/internal/resolve-target/:targetId`) thành danh sách `ownerUserIds` + `memberUserIds`, ghi notification gắn được cho cả scope `BUSINESS` và user sở hữu/nhân viên (có `sourceKey` chống trùng lặp 100%).
+  2. `NotificationDeliveryService.push()` truy vấn `notification_devices` theo tập `resolvedUserIds` (thay vì `storeId`) để nổ FCM Push đúng thiết bị của Seller.
+  3. `NotificationGateway.handleConnection` mở rộng cho toàn bộ `SELLER_ROLES` (`BUSINESS`, `SELLER`, `BUSINESS_OWNER`, `BUSINESS_STAFF`) và join thêm `OFFICIAL_STORE_ALIASES`.
+  4. `ChatService.sendMessage` / `ChatGateway.publishMessage` mở rộng `participantIds` kèm `ownerUserIds` & `businessIds`.
+  5. `SellerHeader.tsx` gom đủ `storeAliases` (giống `SellerChatView.tsx`) để badge & Toast nổ mọi lúc; `UniversalNotificationBell.tsx` hỗ trợ chuẩn type `NEW_MESSAGE` với nút nhảy tới `/seller/chat?conversationId=...`.
+  - *Ưu điểm:* Đồng bộ đủ 4 kênh (Chuông + Badge + Toast + Push), chống trùng lặp, hoạt động cả khi Seller không mở `/seller/chat`.
+  - *Nhược điểm:* Phát sinh 1 internal lookup được cache 30s tại `community-service`.
+- **Phương án 2 — `[Chỉ Chuông & Badge, không Toast toàn cục]`:** Chỉ hiển thị trên chuông và badge, không bật Toast popup khi Seller đang thao tác ở trang khác.
+  - *Ưu điểm:* Ít gián đoạn khi Seller đóng gói đơn.
+  - *Nhược điểm:* Giảm tốc độ phản hồi khách hàng, chưa đáp ứng đầy đủ nhu cầu Push/Toast.
+- **Acceptance Criteria (BDD/Gherkin):**
+  - `Given` Seller đang đăng nhập trên bất kỳ trang Seller nào (`/seller/dashboard`, `/seller/orders`), `When` Buyer gửi tin nhắn mới tới Shop của Seller đó, `Then` trong `< 500ms` (kết nối socket sẵn sàng): Chuông thông báo tăng badge và hiển thị thẻ `NEW_MESSAGE`, icon `Tin nhắn` trên header tăng số chưa đọc, Toast + âm thanh xuất hiện, MongoDB lưu đúng 1 notification (không nhân bản), và hàm Push truy vấn đúng `ownerUserId` trong `notification_devices`.
+
+#### 3. Phương án cho `BUG-09` (`/seller/promotions/flash-sale` chống đóng băng UI & Modal Xóa đếm ngược 5s)
+- **Phương án 1 — `(Khuyến nghị) [Chuẩn Shopee Seller Center]`:**
+  1. Tách dòng bảng chọn sách trong `SellerFlashSaleView.tsx` thành component `React.memo` (`StudioBookRow`) + memoize kết quả `validateBookForFlashSale`; thêm `animate-spin` cho icon `progress_activity` ở nút xác nhận tạo; dùng `startTransition` khi mở studio và tối ưu tốc độ phản hồi `handleSubmitBatch` (tránh lặp `preloadCommerceBooks` thừa ở backend).
+  2. Gỡ bỏ hoàn toàn `window.confirm` ở `handleDeleteSlot` (cả ở `SellerFlashSaleView.tsx` và trang chi tiết `[id]/page.tsx`); thay bằng **Modal Xác Nhận Xóa Đợt Flash Sale** tùy chỉnh giao diện HuKi với **nút xác nhận bị khóa đếm ngược 5 giây (`5s → 0s`)** mới cho phép bấm.
+  - *Ưu điểm:* UI mượt 60fps không đóng băng, loại bỏ hoàn toàn alert trình duyệt, cảnh báo rõ ràng tránh xóa nhầm chiến dịch có nhiều sách.
+  - *Nhược điểm:* Cần quản lý state modal + timer cleanup chuẩn xác tránh memory leak.
+- **Phương án 2 — `[Inline 5s Countdown trên dòng bảng, không Modal]`:** Bấm xóa biến nút tại dòng thành `Chờ (5s)...` rồi mới bấm xác nhận.
+  - *Ưu điểm:* Không bật modal.
+  - *Nhược điểm:* Cột thao tác trên bảng dễ chật chội/xô lệch ở màn hình vừa và nhỏ, thiếu chỗ hiển thị rõ cảnh báo tên đợt & toàn bộ sách sẽ bị hủy.
+- **Acceptance Criteria (BDD/Gherkin):**
+  - `Given` Seller ở `/seller/promotions/flash-sale`, `When` bấm `"Tạo Flash Sale & Đăng Ký Sách"` và bấm `"Xác Nhận Đăng Ký"`, `Then` giao diện mở mượt không treo main-thread, nút submit hiển thị spinner quay ngay lập tức và tạo thành công với HTTP 201/200, 0 lỗi console.
+  - `Given` Seller bấm nút xóa đợt Flash Sale, `When` thao tác xóa, `Then` **không** bật `window.confirm` trình duyệt; Modal xác nhận tùy chỉnh hiện ra với nút xác nhận đếm ngược `5s → 4s → 3s → 2s → 1s → 0s` bị `disabled` suốt 5s đầu và chỉ cho phép bấm xóa khi về `0s`.
+
+
 
 
