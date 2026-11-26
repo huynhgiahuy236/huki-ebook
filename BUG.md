@@ -1154,6 +1154,23 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
        - [`handleDeleteSlot()`](file:///e:/HuKi/web/src/ui/components/seller/SellerFlashSaleView.tsx#L1250-L1274) đang gọi `window.confirm(...)` (khớp 100% ảnh `media_1795669854627_ac8a04ba.jpg`), trái ngược với cơ chế hủy từng item đã có inline countdown 5s hoặc Modal xác nhận tùy chỉnh trong app.
        - Yêu cầu của User: Loại bỏ hoàn toàn `alert`/`confirm` popup trình duyệt; thay bằng Modal xác nhận tùy chỉnh (hoặc UI xác nhận chuẩn trong app) với **nút xác nhận hủy/xóa phải đếm ngược 5 giây (5s → 0s)** mới mở khóa cho phép bấm.
 - **Ma trận Rủi ro Domino (`BUG-09`):**
-  - Ảnh hưởng cục bộ trong `SellerFlashSaleView.tsx` (và cần rà soát đồng bộ [`/seller/promotions/flash-sale/[id]/page.tsx`](file:///e:/HuKi/web/src/app/seller/promotions/flash-sale/[id]/page.tsx) nếu có nút xóa đợt tương tự), cập nhật cache `invalidateFlashSaleCache()` và `realtimeSyncBus`.
+  - Ảnh hưởng cục bộ trong `SellerFlashSaleView.tsx` (cần kiểm tra đồng bộ [`/seller/promotions/flash-sale/[id]/page.tsx`](file:///e:/HuKi/web/src/app/seller/promotions/flash-sale/[id]/page.tsx) nếu có nút xóa đợt tương tự), cập nhật cache `invalidateFlashSaleCache()` và `realtimeSyncBus`.
+
+---
+
+### Bước 2 — Giai đoạn 2: Phân tích Nguyên nhân Gốc rễ 4 Tầng & Ma trận Domino (`BUG-10`)
+
+#### 4. `BUG-10`: `/admin/flash-sales` chưa thiết kế dùng `GroupedDataTable` đồng bộ như trang Seller
+- **Bóc tách 4 tầng kiến trúc:**
+  - **Tầng 1 — Database (PostgreSQL):** Bảng `flash_sales` và `flash_sale_items` đã lưu đầy đủ dữ liệu phân theo `scope` (`PLATFORM` / `SHOP`), 4 mốc thời gian (`registrationStartsAt`, `registrationEndsAt`, `startsAt`, `endsAt`), quota shop (`minStores`, `maxStores`), mức trợ giá (`discountPercent`, `maxPerUser`), trạng thái và danh sách sách/tiến độ bán.
+  - **Tầng 2 — Backend Services (`promotion-service`):** [`FlashSalesController.findAll`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/flash-sales/flash-sales.controller.ts#L50-L54) (`GET /flash-sales?scope=PLATFORM`) đã trả đầy đủ `items`, `participatingStoresCount`, `totalItems`, `status` để render bảng phân nhóm ở Frontend.
+  - **Tầng 3 — Gateway & Proxy (`api-gateway`):** Đã định tuyến `/api/v1/flash-sales/*` sang `promotion-service`, không có lỗi route.
+  - **Tầng 4 — Frontend Client (`web`):**
+    1. [`AdminFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminFlashSaleView.tsx#L1263-L1753) hiện **không sử dụng [`GroupedDataTable`](file:///e:/HuKi/web/src/ui/components/common/GroupedDataTable.tsx)** mà render thủ công các khối card nối tiếp kèm bảng `<table>` con bung sẵn toàn bộ sách trong từng đợt.
+    2. So với [`SellerFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerFlashSaleView.tsx#L1484-L1648), trang Admin thiếu cấu trúc bảng chuẩn hóa `GroupedDataTable` (cột cố định gọn gàng: Tên đợt & Khung giờ + Mốc đăng ký, Số Shop & Trợ giá Sàn, Ấn phẩm đăng ký, Tiến độ bán & Doanh thu, Trạng thái & Thao tác; hỗ trợ mở rộng dòng `expandable` / `expandedRowRender` để xem/sửa tồn/xóa sách inline trong đợt, hoặc nhóm/phân trang 10 dòng/trang chuẩn `StandardPaginationBar`).
+    3. Ngoài ra, trong [`AdminFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminFlashSaleView.tsx#L704-L753) vẫn còn 2 chỗ dùng `window.confirm` (`handleCancelSlot` dòng 705 và `handleRemoveItem` dòng 739), và `handleBatchSubmit` (dòng 497-508) chạy tuần tự vòng `for` từng item.
+- **Ma trận Rủi ro Domino (`BUG-10`):**
+  - Tác động chủ yếu tại [`AdminFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminFlashSaleView.tsx) sử dụng component dùng chung [`GroupedDataTable.tsx`](file:///e:/HuKi/web/src/ui/components/common/GroupedDataTable.tsx). Không làm thay đổi contract backend; phải bảo toàn 100% các nghiệp vụ Admin hiện có (Tạo khung giờ 4 mốc, Studio Gán Sách, Sửa tồn kho inline, Xóa sách khỏi phiên, Kết thúc sớm 5 phút, Hủy lịch, và Tab Sao Quả Tạ & Kháng nghị).
+
 
 
