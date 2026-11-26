@@ -27,6 +27,7 @@ export interface PhysicalDetails {
   stock: number;
   reserved?: number;
   weight?: number;
+  dimensions?: string | null;
   length?: number;
   width?: number;
   height?: number;
@@ -65,14 +66,21 @@ export interface BookData {
   priceEbook?: number;
   priceCombo?: number;
   format?: BookFormat;
+  weight?: number | null;
+  dimensions?: string | null;
+  physicalEnabled?: boolean;
+  digitalEnabled?: boolean;
+  accessType?: string | null;
   physicalDetails?: PhysicalDetails | null;
   digitalDetails?: DigitalDetails | null;
   hasPdf?: boolean;
+  hasEpub?: boolean;
   hasSourceFile?: boolean;
   hasPreviewFile?: boolean;
   status?: 'DRAFT' | 'PUBLISHED' | 'HIDDEN' | 'ARCHIVED' | 'SUSPENDED';
   storeId?: string;
   businessId?: string;
+  categoryId?: string | null;
   category?: CategoryData | null;
   createdAt?: string;
   viewCount?: number;
@@ -194,6 +202,16 @@ export const catalogApi = {
       method: 'GET',
       skipAuth: true,
     });
+  },
+
+  /**
+   * Lấy danh sách sách liên quan (ưu tiên cùng thể loại, tác giả/NXB, định dạng)
+   */
+  async getRelatedBooks(idOrSlug: string, limit = 6): Promise<ApiResponse<BookData[]>> {
+    return apiClient<BookData[]>(
+      `/books/${encodeURIComponent(idOrSlug)}/related?limit=${limit}`,
+      { method: 'GET', skipAuth: true },
+    );
   },
 
   /**

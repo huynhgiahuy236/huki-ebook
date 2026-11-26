@@ -295,4 +295,71 @@ describe('BooksService (Prisma)', () => {
       }),
     );
   });
+
+  it('exposes public physical dimensions and digital capabilities in findOne and prioritizes same-category in findRelated', async () => {
+    const prismaRel = {
+      ...prisma,
+      discount: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      book: {
+        ...prisma.book,
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'book-main',
+          slug: 'tu-huyet-cam-xuc',
+          title: 'Tử Huyệt Cảm Xúc',
+          status: 'PUBLISHED',
+          format: 'BOTH',
+          storeId: 'store-1',
+          categoryId: 'cat-psych',
+          authorId: 'auth-1',
+          publisherId: 'pub-1',
+          price: 115000,
+          category: { id: 'cat-psych', name: 'Tâm lý học' },
+          author: { id: 'auth-1', name: 'Roy Garn' },
+          publisher: { id: 'pub-1', name: 'First News' },
+          physicalDetails: { weight: 350, dimensions: '14 x 20.5 cm', pageCount: 240, stock: 99, reserved: 0, physicalEnabled: true },
+          digitalDetails: { pdfKey: 'ebooks/tu-huyet.pdf', epubKey: null, previewPdfKey: 'ebooks/prev.pdf', digitalEnabled: true, accessType: 'PAID' },
+        }),
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'book-main',
+          categoryId: 'cat-psych',
+          authorId: 'auth-1',
+          publisherId: 'pub-1',
+          format: 'BOTH',
+        }),
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce([
+            {
+              id: 'book-rel-cat',
+              slug: 'sach-cung-the-loai',
+              title: 'Sách Cùng Thể Loại',
+              format: 'PHYSICAL',
+              status: 'PUBLISHED',
+              price: 90000,
+              physicalDetails: { weight: 280, dimensions: '13 x 20 cm', stock: 10, reserved: 0 },
+              digitalDetails: null,
+            },
+          ])
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([]),
+      },
+      orderItem: {
+        aggregate: jest.fn().mockResolvedValue({ _sum: { quantity: 5 } }),
+      },
+    };
+    const svc = new BooksService(prismaRel as any);
+    const detail = await svc.findOne('book-main', undefined, { light: true });
+    expect(detail.dimensions).toBe('14 x 20.5 cm');
+    expect(detail.weight).toBe(350);
+    expect(detail.digitalEnabled).toBe(true);
+    expect(detail.accessType).toBe('PAID');
+
+    const related = await svc.findRelated('tu-huyet-cam-xuc', 6);
+    expect(related).toHaveLength(1);
+    expect(related[0].id).toBe('book-rel-cat');
+    expect(related[0].matchReason).toBe('SAME_CATEGORY');
+  });
 });

@@ -100,6 +100,17 @@ export class BooksController {
     return { data: access };
   }
 
+  @Get(':id/related')
+  @ApiOperation({ summary: 'Get related books by category, author/publisher, or format' })
+  async findRelated(
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+  ) {
+    const parsedLimit = limit ? parseInt(limit, 10) : 6;
+    const data = await this.booksService.findRelated(id, Number.isFinite(parsedLimit) ? parsedLimit : 6);
+    return { data };
+  }
+
   @Get(':id/pdf')
   @ApiOperation({ summary: 'Stream public preview / full ebook PDF from R2 storage' })
   async streamPdf(
