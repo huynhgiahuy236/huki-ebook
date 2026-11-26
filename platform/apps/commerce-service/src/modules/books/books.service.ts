@@ -512,7 +512,75 @@ export class BooksService implements OnModuleInit {
     });
     const soldCount = sales._sum.quantity || 0;
     const hasPdf = await this.hasReadablePdfKey(mappedKey, book!.slug);
-    return this.serializeBook(book!, canAccess, discountsMap.get(book!.id), soldCount, hasPdf);
+    return {
+      ...this.serializeBook(book!, canAccess, discountsMap.get(book!.id), soldCount, hasPdf),
+    };
+  }
+
+  async findRelated(idOrSlug: string, limit = 6) {
+    const safeLimit = Math.min(20, Math.max(1, Number(limit) || 6));
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idOrSlug);
+    const anchor = await this.prisma.book.findFirst({
+      where: isUuid ? { id: idOrSlug } : { slug: idOrSlug },
+      select: {
+        id: true,
+        categoryId: true,
+        authorId: true,
+        publisherId: true,
+        format: true,
+      },
+    });
+    if (!anchor) return [];
+
+    const include = {
+      category: true,
+      author: true,
+      publisher: true,
+      issuingCompany: true,
+      translator: true,
+      physicalDetails: true,
+      digitalDetails: true,
+      affiliateSetting: true,
+    };
+    const seen = new Set<string>([anchor.id]);
+    const collected: Array<{ book: any; matchReason: string }> = [];
+
+    const appendMatches = async (extraWhere: Record<string, any>, matchReason: string) => {
+      if (collected.length >= safeLimit) return;
+      const rows = await this.prisma.book.findMany({
+        where: {
+          id: { notIn: Array.from(seen) },
+          status: BookStatus.PUBLISHED,
+          ...extraWhere,
+        },
+        include,
+        orderBy: [{ viewCount: 'desc' }, { publishedAt: 'desc' }],
+        take: safeLimit - collected.length,
+      });
+      for (const row of rows) {
+        if (seen.has(row.id)) continue;
+        seen.add(row.id);
+        collected.push({ book: row, matchReason });
+      }
+    };
+
+    if (anchor.categoryId) {
+      await appendMatches({ categoryId: anchor.categoryId }, 'SAME_CATEGORY');
+    }
+    const creatorOr: any[] = [];
+    if (anchor.authorId) creatorOr.push({ authorId: anchor.authorId });
+    if (anchor.publisherId) creatorOr.push({ publisherId: anchor.publisherId });
+    if (creatorOr.length > 0) {
+      await appendMatches({ OR: creatorOr }, 'SAME_AUTHOR_OR_PUBLISHER');
+    }
+    await appendMatches({ format: anchor.format }, 'SAME_FORMAT');
+    await appendMatches({}, 'CATALOG_SUGGESTION');
+
+    const discountsMap = await this.getDiscountsMap(collected.map((c) => c.book.id));
+    return collected.map(({ book, matchReason }) => ({
+      ...this.serializeBook(book, false, discountsMap.get(book.id), 0, undefined),
+      matchReason,
+    }));
   }
 
   async findAll(query: BookListQueryDto) {
@@ -1170,9 +1238,11 @@ export class BooksService implements OnModuleInit {
     resolvedHasPdf?: boolean,
   ) {
     const physical = book.physicalDetails;
+    const digital = book.digitalDetails;
     const stock = physical?.stock ?? 0;
     const reserved = physical?.reserved ?? 0;
     const available = Math.max(0, stock - reserved);
+    const hasEpub = Boolean(digital?.epubKey);
 
     let pricePaper: number | undefined;
     let priceEbook: number | undefined;
@@ -1241,6 +1311,7 @@ export class BooksService implements OnModuleInit {
       soldCount: Number(soldCount || 0),
       sales: Number(soldCount || 0),
       rating: 0,
+      categoryId: book.categoryId ?? book.category?.id ?? null,
       category: book.category,
       author: book.author,
       publisher: book.publisher,
@@ -1251,14 +1322,18 @@ export class BooksService implements OnModuleInit {
       reserved,
       available,
       weight: physical?.weight ?? null,
-      physicalEnabled: physical?.physicalEnabled ?? true,
+      dimensions: physical?.dimensions ?? null,
+      physicalEnabled: physical?.physicalEnabled ?? book.format !== BookFormat.DIGITAL,
+      digitalEnabled: digital?.digitalEnabled ?? book.format !== BookFormat.PHYSICAL,
+      accessType: digital?.accessType ?? null,
       isAffiliateEligible: Boolean(book.affiliateSetting?.isEligible),
       hasPdf:
         resolvedHasPdf !== undefined
           ? resolvedHasPdf
-          : Boolean(book.digitalDetails?.pdfKey || book.digitalDetails?.previewPdfKey),
-      hasSourceFile: Boolean(book.digitalDetails?.pdfKey),
-      hasPreviewFile: Boolean(book.digitalDetails?.previewPdfKey),
+          : Boolean(digital?.pdfKey || digital?.previewPdfKey),
+      hasEpub,
+      hasSourceFile: Boolean(digital?.pdfKey),
+      hasPreviewFile: Boolean(digital?.previewPdfKey),
       affiliateSetting: book.affiliateSetting
         ? {
             isEligible: book.affiliateSetting.isEligible,

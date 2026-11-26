@@ -68,6 +68,17 @@ export interface BookDetailData {
   toc?: TableOfContentItem[];
   hasEbook?: boolean;
   hasPaper?: boolean;
+  weight?: number;
+  dimensions?: string;
+  physicalEnabled?: boolean;
+  digitalEnabled?: boolean;
+  accessType?: string;
+  hasPdf?: boolean;
+  hasEpub?: boolean;
+  hasSourceFile?: boolean;
+  hasPreviewFile?: boolean;
+  publishedAt?: string;
+  authorBio?: string;
 }
 
 export default function BookDetailPage() {
@@ -800,11 +811,23 @@ export default function BookDetailPage() {
       const stockVal = typeof realBook.stock === 'number' ? realBook.stock : (realBook.physicalDetails?.stock ?? 0);
       const reservedVal = typeof realBook.reserved === 'number' ? realBook.reserved : (realBook.physicalDetails?.reserved ?? 0);
       const availableVal = typeof realBook.available === 'number' ? realBook.available : Math.max(0, stockVal - reservedVal);
+      const rawWeight = realBook.weight ?? realBook.physicalDetails?.weight;
+      const parsedWeight =
+        typeof rawWeight === 'number' && Number.isFinite(rawWeight) && rawWeight > 0
+          ? rawWeight
+          : typeof rawWeight === 'string' && Number(rawWeight) > 0
+            ? Number(rawWeight)
+            : undefined;
+      const parsedDimensions =
+        (realBook.dimensions || realBook.physicalDetails?.dimensions || '')?.trim() || undefined;
+      const authorBio = typeof realBook.author === 'object' ? realBook.author?.bio : undefined;
+
       return {
         id: realBook.id,
         slug: realBook.slug,
         title: realBook.title || 'Sách Tuyển Chọn',
         author: authorName || 'Tác giả HUKI',
+        authorBio: authorBio || undefined,
         publisher: publisherName || 'Đang cập nhật',
         issuingCompany: issuingCompanyName || undefined,
         translator: translatorName || undefined,
@@ -827,6 +850,16 @@ export default function BookDetailPage() {
         stock: stockVal,
         reserved: reservedVal,
         available: availableVal,
+        weight: parsedWeight,
+        dimensions: parsedDimensions,
+        physicalEnabled: realBook.physicalEnabled ?? realBook.physicalDetails?.physicalEnabled ?? (realBook.format !== 'DIGITAL'),
+        digitalEnabled: realBook.digitalEnabled ?? realBook.digitalDetails?.digitalEnabled ?? (realBook.format !== 'PHYSICAL'),
+        accessType: realBook.accessType || realBook.digitalDetails?.accessType || undefined,
+        hasPdf: Boolean(realBook.hasPdf || realBook.hasSourceFile || realBook.digitalDetails?.pdfKey),
+        hasEpub: Boolean(realBook.hasEpub || realBook.digitalDetails?.epubKey),
+        hasSourceFile: Boolean(realBook.hasSourceFile || realBook.digitalDetails?.pdfKey),
+        hasPreviewFile: Boolean(realBook.hasPreviewFile || realBook.digitalDetails?.previewPdfKey),
+        publishedAt: realBook.publishedAt || undefined,
         format: realBook.format || 'BOTH',
         isBestseller: Boolean(realBook.isBestseller),
         isReal: true,
@@ -1662,61 +1695,163 @@ export default function BookDetailPage() {
               </div>
 
               {/* Thông tin chi tiết & pháp lý xuất bản thật từ database */}
-              <div className="border-t border-gray-100 pt-6">
-                <h3 className="font-bold text-sm text-[#17201f] mb-4 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[#006953] text-base">info</span>
-                  Thông Tin Chi Tiết &amp; Pháp Lý Xuất Bản
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-xs">
-                  <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-500">Nhà xuất bản:</span>
-                    <span className="font-semibold text-gray-800">{book.publisher}</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-500">Đơn vị phát hành:</span>
-                    <span className="font-semibold text-[#006953]">{book.issuingCompany || book.publisher}</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-500">Tác giả:</span>
-                    <span className="font-semibold text-gray-800">{book.author}</span>
-                  </div>
-                  {book.translator && (
-                    <div className="flex justify-between py-2 border-b border-gray-100">
-                      <span className="text-gray-500">Dịch giả:</span>
-                      <span className="font-semibold text-gray-800">{book.translator}</span>
+              <div className="border-t border-gray-100 pt-6 space-y-6">
+                <div>
+                  <h3 className="font-bold text-sm text-[#17201f] mb-4 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[#006953] text-base">info</span>
+                    Thông Tin Chi Tiết &amp; Pháp Lý Xuất Bản
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2.5 text-xs">
+                    <div className="flex justify-between gap-4 py-2 border-b border-gray-100">
+                      <span className="text-gray-500 shrink-0">Tác giả:</span>
+                      <span className="font-semibold text-gray-800 text-right">{book.author}</span>
                     </div>
-                  )}
-                  {(book.publishingLicenseNumber || book.isbn) && (
-                    <div className="flex justify-between py-2 border-b border-gray-100">
-                      <span className="text-gray-500">Số giấy phép xuất bản / ISBN:</span>
-                      <span className="font-mono font-semibold text-gray-800">
-                        {[book.publishingLicenseNumber, book.isbn].filter(Boolean).join(' • ')}
+                    <div className="flex justify-between gap-4 py-2 border-b border-gray-100">
+                      <span className="text-gray-500 shrink-0">Nhà xuất bản:</span>
+                      <span className="font-semibold text-gray-800 text-right">{book.publisher}</span>
+                    </div>
+                    <div className="flex justify-between gap-4 py-2 border-b border-gray-100">
+                      <span className="text-gray-500 shrink-0">Đơn vị phát hành:</span>
+                      <span className="font-semibold text-[#006953] text-right">{book.issuingCompany || book.publisher}</span>
+                    </div>
+                    {book.translator && (
+                      <div className="flex justify-between gap-4 py-2 border-b border-gray-100">
+                        <span className="text-gray-500 shrink-0">Dịch giả:</span>
+                        <span className="font-semibold text-gray-800 text-right">{book.translator}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between gap-4 py-2 border-b border-gray-100">
+                      <span className="text-gray-500 shrink-0">Thể loại:</span>
+                      <span className="font-semibold text-gray-800 text-right">{book.category || 'Văn học & Tri thức'}</span>
+                    </div>
+                    <div className="flex justify-between gap-4 py-2 border-b border-gray-100">
+                      <span className="text-gray-500 shrink-0">Phiên bản phát hành:</span>
+                      <span className="font-semibold text-[#006953] text-right">
+                        {book.format === 'BOTH'
+                          ? 'Sách Vật Lý + Ebook (Combo)'
+                          : book.format === 'DIGITAL'
+                            ? 'Sách Điện Tử (Ebook)'
+                            : 'Sách Vật Lý (Bản in)'}
                       </span>
                     </div>
-                  )}
-                  <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-500">Ngôn ngữ:</span>
-                    <span className="font-semibold text-gray-800">{book.language || 'Tiếng Việt'}</span>
+                    <div className="flex justify-between gap-4 py-2 border-b border-gray-100">
+                      <span className="text-gray-500 shrink-0">Ngôn ngữ:</span>
+                      <span className="font-semibold text-gray-800 text-right">{book.language || 'Tiếng Việt'}</span>
+                    </div>
+                    {book.publishedAt && (
+                      <div className="flex justify-between gap-4 py-2 border-b border-gray-100">
+                        <span className="text-gray-500 shrink-0">Ngày phát hành:</span>
+                        <span className="font-semibold text-gray-800 text-right">
+                          {new Date(book.publishedAt).toLocaleDateString('vi-VN')}
+                        </span>
+                      </div>
+                    )}
+                    {(book.publishingLicenseNumber || book.isbn) && (
+                      <div className="flex justify-between gap-4 py-2 border-b border-gray-100">
+                        <span className="text-gray-500 shrink-0">Số giấy phép XB / ISBN:</span>
+                        <span className="font-mono font-semibold text-gray-800 text-right">
+                          {[book.publishingLicenseNumber, book.isbn].filter(Boolean).join(' • ')}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  {book.category && (
-                    <div className="flex justify-between py-2 border-b border-gray-100">
-                      <span className="text-gray-500">Thể loại:</span>
-                      <span className="font-semibold text-gray-800">{book.category}</span>
+
+                  {book.authorBio && (
+                    <div className="mt-4 p-3.5 rounded-xl bg-[#f8f6f1]/70 border border-[#e8e5df] text-xs text-gray-700 leading-relaxed flex items-start gap-2.5">
+                      <span className="material-symbols-outlined text-[#006953] text-base shrink-0 mt-0.5">history_edu</span>
+                      <div>
+                        <span className="font-bold text-[#17201f]">Về tác giả {book.author}: </span>
+                        <span>{book.authorBio}</span>
+                      </div>
                     </div>
                   )}
-                  {book.pages && (
-                    <div className="flex justify-between py-2 border-b border-gray-100">
-                      <span className="text-gray-500">Số trang sách in:</span>
-                      <span className="font-semibold text-gray-800">{book.pages} trang</span>
+                </div>
+
+                {/* Khối thông số riêng theo định dạng: Sách Vật Lý / Sách Điện Tử / Cả Hai */}
+                <div
+                  className={`grid grid-cols-1 ${
+                    book.format === 'BOTH' ? 'md:grid-cols-2' : ''
+                  } gap-4`}
+                >
+                  {(book.format === 'PHYSICAL' || book.format === 'BOTH') && (
+                    <div className="p-4 sm:p-5 rounded-2xl bg-[#f8f6f1]/75 border border-[#e8e5df] space-y-2.5 text-xs">
+                      <h4 className="font-bold text-xs sm:text-sm text-[#17201f] flex items-center gap-2 pb-2 border-b border-[#e8e5df]">
+                        <span className="material-symbols-outlined text-[#006953] text-base">package_2</span>
+                        <span>Quy Cách Sách Vật Lý &amp; Giao Hàng</span>
+                      </h4>
+                      <div className="flex justify-between gap-4 py-1 border-b border-[#e8e5df]/60">
+                        <span className="text-gray-500">Trọng lượng:</span>
+                        <span className="font-semibold text-gray-900">
+                          {book.weight
+                            ? `${book.weight}g (${(book.weight / 1000).toFixed(2)} kg)`
+                            : 'Đang cập nhật'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-4 py-1 border-b border-[#e8e5df]/60">
+                        <span className="text-gray-500">Kích thước:</span>
+                        <span className="font-semibold text-gray-900">
+                          {book.dimensions || 'Tiêu chuẩn khổ sách NXB (Đang cập nhật)'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-4 py-1 border-b border-[#e8e5df]/60">
+                        <span className="text-gray-500">Số trang bản in:</span>
+                        <span className="font-semibold text-gray-900">
+                          {book.pages ? `${book.pages} trang` : 'Đang cập nhật'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-4 py-1 border-b border-[#e8e5df]/60">
+                        <span className="text-gray-500">Tồn kho khả dụng:</span>
+                        <span className={`font-bold ${(book.available ?? 0) > 0 ? 'text-[#006953]' : 'text-rose-600'}`}>
+                          {(book.available ?? 0) > 0
+                            ? `Còn ${book.available} cuốn sẵn sàng giao`
+                            : 'Tạm hết hàng'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-4 py-1">
+                        <span className="text-gray-500">Đóng gói bảo quản:</span>
+                        <span className="font-medium text-gray-800 text-right">Màng co + hộp chống sốc 2 lớp</span>
+                      </div>
                     </div>
                   )}
-                  {(realBook?.physicalDetails?.weight || realBook?.physicalDetails?.dimensions) && (
-                    <div className="flex justify-between py-2 border-b border-gray-100">
-                      <span className="text-gray-500">Trọng lượng &amp; Quy cách:</span>
-                      <span className="font-semibold text-gray-800">
-                        {realBook.physicalDetails.weight ? `${realBook.physicalDetails.weight}g` : ''}
-                        {realBook.physicalDetails.dimensions ? ` (${realBook.physicalDetails.dimensions})` : ''}
-                      </span>
+
+                  {(book.format === 'DIGITAL' || book.format === 'BOTH') && (
+                    <div className="p-4 sm:p-5 rounded-2xl bg-[#f0f7f4]/75 border border-[#006953]/20 space-y-2.5 text-xs">
+                      <h4 className="font-bold text-xs sm:text-sm text-[#17201f] flex items-center gap-2 pb-2 border-b border-[#006953]/15">
+                        <span className="material-symbols-outlined text-[#006953] text-base">tablet_mac</span>
+                        <span>Thông Số Phiên Bản Ebook &amp; Bản Quyền Số</span>
+                      </h4>
+                      <div className="flex justify-between gap-4 py-1 border-b border-[#006953]/10">
+                        <span className="text-gray-500">Định dạng tệp:</span>
+                        <span className="font-semibold text-[#006953] text-right">
+                          {[
+                            (book.hasPdf || book.hasSourceFile) && 'PDF chuẩn NXB',
+                            book.hasEpub && 'EPUB tái dòng',
+                            'HUKI Web Reader',
+                          ]
+                            .filter(Boolean)
+                            .join(' • ')}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-4 py-1 border-b border-[#006953]/10">
+                        <span className="text-gray-500">Chế độ đọc thử:</span>
+                        <span className="font-semibold text-gray-900">
+                          {book.hasPreviewFile ? 'Hỗ trợ xem trước trực tuyến' : 'Mở toàn văn sau kích hoạt'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-4 py-1 border-b border-[#006953]/10">
+                        <span className="text-gray-500">Quyền sở hữu:</span>
+                        <span className="font-semibold text-gray-900">
+                          {book.accessType === 'FREE' ? 'Đọc miễn phí trực tuyến' : 'Kích hoạt tức thì & Vĩnh viễn'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-4 py-1 border-b border-[#006953]/10">
+                        <span className="text-gray-500">Bảo hộ bản quyền:</span>
+                        <span className="font-semibold text-[#006953]">HUKI DRM v3.4 (Tối đa 5 thiết bị)</span>
+                      </div>
+                      <div className="flex justify-between gap-4 py-1">
+                        <span className="text-gray-500">Tiện ích đi kèm:</span>
+                        <span className="font-medium text-gray-800 text-right">Lưu trang tự động, đánh dấu &amp; ghi chú</span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2140,7 +2275,12 @@ export default function BookDetailPage() {
 
       {/* Similar Books Recommendations */}
       {realBook?.id && (
-        <SimilarBooksSection bookId={realBook.id} limit={6} />
+        <SimilarBooksSection
+          bookId={realBook.id}
+          categoryId={realBook?.category?.id || realBook?.categoryId}
+          categoryName={realBook?.category?.name}
+          limit={6}
+        />
       )}
       {/* 4. MOBILE STICKY ACTION BAR (Chuẩn TMĐT Shopee/Tiki cho điện thoại) */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-t border-slate-200 dark:border-zinc-800 px-3 py-2 flex items-center gap-2 shadow-lg">

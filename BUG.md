@@ -1624,7 +1624,7 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 
 ---
 
-### Bước 3: Phương án Đề Xuất & Tiêu chuẩn Nghiệm thu (`BUG-17`, `BUG-18`) — `[CHỜ PHÊ DUYỆT]`
+### Bước 3: Phương án Đề Xuất & Tiêu chuẩn Nghiệm thu (`BUG-17`, `BUG-18`) — `[ĐÃ PHÊ DUYỆT]`
 
 - **Phương án 1 — `(Khuyến nghị) [Backend Related Endpoint + Public Specs + Editorial UI Card đồng bộ 1-1]`:**
   1. Bổ sung `GET /books/:id/related` (ưu tiên cùng thể loại `categoryId`, fallback cùng tác giả/NXB/định dạng) và xuất đầy đủ `dimensions`, `categoryId`, `digitalEnabled`, `accessType`, `hasEpub` trong `BooksService.serializeBook()`.
@@ -1633,6 +1633,30 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 - **Phương án 2 — `[Chỉ sửa Frontend từ realBook.weight & gọi catalogApi.getPublicBooks]`:** Không bổ sung endpoint backend; kích thước `dimensions` và `accessType` vẫn bị thiếu do API hiện tại không trả về.
 - **Acceptance Criteria (BDD/Gherkin):**
   - `Given` người dùng mở `/book/tu-huyet-cam-xuc` (format `BOTH`, weight `350g`), `When` trang tải xong, `Then` tab Giới Thiệu hiển thị đầy đủ 3 khối: Thông tin xuất bản/tác giả, Thông số Sách Vật Lý (trọng lượng `350g (0.35 kg)`, kích thước, số trang/tồn kho), và Thông số Ebook (`DRM 5 thiết bị`, định dạng file, kích hoạt tức thì); đồng thời cuối trang luôn hiển thị mục **"Sách Cùng Thể Loại & Gợi Ý Liên Quan"** với tối đa 6 đầu sách thật cùng UI `#006953`.
+
+---
+
+### Bước 4: Triển khai Khắc phục & Kiểm chứng Tự động (26/11/2026)
+
+1. **Backend (`commerce-service`):**
+   - [`books.controller.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/books.controller.ts): mở endpoint public `GET /books/:id/related`.
+   - [`books.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/books.service.ts): bổ sung `findRelated(idOrSlug, limit)` xếp hạng ưu tiên `SAME_CATEGORY → SAME_AUTHOR_OR_PUBLISHER → SAME_FORMAT → CATALOG_SUGGESTION`; mở rộng `serializeBook()` trả public `dimensions`, `categoryId`, `digitalEnabled`, `accessType`, `hasEpub`.
+   - [`books.service.spec.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/books.service.spec.ts): kiểm thử public specs & `findRelated` — **PASS**.
+2. **Frontend (`@huki/web`):**
+   - [`catalogApi.ts`](file:///e:/HuKi/web/src/ui/api/catalogApi.ts): bổ sung `getRelatedBooks()` và các field `weight`, `dimensions`, `digitalEnabled`, `accessType`, `hasEpub`, `categoryId`.
+   - [`SimilarBooksSection.tsx`](file:///e:/HuKi/web/src/ui/components/recommendations/SimilarBooksSection.tsx): bọc trong container `max-w-[1240px]` card `rounded-2xl border-[#e8e5df]` đồng bộ với trang chi tiết, kết hợp `/books/:id/related` + `analytics/recommendations/similar` + catalog fallback, hiển thị grid `BookCard`.
+   - [`web/src/app/book/[id]/page.tsx`](file:///e:/HuKi/web/src/app/book/%5Bid%5D/page.tsx): nâng cấp tab **Giới Thiệu** thành 3 khối: *Thông Tin Chi Tiết & Pháp Lý Xuất Bản* (kèm tiểu sử tác giả nếu có), *Quy Cách Sách Vật Lý & Giao Hàng* (trọng lượng g/kg, kích thước, số trang, tồn kho khả dụng, đóng gói), và *Thông Số Phiên Bản Ebook & Bản Quyền Số* (định dạng PDF/EPUB, đọc thử, quyền sở hữu, HUKI DRM 5 thiết bị, tiện ích ghi chú/lưu trang).
+3. **E2E Verification ([`scripts/test_e2e_bug17_18_book_detail.js`](file:///e:/HuKi/scripts/test_e2e_bug17_18_book_detail.js)):** **PASS (4/4)** — kiểm thử `findOne` public specs, `findRelated`, API Gateway `PUBLIC`, và Frontend contract.
+
+---
+
+### Bước 5 & Bước 6: Kiểm Toán & 4 Cổng CI/CD Local — `[4/4 PASS]`
+
+1. **Gate 1 — Git Hygiene & Diff Audit:** `git diff --check` sạch, `0` secret/anti-pattern trong `533` dòng thêm. — **PASS**.
+2. **Gate 2 — Prisma Schema Integrity:** `npx prisma validate` **6/6** dịch vụ — **PASS**.
+3. **Gate 3 — Backend Build & Full Jest:** `npm --prefix platform run build` exit 0; `npm --prefix platform test -- --runInBand --forceExit` — **`75/75` suites, `808/808` tests PASS**.
+4. **Gate 4 — Frontend Checks & Production Build:** `typecheck` pass, `lint` pass, Vitest (`10/10` files, `71/71` tests) pass, `next build` (`142/142` routes) — **PASS**.
+
 
 
 
