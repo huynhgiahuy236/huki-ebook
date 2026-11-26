@@ -601,11 +601,10 @@ export function AdminModerationView() {
               setSelectedReason((prev) => (prev === 'LANGUAGE_VIOLATION' ? 'ALL' : 'LANGUAGE_VIOLATION'));
               setCurrentPage(1);
             }}
-            className={`p-4 rounded-xl border flex items-center justify-between text-left transition-all cursor-pointer ${
-              selectedReason === 'LANGUAGE_VIOLATION'
-                ? 'bg-rose-100/90 border-rose-400 shadow-xs'
-                : 'bg-rose-50/80 border-rose-200/80 hover:border-rose-300'
-            }`}
+            className={`p-4 rounded-xl border flex items-center justify-between text-left transition-all cursor-pointer ${selectedReason === 'LANGUAGE_VIOLATION'
+              ? 'bg-rose-100/90 border-rose-400 shadow-xs'
+              : 'bg-rose-50/80 border-rose-200/80 hover:border-rose-300'
+              }`}
             title="Nhấn để lọc nhanh các bình luận vi phạm ngôn từ chờ xử lý"
           >
             <div>
@@ -969,11 +968,10 @@ export function AdminModerationView() {
                 <button
                   type="submit"
                   disabled={isSubmittingAction}
-                  className={`px-4 py-1.5 rounded-xl text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 ${
-                    actionModalType === 'RESOLVE'
-                      ? 'bg-rose-600 hover:bg-rose-700'
-                      : 'bg-gray-800 hover:bg-black'
-                  }`}
+                  className={`px-4 py-1.5 rounded-xl text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 ${actionModalType === 'RESOLVE'
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : 'bg-gray-800 hover:bg-black'
+                    }`}
                 >
                   {isSubmittingAction && <span className="material-symbols-outlined text-xs animate-spin">progress_activity</span>}
                   <span>{actionModalType === 'RESOLVE' ? 'Xác Nhận Xử Lý' : 'Xác Nhận Bác Bỏ'}</span>

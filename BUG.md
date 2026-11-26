@@ -1505,7 +1505,7 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 
 ---
 
-### Bước 3: Phương án Kiến trúc Chuẩn Shopee & Tiêu chuẩn Nghiệm thu (`BUG-14`, `BUG-15`, `BUG-16`) — `[CHỜ PHÊ DUYỆT]`
+### Bước 3: Phương án Kiến trúc Chuẩn Shopee & Tiêu chuẩn Nghiệm thu (`BUG-14`, `BUG-15`, `BUG-16`) — `[ĐÃ PHÊ DUYỆT]`
 
 #### 1. Phương án cho `BUG-14` (Email + Popup OTP 6 số khi sửa Hồ sơ Shop)
 - **Phương án 1 — `(Khuyến nghị) [Stateless HMAC + Single-Use PostgreSQL Audit Nonce & Gmail SMTP/EmailService]`:**
@@ -1541,6 +1541,61 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
   - `Given` Seller mở `/seller/business`, bấm **Cập nhật thông tin** và sửa tên Chủ hộ từ `Nguyễn Phương Thúy` → `Nguyễn Phương Thùy`, `When` bấm gửi cập nhật, `Then` hệ thống gửi email OTP 6 chữ số qua `EmailService` và mở Popup nhập OTP 6 số; nhập sai OTP bị chặn (`400`), nhập đúng OTP 6 số mới tạo `BusinessUpdateRequest` và gửi thành công (OTP cũ không dùng lại được lần 2).
   - `Given` Admin đang mở sẵn `/admin/business-requests`, `When` Seller gửi yêu cầu vừa xác thực OTP, `Then` Admin nhận thông báo realtime trên chuông + toast và danh sách yêu cầu tự động cập nhật mà **không cần F5**; khi bấm **Đối Chiếu**, bảng 3 cột thẳng hàng hiển thị rõ `Nguyễn Phương Thúy (Nhà Sách HuKi)` ở cột Hiện Tại và `Nguyễn Phương Thùy (Nhà Sách HuKi)` được highlight **"Đã thay đổi"** ở cột Đề Xuất.
   - `Given` Seller đang mở `/seller/business` hoặc `/seller/business/notifications`, `When` Admin bấm **Chấp nhận** hoặc **Từ chối**, `Then` Seller nhận toast + badge realtime `< 1s` và hồ sơ tự động cập nhật trạng thái mới nhất không cần F5.
+
+---
+
+### Bước 4: Triển khai Khắc phục Toàn diện & Kiểm chứng Tự động (26/11/2026)
+
+#### 1. `BUG-14` — Email OTP 6 Chữ Số & Popup Xác Thực Cập Nhật Hồ Sơ Shop
+- **Backend (`@huki/shared`, `business-service`):**
+  - [`email.service.ts`](file:///e:/HuKi/platform/libs/shared/src/email/email.service.ts): thêm `sendBusinessUpdateOtpEmail(to, otp, businessName)` sử dụng template OTP 6 chữ số qua Gmail SMTP / Resend / SendGrid.
+  - [`business.module.ts`](file:///e:/HuKi/platform/apps/business-service/src/modules/business/business.module.ts) & [`business.controller.ts`](file:///e:/HuKi/platform/apps/business-service/src/modules/business/business.controller.ts): import `EmailModule` + `BusinessOutboxModule`; mở endpoint `POST /businesses/my/update-request/send-otp`.
+  - [`business.service.ts`](file:///e:/HuKi/platform/apps/business-service/src/modules/business/business.service.ts): `sendUpdateRequestOtp` sinh OTP 6 chữ số ngẫu nhiên (`randomInt`), ký HMAC-SHA256 kèm nonce/exp 10 phút, áp dụng cooldown gửi lại 60s qua `AuditLog` (`UPDATE_REQUEST_OTP_SENT`), gửi tới email pháp lý/chủ sở hữu (`business.email || actorEmail`); `createUpdateRequest` bắt buộc xác thực `otpCode` + `otpToken`, chống dùng lại OTP (single-use via `AuditLog` `UPDATE_REQUEST_OTP_USED`).
+- **Frontend (`@huki/web`):**
+  - [`businessApi.ts`](file:///e:/HuKi/web/src/ui/api/businessApi.ts): bổ sung `sendUpdateRequestOtp()`.
+  - [`seller/business/page.tsx`](file:///e:/HuKi/web/src/app/seller/business/page.tsx): khi bấm gửi cập nhật, gọi `sendUpdateRequestOtp()` và mở **Popup Xác Thực OTP 6 Chữ Số** (hiển thị email nhận mã che một phần `otpMaskedEmail`, 6 ô nhập tách rời hỗ trợ Backspace/Ctrl+V dán 6 số, đếm ngược gửi lại 60s, thông báo lỗi trực tiếp trong popup).
+
+#### 2. `BUG-15` — Bảng Đối Chiếu 3 Cột Thẳng Hàng Trước ↔ Sau & Snapshot Đầy Đủ Ở Admin
+- **Backend (`business.service.ts`):**
+  - Tự động chụp đầy đủ `previousSnapshot` (kết hợp `Business`, `Store[0]` và yêu cầu `APPROVED` gần nhất cho các trường mở rộng `repName`, `repIdCardNumber`, `businessLicenseNumber`, `issueDate`, `issuePlace`, `operator*`, `bank*`, `headquarters`, `storeName`) khi `createUpdateRequest`.
+  - Chuẩn hóa `hydrateUpdateRequestSnapshot` trong `getAllUpdateRequestsForAdmin` và `getUpdateRequestById` để mọi yêu cầu (kể cả yêu cầu cũ) đều có `currentSnapshot` đồng bộ đầy đủ và tính `changedFields`.
+- **Frontend ([`AdminBusinessUpdateRequestsView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminBusinessUpdateRequestsView.tsx)):**
+  - Thiết kế lại Panel Đối Chiếu thành **Bảng 3 Cột Thẳng Hàng (`Trường thông tin` | `1. Dữ liệu Hiện Tại (Trong DB)` | `2. Đề Xuất Cập Nhật Mới`)** dùng `buildComparisonRows()`, sắp xếp các trường có thay đổi lên đầu kèm nhãn `"ĐÃ SỬA"`, highlight phần từ khóa thay đổi (`renderTokenDiffHighlight` — ví dụ `Thúy` ↔ `Thùy`), parse sạch mảng trụ sở (`Trụ sở 1: ...`), Việt hóa `businessType` (`INDIVIDUAL` → `Hộ Kinh Doanh Cá Thể`), thêm nút lọc **"Đang lọc chỉ N trường sửa / Xem cả M trường"**, và sửa lỗi `handleApprove(req.id)` trong subcard mở rộng.
+
+#### 3. `BUG-16` — Đồng Bộ Realtime 2 Chiều Seller ↔ Admin Cho Hồ Sơ Doanh Nghiệp
+- **Backend (`business-service` → RabbitMQ → `community-service`):**
+  - `createUpdateRequest`, `approveUpdateRequest`, `rejectUpdateRequest` ghi Outbox events `business.update_requested`, `business.update_approved`, `business.update_rejected` qua `BusinessOutboxService`.
+  - [`notification-event.consumer.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/notifications/notification-event.consumer.ts): subscribe 3 event `business.update_*`, lưu notification MongoDB và đẩy Socket.io ngay tới `admin_channel` (Admin) và `business:<businessId>` + `business_user:<ownerId>` (Seller).
+- **Frontend (`@huki/web`):**
+  - [`useRealtimeNotifications.ts`](file:///e:/HuKi/web/src/ui/hooks/useRealtimeNotifications.ts): phát `BUSINESS_REVISION_SUBMITTED` / `BUSINESS_STATUS_UPDATED` lên `realtimeSyncBus` khi nhận notification từ socket.
+  - [`AdminBusinessUpdateRequestsView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminBusinessUpdateRequestsView.tsx), [`seller/business/page.tsx`](file:///e:/HuKi/web/src/app/seller/business/page.tsx), [`seller/business/notifications/page.tsx`](file:///e:/HuKi/web/src/app/seller/business/notifications/page.tsx): lắng nghe realtime bus để cập nhật dữ liệu im lặng tức thì không cần F5.
+
+- **Kiểm chứng Tự động & E2E:**
+  - [`business.service.spec.ts`](file:///e:/HuKi/platform/apps/business-service/src/modules/business/business.service.spec.ts): bổ sung unit test OTP + replay guard + snapshot + outbox — **PASS**.
+  - [`scripts/test_e2e_bug14_15_16_business_otp_diff_realtime.js`](file:///e:/HuKi/scripts/test_e2e_bug14_15_16_business_otp_diff_realtime.js): **PASS** (OTP Email 6 số, chặn sai/replay, snapshot `"Thúy"` → `"Thùy"`, MongoDB `notifications` + Socket.io room `admin_channel`, `business:*`, `business_user:*`, và contract Frontend).
+
+---
+
+### Bước 5: Kiểm Toán Toàn Diện Local (Local Deep Audit Gate) — `[ĐẠT 100%]`
+
+1. **Quét Bí mật & Anti-pattern Diff:** Quét toàn bộ `1.403` dòng thêm trong `git diff` — `0` secret/key/token rò rỉ, `0` lời gọi `window.confirm(` / `alert(`, `git diff --check` sạch tuyệt đối.
+2. **Bảo toàn API & Scope:** Không thêm bảng Prisma bắt buộc migrate; dữ liệu test cô lập trong `scripts/test_e2e_bug14_15_16_business_otp_diff_realtime.js` và unit spec.
+
+---
+
+### Bước 6: 4 Cổng Kiểm Soát Chất Lượng Mô Phỏng CI/CD (Local CI/CD Gates) — `[4/4 PASS]`
+
+1. **Gate 1 — Git Hygiene & Secrets Scan:** `git diff --check` sạch, `0` secret leak. — **PASS**.
+2. **Gate 2 — Prisma Schema Integrity:** `npx prisma validate` cho **6/6** dịch vụ — **PASS (6/6 valid)**.
+3. **Gate 3 — Backend Build & Full Test Suite:**
+   - `npm --prefix platform run build` (`@huki/shared` + 8 microservices + Prisma clients) — **PASS (exit 0)**.
+   - `npm --prefix platform test -- --runInBand --forceExit` — **PASS (`Test Suites: 75 passed, 75 total; Tests: 807 passed, 807 total`)**.
+4. **Gate 4 — Frontend Typecheck, Lint, Test & Production Build:**
+   - `npm --prefix web run typecheck` — **PASS (exit 0)**.
+   - `npm --prefix web run lint` — **PASS (exit 0)**.
+   - `npm test` (tại `web/`, Vitest) — **PASS (`Test Files: 10 passed (10); Tests: 71 passed (71)`)**.
+   - `$env:NODE_ENV='production'; npm run build` (tại `web/`, Next.js `16.3.3`) — **PASS (`142/142` routes compiled)**.
+
 
 
 

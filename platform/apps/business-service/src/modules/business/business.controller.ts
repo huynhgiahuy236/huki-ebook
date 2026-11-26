@@ -300,6 +300,21 @@ export class BusinessController {
 
   // ==================== BUSINESS PROFILE UPDATE REQUESTS ENDPOINTS ====================
 
+  @Post('my/update-request/send-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Send 6-digit OTP email to verify business profile update request (Seller)' })
+  async sendUpdateRequestOtp(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('email') userEmail?: string,
+  ) {
+    const result = await this.businessService.sendUpdateRequestOtp(userId, userEmail);
+    return {
+      success: true,
+      message: `Đã gửi mã OTP 6 chữ số đến email ${result.maskedEmail}. Vui lòng kiểm tra hộp thư.`,
+      data: result,
+    };
+  }
+
   @Post('my/update-request')
   @ApiOperation({ summary: 'Submit a business profile update request (Seller)' })
   async submitUpdateRequest(

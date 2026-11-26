@@ -427,6 +427,22 @@ export const businessApi = {
   },
 
   /**
+   * Gửi mã OTP 6 chữ số qua Email để xác thực yêu cầu cập nhật hồ sơ (Seller)
+   */
+  async sendUpdateRequestOtp(): Promise<
+    ApiResponse<{
+      otpToken: string;
+      maskedEmail: string;
+      expiresInSeconds: number;
+      resendCooldownSeconds: number;
+    }>
+  > {
+    return apiClient<any>('/businesses/my/update-request/send-otp', {
+      method: 'POST',
+    });
+  },
+
+  /**
    * Gửi yêu cầu cập nhật hồ sơ doanh nghiệp & cửa hàng (Seller)
    */
   async submitUpdateRequest(payload: any): Promise<ApiResponse<any>> {
