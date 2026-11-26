@@ -1174,7 +1174,9 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 
 ---
 
-### Bước 3 — Giai đoạn 1: Phương án Kiến trúc Chuẩn Shopee & Tiêu chuẩn Nghiệm thu (`BUG-07`, `BUG-08`, `BUG-09`)
+### Bước 3 — Giai đoạn 1: Phương án Kiến trúc Chuẩn Shopee & Tiêu chuẩn Nghiệm thu (`BUG-07`, `BUG-08`, `BUG-09`) — `[ĐÃ PHÊ DUYỆT]`
+
+> **Quyết định của Người dùng / PO:** Đã phê duyệt **Phương án 1 `(Khuyến nghị) [Chuẩn Shopee]`** cho cả `BUG-07`, `BUG-08`, và `BUG-09`.
 
 #### 1. Phương án cho `BUG-07` (Ebook Reader & Cloudflare R2 Storage)
 - **Phương án 1 — `(Khuyến nghị) [Chuẩn Shopee / Tiki Digital]`:** Chuẩn hóa R2 đa biến môi trường (`CLOUDFLARE_R2_*` + `R2_*`), bật `forcePathStyle: true` và log lỗi S3 chi tiết trong `R2EbookStorage`; `BooksService` đồng bộ kiểm tra cả `digitalDetails.pdfKey` / `previewPdfKey` lẫn `REAL_EBOOK_MAPPINGS`, tách rõ lỗi kết nối R2 (`502/503`) khỏi `404 NO_PDF_AVAILABLE`, mở `HEAD` cho `/books/:id/pdf` tại Gateway; `ReaderPage` vẫn thử stream PDF khi `hasSourceFile || hasPreviewFile || hasPdf`.
@@ -1214,6 +1216,31 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 - **Acceptance Criteria (BDD/Gherkin):**
   - `Given` Seller ở `/seller/promotions/flash-sale`, `When` bấm `"Tạo Flash Sale & Đăng Ký Sách"` và bấm `"Xác Nhận Đăng Ký"`, `Then` giao diện mở mượt không treo main-thread, nút submit hiển thị spinner quay ngay lập tức và tạo thành công với HTTP 201/200, 0 lỗi console.
   - `Given` Seller bấm nút xóa đợt Flash Sale, `When` thao tác xóa, `Then` **không** bật `window.confirm` trình duyệt; Modal xác nhận tùy chỉnh hiện ra với nút xác nhận đếm ngược `5s → 4s → 3s → 2s → 1s → 0s` bị `disabled` suốt 5s đầu và chỉ cho phép bấm xóa khi về `0s`.
+
+---
+
+### Bước 3 — Giai đoạn 2: Phương án Kiến trúc Chuẩn Shopee & Tiêu chuẩn Nghiệm thu (`BUG-10`)
+
+#### 4. Phương án cho `BUG-10` (`/admin/flash-sales` dùng `GroupedDataTable` đồng bộ Seller)
+- **Phương án 1 — `(Khuyến nghị) [Chuẩn Shopee Seller/Admin Center]`:**
+  1. Thay thế toàn bộ cấu trúc card/table bung sẵn trong [`AdminFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminFlashSaleView.tsx) bằng component dùng chung [`GroupedDataTable`](file:///e:/HuKi/web/src/ui/components/common/GroupedDataTable.tsx) với 5 cột chuẩn hóa giống [`SellerFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerFlashSaleView.tsx#L1484-L1648):
+     - **Đợt Flash Sale & Khung Giờ:** Tên đợt, badge `Sàn HUKI`, mốc mở đăng ký (`ĐK: ...`) và mốc mở bán (`Mở bán: ...`).
+     - **Shop & Chính Sách:** Số shop tham gia (`participatingStoresCount / maxStores`), `%` trợ giá sàn, hạn mức `Max/khách`.
+     - **Ấn Phẩm Đăng Ký:** Số lượng sách & preview tên sách nổi bật.
+     - **Tiến Độ & Doanh Thu:** Thanh progress tỷ lệ đã bán / phân bổ và tổng doanh thu ước tính của phiên.
+     - **Trạng Thái & Thao Tác:** `SlotStatusBadge` (countdown isolated), nút `Studio Gán Sách`, `Kết Thúc Sớm` (5 phút), `Hủy Lịch`.
+  2. Dùng `expandable={true}` + `expandedRowRender` để Admin bấm mở rộng xem/sửa tồn kho inline/xóa từng sách ngay trong dòng phiên mà không làm trang dài lê thê; giữ phân trang chuẩn 10 dòng/trang qua `GroupedDataTable` (`pagination={true}`).
+  3. Giữ nguyên Form tạo khung giờ 4 mốc ở trên đầu, Studio Gán Sách hàng loạt (tối ưu `Promise.all` / chunked thay vòng `for` tuần tự), và Tab Kiểm soát Sao Quả Tạ & Kháng nghị.
+  4. Đồng bộ thay thế 2 `window.confirm` trong `AdminFlashSaleView.tsx` (`handleCancelSlot` và `handleRemoveItem`) bằng Modal xác nhận có đếm ngược 5s → 0s.
+  - *Ưu điểm:* Giao diện nhất quán 100% với Seller, gọn nhẹ, dễ kiểm soát hàng chục đợt Flash Sale, tái sử dụng component chuẩn của hệ thống.
+  - *Nhược điểm:* Thay đổi cấu trúc JSX phần danh sách trong `AdminFlashSaleView.tsx`.
+- **Phương án 2 — `[GroupedDataTable phân nhóm 2 tầng theo Trạng Thái]`:** Tạo 4 dòng cha (`Đang Live`, `Sắp Diễn Ra`, `Đã Hủy`, `Đã Kết Thúc`) dùng `childrenField` để lồng các đợt con bên dưới.
+  - *Ưu điểm:* Giữ phân tách 4 nhóm trạng thái trên cùng bảng `ALL`.
+  - *Nhược điểm:* Tốn thêm 1 thao tác click mở nhóm cha mới thấy đợt Flash Sale, không đồng bộ 1-1 với bố cục phẳng theo từng phiên của trang Seller (vốn đã có filter tabs `Tất Cả / Đang Diễn Ra / Sắp Diễn Ra / Đã Kết Thúc`).
+- **Acceptance Criteria (BDD/Gherkin):**
+  - `Given` Admin truy cập `/admin/flash-sales`, `When` dữ liệu tải xong, `Then` danh sách đợt Flash Sale hiển thị bằng `GroupedDataTable` đồng bộ giao diện Seller với 5 cột rõ ràng, phân trang tối đa 10 phiên/trang, lọc tab & tìm kiếm tức thì.
+  - `Given` Admin bấm mở rộng (`>`) một phiên trong `GroupedDataTable`, `When` thao tác Sửa tồn / Xóa sách / Studio Gán Sách / Kết thúc sớm / Hủy lịch, `Then` tất cả thao tác hoạt động bình thường với API thật, 0 lỗi console, không còn popup `window.confirm` mặc định của trình duyệt.
+
 
 
 
