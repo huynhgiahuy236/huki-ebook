@@ -33,7 +33,7 @@ export default function FeaturedStoresSection() {
       if (raw) {
         setFollowedIds(JSON.parse(raw));
       }
-    } catch {}
+    } catch { }
 
     const syncRemoteFollowed = async () => {
       try {
@@ -47,7 +47,7 @@ export default function FeaturedStoresSection() {
             const merged = { ...prev, ...remoteMap };
             try {
               localStorage.setItem('huki_followed_stores', JSON.stringify(merged));
-            } catch {}
+            } catch { }
             return merged;
           });
         }
@@ -66,7 +66,7 @@ export default function FeaturedStoresSection() {
       const updated = { ...prev, [storeId]: nextState };
       try {
         localStorage.setItem('huki_followed_stores', JSON.stringify(updated));
-      } catch {}
+      } catch { }
       return updated;
     });
 
@@ -119,64 +119,8 @@ export default function FeaturedStoresSection() {
           return;
         }
 
-        // Fallback danh sách NXB đối tác chính thức tiêu chuẩn
-        setStores([
-          {
-            id: 'nxb-tre',
-            name: 'NXB Trẻ',
-            displayName: 'Nhà Xuất Bản Trẻ',
-            code: 'TRẺ',
-            color: 'bg-emerald-600 text-white',
-            followers: '42.5k người theo dõi',
-            rating: 4.9,
-            reviewCount: 12500,
-            isVerified: true,
-          },
-          {
-            id: 'nha-nam',
-            name: 'Nhã Nam',
-            displayName: 'Nhã Nam Publishing',
-            code: 'NN',
-            color: 'bg-amber-600 text-white',
-            followers: '68.2k người theo dõi',
-            rating: 5.0,
-            reviewCount: 28400,
-            isVerified: true,
-          },
-          {
-            id: 'nxb-kim-dong',
-            name: 'Kim Đồng',
-            displayName: 'NXB Kim Đồng',
-            code: 'KĐ',
-            color: 'bg-rose-600 text-white',
-            followers: '51.9k người theo dõi',
-            rating: 4.9,
-            reviewCount: 19100,
-            isVerified: true,
-          },
-          {
-            id: 'alpha-books',
-            name: 'Alpha Books',
-            displayName: 'Alpha Books Official',
-            code: 'αB',
-            color: 'bg-blue-600 text-white',
-            followers: '39.1k người theo dõi',
-            rating: 4.8,
-            reviewCount: 14200,
-            isVerified: true,
-          },
-          {
-            id: 'first-news',
-            name: 'First News',
-            displayName: 'First News Trí Việt',
-            code: 'FN',
-            color: 'bg-teal-700 text-white',
-            followers: '45.8k người theo dõi',
-            rating: 4.9,
-            reviewCount: 16700,
-            isVerified: true,
-          },
-        ]);
+        // Không hiển thị gian hàng giả / hardcode NXB khi chưa có dữ liệu cửa hàng thật từ DB
+        setStores([]);
       } catch (err) {
         console.warn('Stores fetch error:', err);
       } finally {

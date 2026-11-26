@@ -304,13 +304,17 @@ export default function BookDetailPage() {
           const lowerTarget = String(targetStoreId).trim().toLowerCase();
           const matchedBiz =
             businesses.find((biz: any) => {
-              if (String(biz.id || '').toLowerCase() === lowerTarget || String(biz.slug || '').toLowerCase() === lowerTarget) {
+              if (
+                String(biz.id || '').toLowerCase() === lowerTarget ||
+                String(biz.ownerId || '').toLowerCase() === lowerTarget ||
+                String(biz.slug || '').toLowerCase() === lowerTarget
+              ) {
                 return true;
               }
               return Array.isArray(biz.stores) && biz.stores.some(
                 (st: any) => String(st.id || '').toLowerCase() === lowerTarget || String(st.slug || '').toLowerCase() === lowerTarget,
               );
-            }) || (businesses.length === 1 ? businesses[0] : null);
+            }) || null;
 
           if (matchedBiz) {
             const matchedSubStore = Array.isArray((matchedBiz as any).stores)
@@ -923,32 +927,11 @@ export default function BookDetailPage() {
   }, [storeInfo, realBook, reviewSummary]);
 
   const publisherProfile = useMemo(() => {
-    const rawPublisher = realBook?.publisher;
-    const publisherObj = typeof rawPublisher === 'object' && rawPublisher ? rawPublisher : null;
+    // Tuyệt đối không lấy Nhà xuất bản (book.publisher) làm tên/slug Gian Hàng (Shop)
     const defaultName =
-      publisherObj?.name ||
-      (typeof rawPublisher === 'string' ? rawPublisher : '') ||
-      book.publisher ||
       realBook?.business?.displayName ||
       realBook?.business?.name ||
       'Gian Hàng HUKI';
-
-    const slugFromName = (str: string) =>
-      str
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, '-')
-        .replace(/[^\w-]+/g, '')
-        .replace(/--+/g, '-');
-
-    const publisherSlug =
-      publisherObj?.slug ||
-      (publisherObj?.name ? slugFromName(publisherObj.name) : '') ||
-      (typeof rawPublisher === 'string' && rawPublisher ? slugFromName(rawPublisher) : '') ||
-      (book.publisher ? slugFromName(book.publisher) : '') ||
-      'gian-hang';
 
     const storeLogo =
       sanitizeImageUrl(storeInfo?.logo) ||
@@ -963,46 +946,49 @@ export default function BookDetailPage() {
       return {
         id: storeInfo.id,
         name: storeInfo.name || defaultName,
-        slug: storeInfo.slug || storeInfo.stores?.[0]?.slug || publisherSlug || storeInfo.id,
+        slug: storeInfo.slug || storeInfo.stores?.[0]?.slug || storeInfo.id,
         logo: storeLogo,
-        description: storeInfo.description || storeInfo.stores?.[0]?.description || 'Nhà phân phối chính thức được chứng nhận bản quyền bởi HUKI Platform.',
+        description: storeInfo.description || storeInfo.stores?.[0]?.description || 'Gian hàng phân phối chính thức được chứng nhận bởi HUKI Platform.',
         address: storeInfo.address || 'Hà Nội & TP. Hồ Chí Minh, Việt Nam',
         rating: publisherReviewStats.rating,
         reviewsCount: publisherReviewStats.reviewsCount,
         hasReviews: publisherReviewStats.hasReviews,
         responseRate: '99%',
         isVerified: true,
+        hasShopPage: true,
       };
     }
     if (realBook?.business) {
       return {
-        id: realBook.business.id || publisherSlug,
+        id: realBook.business.id || realBook.business.slug || 'stores',
         name: realBook.business.displayName || realBook.business.name || defaultName,
-        slug: realBook.business.slug || realBook.business.stores?.[0]?.slug || publisherSlug || realBook.business.id,
+        slug: realBook.business.slug || realBook.business.stores?.[0]?.slug || realBook.business.id,
         logo: storeLogo,
-        description: realBook.business.description || realBook.business.stores?.[0]?.description || 'Nhà phân phối chính thức được chứng nhận bản quyền bởi HUKI Platform.',
+        description: realBook.business.description || realBook.business.stores?.[0]?.description || 'Gian hàng phân phối chính thức được chứng nhận bởi HUKI Platform.',
         address: realBook.business.address || 'Hà Nội & TP. Hồ Chí Minh, Việt Nam',
         rating: publisherReviewStats.rating,
         reviewsCount: publisherReviewStats.reviewsCount,
         hasReviews: publisherReviewStats.hasReviews,
         responseRate: '99%',
         isVerified: true,
+        hasShopPage: true,
       };
     }
     return {
-      id: publisherObj?.id || realBook?.storeId || realBook?.businessId || publisherSlug,
+      id: realBook?.storeId || realBook?.businessId || '',
       name: defaultName,
-      slug: publisherSlug,
+      slug: '',
       logo: storeLogo,
-      description: 'Nhà phân phối chính thức được chứng nhận bản quyền bởi HUKI Platform.',
+      description: 'Gian hàng đối tác chính hãng trên hệ sinh thái HUKI Platform.',
       address: 'Hà Nội & TP. Hồ Chí Minh, Việt Nam',
       rating: publisherReviewStats.rating,
       reviewsCount: publisherReviewStats.reviewsCount,
       hasReviews: publisherReviewStats.hasReviews,
       responseRate: '99%',
-      isVerified: true,
+      isVerified: Boolean(realBook?.storeId || realBook?.businessId),
+      hasShopPage: false,
     };
-  }, [storeInfo, book.publisher, realBook, publisherReviewStats]);
+  }, [storeInfo, realBook, publisherReviewStats]);
 
   const formatPricing = useMemo(() => {
     const bookFormat = realBook?.format || book.format || 'BOTH';
@@ -1872,7 +1858,7 @@ export default function BookDetailPage() {
                 <div className="p-4 sm:p-5 rounded-2xl bg-[#f8f6f1]/60 border border-[#e8e5df] flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="flex items-center gap-4 min-w-0">
                     <Link
-                      href={`/shop/${publisherProfile.slug || publisherProfile.id}`}
+                      href={publisherProfile.hasShopPage ? `/shop/${publisherProfile.slug || publisherProfile.id}` : '/stores'}
                       className="relative w-14 h-14 rounded-2xl bg-white border border-[#006953]/20 flex items-center justify-center shrink-0 overflow-hidden group shadow-2xs hover:border-[#006953] transition-colors"
                     >
                       <StoreLogoImg
@@ -1890,7 +1876,7 @@ export default function BookDetailPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <Link
-                          href={`/shop/${publisherProfile.slug || publisherProfile.id}`}
+                          href={publisherProfile.hasShopPage ? `/shop/${publisherProfile.slug || publisherProfile.id}` : '/stores'}
                           className="font-bold text-sm sm:text-base text-[#17201f] hover:text-[#006953] transition-colors truncate"
                         >
                           {publisherProfile.name}

@@ -226,9 +226,9 @@ function StoresContent() {
 
           const storeBooks = catalogBooks.filter(b => {
             const sId = b.storeId || (b as any).store_id;
-            const pId = b.publisherId || (b as any).publisher_id;
             const bId = b.businessId || (b as any).business_id;
-            return sId === st.id || pId === st.id || bId === biz.id || sId === biz.id;
+            const oId = (b as any).ownerUserId;
+            return sId === st.id || bId === biz.id || sId === biz.id || sId === biz.ownerId || bId === biz.ownerId || oId === biz.ownerId;
           });
           const totalBooks = Math.max((st as any).totalProducts || 0, storeBooks.length);
 
@@ -236,14 +236,14 @@ function StoresContent() {
             id: st.id,
             name: st.name,
             slug: st.slug || st.id,
-            category: 'Nhà Xuất Bản & Đối Tác',
+            category: 'Gian hàng sách',
             logo: sanitizeImageUrl(st.logo) || sanitizeImageUrl(biz.logo) || null,
             banner: sanitizeImageUrl(st.banner) || sanitizeImageUrl(biz.banner) || 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=800&q=80',
             rating: 5.0,
             reviewsCount: 'Mới',
-            followersCount: followedIds[st.id] ? 'Đang theo dõi' : (totalBooks > 0 ? `${totalBooks} ấn phẩm` : 'Gian hàng'),
+            followersCount: followedIds[st.id] ? 'Đang theo dõi' : 'Gian hàng đã xác thực',
             totalBooks: totalBooks,
-            description: biz.description || 'Gian hàng chính hãng đã được xác thực giấy phép xuất bản bởi HUKI.',
+            description: biz.description || 'Gian hàng bán sách chính hãng hoạt động trên hệ thống HUKI.',
             address: biz.address || 'Việt Nam',
             responseRate: '100%',
             isVerified: true,
@@ -257,9 +257,9 @@ function StoresContent() {
 
         const storeBooks = catalogBooks.filter(b => {
           const sId = b.storeId || (b as any).store_id;
-          const pId = b.publisherId || (b as any).publisher_id;
           const bId = b.businessId || (b as any).business_id;
-          return sId === biz.id || pId === biz.id || bId === biz.id;
+          const oId = (b as any).ownerUserId;
+          return sId === biz.id || bId === biz.id || sId === biz.ownerId || bId === biz.ownerId || oId === biz.ownerId;
         });
         const totalBooks = storeBooks.length;
 
@@ -267,14 +267,14 @@ function StoresContent() {
           id: biz.id,
           name: biz.name,
           slug: biz.slug || biz.id,
-          category: 'Doanh nghiệp Xuất bản',
+          category: 'Gian hàng sách',
           logo: sanitizeImageUrl(biz.logo) || null,
           banner: sanitizeImageUrl(biz.banner) || 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=800&q=80',
           rating: 5.0,
           reviewsCount: 'Mới',
-          followersCount: followedIds[biz.id] ? 'Đang theo dõi' : (totalBooks > 0 ? `${totalBooks} ấn phẩm` : 'Gian hàng'),
+          followersCount: followedIds[biz.id] ? 'Đang theo dõi' : 'Gian hàng đã xác thực',
           totalBooks: totalBooks,
-          description: biz.description || 'Gian hàng chính hãng đã được xác thực giấy phép xuất bản bởi HUKI.',
+          description: biz.description || 'Gian hàng bán sách chính hãng hoạt động trên hệ thống HUKI.',
           address: biz.address || 'Việt Nam',
           responseRate: '100%',
           isVerified: true,
@@ -430,41 +430,30 @@ function StoresContent() {
 
   return (
     <main className="min-h-screen bg-surface-container-lowest pb-16 w-full max-w-full min-w-0 overflow-x-clip">
-      {/* HERO BANNER */}
-      <section className="relative bg-gradient-to-r from-primary to-primary-container text-white py-12 px-4 sm:px-6 lg:px-8 overflow-hidden shadow-sm">
-        {/* BUG-014: Removed overflow blur-3xl decorative orbs */}
+      {/* HERO HEADER (Tinh gọn - tách biệt Gian hàng Seller và Tác giả) */}
+      <section className="bg-primary text-white py-8 px-4 sm:px-6 lg:px-8 shadow-xs">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div className="max-w-2xl">
+            <h1 className="font-editorial text-2xl sm:text-3xl font-bold tracking-tight text-white">
+              Gian Hàng &amp; Tác Giả
+            </h1>
+            <p className="text-white/80 text-xs sm:text-sm mt-1.5 leading-relaxed">
+              Khám phá các gian hàng bán sách chính thức và đội ngũ tác giả đang phân phối tác phẩm trên HuKi Ebook.
+            </p>
+          </div>
 
-        <div className="max-w-7xl mx-auto relative z-10">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="max-w-2xl">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-tertiary-fixed text-xs font-bold uppercase tracking-wider backdrop-blur-md mb-3">
-                <span className="material-symbols-outlined text-sm">verified_user</span>
-                Không Gian Tinh Hoa Bản Quyền
+          <div className="flex items-center gap-3 text-xs shrink-0">
+            <div className="bg-white/10 px-4 py-2 rounded-xl border border-white/15">
+              <span className="font-editorial text-lg font-bold text-tertiary-fixed mr-1.5">
+                {combinedAllPublishers.length}
               </span>
-              <h1 className="font-editorial text-3xl sm:text-4xl font-bold tracking-tight text-white mb-2">
-                Nhà Xuất Bản &amp; Tác Giả Đồng Hành
-              </h1>
-              <p className="text-white/80 text-sm sm:text-base leading-relaxed">
-                Khám phá hệ sinh thái hơn 50+ Nhà xuất bản chính hãng, Doanh nghiệp phát hành cùng đội ngũ tác giả danh tiếng trong nước và quốc tế trên nền tảng HuKi Ebook.
-              </p>
+              <span className="text-white/85 font-medium">Gian hàng</span>
             </div>
-
-            {/* Hub Quick Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div className="bg-white/10 backdrop-blur-md p-3.5 rounded-2xl border border-white/15 text-center">
-                <span className="block font-editorial text-2xl font-bold text-tertiary-fixed">
-                  {combinedAllPublishers.length}+
-                </span>
-                <span className="text-[11px] text-white/75 font-medium">NXB &amp; Doanh Nghiệp</span>
-              </div>
-              <div className="bg-white/10 backdrop-blur-md p-3.5 rounded-2xl border border-white/15 text-center">
-                <span className="block font-editorial text-2xl font-bold text-tertiary-fixed">150+</span>
-                <span className="text-[11px] text-white/75 font-medium">Tác Giả &amp; Dịch Giả</span>
-              </div>
-              <div className="bg-white/10 backdrop-blur-md p-3.5 rounded-2xl border border-white/15 text-center col-span-2 sm:col-span-1">
-                <span className="block font-editorial text-2xl font-bold text-tertiary-fixed">100%</span>
-                <span className="text-[11px] text-white/75 font-medium">Sách Bản Quyền DRM</span>
-              </div>
+            <div className="bg-white/10 px-4 py-2 rounded-xl border border-white/15">
+              <span className="font-editorial text-lg font-bold text-tertiary-fixed mr-1.5">
+                {realAuthors.length}
+              </span>
+              <span className="text-white/85 font-medium">Tác giả</span>
             </div>
           </div>
         </div>
@@ -472,18 +461,17 @@ function StoresContent() {
 
       {/* HUB NAVIGATION TABS & SEARCH CONTROLS */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-          {/* Main Segment Tabs */}
-          <div className="flex items-center gap-2 border-b md:border-b-0 border-outline-variant/30 pb-3 md:pb-0 overflow-x-auto w-full max-w-full min-w-0">
+        <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 p-3.5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Main Segment Tabs (Không icon rối mắt) */}
+          <div className="flex items-center gap-2 overflow-x-auto w-full max-w-full min-w-0">
             <button
               onClick={() => handleTabChange('publishers')}
-              className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${activeTab === 'publishers'
+              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${activeTab === 'publishers'
                 ? 'bg-primary text-on-primary shadow-xs'
                 : 'text-on-surface-variant hover:bg-surface-container-low'
                 }`}
             >
-              <span className="material-symbols-outlined text-[18px]">apartment</span>
-              <span>Nhà Xuất Bản &amp; Doanh Nghiệp</span>
+              <span>Gian hàng</span>
               <span className={`text-[11px] px-2 py-0.5 rounded-full ${activeTab === 'publishers' ? 'bg-white/20 text-white' : 'bg-surface-container text-on-surface-variant'
                 }`}>
                 {publishersList.length}
@@ -492,13 +480,12 @@ function StoresContent() {
 
             <button
               onClick={() => handleTabChange('authors')}
-              className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${activeTab === 'authors'
+              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${activeTab === 'authors'
                 ? 'bg-primary text-on-primary shadow-xs'
                 : 'text-on-surface-variant hover:bg-surface-container-low'
                 }`}
             >
-              <span className="material-symbols-outlined text-[18px]">person_star</span>
-              <span>Tác Giả &amp; Dịch Giả</span>
+              <span>Tác giả</span>
               <span className={`text-[11px] px-2 py-0.5 rounded-full ${activeTab === 'authors' ? 'bg-white/20 text-white' : 'bg-surface-container text-on-surface-variant'
                 }`}>
                 {authorsList.length}
@@ -508,7 +495,7 @@ function StoresContent() {
 
           {/* Search bar */}
           <form onSubmit={handleSearch} className="flex items-center gap-2 w-full md:w-auto min-w-0 flex-1 md:flex-initial">
-            <div className="relative flex-1">
+            <div className="relative flex-1 md:w-64">
               <input
                 type="text"
                 value={searchInput}
@@ -521,7 +508,7 @@ function StoresContent() {
                     });
                   }
                 }}
-                placeholder={activeTab === 'publishers' ? "Tìm theo tên NXB, giấy phép..." : "Tìm tác giả, tác phẩm tiêu biểu..."}
+                placeholder={activeTab === 'publishers' ? "Tìm tên gian hàng..." : "Tìm tên tác giả, tác phẩm..."}
                 className="w-full pl-9 pr-8 py-2 text-xs bg-surface-container-low border border-outline-variant/40 rounded-xl focus:outline-hidden focus:border-primary text-on-surface placeholder:text-on-surface-variant/60"
               />
               <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px] text-on-surface-variant">
@@ -555,107 +542,83 @@ function StoresContent() {
 
       {/* CONTENT SECTION */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        {/* TAB 1: PUBLISHERS DIRECTORY */}
+        {/* TAB 1: SELLER STORES DIRECTORY */}
         {activeTab === 'publishers' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="space-y-5">
+            <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h2 className="font-editorial text-2xl font-bold text-on-surface flex items-center gap-2">
-                  <span className="material-symbols-outlined text-primary">storefront</span>
-                  Gian Hàng NXB &amp; Đối Tác Phát Hành
+                <h2 className="font-editorial text-xl sm:text-2xl font-bold text-on-surface">
+                  Danh Sách Gian Hàng
                 </h2>
                 <p className="text-xs text-on-surface-variant mt-0.5">
-                  Tất cả các gian hàng đều sở hữu giấy phép kinh doanh xuất bản và phát hành sách số hợp pháp.
+                  Các nhà bán hàng đối tác đang hoạt động trên hệ thống HuKi.
                 </p>
               </div>
 
               {/* Filter Controls */}
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex items-center gap-1 p-1 bg-surface-container-low rounded-xl border border-outline-variant/30 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => updateFilterFollowing(false)}
-                    className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${!filterFollowing
-                      ? 'bg-primary text-on-primary shadow-xs'
-                      : 'text-on-surface-variant hover:text-on-surface'
-                      }`}
-                  >
-                    Tất cả NXB
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => updateFilterFollowing(true)}
-                    className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all cursor-pointer ${filterFollowing
-                      ? 'bg-amber-600 text-white shadow-xs'
-                      : 'text-on-surface-variant hover:text-amber-700'
-                      }`}
-                  >
-                    <span className="material-symbols-outlined text-sm">star</span>
-                    <span>Đang theo dõi</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold ${filterFollowing ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-800'
-                      }`}>
-                      {followedPublishersCount}
-                    </span>
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs w-full max-w-full min-w-0">
-                  {['all', 'Kinh tế', 'Văn học', 'Thiếu nhi', 'Tâm hồn', 'Phật pháp'].map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => updateCategory(cat)}
-                      className={`px-3 py-1.5 rounded-lg font-medium whitespace-nowrap transition-colors cursor-pointer ${(cat === 'all' && selectedCategory === 'all') || selectedCategory === cat
-                        ? 'bg-primary text-on-primary font-bold shadow-xs'
-                        : 'bg-surface-container-lowest border border-outline-variant/40 text-on-surface-variant hover:border-primary'
-                        }`}
-                    >
-                      {cat === 'all' ? 'Tất cả lĩnh vực' : cat}
-                    </button>
-                  ))}
-                </div>
+              <div className="flex items-center gap-1 p-1 bg-surface-container-low rounded-xl border border-outline-variant/30 text-xs">
+                <button
+                  type="button"
+                  onClick={() => updateFilterFollowing(false)}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${!filterFollowing
+                    ? 'bg-primary text-on-primary shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                    }`}
+                >
+                  Tất cả
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateFilterFollowing(true)}
+                  className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all cursor-pointer ${filterFollowing
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-on-surface-variant hover:text-amber-700'
+                    }`}
+                >
+                  <span>Đang theo dõi</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold ${filterFollowing ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-800'
+                    }`}>
+                    {followedPublishersCount}
+                  </span>
+                </button>
               </div>
             </div>
 
-            {/* Publishers Grid */}
+            {/* Stores Grid */}
             {loading ? (
-              <div className="py-20 text-center text-on-surface-variant">
-                <span className="material-symbols-outlined text-4xl text-primary animate-spin mb-2">
-                  progress_activity
-                </span>
-                <p className="text-xs font-semibold">Đang tải danh bạ Nhà xuất bản…</p>
+              <div className="py-16 text-center text-on-surface-variant">
+                <p className="text-xs font-semibold">Đang tải danh sách gian hàng…</p>
               </div>
             ) : publishersList.length === 0 ? (
-              <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 p-12 text-center">
-                <span className="material-symbols-outlined text-5xl text-outline-variant mb-2">apartment</span>
-                <h3 className="font-bold text-base text-on-surface">Không tìm thấy Nhà xuất bản phù hợp</h3>
+              <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 p-10 text-center">
+                <h3 className="font-bold text-base text-on-surface">Không tìm thấy gian hàng phù hợp</h3>
                 <p className="text-xs text-on-surface-variant mt-1">
                   {filterFollowing
-                    ? 'Bạn chưa theo dõi Nhà xuất bản nào trong danh mục này.'
-                    : 'Danh mục tác giả đang được ban biên tập HUKI cập nhật ấn phẩm mới.'}
+                    ? 'Bạn chưa theo dõi gian hàng nào.'
+                    : 'Thử tìm kiếm với từ khóa khác hoặc quay lại danh sách đầy đủ.'}
                 </p>
                 <button
                   onClick={() => {
-                    router.push('/stores?tab=publishers');
+                    router.push('/stores');
                   }}
                   className="mt-4 px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold hover:bg-primary/90 transition-colors cursor-pointer"
                 >
-                  Xem tất cả Nhà xuất bản
+                  Xem tất cả gian hàng
                 </button>
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                   {paginatedPublishers.map((pub) => {
                     const isFollowed = Boolean(followedIds[pub.id] || (pub.slug && followedIds[pub.slug]));
-                    const mockClasses = 'shadow-xs hover:shadow-md hover:-translate-y-1 cursor-pointer';
 
                     return (
                       <article
                         key={pub.id}
-                        className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/40 overflow-hidden transition-all duration-300 flex flex-col justify-between group relative ${mockClasses}`}
+                        className="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 overflow-hidden shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group"
                       >
-                        {/* Banner Header */}
-                        <div className="relative h-28 bg-surface-container-low overflow-hidden">
+                        {/* Clean Banner Header */}
+                        <div className="relative h-24 bg-surface-container-low overflow-hidden">
                           <StoreLogoImg
                             src={pub.banner}
                             fallbackSrc="https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=800&q=80"
@@ -664,24 +627,14 @@ function StoresContent() {
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90"
                             fallbackClassName="w-full h-full flex items-center justify-center bg-[#003b2b]/15 text-[#003b2b] font-bold text-2xl"
                           />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-
-                          <span className="absolute top-2.5 left-2.5 z-20 bg-primary/90 backdrop-blur-xs text-white text-[9.5px] font-bold px-2 py-0.5 rounded shadow-xs flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[12px]">verified</span>
-                            ĐỐI TÁC CHÍNH THỨC
-                          </span>
-
-                          <span className="absolute top-2.5 right-2.5 bg-black/60 backdrop-blur-md text-white text-[10.5px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
-                            <span className="material-symbols-outlined text-xs text-amber-400 fill">star</span>
-                            {pub.rating || '4.9'} ({pub.reviewsCount || '100+'})
-                          </span>
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
                         </div>
 
                         {/* Content Body */}
                         <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between">
                           <div>
                             {/* Logo & Follow Button Row */}
-                            <div className="flex items-start justify-between gap-3 -mt-10 mb-3">
+                            <div className="flex items-start justify-between gap-3 -mt-9 mb-3">
                               <div className="w-14 h-14 rounded-2xl bg-surface-container-lowest p-1 border-2 border-surface-container-lowest shadow-md shrink-0 flex items-center justify-center overflow-hidden ring-1 ring-outline-variant/30 z-10">
                                 <StoreLogoImg
                                   src={pub.logo}
@@ -695,61 +648,41 @@ function StoresContent() {
                               <button
                                 type="button"
                                 onClick={() => toggleFollow(pub.id, pub.name, false, pub.slug)}
-                                className={`mt-6 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${isFollowed
+                                className={`mt-5 px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${isFollowed
                                   ? 'bg-surface-container-high text-on-surface hover:bg-surface-container-highest'
                                   : 'border border-primary text-primary hover:bg-primary/10'
                                   }`}
                               >
-                                <span className="material-symbols-outlined text-sm">
-                                  {isFollowed ? 'check' : 'add'}
-                                </span>
-                                <span>{isFollowed ? 'Đang theo dõi' : 'Theo dõi'}</span>
+                                {isFollowed ? 'Đang theo dõi' : 'Theo dõi'}
                               </button>
                             </div>
 
-                            {/* Store Name & Category */}
+                            {/* Store Name & Real Meta */}
                             <div className="mb-2">
                               <Link href={`/shop/${pub.slug || pub.id}`} className="hover:text-primary transition-colors block">
                                 <h3 className="font-editorial text-lg font-bold text-on-surface leading-tight line-clamp-1 group-hover:text-primary">
                                   {pub.name}
                                 </h3>
                               </Link>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-primary">
-                                  <span className="material-symbols-outlined text-[13px]">verified</span>
-                                  NXB Chính Hãng
-                                </span>
-                                <span className="text-[10.5px] text-on-surface-variant/80 bg-surface-container px-2 py-0.5 rounded-md">
-                                  {pub.category}
-                                </span>
+                              <div className="flex items-center gap-2 mt-1 text-[11px] text-on-surface-variant">
+                                <span className="font-semibold text-primary">Gian hàng đối tác</span>
+                                <span>•</span>
+                                <span>{pub.totalBooks} đầu sách</span>
                               </div>
                             </div>
 
                             <p className="text-xs text-on-surface-variant line-clamp-2 leading-relaxed mb-4 min-h-[32px]">
                               {pub.description}
                             </p>
-
-                            {/* Quick Stats Grid */}
-                            <div className="grid grid-cols-2 gap-2 bg-surface-container-low p-2.5 rounded-xl text-[11px] text-on-surface-variant mb-4">
-                              <div>
-                                <span className="block text-outline text-[10px]">Quy mô:</span>
-                                <strong className="text-on-surface">{pub.totalBooks} đầu sách</strong>
-                              </div>
-                              <div>
-                                <span className="block text-outline text-[10px]">Người theo dõi:</span>
-                                <strong className="text-on-surface">{pub.followersCount}</strong>
-                              </div>
-                            </div>
                           </div>
 
                           {/* Action CTA Button */}
                           <div className="pt-2 border-t border-outline-variant/30">
                             <Link
                               href={`/shop/${pub.slug || pub.id}`}
-                              className="w-full py-2.5 px-3 rounded-xl bg-primary hover:bg-primary/90 text-on-primary text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                              className="w-full py-2.5 px-3 rounded-xl bg-primary hover:bg-primary/90 text-on-primary text-xs font-bold flex items-center justify-center shadow-xs transition-colors"
                             >
-                              <span className="material-symbols-outlined text-sm">storefront</span>
-                              <span>Xem Gian Hàng</span>
+                              Xem gian hàng
                             </Link>
                           </div>
                         </div>
@@ -812,73 +745,53 @@ function StoresContent() {
 
         {/* TAB 2: AUTHORS DIRECTORY */}
         {activeTab === 'authors' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="space-y-5">
+            <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h2 className="font-editorial text-2xl font-bold text-on-surface flex items-center gap-2">
-                  <span className="material-symbols-outlined text-primary">person_star</span>
-                  Tác Giả Được Yêu Thích Nhất
+                <h2 className="font-editorial text-xl sm:text-2xl font-bold text-on-surface">
+                  Danh Sách Tác Giả
                 </h2>
                 <p className="text-xs text-on-surface-variant mt-0.5">
-                  Theo dõi tác giả để nhận thông báo tác phẩm mới phát hành, trích dẫn tinh hoa và giao lưu trực tuyến.
+                  Theo dõi tác giả để cập nhật các ấn phẩm mới phát hành.
                 </p>
               </div>
 
               {/* Filter Controls */}
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex items-center gap-1 p-1 bg-surface-container-low rounded-xl border border-outline-variant/30 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => updateFilterFollowing(false)}
-                    className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${!filterFollowing
-                      ? 'bg-primary text-on-primary shadow-xs'
-                      : 'text-on-surface-variant hover:text-on-surface'
-                      }`}
-                  >
-                    Tất cả Tác giả
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => updateFilterFollowing(true)}
-                    className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all cursor-pointer ${filterFollowing
-                      ? 'bg-amber-600 text-white shadow-xs'
-                      : 'text-on-surface-variant hover:text-amber-700'
-                      }`}
-                  >
-                    <span className="material-symbols-outlined text-sm">star</span>
-                    <span>Đang theo dõi</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold ${filterFollowing ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-800'
-                      }`}>
-                      {followedAuthorsCount}
-                    </span>
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-                  {['all', 'Phát triển bản thân', 'Tài chính', 'Lịch sử', 'Văn học', 'Tâm thức'].map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => updateCategory(cat)}
-                      className={`px-3 py-1.5 rounded-lg font-medium whitespace-nowrap transition-colors cursor-pointer ${(cat === 'all' && selectedCategory === 'all') || selectedCategory === cat
-                        ? 'bg-primary text-on-primary font-bold shadow-xs'
-                        : 'bg-surface-container-lowest border border-outline-variant/40 text-on-surface-variant hover:border-primary'
-                        }`}
-                    >
-                      {cat === 'all' ? 'Tất cả thể loại' : cat}
-                    </button>
-                  ))}
-                </div>
+              <div className="flex items-center gap-1 p-1 bg-surface-container-low rounded-xl border border-outline-variant/30 text-xs">
+                <button
+                  type="button"
+                  onClick={() => updateFilterFollowing(false)}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${!filterFollowing
+                    ? 'bg-primary text-on-primary shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                    }`}
+                >
+                  Tất cả
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateFilterFollowing(true)}
+                  className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all cursor-pointer ${filterFollowing
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-on-surface-variant hover:text-amber-700'
+                    }`}
+                >
+                  <span>Đang theo dõi</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold ${filterFollowing ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-800'
+                    }`}>
+                    {followedAuthorsCount}
+                  </span>
+                </button>
               </div>
             </div>
 
             {/* Authors Grid */}
             {authorsList.length === 0 ? (
-              <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 p-12 text-center">
-                <span className="material-symbols-outlined text-5xl text-outline-variant mb-2">person_search</span>
+              <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 p-10 text-center">
                 <h3 className="font-bold text-base text-on-surface">Không tìm thấy Tác giả phù hợp</h3>
                 <p className="text-xs text-on-surface-variant mt-1">
                   {filterFollowing
-                    ? 'Bạn chưa theo dõi Tác giả nào trong danh mục này.'
+                    ? 'Bạn chưa theo dõi Tác giả nào.'
                     : 'Thử tìm kiếm với từ khóa khác hoặc xóa bộ lọc.'}
                 </p>
                 <button
@@ -887,7 +800,7 @@ function StoresContent() {
                   }}
                   className="mt-4 px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold hover:bg-primary/90 transition-colors cursor-pointer"
                 >
-                  Xem tất cả Tác giả
+                  Xem tất cả tác giả
                 </button>
               </div>
             ) : (
@@ -895,18 +808,16 @@ function StoresContent() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                   {paginatedAuthors.map((author) => {
                     const isFollowed = Boolean(followedIds[author.id]);
-                    const mockClasses = 'shadow-xs hover:shadow-md hover:-translate-y-1 cursor-pointer';
 
                     return (
                       <article
                         key={author.id}
-                        className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/40 p-5 transition-all duration-300 flex flex-col justify-between text-center group relative ${mockClasses}`}
+                        className="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 p-5 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between text-center group"
                       >
 
                         <div>
-                          {/* Avatar with gradient halo */}
-                          <div className="relative w-20 h-20 mx-auto mb-3">
-                            <div className={`w-full h-full rounded-full p-1 bg-gradient-to-tr ${author.coverBg} border-2 border-primary/40 shadow-xs`}>
+                          <div className="relative w-18 h-18 mx-auto mb-3">
+                            <div className={`w-full h-full rounded-full p-0.5 bg-gradient-to-tr ${author.coverBg} border border-primary/30 shadow-xs`}>
                               {author.avatar ? (
                                 <img
                                   src={author.avatar}
@@ -919,11 +830,6 @@ function StoresContent() {
                                 </div>
                               )}
                             </div>
-                            {author.isVerified && (
-                              <span className="absolute bottom-0 right-0 bg-primary text-on-primary rounded-full p-0.5 shadow-xs" title="Tác giả xác thực">
-                                <span className="material-symbols-outlined text-xs block">verified</span>
-                              </span>
-                            )}
                           </div>
 
                           <h3 className="font-editorial text-lg font-bold text-on-surface group-hover:text-primary transition-colors leading-tight">

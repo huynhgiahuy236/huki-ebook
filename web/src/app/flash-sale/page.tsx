@@ -379,8 +379,13 @@ export default function FlashSalePage() {
         format: item.format || "PHYSICAL",
         type: item.format === "DIGITAL" ? "ebook" : "physical",
         storeId: (item as any).storeId || (item as any).book?.storeId || "huki-official",
-        storeName: (item as any).storeName || (item as any).book?.store?.name || (item as any).book?.business?.name || (item as any).book?.publisher || "Gian Hàng HUKI",
-        publisher: (item as any).book?.publisher || (item as any).storeName || "Gian Hàng HUKI",
+        storeName:
+          (item as any).storeName ||
+          (item as any).book?.store?.name ||
+          (item as any).book?.business?.displayName ||
+          (item as any).book?.business?.name ||
+          "Gian Hàng HUKI",
+        publisher: (item as any).book?.publisher || undefined,
         flashSaleId: item.flashSaleId,
         isFlashSale: true,
       };
@@ -1019,35 +1024,29 @@ export default function FlashSalePage() {
 
                 const resolvedStoreName =
                   matchedStore?.name ||
+                  matchedBiz?.displayName ||
                   matchedBiz?.name ||
-                  (matchedBiz as any)?.displayName ||
+                  (matchBook as any)?.store?.name ||
                   (matchBook as any)?.business?.displayName ||
                   (matchBook as any)?.business?.name ||
-                  (matchBook?.publisher as any)?.displayName ||
-                  (matchBook?.publisher as any)?.name ||
-                  (typeof matchBook?.publisher === "string" ? matchBook.publisher : null) ||
                   (matchBook as any)?.businessName ||
                   (matchBook as any)?.storeName ||
                   (group.storeName && group.storeName !== "Cửa hàng HUKI" ? group.storeName : null) ||
-                  "Cửa Hàng Đối Tác";
+                  "Gian Hàng Đối Tác";
 
                 const fallbackSlug =
-                  resolvedStoreName && resolvedStoreName !== "Cửa Hàng Đối Tác"
-                    ? resolvedStoreName
-                        .toLowerCase()
-                        .normalize("NFD")
-                        .replace(/[\u0300-\u036f]/g, "")
-                        .replace(/[đĐ]/g, "d")
-                        .replace(/[^a-z0-9]+/g, "-")
-                        .replace(/(^-|-$)+/g, "")
-                    : group.storeId;
-
-                const resolvedStoreSlug =
                   matchedStore?.slug ||
                   matchedBiz?.slug ||
-                  (matchBook as any)?.store?.slug ||
-                  (matchBook as any)?.business?.slug ||
-                  fallbackSlug;
+                  (group as any).storeSlug ||
+                  matchedBiz?.id ||
+                  group.storeId;
+
+                const resolvedStoreSlug = fallbackSlug;
+
+                const shopHref =
+                  matchedStore || matchedBiz || (group.storeId && group.storeId !== "unknown-store")
+                    ? `/shop/${resolvedStoreSlug}`
+                    : "/stores";
 
                 const rawAvatar =
                   matchedStore?.logo ||
@@ -1113,7 +1112,7 @@ export default function FlashSalePage() {
 
                       <div className="flex items-center gap-2.5 shrink-0">
                         <Link
-                          href={`/shop/${resolvedStoreSlug}`}
+                          href={shopHref}
                           className="px-4 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 flex items-center gap-1 transition-all hover:border-[#003B2B] hover:text-[#003B2B]"
                         >
                           <span>Xem Gian Hàng</span>
