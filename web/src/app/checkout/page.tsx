@@ -930,11 +930,17 @@ export default function CheckoutPage() {
 
   const handleSaveNewAddress = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addressForm.name || !addressForm.phone || !addressForm.address) {
+    if (
+      !addressForm.name.trim() ||
+      !addressForm.phone.trim() ||
+      !addressForm.address.trim() ||
+      !addressForm.province.trim() ||
+      !addressForm.ward.trim()
+    ) {
       showToast(
         {
           title: "Thông tin chưa đầy đủ",
-          message: "Vui lòng điền đầy đủ họ tên, số điện thoại và địa chỉ giao hàng.",
+          message: "Vui lòng điền đầy đủ họ tên, số điện thoại, Tỉnh/Thành phố, Phường/Xã và địa chỉ chi tiết.",
         },
         "warning"
       );
@@ -947,7 +953,7 @@ export default function CheckoutPage() {
       name: addressForm.name.trim(),
       phone: addressForm.phone.trim(),
       province: addressForm.province.trim(),
-      district: addressForm.district.trim(),
+      district: (addressForm.district || addressForm.ward).trim(),
       ward: addressForm.ward.trim(),
       address: addressForm.address.trim(),
       isDefault: Boolean(addressForm.isDefault),
@@ -968,6 +974,15 @@ export default function CheckoutPage() {
         if (res.success && res.data) {
           savedId = res.data.id;
           newAddrRecord = res.data;
+        } else if (!res.success && res.error?.statusCode && res.error.statusCode < 500) {
+          showToast(
+            {
+              title: "Địa chỉ chưa hợp lệ",
+              message: res.error.message || "Vui lòng kiểm tra lại số điện thoại và thông tin địa chỉ.",
+            },
+            "error"
+          );
+          return;
         }
       } catch (err) {
         console.warn("[Checkout] Failed to persist address to server, saving locally:", err);
@@ -1048,10 +1063,11 @@ export default function CheckoutPage() {
     if (isLoggedIn || hasToken) {
       try {
         // 1. Sync checked items to server cart ONLY if in Cart mode (NOT Direct mode)
+        let syncedServerItems: any[] = [];
         if (!isDirectMode) {
           try {
             const serverCartRes = await cartApi.getCart();
-            const serverItems =
+            syncedServerItems =
               serverCartRes.success && serverCartRes.data?.items
                 ? serverCartRes.data.items
                 : [];
@@ -1068,16 +1084,19 @@ export default function CheckoutPage() {
                   item.format?.toLowerCase().includes("giấy")
                     ? "PHYSICAL"
                     : "DIGITAL";
-                const exists = serverItems.some(
+                const exists = syncedServerItems.some(
                   (si: any) => si.bookId === item.bookId && si.format === apiFormat
                 );
                 if (!exists) {
                   try {
-                    await cartApi.addToCart({
+                    const addRes = await cartApi.addToCart({
                       bookId: item.bookId,
                       format: apiFormat,
                       quantity: item.quantity || 1,
                     });
+                    if (addRes.success && addRes.data?.items) {
+                      syncedServerItems = addRes.data.items;
+                    }
                   } catch {
                     // ignore
                   }
@@ -1093,11 +1112,12 @@ export default function CheckoutPage() {
         const vatSummary = useVatInvoice
           ? `[HĐĐT MISA: ${vatInvoiceData.companyName || 'DN'} - MST: ${vatInvoiceData.taxCode || 'N/A'} - Email: ${vatInvoiceData.invoiceEmail || 'N/A'}]`
           : '';
-        const finalNote = useVatInvoice
+        const combinedNote = useVatInvoice
           ? note.trim()
             ? `${note.trim()} ${vatSummary}`
             : vatSummary
-          : note.trim() || undefined;
+          : note.trim();
+        const finalNote = combinedNote ? combinedNote.slice(0, 500) : undefined;
 
         if (useVatInvoice && typeof window !== "undefined") {
           try {
@@ -1176,7 +1196,17 @@ export default function CheckoutPage() {
           };
         } else {
           previewPayload.cartItemIds = checkedItems
-            .map((it: any) => it.id)
+            .map((it: any) => {
+              if (isUUID(it.id)) return it.id;
+              const apiFormat =
+                it.type === "physical" || it.format?.toLowerCase().includes("giấy")
+                  ? "PHYSICAL"
+                  : "DIGITAL";
+              const matched = syncedServerItems.find(
+                (si: any) => si.bookId === it.bookId && si.format === apiFormat
+              );
+              return matched?.id || it.id;
+            })
             .filter((id: any) => typeof id === 'string' && id.trim().length > 0);
         }
 
@@ -1231,6 +1261,10 @@ export default function CheckoutPage() {
           }
         }
 
+        const safeAffToken = affToken && affToken.trim().length > 0
+          ? affToken.trim().slice(0, 128)
+          : undefined;
+
         const confirmRes = await checkoutApi.confirmCheckout(
           {
             sessionId: currentSessionId,
@@ -1241,7 +1275,7 @@ export default function CheckoutPage() {
             storeVoucherCodes:
               Object.keys(storeVoucherCodes).length > 0 ? storeVoucherCodes : undefined,
             shippingVoucherCode: appliedShippingVoucher?.code,
-            affiliateToken: affToken,
+            affiliateToken: safeAffToken,
           },
           idempotencyKey
         );

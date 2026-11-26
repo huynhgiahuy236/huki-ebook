@@ -159,7 +159,26 @@ describe('extractHumanErrorMessage', () => {
 
     expect(translated.code).toBe('VALIDATION_ERROR');
     expect(translated.message).toContain('Email không đúng định dạng');
-    expect(translated.message).toContain('Số điện thoại không hợp lệ');
+    expect(translated.message).toContain('Số điện thoại không đúng định dạng');
+  });
+
+  it('BUG-28: prioritizes P3 details array over generic Validation failed message and translates checkout rules', () => {
+    const body = {
+      status: 'error',
+      statusCode: 400,
+      code: 'VALIDATION_ERROR',
+      message: 'Validation failed',
+      details: [
+        { field: 'phone', code: 'VALIDATION_ERROR', message: 'phone must be a valid phone number' },
+        { field: 'unknown', code: 'VALIDATION_ERROR', message: 'shippingAddress.ward must be longer than or equal to 1 characters' },
+      ],
+    };
+    const translated = extractHumanErrorMessage(body, 400);
+
+    expect(translated.code).toBe('VALIDATION_ERROR');
+    expect(translated.message).toContain('Số điện thoại không đúng định dạng Việt Nam');
+    expect(translated.message).toContain('Vui lòng chọn Phường/Xã giao hàng hợp lệ');
+    expect(translated.message).not.toBe('Validation failed');
   });
 
   it('translates known business error codes accurately', () => {

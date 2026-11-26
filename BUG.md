@@ -1812,6 +1812,67 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
   - Frontend `tsc --noEmit` + `eslint` + Vitest (**12/12 files, 75/75 tests PASS**) + `next build` (142 routes): PASS.
 - **Trạng thái Git:** Sẵn sàng commit & merge `--no-ff` vào `develop` local.
 
+---
+
+## 15. ĐỢT XỬ LÝ BUG-27, BUG-28 — NHÁNH `fix/payment-order-items-and-checkout-validation`
+
+> **Nhánh làm việc:** `fix/payment-order-items-and-checkout-validation` (khởi tạo từ `develop` `61d2320`)  
+> **Quy trình áp dụng:** [`readme-bug.md`](file:///e:/HuKi/readme-bug.md) (Bước 1 → Bước 12).
+
+### Bước 1: Thu thập & Tái hiện Thực trạng Lỗi (26/11/2026)
+
+| Mã Bug | Mô tả & Bằng chứng từ Người dùng | Thực trạng kiểm chứng trong mã nguồn & UAT | Mức độ |
+| :--- | :--- | :--- | :--- |
+| **`BUG-27`** | Trang thanh toán PayOS `/checkout/payment/[orderId]` (đơn `#ORD-MWXDF94U-30EF8D09`) hiển thị danh sách sản phẩm trống tên, mất ảnh bìa, giá từng món `0 đ`, `Phí vận chuyển: 0 đ` dù `Tiền hàng: 552.000 đ` và `Thực thanh toán: 582.000 đ` (lệch `30.000 đ` ship). | - [`OrdersService.buyerView`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/orders.service.ts#L1180-L1228) trả về `item.bookTitle`, `item.bookCoverUrl`, `item.unitPrice`, `item.subtotal` và `order.shippingTotal`, `order.discountTotal`.<br>- [`web/src/app/checkout/payment/[orderId]/page.tsx`](file:///e:/HuKi/web/src/app/checkout/payment/%5BorderId%5D/page.tsx#L461-L494) lại đọc `item.title`, `item.coverUrl \|\| item.coverImage`, `item.price`, `order.shippingFee`, `order.discountAmount` → toàn bộ ra `undefined`/`0 đ`.<br>- Lỗi tương tự lặp lại tại [`web/src/app/order-success/page.tsx`](file:///e:/HuKi/web/src/app/order-success/page.tsx#L57-L58) (`shippingFee`, `discountAmount`, `item.title`, `item.coverImage \|\| item.coverUrl`, `item.price`, `digitalItems[0]?.title`, tên shop tĩnh).<br>- [`orderApi.ts`](file:///e:/HuKi/web/src/ui/api/orderApi.ts#L17-L129) khai báo type `OrderItem` / `BuyerOrder` lệch với response thực tế của `OrdersService.buyerView`. | **High** |
+| **`BUG-28`** | Người dùng gặp thông báo *"điền thông tin theo định dạng bắt buộc"* khi thao tác thanh toán và khó nhận biết trường nào sai; phát hiện thêm các khe hở validation trên luồng checkout. | - [`apiClient.ts`](file:///e:/HuKi/web/src/ui/api/apiClient.ts#L146-L151) có fallback HTTP 400 chung chung `'Vui lòng kiểm tra và điền đầy đủ các thông tin bắt buộc theo đúng định dạng.'`, đồng thời tại [`extractHumanErrorMessage`](file:///e:/HuKi/web/src/ui/api/apiClient.ts#L434-L497) trả thẳng chuỗi `'Validation failed'` trước khi kiểm tra `obj.details`, và [`parseResponse`](file:///e:/HuKi/web/src/ui/api/apiClient.ts#L550-L559) bỏ rơi `details` khỏi object `error` (khiến `confirmRes.error?.details` ở [`checkout/page.tsx`](file:///e:/HuKi/web/src/app/checkout/page.tsx#L1379) luôn `undefined`).<br>- [`checkout/page.tsx`](file:///e:/HuKi/web/src/app/checkout/page.tsx#L931-L975): `handleSaveNewAddress` không kiểm tra lỗi trả về từ `addressApi.createAddress` (VD: `@IsPhoneNumber('VN')` hoặc thiếu `ward`), lưu ID giả `addr-...` xuống `localStorage`.<br>- [`checkout/page.tsx`](file:///e:/HuKi/web/src/app/checkout/page.tsx#L1076-L1180): khi sync item chưa có trên server bằng `cartApi.addToCart`, vẫn giữ nguyên `cartItemIds` local cũ và `finalNote` (gồm VAT summary) chưa giới hạn 500 ký tự theo `CheckoutPreviewDto.note`. | **Medium** |
+
+---
+
+### Bước 2: Phân tích Nguyên nhân Gốc rễ & Ma trận Rủi ro Domino
+
+1. **Đứt gãy hợp đồng dữ liệu Order Buyer (`BUG-27`):**
+   - `OrdersService.buyerView` dùng naming theo Prisma `OrderItem` (`bookTitle`, `bookCoverUrl`, `unitPrice`) & `Order` (`shippingTotal`, `discountTotal`), trong khi `orderApi.ts` và 2 màn hình hậu đặt hàng (`/checkout/payment/[orderId]` và `/order-success`) kỳ vọng `title`, `coverUrl`, `price`, `shippingFee`, `discountAmount`.
+   - Rủi ro Domino: Nếu chỉ sửa frontend hoặc chỉ sửa backend sẽ dễ gãy ở môi trường deploy lệch pha hoặc các trang khác (`/orders/[id]`, `/orders`) vốn đang đọc `bookTitle || title` và `shippingTotal`.
+2. **Hiển thị lỗi validation & đồng bộ Checkout (`BUG-28`):**
+   - `HttpExceptionFilter` trả `{ statusCode: 400, code: 'VALIDATION_ERROR', message: 'Validation failed', details: [{ field, message }] }`. Vì `apiClient.ts` ưu tiên `rawMessage` (`'Validation failed'`) trước `details` và không đính kèm `details` vào `ApiResponse.error`, người dùng nhận thông báo mờ hoặc fallback 400 chung chung.
+
+---
+
+### Bước 3: Phương án Đề xuất (Chờ Phê Duyệt)
+
+1. **Phương án 1 (Đề xuất - Đồng bộ SSOT hai đầu Backend + Frontend):**
+   - **Backend ([`orders.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/orders.service.ts#L1152-L1230)):** Trong `OrdersService.buyerView`, giữ nguyên các trường chuẩn (`bookTitle`, `bookCoverUrl`, `unitPrice`, `subtotal`, `shippingTotal`, `discountTotal`) đồng thời bổ sung các trường tương thích (`title`, `coverUrl`, `price`, `shippingFee`, `discountAmount`) từ đúng dữ liệu DB.
+   - **Frontend (`/checkout/payment/[orderId]`, `/order-success`, `orderApi.ts`):**
+     - Cập nhật interface `OrderItem` & `BuyerOrder` trong `orderApi.ts` phản ánh đầy đủ cả hai dạng field.
+     - Tại [`checkout/payment/[orderId]/page.tsx`](file:///e:/HuKi/web/src/app/checkout/payment/%5BorderId%5D/page.tsx#L458-L498): dùng `item.bookTitle || item.title`, `item.bookCoverUrl || item.coverUrl || item.coverImage`, tính thành tiền từng dòng từ `Number(item.subtotal ?? (Number(item.unitPrice ?? item.price ?? 0) * (item.quantity || 1)))`, hiển thị `Phí vận chuyển` từ `order.shippingTotal ?? order.shippingFee ?? 0`, và `Giảm giá` từ `order.discountTotal ?? order.discountAmount ?? 0`.
+     - Tại [`order-success/page.tsx`](file:///e:/HuKi/web/src/app/order-success/page.tsx): đồng bộ tương tự (`shippingTotal ?? shippingFee`, `discountTotal ?? discountAmount`, `bookTitle || title`, `bookCoverUrl || coverUrl || coverImage`, `unitPrice ?? price`, `so.storeName`).
+   - **Validation UX ([`apiClient.ts`](file:///e:/HuKi/web/src/ui/api/apiClient.ts), [`checkout/page.tsx`](file:///e:/HuKi/web/src/app/checkout/page.tsx)):**
+     - `extractHumanErrorMessage` ưu tiên đọc & dịch chi tiết từ `obj.details` khi `rawMessage` là `'Validation failed'` / `'Bad Request'`, đồng thời bổ sung quy tắc dịch Việt hóa rõ ràng cho lỗi checkout/address/phone/ward/email/note và truyền `details` vào `ApiResponse.error`.
+     - `checkout/page.tsx`: báo lỗi rõ ràng nếu `addressApi.createAddress` trả 400 và yêu cầu chọn đủ Tỉnh/Phường trong `handleSaveNewAddress`; cập nhật `cartItemIds` theo server cart trả về sau khi sync; đảm bảo `finalNote` cắt gọn an toàn `<= 500` ký tự và `affiliateToken` `<= 128` ký tự.
+2. **Phương án 2 (Chỉ sửa Frontend):**
+   - Chỉ cập nhật fallback đọc field trên `/checkout/payment/[orderId]` và `/order-success`, không chuẩn hóa `OrdersService.buyerView` và giữ nguyên `apiClient.ts`. Nhanh nhưng các endpoint/UI khác đọc `OrderItem.title` hoặc lỗi `Validation failed` vẫn còn thiếu thông tin.
+
+---
+
+### Bước 4–6: Triển khai Phương án Đã Phê Duyệt (Phương án 1) & Xác minh CI/CD (26/11/2026)
+
+- **Backend ([`platform/apps/commerce-service`](file:///e:/HuKi/platform/apps/commerce-service)):**
+  - [`orders.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/orders.service.ts#L1180-L1230): Trong `OrdersService.buyerView`, giữ nguyên trường chuẩn (`bookTitle`, `bookCoverUrl`, `unitPrice`, `subtotal`, `shippingTotal`, `discountTotal`) đồng thời trả thêm alias tương thích (`title`, `coverUrl`, `coverImage`, `price`, `shippingFee`, `discountAmount`).
+  - [`orders.service.spec.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/orders.service.spec.ts#L1117-L1179): Bổ sung unit test xác nhận `buyerDetail` trả đủ cả hai dạng field.
+- **Frontend ([`web/src`](file:///e:/HuKi/web/src)):**
+  - [`orderApi.ts`](file:///e:/HuKi/web/src/ui/api/orderApi.ts#L17-L132): Cập nhật interface `OrderItem` và `BuyerOrder` bổ sung `bookTitle`, `bookCoverUrl`, `unitPrice`, `shippingTotal`, `discountTotal`.
+  - [`checkout/payment/[orderId]/page.tsx`](file:///e:/HuKi/web/src/app/checkout/payment/%5BorderId%5D/page.tsx#L456-L508): Đọc `item.bookTitle || item.title`, `item.bookCoverUrl || item.coverUrl || item.coverImage`, thành tiền dòng từ `item.subtotal ?? (unitPrice * qty)`, `Phí vận chuyển` từ `order.shippingTotal ?? order.shippingFee ?? 0`, và `Giảm giá` từ `order.discountTotal ?? order.discountAmount ?? 0`.
+  - [`order-success/page.tsx`](file:///e:/HuKi/web/src/app/order-success/page.tsx#L55-L60): Đồng bộ `shippingTotal ?? shippingFee`, `discountTotal ?? discountAmount`, `bookTitle || title`, `bookCoverUrl || coverImage || coverUrl`, `so.storeName`, và loại bỏ fallback giá cứng `461.000đ`.
+  - [`apiClient.ts`](file:///e:/HuKi/web/src/ui/api/apiClient.ts#L393-L579): `extractHumanErrorMessage` ưu tiên dịch chi tiết `obj.details` khi `rawMessage` là `'Validation failed'`/`'Bad Request'`, bổ sung dịch Việt hóa cho các rule checkout/địa chỉ/SĐT/note, và `parseResponse` giữ lại `details` trên `error`.
+  - [`checkout/page.tsx`](file:///e:/HuKi/web/src/app/checkout/page.tsx#L931-L1281): `handleSaveNewAddress` kiểm tra đủ `province`/`ward` và hiển thị lỗi nếu `addressApi.createAddress` trả 4xx; `handlePlaceOrder` đồng bộ lại `cartItemIds` theo server UUID vừa thêm và cắt gọn `finalNote` (`<= 500`) / `affiliateToken` (`<= 128`).
+- **Kiểm thử & Cổng chất lượng CI/CD:**
+  - `git diff --check`: PASS.
+  - `validate_prisma_schemas.js`: **6/6 Prisma schemas VALID**.
+  - Backend `npm run build` & Jest `npm run test:all`: **75/75 suites, 814/814 tests PASS**.
+  - E2E script [`test_e2e_bug27_28_payment_items_checkout.js`](file:///e:/HuKi/scripts/test_e2e_bug27_28_payment_items_checkout.js): PASS toàn bộ.
+  - Frontend `tsc --noEmit` + `eslint` + Vitest (**12/12 files, 76/76 tests PASS**, gồm [`apiClient.spec.ts`](file:///e:/HuKi/web/src/ui/api/apiClient.spec.ts#L165-L180)) + `next build` (142 routes): PASS.
+- **Trạng thái Git:** Đã commit & merge `--no-ff` vào nhánh `develop` local.
+
 
 
 

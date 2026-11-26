@@ -52,10 +52,10 @@ function OrderSuccessContent() {
   const orderCode = order?.code || initialCode;
   const paymentMethod = order?.paymentMethod || initialPaymentMethod;
   const isCod = paymentMethod.toUpperCase() === "COD";
-  const grandTotal = order?.grandTotal ?? 0;
-  const itemSubtotal = order?.itemSubtotal ?? grandTotal;
-  const shippingFee = order?.shippingFee ?? 0;
-  const discountAmount = order?.discountAmount ?? 0;
+  const grandTotal = Number(order?.grandTotal ?? 0);
+  const itemSubtotal = Number(order?.itemSubtotal ?? grandTotal);
+  const shippingFee = Number((order as any)?.shippingTotal ?? order?.shippingFee ?? 0);
+  const discountAmount = Number((order as any)?.discountTotal ?? order?.discountAmount ?? 0);
 
   // Status Vietnamese mapping
   const getStatusText = (status: string) => {
@@ -95,9 +95,9 @@ function OrderSuccessContent() {
   const hasDigital = digitalItems.length > 0;
 
   const firstItem = allItems[0];
-  const shareBookTitle = firstItem?.title || firstItem?.bookTitle || "";
+  const shareBookTitle = firstItem?.bookTitle || firstItem?.title || "";
   const shareBookId = firstItem?.bookId || firstItem?.id || "";
-  const shareBookCover = firstItem?.coverUrl || firstItem?.coverImage || "";
+  const shareBookCover = firstItem?.bookCoverUrl || firstItem?.coverUrl || firstItem?.coverImage || "";
   const communityShareHref = `/community?action=share_order&orderCode=${encodeURIComponent(orderCode || '')}&bookTitle=${encodeURIComponent(shareBookTitle)}&bookId=${encodeURIComponent(shareBookId)}&cover=${encodeURIComponent(shareBookCover)}`;
 
   // Shipping address parsing
@@ -420,7 +420,7 @@ function OrderSuccessContent() {
                         <span className="text-slate-500 text-[11px]">Không giới hạn đọc offline</span>
                       </div>
                       <h4 className="text-slate-900 truncate mt-1 font-bold text-xs sm:text-sm">
-                        {digitalItems[0]?.title || "Kho Sách Điện Tử Cá Nhân HUKI"}
+                        {digitalItems[0]?.bookTitle || digitalItems[0]?.title || "Kho Sách Điện Tử Cá Nhân HUKI"}
                       </h4>
                       <p className="text-slate-500 text-xs">Đồng bộ ghi chú, highlight và vị trí đọc tức thì</p>
                     </div>
@@ -475,23 +475,29 @@ function OrderSuccessContent() {
                   <div className="bg-slate-50/80 px-5 py-3 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
                       <span className="material-symbols-outlined text-emerald-800 text-[20px]" data-icon="store">store</span>
-                      <span className="text-xs sm:text-sm font-bold text-slate-800">Nhà Sách Đối Tác HUKI</span>
+                      <span className="text-xs sm:text-sm font-bold text-slate-800">{so.storeName || "Nhà Sách Đối Tác HUKI"}</span>
                       <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200/60 text-[11px] font-semibold">Chính Hãng</span>
                       <span className="text-slate-300">•</span>
                       <span className="text-xs text-slate-500">Mã kiện: {so.code}</span>
                     </div>
                     <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-xs flex items-center gap-1 font-semibold">
                       <span className="material-symbols-outlined text-[14px]" data-icon="hourglass_top">hourglass_top</span>
-                      {so.status || "Đang chuẩn bị hàng"}
+                      {getStatusText(so.status) || "Đang chuẩn bị hàng"}
                     </span>
                   </div>
 
                   <div className="p-5 flex flex-col divide-y divide-slate-100">
-                    {so.items?.map((item: any) => (
+                    {so.items?.map((item: any) => {
+                      const itemTitle = item.bookTitle || item.title || "Ấn phẩm HUKI";
+                      const itemCover = item.bookCoverUrl || item.coverImage || item.coverUrl;
+                      const unitPrice = Number(item.unitPrice ?? item.price ?? 0);
+                      const qty = Number(item.quantity || 1);
+                      const lineTotal = item.subtotal !== undefined && item.subtotal !== null ? Number(item.subtotal) : unitPrice * qty;
+                      return (
                       <div key={item.id || item.bookId} className="py-4 first:pt-0 last:pb-0 flex items-start gap-4">
                         <div className="w-16 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-slate-50 border border-slate-200 shadow-2xs flex items-center justify-center">
-                          {item.coverImage || item.coverUrl ? (
-                            <img className="w-full h-full object-cover" alt={item.title} src={item.coverImage || item.coverUrl} />
+                          {itemCover ? (
+                            <img className="w-full h-full object-cover" alt={itemTitle} src={itemCover} />
                           ) : (
                             <span className="material-symbols-outlined text-[28px] text-slate-400">menu_book</span>
                           )}
@@ -499,11 +505,11 @@ function OrderSuccessContent() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">
                             <div>
-                              <h4 className="text-xs sm:text-sm font-bold text-slate-900">{item.title}</h4>
+                              <h4 className="text-xs sm:text-sm font-bold text-slate-900">{itemTitle}</h4>
                               <p className="text-[11px] text-slate-500 mt-0.5">Mã sách: {item.bookId}</p>
                             </div>
                             <span className="text-xs sm:text-sm font-bold text-slate-900 flex-shrink-0">
-                              {(item.price || 0).toLocaleString("vi-VN")}đ
+                              {lineTotal.toLocaleString("vi-VN")}đ
                             </span>
                           </div>
                           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -511,7 +517,7 @@ function OrderSuccessContent() {
                               <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-medium">
                                 {item.format === "DIGITAL" ? "Ebook số" : "Sách giấy vật lý"}
                               </span>
-                              <span className="text-slate-500">Số lượng: x{item.quantity || 1}</span>
+                              <span className="text-slate-500">Số lượng: x{qty}</span>
                             </div>
                             <span className="inline-flex items-center gap-1 text-slate-500 text-[11px]">
                               <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
@@ -520,7 +526,8 @@ function OrderSuccessContent() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   <div className="bg-slate-50/50 px-5 py-3 border-t border-slate-100 flex items-center justify-between text-xs">
@@ -560,7 +567,7 @@ function OrderSuccessContent() {
                           <p className="text-[11px] text-slate-500 mt-0.5">Các tựa sách trong đơn hàng đang được chuẩn bị đóng gói.</p>
                         </div>
                         <span className="text-xs sm:text-sm font-bold text-slate-900 flex-shrink-0">
-                          {grandTotal > 0 ? `${grandTotal.toLocaleString("vi-VN")}đ` : "461.000đ"}
+                          {grandTotal.toLocaleString("vi-VN")}đ
                         </span>
                       </div>
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">

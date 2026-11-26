@@ -455,26 +455,36 @@ export default function PayOSPaymentPage() {
 
               {/* Order Items Preview */}
               <div className="space-y-2.5 max-h-56 overflow-y-auto custom-scrollbar pr-1">
-                {order.sellerOrders?.flatMap((so) => so.items || []).map((item, idx) => (
-                  <div key={item.id || idx} className="flex items-center gap-3 text-xs py-1.5 border-b border-slate-100 last:border-0">
-                    <div className="w-10 h-13 rounded bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center text-slate-400">
-                      {item.coverUrl || item.coverImage ? (
-                        <img src={item.coverUrl || item.coverImage} alt={item.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="material-symbols-outlined text-sm">menu_book</span>
-                      )}
+                {(order.sellerOrders?.flatMap((so) => so.items || []) || order.items || []).map((item, idx) => {
+                  const displayTitle = item.bookTitle || item.title || 'Sách HUKI';
+                  const coverSrc = item.bookCoverUrl || item.coverUrl || item.coverImage;
+                  const unitPrice = Number(item.unitPrice ?? item.price ?? 0);
+                  const qty = Number(item.quantity || 1);
+                  const lineTotal =
+                    item.subtotal !== undefined && item.subtotal !== null
+                      ? Number(item.subtotal)
+                      : unitPrice * qty;
+                  return (
+                    <div key={item.id || idx} className="flex items-center gap-3 text-xs py-1.5 border-b border-slate-100 last:border-0">
+                      <div className="w-10 h-13 rounded bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center text-slate-400">
+                        {coverSrc ? (
+                          <img src={coverSrc} alt={displayTitle} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="material-symbols-outlined text-sm">menu_book</span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-slate-800 truncate">{displayTitle}</p>
+                        <p className="text-[11px] text-slate-500">
+                          {item.format === 'DIGITAL' ? 'Ebook' : 'Sách In'} • SL: {qty}
+                        </p>
+                      </div>
+                      <span className="font-medium text-slate-700 shrink-0">
+                        {lineTotal.toLocaleString('vi-VN')} đ
+                      </span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-800 truncate">{item.title}</p>
-                      <p className="text-[11px] text-slate-500">
-                        {item.format === 'DIGITAL' ? 'Ebook' : 'Sách In'} • SL: {item.quantity}
-                      </p>
-                    </div>
-                    <span className="font-medium text-slate-700 shrink-0">
-                      {(Number(item.price || 0) * (item.quantity || 1)).toLocaleString('vi-VN')} đ
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Cost summary */}
@@ -485,12 +495,12 @@ export default function PayOSPaymentPage() {
                 </div>
                 <div className="flex justify-between">
                   <span>Phí vận chuyển:</span>
-                  <span>{Number(order.shippingFee || 0).toLocaleString('vi-VN')} đ</span>
+                  <span>{Number(order.shippingTotal ?? order.shippingFee ?? 0).toLocaleString('vi-VN')} đ</span>
                 </div>
-                {Number(order.discountAmount || 0) > 0 && (
+                {Number(order.discountTotal ?? order.discountAmount ?? 0) > 0 && (
                   <div className="flex justify-between text-emerald-600">
                     <span>Giảm giá:</span>
-                    <span>-{Number(order.discountAmount).toLocaleString('vi-VN')} đ</span>
+                    <span>-{Number(order.discountTotal ?? order.discountAmount ?? 0).toLocaleString('vi-VN')} đ</span>
                   </div>
                 )}
                 <div className="flex justify-between pt-2 border-t border-slate-200 text-sm font-bold text-slate-900">

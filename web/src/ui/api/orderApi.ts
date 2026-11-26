@@ -20,12 +20,16 @@ export interface OrderItem {
   sellerOrderId?: string;
   bookId: string;
   title: string;
+  bookTitle?: string;
   format: 'PHYSICAL' | 'DIGITAL' | 'BOTH';
   price: number;
+  unitPrice?: number;
   quantity: number;
   subtotal?: number;
-  coverImage?: string;
-  coverUrl?: string;
+  coverImage?: string | null;
+  coverUrl?: string | null;
+  bookCoverUrl?: string | null;
+  bookIsbn?: string | null;
 }
 
 export interface ShippingAddress {
@@ -119,7 +123,9 @@ export interface BuyerOrder {
   paymentStatus: string;
   itemSubtotal: number;
   shippingFee: number;
+  shippingTotal?: number;
   discountAmount?: number;
+  discountTotal?: number;
   grandTotal: number;
   shippingAddress?: ShippingAddress | null;
   items?: OrderItem[];
