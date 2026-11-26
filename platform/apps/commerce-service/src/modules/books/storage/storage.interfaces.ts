@@ -23,4 +23,5 @@ export interface EbookStorage {
   delete(key: string): Promise<void>;
   getStream?(key: string, range?: string): Promise<EbookStreamResult>;
   exists?(key: string): Promise<boolean>;
+  getDiagnostics?(): Record<string, any>;
 }

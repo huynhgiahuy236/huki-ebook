@@ -3,9 +3,24 @@ import { Injectable } from '@nestjs/common';
 export interface AutoModerationResult {
   flagged: boolean;
   reasons: string[];
+  matchedKeywords: string[];
+  violationCategory?: 'LANGUAGE_VIOLATION' | 'SPAM';
 }
 
-const BLOCKED_PHRASES = ['địt', 'đụ', 'đĩ', 'cặc', 'lồn', 'lừa đảo', 'scam'];
+const BLOCKED_PHRASES = [
+  'địt',
+  'đụ',
+  'đĩ',
+  'cặc',
+  'lồn',
+  'chó đẻ',
+  'khốn nạn',
+  'súc vật',
+  'ngu ngốc',
+  'rác rưởi',
+  'lừa đảo',
+  'scam',
+];
 
 @Injectable()
 export class AutoModerationService {
@@ -25,7 +40,7 @@ export class AutoModerationService {
       const collapsedPhrase = normPhrase.replace(/[^a-z0-9]/g, '');
       return (
         normalized.includes(normPhrase) ||
-        (collapsedPhrase.length >= 3 && collapsed.includes(collapsedPhrase))
+        (collapsedPhrase.length >= 4 && collapsed.includes(collapsedPhrase))
       );
     });
     if (matched.length) reasons.push('PROFANITY');
@@ -33,7 +48,17 @@ export class AutoModerationService {
       reasons.push('EXCESSIVE_LINKS');
     }
     if (/(.)\1{9,}/iu.test(original)) reasons.push('REPEATED_CHARACTERS');
-    return { flagged: reasons.length > 0, reasons };
+    const violationCategory = reasons.includes('PROFANITY')
+      ? 'LANGUAGE_VIOLATION'
+      : reasons.length > 0
+        ? 'SPAM'
+        : undefined;
+    return {
+      flagged: reasons.length > 0,
+      reasons,
+      matchedKeywords: matched,
+      violationCategory,
+    };
   }
 
   note(result: AutoModerationResult) {

@@ -20,6 +20,7 @@ import {
 } from '../common';
 
 const REASON_LABELS: Record<string, { label: string; color: string }> = {
+  LANGUAGE_VIOLATION: { label: 'Vi phạm ngôn từ', color: 'bg-rose-100 text-rose-800 border-rose-300' },
   SPAM: { label: 'Spam / Rác', color: 'bg-amber-100 text-amber-800 border-amber-200' },
   OFFENSIVE: { label: 'Ngôn từ xúc phạm', color: 'bg-rose-100 text-rose-800 border-rose-200' },
   HARASSMENT: { label: 'Quấy rối / Bắt nạt', color: 'bg-purple-100 text-purple-800 border-purple-200' },
@@ -59,8 +60,8 @@ export function AdminModerationView() {
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
 
-  const loadReports = useCallback(async () => {
-    setLoading(true);
+  const loadReports = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await moderationApi.listReports({
         page: 1,
@@ -69,22 +70,28 @@ export function AdminModerationView() {
 
       if (res?.success && res.data) {
         setReports(res.data.data || []);
-      } else {
+      } else if (!silent) {
         setReports([]);
       }
     } catch {
-      showToast('Không thể tải danh sách báo cáo kiểm duyệt.', 'error');
-      setReports([]);
+      if (!silent) {
+        showToast('Không thể tải danh sách báo cáo kiểm duyệt.', 'error');
+        setReports([]);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [showToast]);
 
   useEffect(() => {
-    loadReports();
+    loadReports(false);
     const unsubscribe = realtimeSyncBus.subscribe((event) => {
-      if (event.type === 'NOTIFICATIONS_UPDATED' || event.type === 'ADMIN_NOTIFICATIONS_UPDATED') {
-        loadReports();
+      if (
+        (event.type as string) === 'MODERATION_UPDATED' ||
+        event.type === 'NOTIFICATIONS_UPDATED' ||
+        event.type === 'ADMIN_NOTIFICATIONS_UPDATED'
+      ) {
+        void loadReports(true);
       }
     });
     return () => unsubscribe();
@@ -93,7 +100,17 @@ export function AdminModerationView() {
   const filteredReports = useMemo(() => {
     return reports.filter((item) => {
       if (activeTab !== 'ALL' && item.status !== activeTab) return false;
-      if (selectedReason !== 'ALL' && item.reason !== selectedReason) return false;
+      if (selectedReason === 'LANGUAGE_VIOLATION') {
+        if (
+          item.reason !== 'LANGUAGE_VIOLATION' &&
+          item.reason !== 'OFFENSIVE' &&
+          item.violationCategory !== 'LANGUAGE_VIOLATION'
+        ) {
+          return false;
+        }
+      } else if (selectedReason !== 'ALL' && item.reason !== selectedReason) {
+        return false;
+      }
       if (!matchesDateFilter(item.createdAt, dateFilter)) return false;
       if (!searchQuery.trim()) return true;
 
@@ -104,6 +121,7 @@ export function AdminModerationView() {
         (item.targetId || '').toLowerCase().includes(q) ||
         (item.description || '').toLowerCase().includes(q) ||
         (item.reason || '').toLowerCase().includes(q) ||
+        (item.matchedKeywords || []).some((kw) => kw.toLowerCase().includes(q)) ||
         (rc?.title || '').toLowerCase().includes(q) ||
         (rc?.content || '').toLowerCase().includes(q) ||
         (rc?.authorName || '').toLowerCase().includes(q)
@@ -124,6 +142,13 @@ export function AdminModerationView() {
       reviewing: reports.filter((r) => r.status === 'REVIEWING').length,
       resolved: reports.filter((r) => r.status === 'RESOLVED').length,
       dismissed: reports.filter((r) => r.status === 'DISMISSED').length,
+      languageViolations: reports.filter(
+        (r) =>
+          (r.status === 'PENDING' || r.status === 'REVIEWING') &&
+          (r.reason === 'LANGUAGE_VIOLATION' ||
+            r.reason === 'OFFENSIVE' ||
+            r.violationCategory === 'LANGUAGE_VIOLATION'),
+      ).length,
     }),
     [reports],
   );
@@ -410,11 +435,27 @@ export function AdminModerationView() {
         sortable: true,
         render: (_, item) => {
           const reasonInfo = getReasonLabel(item.reason);
+          const isAutoFlagged =
+            item.detectionSource === 'AUTO_MODERATION' ||
+            item.reporterId === 'system:auto-moderation';
           return (
-            <div className="space-y-1 max-w-[230px] min-w-0">
-              <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${reasonInfo.color}`}>
-                {reasonInfo.label}
-              </span>
+            <div className="space-y-1 max-w-[240px] min-w-0">
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${reasonInfo.color}`}>
+                  {reasonInfo.label}
+                </span>
+                {isAutoFlagged && (
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9.5px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    <span className="material-symbols-outlined text-[11px]">smart_toy</span>
+                    <span>Tự động</span>
+                  </span>
+                )}
+              </div>
+              {Array.isArray(item.matchedKeywords) && item.matchedKeywords.length > 0 && (
+                <div className="text-[10px] font-mono text-rose-700 truncate" title={item.matchedKeywords.join(', ')}>
+                  Từ khóa: {item.matchedKeywords.join(', ')}
+                </div>
+              )}
               <p className="text-gray-700 text-[11.5px] line-clamp-2 break-words leading-relaxed" title={item.description || ''}>
                 {item.description || 'Không có mô tả chi tiết từ người báo cáo.'}
               </p>
@@ -532,7 +573,7 @@ export function AdminModerationView() {
 
           <button
             type="button"
-            onClick={loadReports}
+            onClick={() => loadReports(false)}
             disabled={loading}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 shrink-0"
           >
@@ -543,7 +584,7 @@ export function AdminModerationView() {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 pt-5 text-xs">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 pt-5 text-xs">
           <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 flex items-center justify-between">
             <div>
               <span className="text-gray-500 font-medium block">Tổng Báo Cáo</span>
@@ -553,6 +594,28 @@ export function AdminModerationView() {
               <span className="material-symbols-outlined text-xl">flag</span>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedReason((prev) => (prev === 'LANGUAGE_VIOLATION' ? 'ALL' : 'LANGUAGE_VIOLATION'));
+              setCurrentPage(1);
+            }}
+            className={`p-4 rounded-xl border flex items-center justify-between text-left transition-all cursor-pointer ${
+              selectedReason === 'LANGUAGE_VIOLATION'
+                ? 'bg-rose-100/90 border-rose-400 shadow-xs'
+                : 'bg-rose-50/80 border-rose-200/80 hover:border-rose-300'
+            }`}
+            title="Nhấn để lọc nhanh các bình luận vi phạm ngôn từ chờ xử lý"
+          >
+            <div>
+              <span className="text-rose-700 font-bold block">Vi Phạm Ngôn Từ</span>
+              <span className="text-2xl font-black text-rose-700 mt-0.5 block">{stats.languageViolations}</span>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center">
+              <span className="material-symbols-outlined text-xl">gavel</span>
+            </div>
+          </button>
 
           <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-200/80 flex items-center justify-between">
             <div>
@@ -632,8 +695,9 @@ export function AdminModerationView() {
             className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-gray-700 cursor-pointer focus:outline-none focus:border-[#006953]"
           >
             <option value="ALL">Mọi Lý Do</option>
-            <option value="SPAM">Spam / Rác</option>
+            <option value="LANGUAGE_VIOLATION">Vi Phạm Ngôn Từ (Tự động &amp; Báo cáo)</option>
             <option value="OFFENSIVE">Ngôn Từ Xúc Phạm</option>
+            <option value="SPAM">Spam / Rác</option>
             <option value="HARASSMENT">Quấy Rối / Bắt Nạt</option>
             <option value="MISINFORMATION">Thông Tin Sai Lệch</option>
             <option value="COPYRIGHT">Vi Phạm Bản Quyền</option>

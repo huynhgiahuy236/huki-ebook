@@ -855,6 +855,7 @@ export function SellerFlashSaleView() {
   const hasLoadedOnceRef = useRef(false);
   const isFetchingRef = useRef(false);
   const lastSyncAtRef = useRef(0);
+  const skipSelfBusUntilRef = useRef(0);
 
   // Load All Data (supports silent background refresh without resetting form or flashing skeleton - BUG-051)
   const loadData = useCallback(async (silent = false) => {
@@ -955,11 +956,13 @@ export function SellerFlashSaleView() {
     loadData(false);
 
     const unsub = realtimeSyncBus.subscribe((msg) => {
-      if (
+      if (Date.now() < skipSelfBusUntilRef.current) return;
+      const notiType = String((msg.payload as any)?.type || '');
+      const isFlashNoti =
         msg.type === 'FLASH_SALE_UPDATED' ||
-        msg.type === 'NOTIFICATIONS_UPDATED' ||
-        msg.type === 'ADMIN_NOTIFICATIONS_UPDATED'
-      ) {
+        ((msg.type === 'NOTIFICATIONS_UPDATED' || msg.type === 'ADMIN_NOTIFICATIONS_UPDATED') &&
+          notiType.includes('FLASH_SALE'));
+      if (isFlashNoti) {
         invalidateFlashSaleCache();
         loadData(true);
       }
@@ -1494,9 +1497,11 @@ export function SellerFlashSaleView() {
       if (res.success) {
         showToast('Đã hủy đăng ký Flash Sale thành công! Sách đã trở về trạng thái nguyên bản.', 'success');
         setCancelCountdownState(null);
+        setMyItems((prev) => prev.filter((it) => it.id !== itemId));
+        skipSelfBusUntilRef.current = Date.now() + 800;
         realtimeSyncBus.publish('FLASH_SALE_UPDATED', { itemId });
         invalidateFlashSaleCache();
-        await loadData();
+        void loadData(true);
       } else {
         showToast((res as any)?.message || 'Không thể hủy đăng ký', 'error');
       }
@@ -1523,6 +1528,9 @@ export function SellerFlashSaleView() {
       if (res.success) {
         showToast('Đã xóa đợt Flash Sale thành công! ', 'success');
         setDeleteSlotModal(null);
+        setSlots((prev) => prev.filter((s) => s.id !== slotId));
+        setMyItems((prev) => prev.filter((it) => it.flashSaleId !== slotId && it.flashSale?.id !== slotId));
+        skipSelfBusUntilRef.current = Date.now() + 800;
         realtimeSyncBus.publish('FLASH_SALE_UPDATED', { slotId });
         invalidateFlashSaleCache();
         void loadData(true);
@@ -1581,9 +1589,22 @@ export function SellerFlashSaleView() {
 
       if (res.success) {
         showToast('Đã cập nhật Flash Sale thành công! ', 'success');
+        setMyItems((prev) =>
+          prev.map((it) =>
+            it.id === itemId
+              ? {
+                  ...it,
+                  salePrice: editingRowData.salePrice,
+                  stock: editingRowData.stock,
+                  maxPerUser: editingRowData.maxPerUser,
+                }
+              : it,
+          ),
+        );
         setEditingRowId(null);
         setEditingRowData(null);
-        await loadData();
+        skipSelfBusUntilRef.current = Date.now() + 800;
+        void loadData(true);
       } else {
         showToast((res as any)?.message || 'Cập nhật thất bại', 'error');
       }

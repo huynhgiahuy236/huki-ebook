@@ -34,6 +34,8 @@ export default function PdfCanvasViewer({
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorIsRetryable, setErrorIsRetryable] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const canvasRef1 = useRef<HTMLCanvasElement>(null);
   const canvasRef2 = useRef<HTMLCanvasElement>(null);
@@ -51,6 +53,7 @@ export default function PdfCanvasViewer({
     let isMounted = true;
     setLoading(true);
     setError(null);
+    setErrorIsRetryable(false);
 
     if (pdfUrl === undefined) {
       return;
@@ -74,18 +77,34 @@ export default function PdfCanvasViewer({
         if (!isMounted || cancelled) return;
         console.error('Lỗi khi tải PDF:', err);
         let msg = 'Tác phẩm này hiện chưa có bản đọc số điện tử.';
+        let retryable = false;
         try {
           const checkRes = await fetch(pdfUrl, { method: 'GET' });
+          let errJson: any = null;
+          try {
+            errJson = await checkRes.clone().json();
+          } catch {
+            // non-json error response
+          }
           if (checkRes.status >= 500) {
-            msg = 'Máy chủ đang bận khi tải tệp PDF. Vui lòng thử lại sau giây lát.';
+            retryable = true;
+            msg =
+              errJson?.message ||
+              'Không thể kết nối kho lưu trữ Ebook. Vui lòng thử lại sau giây lát.';
           } else if (checkRes.status !== 404 && !checkRes.ok) {
-            msg = 'Không thể truy cập tệp PDF của tác phẩm này. Vui lòng thử lại.';
+            retryable = true;
+            msg =
+              errJson?.message ||
+              'Không thể truy cập tệp PDF của tác phẩm này. Vui lòng thử lại.';
+          } else if (errJson?.message) {
+            msg = errJson.message;
           }
         } catch {
-          // keep default message if network failed
+          retryable = true;
         }
         if (isMounted && !cancelled) {
           setError(msg);
+          setErrorIsRetryable(retryable);
           setLoading(false);
         }
       });
@@ -94,7 +113,7 @@ export default function PdfCanvasViewer({
       isMounted = false;
       cancelled = true;
     };
-  }, [pdfUrl, setTotalPages]);
+  }, [pdfUrl, setTotalPages, retryNonce]);
 
   // Vẽ lại các nét highlight của trang lên overlay canvas
   const redrawHighlights = useCallback((pageNum: number, overlayCanvas: HTMLCanvasElement | null, dpr: number) => {
@@ -398,11 +417,22 @@ export default function PdfCanvasViewer({
           <div className="w-14 h-14 rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center mb-3">
             <span className="material-symbols-outlined text-3xl">menu_book</span>
           </div>
-          <p className="font-editorial text-xl font-bold mb-1.5">Chưa Có Bản Đọc Số</p>
+          <p className="font-editorial text-xl font-bold mb-1.5">
+            {errorIsRetryable ? 'Không Thể Tải Tệp Ebook' : 'Chưa Có Bản Đọc Số'}
+          </p>
           <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
             {error || 'Tác phẩm này hiện chưa có bản đọc số điện tử. Bạn có thể đón đọc các ấn bản khác tại gian hàng.'}
           </p>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {errorIsRetryable && (
+              <button
+                type="button"
+                onClick={() => setRetryNonce((n) => n + 1)}
+                className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded-xl transition-colors flex items-center gap-1.5 shadow-md cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">refresh</span>Thử tải lại PDF
+              </button>
+            )}
             <Link
               href="/library"
               className="px-4 py-2.5 bg-[#006953] hover:bg-[#00523c] text-white text-xs font-semibold rounded-xl transition-colors flex items-center gap-1.5 shadow-md"

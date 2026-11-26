@@ -255,4 +255,80 @@ describe('ModerationService', () => {
       }),
     );
   });
+
+  it('creates LANGUAGE_VIOLATION auto-moderation report, notifies admin_channel, and emits moderation:created', async () => {
+    const gateway = { emitReviewEvent: jest.fn(), emitAdminModerationEvent: jest.fn() };
+    const notificationDelivery = {
+      deliver: jest.fn().mockResolvedValue(undefined),
+    };
+    const svc = new ModerationService(
+      reports as any,
+      reviews as any,
+      eventBus as any,
+      gateway as any,
+      notificationDelivery as any,
+    );
+    const targetId = new Types.ObjectId().toString();
+    const createdDoc = {
+      id: 'auto-rep-1',
+      _id: 'auto-rep-1',
+      reporterId: 'system:auto-moderation',
+      targetType: 'REVIEW',
+      targetId,
+      targetAuthorId: 'author-bad',
+      reason: 'LANGUAGE_VIOLATION',
+      detectionSource: 'AUTO_MODERATION',
+      violationCategory: 'LANGUAGE_VIOLATION',
+      matchedKeywords: ['lừa đảo', 'ngu ngốc'],
+      description: 'Hệ thống tự động phát hiện bình luận vi phạm ngôn từ (Từ khóa: lừa đảo, ngu ngốc)',
+      status: 'PENDING',
+    };
+    reports.findOneAndUpdate.mockResolvedValue(createdDoc);
+
+    const res = await svc.createAutoFlagReport({
+      targetType: 'REVIEW',
+      targetId,
+      targetAuthorId: 'author-bad',
+      reasons: ['PROFANITY'],
+      matchedKeywords: ['lừa đảo', 'ngu ngốc'],
+      contentPreview: 'Sách lừa đảo ngu ngốc',
+    });
+
+    await Promise.resolve();
+    expect(reports.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        reporterId: 'system:auto-moderation',
+        targetType: 'REVIEW',
+        targetId,
+      },
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          reason: 'LANGUAGE_VIOLATION',
+          detectionSource: 'AUTO_MODERATION',
+          violationCategory: 'LANGUAGE_VIOLATION',
+          matchedKeywords: ['lừa đảo', 'ngu ngốc'],
+        }),
+      }),
+      { upsert: true, new: true },
+    );
+    expect(notificationDelivery.deliver).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientType: 'ADMIN',
+        recipientId: 'admin_channel',
+        type: 'WATCHDOG_ALERT',
+        actionUrl: '/admin/moderation?reason=LANGUAGE_VIOLATION',
+      }),
+    );
+    expect(gateway.emitAdminModerationEvent).toHaveBeenCalledWith(
+      'moderation:created',
+      expect.objectContaining({
+        report: expect.objectContaining({
+          id: 'auto-rep-1',
+          reason: 'LANGUAGE_VIOLATION',
+          detectionSource: 'AUTO_MODERATION',
+        }),
+      }),
+    );
+    expect(res).toEqual(expect.objectContaining({ reason: 'LANGUAGE_VIOLATION' }));
+  });
 });

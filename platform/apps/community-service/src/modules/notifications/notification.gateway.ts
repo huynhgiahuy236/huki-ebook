@@ -218,6 +218,14 @@ export class NotificationGateway implements OnGatewayConnection {
     }
   }
 
+  emitAdminModerationEvent(
+    eventName: "moderation:created" | "moderation:resolved",
+    data: Record<string, unknown>,
+  ) {
+    if (!this.server) return;
+    this.server.to("admin_channel").emit(eventName, data);
+  }
+
   private room(recipientId: string) {
     return `user:${recipientId}`;
   }

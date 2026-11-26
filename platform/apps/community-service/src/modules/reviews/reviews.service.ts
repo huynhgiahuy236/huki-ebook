@@ -27,6 +27,7 @@ import {
 } from "./dto/review.dto";
 import { ReviewVerificationService } from "./review-verification.service";
 import { AutoModerationService } from "../moderation/auto-moderation.service";
+import { ModerationService } from "../moderation/moderation.service";
 import { NotificationGateway } from "../notifications/notification.gateway";
 import { NotificationDeliveryService } from "../notifications/notification-delivery.service";
 import { SellerScopeResolverService } from "../notifications/seller-scope-resolver.service";
@@ -48,6 +49,7 @@ export class ReviewsService {
     @Optional() private readonly gateway?: NotificationGateway,
     @Optional() private readonly sellerScopeResolver?: SellerScopeResolverService,
     @Optional() private readonly notificationDelivery?: NotificationDeliveryService,
+    @Optional() private readonly moderationService?: ModerationService,
   ) { }
 
   async list(
@@ -396,7 +398,27 @@ export class ReviewsService {
     review!.moderatedAt = undefined;
     review!.moderatedBy = undefined;
     review!.moderationNote = this.autoModeration.note(moderation);
+    if (moderation.flagged) {
+      review!.isReported = true;
+      review!.reportCount = Math.max(1, Number(review!.reportCount || 0));
+      review!.lastReportReason = moderation.reasons.includes('PROFANITY')
+        ? 'LANGUAGE_VIOLATION'
+        : 'SPAM';
+    }
     await review!.save();
+    if (moderation.flagged && this.moderationService) {
+      void this.moderationService
+        .createAutoFlagReport({
+          targetType: 'REVIEW',
+          targetId: review!.id,
+          targetAuthorId: review!.authorId,
+          reasons: moderation.reasons,
+          matchedKeywords: moderation.matchedKeywords,
+          contentPreview: review!.content || review!.title,
+          bookOrStoreId: review!.targetId,
+        })
+        .catch(() => null);
+    }
     const activeReplies =
       typeof this.replies?.find === "function"
         ? await this.replies
@@ -575,7 +597,29 @@ export class ReviewsService {
         authorAvatar: actor.avatar,
         status: moderation.flagged ? "FLAGGED" : "PUBLISHED",
         moderationNote: this.autoModeration.note(moderation),
+        ...(moderation.flagged
+          ? {
+              isReported: true,
+              reportCount: 1,
+              lastReportReason: moderation.reasons.includes("PROFANITY")
+                ? "LANGUAGE_VIOLATION"
+                : "SPAM",
+            }
+          : {}),
       });
+      if (moderation.flagged && this.moderationService) {
+        void this.moderationService
+          .createAutoFlagReport({
+            targetType: "REVIEW",
+            targetId: review.id,
+            targetAuthorId: review.authorId,
+            reasons: moderation.reasons,
+            matchedKeywords: moderation.matchedKeywords,
+            contentPreview: review.content || review.title,
+            bookOrStoreId: review.targetId,
+          })
+          .catch(() => null);
+      }
       void this.publishCreated(review);
       return {
         message: "Review submitted",

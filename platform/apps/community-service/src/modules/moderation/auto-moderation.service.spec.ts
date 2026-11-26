@@ -32,4 +32,17 @@ describe('AutoModerationService', () => {
     const result = service.inspect('scam https://1 https://2 https://3');
     expect(service.note(result)).toContain('Auto-moderation: PROFANITY, EXCESSIVE_LINKS');
   });
+
+  it('returns matchedKeywords and LANGUAGE_VIOLATION category for offensive Vietnamese/English terms', () => {
+    const result = service.inspect('Sách quá rác rưởi ngu ngốc lừa đảo');
+    expect(result).toEqual(
+      expect.objectContaining({
+        flagged: true,
+        violationCategory: 'LANGUAGE_VIOLATION',
+      }),
+    );
+    expect(result.matchedKeywords).toEqual(
+      expect.arrayContaining(['ngu ngốc', 'rác rưởi', 'lừa đảo']),
+    );
+  });
 });

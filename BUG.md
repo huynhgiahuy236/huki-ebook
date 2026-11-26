@@ -1368,7 +1368,7 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 
 ---
 
-### Bước 3: Phương án Kiến trúc Chuẩn Shopee & Tiêu chuẩn Nghiệm thu (`BUG-11`, `BUG-12`, `BUG-13`) — `[CHỜ PHÊ DUYỆT]`
+### Bước 3: Phương án Kiến trúc Chuẩn Shopee & Tiêu chuẩn Nghiệm thu (`BUG-11`, `BUG-12`, `BUG-13`) — `[ĐÃ PHÊ DUYỆT]`
 
 #### 1. Phương án cho `BUG-11` (Kiểm duyệt "Vi phạm ngôn từ" & Realtime Admin)
 - **Phương án 1 — `(Khuyến nghị) [Chuẩn Shopee Content Moderation Hub]`:**
@@ -1406,6 +1406,62 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
   - *Nhược điểm:* Nếu `R2_PUBLIC_URL` trên UAT chưa bật hoặc là URL mẫu (như local `.env` đang để `https://your-public-url.r2.dev`) thì vẫn gãy, và không giải quyết bảo mật/range stream qua backend.
 - **Acceptance Criteria (BDD/Gherkin):**
   - `Given` Sách điện tử có `pdfKey` / `REAL_EBOOK_MAPPINGS` hợp lệ trên R2 (`dac-nhan-tam`, `vi-giam-doc-mot-phut-va-xay-dung-nhom-lam-viec-hieu-qua`), `When` client mở `/reader/[id]` hoặc gọi `GET /api/v1/books/:id/pdf`, `Then` `R2EbookStorage` tự chọn đúng bộ cấu hình R2 hợp lệ (hoặc Public CDN nếu bật), trả `HTTP 200 application/pdf` (`%PDF-`) trong `< 1s`; nếu thiếu quyền trên VPS thì `503` kèm `diagnostic` an toàn chỉ rõ nguyên nhân (`InvalidAccessKeyId`/`NoSuchBucket`/`AccessDenied`) và UI hiển thị nút Thử lại rõ ràng.
+
+---
+
+### Bước 4: Triển khai Khắc phục Toàn diện & Kiểm chứng Tự động (26/11/2026)
+
+#### 1. `BUG-11` — Tự động phân loại `"Vi phạm ngôn từ"` & Đồng bộ Realtime tới Admin
+- **Schema & DTO (`community-service`):**
+  - [`report.schema.ts`](file:///e:/HuKi/platform/apps/community-service/src/entities/report.schema.ts): bổ sung `'LANGUAGE_VIOLATION'` vào `REPORT_REASONS`, thêm `REPORT_DETECTION_SOURCES` (`AUTO_MODERATION`, `USER_REPORT`) cùng các trường `detectionSource`, `violationCategory`, `matchedKeywords` trên `Report`.
+  - [`moderation.dto.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/moderation/dto/moderation.dto.ts): hỗ trợ lọc `reason` và `detectionSource` trên `ReportListQueryDto`.
+- **Auto-Moderation, Reviews, Moderation & Socket Gateway (`community-service`):**
+  - [`auto-moderation.service.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/moderation/auto-moderation.service.ts): trả về `matchedKeywords` và `violationCategory` (`'LANGUAGE_VIOLATION' | 'SPAM'`), an toàn hóa kiểm tra chuỗi rút gọn (`collapsedPhrase.length >= 4`).
+  - [`notification.gateway.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/notifications/notification.gateway.ts): bổ sung `emitAdminModerationEvent('moderation:created' | 'moderation:resolved', data)` phát tới phòng `"admin_channel"`.
+  - [`moderation.service.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/moderation/moderation.service.ts) & [`moderation.module.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/moderation/moderation.module.ts): export `ModerationService`, bổ sung `createAutoFlagReport(...)` upsert bản ghi `Report` (`reason: 'LANGUAGE_VIOLATION'`, `detectionSource: 'AUTO_MODERATION'`, `matchedKeywords`), gửi notification `WATCHDOG_ALERT` tới `admin_channel` (`/admin/moderation?reason=LANGUAGE_VIOLATION`), phát socket `moderation:created` / `moderation:resolved`, và mở rộng bộ lọc `listReports` cho `LANGUAGE_VIOLATION` / `OFFENSIVE`.
+  - [`reviews.service.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/reviews/reviews.service.ts): inject `@Optional() ModerationService`; khi `create()` / `update()` bị `AutoModerationService` gắn cờ, cập nhật `isReported`, `reportCount`, `lastReportReason` và gọi `createAutoFlagReport(...)`.
+- **Frontend Admin Moderation & Realtime Sync (`@huki/web`):**
+  - [`moderationApi.ts`](file:///e:/HuKi/web/src/ui/api/moderationApi.ts), [`useRealtimeNotifications.ts`](file:///e:/HuKi/web/src/ui/hooks/useRealtimeNotifications.ts), [`AdminModerationView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminModerationView.tsx): lắng nghe socket `moderation:created` / `moderation:resolved` + notification `ADMIN`/`WATCHDOG_ALERT` để phát `MODERATION_UPDATED` lên `realtimeSyncBus`; thêm KPI **"Vi Phạm Ngôn Từ"** bấm lọc nhanh, nhãn phân biệt **"Tự động"** / **"Ngôn từ vi phạm"**, hiển thị danh sách `matchedKeywords`, và làm mới im lặng không nháy trang.
+- **Kiểm chứng E2E:** [`scripts/test_e2e_bug11_moderation_realtime.js`](file:///e:/HuKi/scripts/test_e2e_bug11_moderation_realtime.js) (MongoDB thực + compiled `AutoModerationService`, `ReviewsService`, `ModerationService`, `NotificationGateway`) — **PASS (5/5)**.
+
+#### 2. `BUG-12` — Tăng tốc nút Bấm, Xóa, Sửa Tồn Flash Sale (Seller & Admin)
+- **Tối ưu Lookup & Non-blocking EventBus (`commerce-service`, `promotion-service`):**
+  - [`books.controller.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/books.controller.ts) & [`books.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/books.service.ts): thêm query `@Query('light')` (`{ light?: boolean }`) trên `findOne` và `findBySlug` để bỏ qua `orderItem.aggregate` và R2 `HeadObject` (`exists()`) khi `promotion-service` tra cứu thông tin nội bộ.
+  - [`flash-sales.service.ts`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/flash-sales/flash-sales.service.ts): `getCommerceBook` gọi `?light=1` với timeout `2.5s`, nâng TTL `getCommerceBookCached` lên `120s`; `sellerCancelItem` kiểm tra trực tiếp `item.storeId === businessId` hoặc Admin để bỏ qua HTTP sang `commerce-service`; chuyển `eventBus.publish` trong `cancel`, `endEarly`, `sellerCancelItem`, `sellerBatchRegisterItems` sang bất đồng bộ không chặn response.
+- **Optimistic UI & Chống Double-Reload (`@huki/web`):**
+  - [`SellerFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerFlashSaleView.tsx), [`flash-sale/[id]/page.tsx`](file:///e:/HuKi/web/src/app/seller/promotions/flash-sale/[id]/page.tsx), [`AdminFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminFlashSaleView.tsx): thêm cập nhật giao diện Optimistic ngay khi Tạo / Xóa Đợt / Hủy Lịch / Xóa Sách / Sửa Tồn / Kết Thúc Sớm thành công; thêm `skipSelfBusUntilRef` chống tự reload 2 lần; chỉ phản ứng `NOTIFICATIONS_UPDATED` có loại liên quan `FLASH_SALE`; thêm trạng thái `"Đang lưu..."` khóa nút `Lưu` inline của Admin.
+- **Kiểm chứng E2E:** [`scripts/test_e2e_bug12_flashsale_speed.js`](file:///e:/HuKi/scripts/test_e2e_bug12_flashsale_speed.js) (compiled `BooksService` & `FlashSalesService`) — **PASS (`findOne({ light: true })` `1ms`, `sellerCancelItem` `1ms`, `cancel` `1ms`, `endEarly` `0ms`, `0` HTTP call khi khớp `storeId`)**.
+
+#### 3. `BUG-13` — Đa Candidate R2 Fallback, Circuit Breaker 15s & Chẩn đoán 503 Ebook
+- **Multi-Credential R2 & Circuit Breaker (`commerce-service`):**
+  - [`storage.interfaces.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/storage/storage.interfaces.ts) & [`r2-ebook.storage.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/storage/r2-ebook.storage.ts): làm sạch dấu nháy/khoảng trắng ở env, loại bỏ domain `.r2.dev` khỏi S3 API endpoint, khởi tạo pool candidate (`cf:path`, `cf:vhost`, `r2:path`, `r2:vhost`), hỗ trợ fallback đọc HTTP Public CDN (`CLOUDFLARE_R2_PUBLIC_DOMAIN` / `R2_PUBLIC_URL`), bổ sung Circuit Breaker `15s` trong `exists()`, và cung cấp `getDiagnostics()` an toàn không lộ access key/secret.
+  - [`books.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/books.service.ts): gắn `diagnostic` an toàn (`bucket`, `activeCandidate`, `candidateCount`, `errorCode`, `errorStatus`, `publicBaseUrlConfigured`, `circuitOpen`) vào phản hồi `503 EBOOK_STORAGE_UNAVAILABLE` ở `streamPdf`.
+- **Reader Retry UI (`@huki/web`):**
+  - [`PdfCanvasViewer.tsx`](file:///e:/HuKi/web/src/ui/components/reader/PdfCanvasViewer.tsx): parse JSON lỗi `{ code, message }`, thêm `errorIsRetryable` và nút **"Thử tải lại PDF"** (`retryNonce`).
+- **Kiểm chứng E2E:** [`scripts/test_e2e_bug13_r2_fallback.js`](file:///e:/HuKi/scripts/test_e2e_bug13_r2_fallback.js) (Cloudflare R2 thật từ `platform/.env` + mô phỏng primary `CLOUDFLARE_R2_*` lỗi tự fallback sang `r2:path` + circuit breaker `1ms` + `503` safe diagnostic) — **PASS (5/5)**.
+
+---
+
+### Bước 5: Kiểm Toán Toàn Diện Local (Local Deep Audit Gate) — `[ĐẠT 100%]`
+
+1. **Quét Bí mật & Anti-pattern Diff:** Quét toàn bộ `1.118` dòng thêm mới trong `git diff` — `0` chuỗi secret/key/token rò rỉ, `0` lời gọi `window.confirm(` / `alert(`, `0` mock data chèn vào mã nguồn `src/` (mọi dữ liệu mô phỏng nằm tách biệt hoàn toàn trong `scripts/test_e2e_bug11..13_*.js`).
+2. **Bảo toàn API & Scope:** Các hàm kiểm thử unit mới tại [`books.service.spec.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/books.service.spec.ts), [`auto-moderation.service.spec.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/moderation/auto-moderation.service.spec.ts), [`moderation.service.spec.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/moderation/moderation.service.spec.ts), [`reviews.service.spec.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/reviews/reviews.service.spec.ts) đều giữ nguyên contract cũ và bao phủ thêm nhánh mới.
+
+---
+
+### Bước 6: 4 Cổng Kiểm Soát Chất Lượng Mô Phỏng CI/CD (Local CI/CD Gates) — `[4/4 PASS]`
+
+1. **Gate 1 — Git Hygiene & Secrets Scan:** `git diff --check` không có lỗi khoảng trắng; working tree chỉ gồm 23 file source/spec đã sửa, `BUG.md` và 3 script E2E trong `scripts/`. — **PASS**.
+2. **Gate 2 — Prisma Schema Integrity:** `npx prisma validate` cho **6/6** dịch vụ (`analytics-service`, `business-service`, `commerce-service`, `identity-service`, `promotion-service`, `shipping-service`) — **PASS (6/6 valid)**.
+3. **Gate 3 — Backend Build & Full Test Suite:**
+   - `npm --prefix platform run build` (`@huki/shared` + 8 microservices + Prisma clients) — **PASS (exit 0)**.
+   - `npm --prefix platform test -- --runInBand --forceExit` — **PASS (`Test Suites: 75 passed, 75 total; Tests: 806 passed, 806 total`)**.
+4. **Gate 4 — Frontend Typecheck, Lint, Test & Production Build:**
+   - `npm --prefix web run typecheck` (`tsc --noEmit`) — **PASS (exit 0)**.
+   - `npm --prefix web run lint` (`eslint src --cache --cache-strategy content --quiet`) — **PASS (exit 0)**.
+   - `npm test` (tại `web/`, Vitest) — **PASS (`Test Files: 10 passed (10); Tests: 71 passed (71)`)**.
+   - `$env:NODE_ENV='production'; npm run build` (tại `web/`, Next.js `16.3.3` Turbopack) — **PASS (`142/142` routes compiled)**.
+
 
 
 

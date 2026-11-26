@@ -469,7 +469,7 @@ export class BooksService implements OnModuleInit {
     return this.findOne(book.id, actor);
   }
 
-  async findOne(id: string, actor?: BookActor) {
+  async findOne(id: string, actor?: BookActor, options?: { light?: boolean }) {
     const book = await this.prisma.book.findUnique({
       where: { id },
       include: {
@@ -491,6 +491,14 @@ export class BooksService implements OnModuleInit {
       throwNotFound(ErrorCode.BOOK_NOT_FOUND);
     }
 
+    const mappedKey =
+      book!.digitalDetails?.pdfKey ||
+      book!.digitalDetails?.previewPdfKey ||
+      REAL_EBOOK_MAPPINGS[book!.slug];
+    if (options?.light) {
+      return this.serializeBook(book!, canAccess, undefined, 0, Boolean(mappedKey));
+    }
+
     const discountsMap = await this.getDiscountsMap([book!.id]);
     const sales = await this.prisma.orderItem.aggregate({
       _sum: { quantity: true },
@@ -503,10 +511,7 @@ export class BooksService implements OnModuleInit {
       },
     });
     const soldCount = sales._sum.quantity || 0;
-    const hasPdf = await this.hasReadablePdfKey(
-      book!.digitalDetails?.pdfKey || book!.digitalDetails?.previewPdfKey || REAL_EBOOK_MAPPINGS[book!.slug],
-      book!.slug,
-    );
+    const hasPdf = await this.hasReadablePdfKey(mappedKey, book!.slug);
     return this.serializeBook(book!, canAccess, discountsMap.get(book!.id), soldCount, hasPdf);
   }
 
@@ -777,7 +782,7 @@ export class BooksService implements OnModuleInit {
     return paginate(books.map(book => this.serializeBook(book, true)), total, query.page, query.limit);
   }
 
-  async findBySlug(slug: string, actor?: BookActor) {
+  async findBySlug(slug: string, actor?: BookActor, options?: { light?: boolean }) {
     const book = await this.prisma.book.findFirst({
       where: { slug },
       include: {
@@ -798,6 +803,14 @@ export class BooksService implements OnModuleInit {
       throwNotFound(ErrorCode.BOOK_NOT_FOUND);
     }
 
+    const mappedKey =
+      book!.digitalDetails?.pdfKey ||
+      book!.digitalDetails?.previewPdfKey ||
+      REAL_EBOOK_MAPPINGS[book!.slug];
+    if (options?.light) {
+      return this.serializeBook(book!, canAccess, undefined, 0, Boolean(mappedKey));
+    }
+
     const discountsMap = await this.getDiscountsMap([book!.id]);
     const sales = await this.prisma.orderItem.aggregate({
       _sum: { quantity: true },
@@ -810,10 +823,7 @@ export class BooksService implements OnModuleInit {
       },
     });
     const soldCount = sales._sum.quantity || 0;
-    const hasPdf = await this.hasReadablePdfKey(
-      book!.digitalDetails?.pdfKey || book!.digitalDetails?.previewPdfKey || REAL_EBOOK_MAPPINGS[book!.slug],
-      book!.slug,
-    );
+    const hasPdf = await this.hasReadablePdfKey(mappedKey, book!.slug);
     return this.serializeBook(book!, canAccess, discountsMap.get(book!.id), soldCount, hasPdf);
   }
 
@@ -1401,10 +1411,23 @@ export class BooksService implements OnModuleInit {
         errMsg.toLowerCase().includes('not found');
 
       if (!isExplicitMissing) {
+        const storageDiagnostic =
+          typeof (this.ebookStorage as any)?.getDiagnostics === 'function'
+            ? (this.ebookStorage as any).getDiagnostics()
+            : undefined;
         res.status(HttpStatus.SERVICE_UNAVAILABLE).json({
           statusCode: HttpStatus.SERVICE_UNAVAILABLE,
           code: 'EBOOK_STORAGE_UNAVAILABLE',
           message: 'Không thể kết nối kho lưu trữ Ebook. Vui lòng thử lại sau giây lát.',
+          ...(storageDiagnostic
+            ? {
+                diagnostic: {
+                  ...storageDiagnostic,
+                  errorCode: errCode ? String(errCode) : undefined,
+                  errorStatus: typeof errStatus === 'number' ? errStatus : undefined,
+                },
+              }
+            : {}),
         });
         return;
       }

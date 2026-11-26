@@ -518,4 +518,71 @@ describe("ReviewsService", () => {
       }),
     );
   });
+
+  it("triggers moderationService.createAutoFlagReport when review contains profanity", async () => {
+    const id = new Types.ObjectId();
+    const gateway = { emitReviewEvent: jest.fn() };
+    const moderationService = {
+      createAutoFlagReport: jest.fn().mockResolvedValue({ id: "auto-rep-99" }),
+    };
+    reviews.exists.mockResolvedValue(null);
+    autoModeration.inspect.mockReturnValue({
+      flagged: true,
+      reasons: ["PROFANITY"],
+      matchedKeywords: ["lừa đảo"],
+      violationCategory: "LANGUAGE_VIOLATION",
+    });
+    verification.bookPurchase.mockResolvedValue({
+      orderId: "order-1",
+      sellerOrderId: "so-1",
+      storeId: "store-1",
+      storeOwnerId: "owner-1",
+      format: "PHYSICAL",
+    });
+    reviews.create.mockResolvedValue({
+      id: id.toString(),
+      _id: id,
+      targetType: "BOOK",
+      targetId: "book-1",
+      storeId: "store-1",
+      storeOwnerId: "owner-1",
+      authorId: "user-1",
+      authorName: "User 1",
+      rating: 1,
+      content: "Sách lừa đảo đừng mua",
+      status: "PUBLISHED",
+      isReported: true,
+      reportCount: 1,
+      lastReportReason: "LANGUAGE_VIOLATION",
+      createdAt: new Date(),
+    });
+
+    const svc = new ReviewsService(
+      reviews as any,
+      replies as any,
+      verification as any,
+      eventBus as any,
+      autoModeration as any,
+      gateway as any,
+      undefined,
+      undefined,
+      moderationService as any,
+    );
+
+    await svc.createBook(
+      { sub: "user-1", fullName: "User 1", email: "u1@test.com", role: "USER" } as any,
+      "book-1",
+      { rating: 1, content: "Sách lừa đảo đừng mua" } as any,
+      "Bearer test-token",
+    );
+
+    expect(moderationService.createAutoFlagReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetType: "REVIEW",
+        targetId: id.toString(),
+        reasons: ["PROFANITY"],
+        matchedKeywords: ["lừa đảo"],
+      }),
+    );
+  });
 });

@@ -121,6 +121,7 @@ export function AdminFlashSaleView() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const hasLoadedOnceRef = useRef(false);
   const lastSilentSyncRef = useRef<number>(0);
+  const skipSelfBusUntilRef = useRef<number>(0);
   const [flashSales, setFlashSales] = useState<FlashSaleSlot[]>([]);
   const [catalogBooks, setCatalogBooks] = useState<BookData[]>([]);
   const [activeTab, setActiveTab] = useState<'ALL' | 'ACTIVE' | 'SCHEDULED' | 'ENDED' | 'CANCELLED'>('ALL');
@@ -164,6 +165,7 @@ export function AdminFlashSaleView() {
 
   // Inline Editing of existing items in slot
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [savingRowId, setSavingRowId] = useState<string | null>(null);
   const [editingRowData, setEditingRowData] = useState<{
     salePrice: number;
     stock: number;
@@ -241,11 +243,13 @@ export function AdminFlashSaleView() {
       if (msg.type === 'SELLER_PENALTY_UPDATED') {
         refreshAppealsCount();
       }
-      if (
-        msg.type === 'NOTIFICATIONS_UPDATED' ||
-        msg.type === 'ADMIN_NOTIFICATIONS_UPDATED' ||
-        (msg.type as any) === 'FLASH_SALE_UPDATED'
-      ) {
+      if (Date.now() < skipSelfBusUntilRef.current) return;
+      const notiType = String((msg.payload as any)?.type || '');
+      const isFlashEvent =
+        (msg.type as any) === 'FLASH_SALE_UPDATED' ||
+        ((msg.type === 'NOTIFICATIONS_UPDATED' || msg.type === 'ADMIN_NOTIFICATIONS_UPDATED') &&
+          notiType.includes('FLASH_SALE'));
+      if (isFlashEvent) {
         invalidateFlashSaleCache();
         fetchFlashSales(true);
       }
@@ -488,6 +492,8 @@ export function AdminFlashSaleView() {
 
       showToast?.(` Đã gán thành công ${successCount}/${selectedConfigs.length} sách vào khung giờ Flash Sale!`, "success");
       setStudioSlotId(null);
+      skipSelfBusUntilRef.current = Date.now() + 800;
+      invalidateFlashSaleCache();
       realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: activeStudioSlot.id });
       void fetchFlashSales(true);
     } catch {
@@ -648,8 +654,13 @@ export function AdminFlashSaleView() {
           discountPercent: 30,
           maxPerUser: 1,
         });
+        if (res.data) {
+          setFlashSales((prev) => [res.data as FlashSaleSlot, ...prev]);
+        }
+        skipSelfBusUntilRef.current = Date.now() + 800;
+        invalidateFlashSaleCache();
         realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: res.data?.id });
-        fetchFlashSales(true);
+        void fetchFlashSales(true);
       } else {
         showToast?.(res.error?.message || "Không thể tạo khung giờ Flash Sale", "error");
       }
@@ -663,13 +674,22 @@ export function AdminFlashSaleView() {
   const handleConfirmEndEarly = async () => {
     if (!endEarlyModalSlot) return;
     setSubmittingEndEarly(true);
+    const slotId = endEarlyModalSlot.id;
+    const slotName = endEarlyModalSlot.name;
     try {
-      const res = await flashSaleApi.endEarly(endEarlyModalSlot.id);
+      const res = await flashSaleApi.endEarly(slotId);
       if (res.success) {
-        showToast?.(`Đã kích hoạt kết thúc sớm 5 phút cho đợt "${endEarlyModalSlot.name}"! Toàn sàn đã nhận thông báo.`, "success");
-        realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: endEarlyModalSlot.id });
+        showToast?.(`Đã kích hoạt kết thúc sớm 5 phút cho đợt "${slotName}"! Toàn sàn đã nhận thông báo.`, "success");
+        setFlashSales((prev) =>
+          prev.map((s) =>
+            s.id === slotId ? { ...s, ...(res.data || {}), status: (res.data as any)?.status || s.status } : s,
+          ),
+        );
         setEndEarlyModalSlot(null);
-        fetchFlashSales(true);
+        skipSelfBusUntilRef.current = Date.now() + 800;
+        invalidateFlashSaleCache();
+        realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: slotId });
+        void fetchFlashSales(true);
       } else {
         showToast?.(res.error?.message || "Lỗi khi kích hoạt kết thúc sớm", "error");
       }
@@ -689,18 +709,32 @@ export function AdminFlashSaleView() {
 
   // Inline edit item in slot
   const handleSaveInlineEdit = async (itemId: string) => {
-    if (!editingRowData) return;
+    if (!editingRowData || savingRowId === itemId) return;
+    const nextStock = Number(editingRowData.stock);
+    setSavingRowId(itemId);
     try {
-      const res = await flashSaleApi.updateItemStock(itemId, editingRowData.stock);
+      const res = await flashSaleApi.updateItemStock(itemId, nextStock);
       if (res.success) {
         showToast?.("Đã cập nhật tồn kho khuyến mãi thành công!", "success");
+        setFlashSales((prev) =>
+          prev.map((s) => ({
+            ...s,
+            items: (s.items || []).map((it: any) => (it.id === itemId ? { ...it, stock: nextStock } : it)),
+          })),
+        );
         setEditingRowId(null);
         setEditingRowData(null);
+        skipSelfBusUntilRef.current = Date.now() + 800;
+        invalidateFlashSaleCache();
         realtimeSyncBus.publish('FLASH_SALE_UPDATED', { itemId });
-        fetchFlashSales(true);
+        void fetchFlashSales(true);
+      } else {
+        showToast?.(res.error?.message || "Không thể cập nhật tồn kho khuyến mãi", "error");
       }
     } catch {
       showToast?.("Không thể cập nhật sách khuyến mãi", "error");
+    } finally {
+      setSavingRowId(null);
     }
   };
 
@@ -722,7 +756,11 @@ export function AdminFlashSaleView() {
         const res = await flashSaleApi.cancelFlashSale(slot.id);
         if (res.success) {
           showToast?.(`Đã hủy lịch khung giờ "${slot.name}" thành công!`, "success");
+          setFlashSales((prev) =>
+            prev.map((s) => (s.id === slot.id ? { ...s, status: 'CANCELLED' } : s)),
+          );
           setConfirmModal(null);
+          skipSelfBusUntilRef.current = Date.now() + 800;
           realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: slot.id });
           void fetchFlashSales(true);
         } else {
@@ -733,7 +771,15 @@ export function AdminFlashSaleView() {
         const res = await flashSaleApi.sellerCancelItem(itemId);
         if (res.success) {
           showToast?.("Đã xóa sách khỏi Flash Sale thành công! Sách đã trả về nguyên bản.", "success");
+          setFlashSales((prev) =>
+            prev.map((s) => ({
+              ...s,
+              items: (s.items || []).filter((it: any) => it.id !== itemId),
+              totalItems: Math.max(0, (s.items || []).filter((it: any) => it.id !== itemId).length),
+            })),
+          );
           setConfirmModal(null);
+          skipSelfBusUntilRef.current = Date.now() + 800;
           realtimeSyncBus.publish('FLASH_SALE_UPDATED', { itemId });
           invalidateFlashSaleCache();
           void fetchFlashSales(true);
@@ -1816,10 +1862,11 @@ export function AdminFlashSaleView() {
                               <div className="flex items-center justify-end gap-1">
                                 <button
                                   type="button"
+                                  disabled={savingRowId === item.id}
                                   onClick={() => handleSaveInlineEdit(item.id)}
-                                  className="px-2 py-1 bg-emerald-600 text-white rounded text-[11px] font-bold cursor-pointer"
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded text-[11px] font-bold cursor-pointer inline-flex items-center gap-1"
                                 >
-                                  Lưu
+                                  {savingRowId === item.id ? "Đang lưu..." : "Lưu"}
                                 </button>
                                 <button
                                   type="button"

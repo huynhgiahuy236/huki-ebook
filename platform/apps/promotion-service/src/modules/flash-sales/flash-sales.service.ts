@@ -323,7 +323,7 @@ export class FlashSalesService
       );
     }
 
-    const book = await this.getCommerceBook(dto.bookId);
+    const book = await this.getCommerceBookCached(dto.bookId);
     if (!book) {
       throwNotFound(
         ErrorCode.BOOK_NOT_FOUND,
@@ -1159,29 +1159,31 @@ export class FlashSalesService
     });
 
     if (this.eventBus) {
-      const storeIds = await this.getParticipatingStoreIds(id, flashSale.items);
-      try {
-        await this.eventBus.publish({
-          eventId: randomUUID(),
-          eventType: "flash_sale.early_ending_scheduled",
-          occurredAt: new Date().toISOString(),
-          producer: "promotion-service",
-          version: 1,
-          aggregateId: id,
-          payload: {
-            flashSaleId: id,
-            flashSaleName: flashSale.name,
-            endsAt: newEndsAt.toISOString(),
-            remainingSeconds: 300,
-            participatingStoreIds: storeIds, // only stores participating in this slot!
-          },
+      void this.getParticipatingStoreIds(id, flashSale.items)
+        .then((storeIds) =>
+          this.eventBus!.publish({
+            eventId: randomUUID(),
+            eventType: "flash_sale.early_ending_scheduled",
+            occurredAt: new Date().toISOString(),
+            producer: "promotion-service",
+            version: 1,
+            aggregateId: id,
+            payload: {
+              flashSaleId: id,
+              flashSaleName: flashSale.name,
+              endsAt: newEndsAt.toISOString(),
+              remainingSeconds: 300,
+              participatingStoreIds: storeIds, // only stores participating in this slot!
+            },
+          }).then(() => {
+            this.logger.log(
+              `Published flash_sale.early_ending_scheduled for "${flashSale.name}" (endsAt: ${newEndsAt.toISOString()}) to ${storeIds.length} stores`,
+            );
+          }),
+        )
+        .catch((err: any) => {
+          this.logger.warn(`Failed to publish early ending event: ${err?.message || err}`);
         });
-        this.logger.log(
-          `Published flash_sale.early_ending_scheduled for "${flashSale.name}" (endsAt: ${newEndsAt.toISOString()}) to ${storeIds.length} stores`,
-        );
-      } catch (err: any) {
-        this.logger.warn(`Failed to publish early ending event: ${err.message}`);
-      }
     }
 
     return updated;
@@ -1208,28 +1210,30 @@ export class FlashSalesService
     }
 
     if (this.eventBus) {
-      const storeIds = await this.getParticipatingStoreIds(id, flashSale.items);
-      try {
-        await this.eventBus.publish({
-          eventId: randomUUID(),
-          eventType: "flash_sale.cancelled",
-          occurredAt: new Date().toISOString(),
-          producer: "promotion-service",
-          version: 1,
-          aggregateId: id,
-          payload: {
-            flashSaleId: id,
-            flashSaleName: flashSale.name,
-            status: FlashSaleStatus.CANCELLED,
-            participatingStoreIds: storeIds,
-          },
+      void this.getParticipatingStoreIds(id, flashSale.items)
+        .then((storeIds) =>
+          this.eventBus!.publish({
+            eventId: randomUUID(),
+            eventType: "flash_sale.cancelled",
+            occurredAt: new Date().toISOString(),
+            producer: "promotion-service",
+            version: 1,
+            aggregateId: id,
+            payload: {
+              flashSaleId: id,
+              flashSaleName: flashSale.name,
+              status: FlashSaleStatus.CANCELLED,
+              participatingStoreIds: storeIds,
+            },
+          }).then(() => {
+            this.logger.log(
+              `Published flash_sale.cancelled for "${flashSale.name}" to ${storeIds.length} stores`,
+            );
+          }),
+        )
+        .catch((err: any) => {
+          this.logger.warn(`Failed to publish cancel event: ${err?.message || err}`);
         });
-        this.logger.log(
-          `Published flash_sale.cancelled for "${flashSale.name}" to ${storeIds.length} stores`,
-        );
-      } catch (err: any) {
-        this.logger.warn(`Failed to publish cancel event: ${err.message}`);
-      }
     }
 
     return updated;
@@ -1563,7 +1567,7 @@ export class FlashSalesService
     }
     const book = await this.getCommerceBook(bookId, authHeader);
     if (book && (!book.status || book.status === "PUBLISHED")) {
-      this.bookCache.set(bookId, { book, expiresAt: Date.now() + 60_000 });
+      this.bookCache.set(bookId, { book, expiresAt: Date.now() + 120_000 });
     }
     return book;
   }
@@ -1571,9 +1575,9 @@ export class FlashSalesService
   private async getCommerceBook(bookId: string, authHeader?: string) {
     try {
       const baseUrl = this.getCommerceBaseUrl();
-      const response = await fetch(`${baseUrl}/api/v1/books/${bookId}`, {
+      const response = await fetch(`${baseUrl}/api/v1/books/${bookId}?light=1`, {
         headers: authHeader ? { Authorization: authHeader } : undefined,
-        signal: AbortSignal.timeout(5_000),
+        signal: AbortSignal.timeout(2_500),
       });
       if (!response.ok) return null;
       const body = (await response.json()) as any;
@@ -2063,8 +2067,8 @@ export class FlashSalesService
     }
 
     if (this.eventBus && results.length > 0) {
-      try {
-        await this.eventBus.publish({
+      void this.eventBus
+        .publish({
           eventId: randomUUID(),
           eventType: "flash_sale.registered",
           occurredAt: new Date().toISOString(),
@@ -2077,11 +2081,13 @@ export class FlashSalesService
             registeredCount: results.length,
             flashSaleName: flashSale.name,
           },
+        })
+        .then(() => {
+          this.logger.log(`Published flash_sale.registered for "${flashSale.name}": ${results.length} items from store ${businessId}`);
+        })
+        .catch((err: any) => {
+          this.logger.warn(`Failed to publish flash_sale.registered event: ${err?.message || err}`);
         });
-        this.logger.log(`Published flash_sale.registered for "${flashSale.name}": ${results.length} items from store ${businessId}`);
-      } catch (err: any) {
-        this.logger.warn(`Failed to publish flash_sale.registered event: ${err.message}`);
-      }
     }
 
     return {
@@ -2175,14 +2181,20 @@ export class FlashSalesService
       );
     }
 
-    const book = await this.getCommerceBook(item.bookId);
-    const bookBizId = book?.businessId || book?.business?.id;
-    const isAllowed =
+    const isAdminActor =
       !businessId ||
       businessId === "ADMIN" ||
-      businessId === "PLATFORM_ADMIN" ||
-      (bookBizId && bookBizId === businessId) ||
-      (item.storeId && item.storeId === businessId);
+      businessId === "PLATFORM_ADMIN";
+    const directStoreMatch =
+      (item.storeId && item.storeId === businessId) ||
+      (item.flashSale?.storeId && item.flashSale.storeId === businessId);
+
+    let isAllowed = Boolean(isAdminActor || directStoreMatch);
+    if (!isAllowed) {
+      const book = await this.getCommerceBookCached(item.bookId);
+      const bookBizId = book?.businessId || book?.business?.id || book?.storeId;
+      isAllowed = Boolean(bookBizId && bookBizId === businessId);
+    }
     if (!isAllowed) {
       throwForbidden(
         ErrorCode.AUTHZ_FORBIDDEN,
@@ -2201,11 +2213,11 @@ export class FlashSalesService
       where: { id: itemId },
     });
 
-    await this.redis.del(this.stockKey(itemId));
+    await this.redis.del(this.stockKey(itemId)).catch(() => null);
 
     if (this.eventBus) {
-      try {
-        await this.eventBus.publish({
+      void this.eventBus
+        .publish({
           eventId: randomUUID(),
           eventType: "flash_sale.item_cancelled",
           occurredAt: new Date().toISOString(),
@@ -2219,11 +2231,13 @@ export class FlashSalesService
             storeId: item.storeId || businessId,
             flashSaleName: item.flashSale.name,
           },
+        })
+        .then(() => {
+          this.logger.log(`Published flash_sale.item_cancelled for item ${item.id} (book: ${item.bookId}) in "${item.flashSale.name}"`);
+        })
+        .catch((err: any) => {
+          this.logger.warn(`Failed to publish item_cancelled event: ${err?.message || err}`);
         });
-        this.logger.log(`Published flash_sale.item_cancelled for item ${item.id} (book: ${item.bookId}) in "${item.flashSale.name}"`);
-      } catch (err: any) {
-        this.logger.warn(`Failed to publish item_cancelled event: ${err.message}`);
-      }
     }
 
     return {
@@ -2249,9 +2263,15 @@ export class FlashSalesService
       );
     }
 
-    const book = await this.getCommerceBook(item.bookId);
-    const bookBizId = book?.businessId || book?.business?.id;
-    if (bookBizId && bookBizId !== businessId) {
+    const directStoreMatch =
+      !businessId ||
+      businessId === "ADMIN" ||
+      businessId === "PLATFORM_ADMIN" ||
+      (item.storeId && item.storeId === businessId) ||
+      (item.flashSale?.storeId && item.flashSale.storeId === businessId);
+    const book = await this.getCommerceBookCached(item.bookId);
+    const bookBizId = book?.businessId || book?.business?.id || book?.storeId;
+    if (!directStoreMatch && bookBizId && bookBizId !== businessId) {
       throwForbidden(
         ErrorCode.AUTHZ_FORBIDDEN,
         "Bạn không có quyền chỉnh sửa sản phẩm này",
