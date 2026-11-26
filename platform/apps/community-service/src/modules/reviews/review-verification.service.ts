@@ -43,10 +43,98 @@ export interface VerifiedBusiness {
 export class ReviewVerificationService {
   private readonly commerceUrl: string;
   private readonly businessUrl: string;
+  private readonly identityUrl: string;
 
   constructor(config: ConfigService) {
     this.commerceUrl = config.get<string>("services.commerceUrl")!;
     this.businessUrl = config.get<string>("services.businessUrl")!;
+    this.identityUrl =
+      config.get<string>("services.identityUrl") ??
+      process.env.IDENTITY_SERVICE_URL ??
+      "http://localhost:3001";
+  }
+
+  async resolveUserProfiles(
+    userIds: string[],
+  ): Promise<Map<string, { fullName?: string; avatar?: string }>> {
+    const cleanIds = Array.from(new Set((userIds || []).map((id) => String(id || "").trim()).filter(Boolean)));
+    const map = new Map<string, { fullName?: string; avatar?: string }>();
+    const internalKey = process.env.INTERNAL_SERVICE_KEY;
+    if (cleanIds.length === 0 || !this.identityUrl || !internalKey) {
+      return map;
+    }
+
+    try {
+      const base = this.identityUrl.endsWith("/api/v1")
+        ? this.identityUrl
+        : `${this.identityUrl.replace(/\/+$/, "")}/api/v1`;
+      const res = await fetch(`${base}/internal/users/profiles`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-internal-service-key": internalKey,
+        },
+        body: JSON.stringify({ userIds: cleanIds }),
+        signal: AbortSignal.timeout(3_000),
+      });
+      if (!res.ok) return map;
+      const json: any = await res.json();
+      const rows = Array.isArray(json?.data?.data)
+        ? json.data.data
+        : Array.isArray(json?.data)
+        ? json.data
+        : Array.isArray(json)
+        ? json
+        : [];
+      for (const u of rows) {
+        if (u?.id) {
+          map.set(String(u.id), {
+            fullName: u.fullName || undefined,
+            avatar: u.avatar || undefined,
+          });
+        }
+      }
+    } catch {
+      // Optional identity hydration must never fail review queries
+    }
+    return map;
+  }
+
+  async fetchPublicBooksMap(): Promise<
+    Map<string, { id: string; slug?: string; title: string; coverUrl?: string }>
+  > {
+    const map = new Map<string, { id: string; slug?: string; title: string; coverUrl?: string }>();
+    if (!this.commerceUrl) return map;
+    try {
+      const base = this.commerceUrl.endsWith("/api/v1")
+        ? this.commerceUrl
+        : `${this.commerceUrl.replace(/\/+$/, "")}/api/v1`;
+      const res = await fetch(`${base}/books?limit=100`, {
+        signal: AbortSignal.timeout(3_000),
+      });
+      if (!res.ok) return map;
+      const json: any = await res.json();
+      const list = Array.isArray(json?.data?.data)
+        ? json.data.data
+        : Array.isArray(json?.data)
+        ? json.data
+        : Array.isArray(json)
+        ? json
+        : [];
+      for (const b of list) {
+        if (b?.id && b?.title) {
+          map.set(String(b.id), {
+            id: String(b.id),
+            slug: b.slug || undefined,
+            title: String(b.title),
+            coverUrl: b.coverUrl || undefined,
+          });
+        }
+      }
+    } catch {
+      // Graceful optional fallback
+    }
+    return map;
   }
 
   async bookPurchase(

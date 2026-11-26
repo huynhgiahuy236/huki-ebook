@@ -203,6 +203,9 @@ export default function ReviewCard({
     }
   };
 
+  const isFlaggedHiddenFromPublic =
+    review.status === 'FLAGGED' && !isOwner && !canReply;
+
   return (
     <div
       className={`bg-gradient-to-b from-white to-[#faf9f6]/40 dark:from-zinc-900 dark:to-zinc-900/60 rounded-3xl border border-slate-100 dark:border-zinc-800/80 p-5 sm:p-7 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_-6px_rgba(0,0,0,0.07)] hover:border-emerald-500/20 transition-all duration-300 space-y-4 relative group ${className}`}
@@ -212,7 +215,7 @@ export default function ReviewCard({
         <div className="flex items-center gap-3 min-w-0">
           <div className="relative shrink-0 ring-2 ring-emerald-500/10 rounded-full p-0.5">
             <UserAvatar
-              src={review.author?.avatar}
+              src={review.author?.avatar || (review as any).authorAvatar}
               name={review.author?.fullName || 'Độc giả HUKI'}
               size="w-10 h-10 sm:w-11 sm:h-11"
             />
@@ -285,16 +288,23 @@ export default function ReviewCard({
       </div>
 
       {/* Review Title & Content */}
-      <div className="space-y-1.5 pt-0.5">
-        {review.title && (
-          <h4 className="font-bold text-sm text-slate-800 dark:text-zinc-100 leading-snug">
-            {review.title}
-          </h4>
-        )}
-        <p className="text-xs sm:text-sm text-slate-600 dark:text-zinc-300 leading-relaxed whitespace-pre-line font-normal">
-          {review.content}
-        </p>
-      </div>
+      {isFlaggedHiddenFromPublic ? (
+        <div className="p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/50 text-xs text-amber-800 dark:text-amber-300 flex items-center gap-2">
+          <span className="material-symbols-outlined text-base shrink-0">visibility_off</span>
+          <span>Nội dung đánh giá này đang được đội ngũ kiểm duyệt xem xét và tạm hạn chế hiển thị.</span>
+        </div>
+      ) : (
+        <div className="space-y-1.5 pt-0.5">
+          {review.title && (
+            <h4 className="font-bold text-sm text-slate-800 dark:text-zinc-100 leading-snug">
+              {review.title}
+            </h4>
+          )}
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-zinc-300 leading-relaxed whitespace-pre-line font-normal">
+            {review.content}
+          </p>
+        </div>
+      )}
 
       {/* Images Gallery with safe fallback against 403 / broken links */}
       {imageList.length > 0 && (

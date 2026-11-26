@@ -45,4 +45,56 @@ describe('AutoModerationService', () => {
       expect.arrayContaining(['ngu ngốc', 'rác rưởi', 'lừa đảo']),
     );
   });
+
+  it('rejects profanity, flagged status, and keyboard mash in isCleanFeaturedContent while allowing genuine Vietnamese reviews', () => {
+    expect(
+      service.isCleanFeaturedContent({
+        title: 'Tuổi trẻ',
+        content: 'đụ mẹ ngu quá',
+        status: 'FLAGGED',
+        isReported: true,
+      }),
+    ).toBe(false);
+
+    expect(
+      service.isCleanFeaturedContent({
+        title: 'Test',
+        content: 'ádasdsadsadas',
+        status: 'PUBLISHED',
+      }),
+    ).toBe(false);
+
+    expect(
+      service.isCleanFeaturedContent({
+        title: 'Bình luận',
+        content: 'jyhfgvkhujmgbikyuhjgbkuijh,gbujik,hm',
+        status: 'PUBLISHED',
+      }),
+    ).toBe(false);
+
+    expect(
+      service.isCleanFeaturedContent({
+        title: 'Đáng đọc',
+        content: 'hAY NHA NÍ',
+        status: 'PUBLISHED',
+      }),
+    ).toBe(true);
+
+    expect(
+      service.isCleanFeaturedContent({
+        title: 'Rất ý nghĩa',
+        content: 'Sách in đẹp, nội dung thực tế và rất đáng để suy ngẫm.',
+        status: 'PUBLISHED',
+      }),
+    ).toBe(true);
+
+    // Ensure common Vietnamese words ("nội dung", "các", "lớn", "đi") do NOT false-positive
+    expect(
+      service.isCleanFeaturedContent({
+        title: 'Khuyên đọc',
+        content: 'Các bạn nên mua cuốn Nghĩ Lớn Để Thành Công đi nhé, nội dung rất hay!',
+        status: 'PUBLISHED',
+      }),
+    ).toBe(true);
+  });
 });

@@ -585,4 +585,242 @@ describe("ReviewsService", () => {
       }),
     );
   });
+
+  it("restricts FLAGGED reviews from anonymous public book detail list and hydrates real user avatars from Identity", async () => {
+    const reviewDoc = {
+      id: new Types.ObjectId().toString(),
+      _id: new Types.ObjectId(),
+      targetType: "BOOK",
+      targetId: "book-1",
+      rating: 5,
+      title: "Tuyệt vời",
+      content: "Sách rất hay và bổ ích cho mọi lứa tuổi",
+      authorId: "buyer-avatar-1",
+      authorName: "Tên cũ",
+      authorAvatar: undefined,
+      verifiedPurchase: true,
+      helpfulCount: 3,
+      helpful: [],
+      images: [],
+      status: "PUBLISHED",
+      isReported: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const listReviewsModel: any = {
+      ...reviews,
+      find: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([reviewDoc]),
+      }),
+      countDocuments: jest.fn().mockResolvedValue(1),
+      aggregate: jest.fn().mockResolvedValue([{ _id: 5, count: 1 }]),
+    };
+
+    const verificationWithIdentity: any = {
+      ...verification,
+      resolveUserProfiles: jest.fn().mockResolvedValue(
+        new Map([
+          [
+            "buyer-avatar-1",
+            {
+              fullName: "Huỳnh Gia Huy",
+              avatar: "https://lh3.googleusercontent.com/real-avatar.jpg",
+            },
+          ],
+        ]),
+      ),
+    };
+
+    const svc = new ReviewsService(
+      listReviewsModel,
+      replies as any,
+      verificationWithIdentity,
+      eventBus as any,
+      autoModeration as any,
+    );
+
+    const res = await svc.list("BOOK", "book-1", { page: 1, limit: 10 }, undefined);
+
+    expect(listReviewsModel.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetType: "BOOK",
+        targetId: "book-1",
+        status: "PUBLISHED",
+      }),
+    );
+    expect(verificationWithIdentity.resolveUserProfiles).toHaveBeenCalledWith(["buyer-avatar-1"]);
+    expect(res.data[0].author.avatar).toBe("https://lh3.googleusercontent.com/real-avatar.jpg");
+    expect(res.data[0].author.fullName).toBe("Huỳnh Gia Huy");
+  });
+
+  it("curates featured reviews by excluding violations, hydrating avatars/books, ranking by likes+comments, and enforcing >=70% 5-star priority", async () => {
+    const idFiveHigh = new Types.ObjectId();
+    const idFiveMid = new Types.ObjectId();
+    const idFiveLow = new Types.ObjectId();
+    const idFiveExtra = new Types.ObjectId();
+    const idFourHigh = new Types.ObjectId();
+    const idFourLow = new Types.ObjectId();
+    const idProfane = new Types.ObjectId();
+
+    const docs: any[] = [
+      {
+        id: idProfane.toString(),
+        _id: idProfane,
+        targetType: "BOOK",
+        targetId: "b1",
+        rating: 5,
+        title: "Chửi",
+        content: "đụ mẹ ngu quá",
+        authorId: "u-bad",
+        authorName: "Bad User",
+        helpfulCount: 99,
+        status: "PUBLISHED",
+        isReported: false,
+        createdAt: new Date(),
+      },
+      {
+        id: idFiveLow.toString(),
+        _id: idFiveLow,
+        targetType: "BOOK",
+        targetId: "b1",
+        rating: 5,
+        title: "Hay",
+        content: "Sách rất hay và đáng mua để đọc nhiều lần",
+        authorId: "u1",
+        authorName: "Độc giả 1",
+        helpfulCount: 1,
+        status: "PUBLISHED",
+        createdAt: new Date("2026-11-20T00:00:00Z"),
+      },
+      {
+        id: idFiveHigh.toString(),
+        _id: idFiveHigh,
+        targetType: "BOOK",
+        targetId: "b2",
+        rating: 5,
+        title: "Rất giá trị",
+        content: "Cuốn sách thay đổi tư duy tài chính cá nhân của mình",
+        authorId: "u2",
+        authorName: "Độc giả 2",
+        helpfulCount: 8,
+        status: "PUBLISHED",
+        createdAt: new Date("2026-11-22T00:00:00Z"),
+      },
+      {
+        id: idFiveMid.toString(),
+        _id: idFiveMid,
+        targetType: "BOOK",
+        targetId: "b1",
+        rating: 5,
+        title: "Giao nhanh",
+        content: "Đóng gói cẩn thận, giấy đẹp, nội dung chất lượng cao",
+        authorId: "u3",
+        authorName: "Độc giả 3",
+        helpfulCount: 4,
+        status: "PUBLISHED",
+        createdAt: new Date("2026-11-21T00:00:00Z"),
+      },
+      {
+        id: idFiveExtra.toString(),
+        _id: idFiveExtra,
+        targetType: "BOOK",
+        targetId: "b1",
+        rating: 5,
+        title: "Khuyên đọc",
+        content: "Ngôn từ súc tích, dễ hiểu cho người mới bắt đầu",
+        authorId: "u4",
+        authorName: "Độc giả 4",
+        helpfulCount: 3,
+        status: "PUBLISHED",
+        createdAt: new Date("2026-11-19T00:00:00Z"),
+      },
+      {
+        id: idFourHigh.toString(),
+        _id: idFourHigh,
+        targetType: "BOOK",
+        targetId: "b2",
+        rating: 4,
+        title: "Tốt",
+        content: "Nội dung rất ổn, trình bày rõ ràng dễ theo dõi",
+        authorId: "u5",
+        authorName: "Độc giả 5",
+        helpfulCount: 6,
+        status: "PUBLISHED",
+        createdAt: new Date("2026-11-23T00:00:00Z"),
+      },
+      {
+        id: idFourLow.toString(),
+        _id: idFourLow,
+        targetType: "BOOK",
+        targetId: "b1",
+        rating: 4,
+        title: "Khá hay",
+        content: "Sách hữu ích cho sinh viên năm cuối tham khảo",
+        authorId: "u6",
+        authorName: "Độc giả 6",
+        helpfulCount: 0,
+        status: "PUBLISHED",
+        createdAt: new Date("2026-11-18T00:00:00Z"),
+      },
+    ];
+
+    const featuredReviewsModel: any = {
+      ...reviews,
+      find: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(docs),
+      }),
+    };
+    const featuredRepliesModel: any = {
+      find: jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          { id: "rep-1", reviewId: idFiveHigh, storeId: "s1", businessName: "Shop", responderId: "sel1", content: "Cảm ơn bạn!" },
+          { id: "rep-2", reviewId: idFourHigh, storeId: "s1", businessName: "Shop", responderId: "sel1", content: "Cảm ơn bạn!" },
+        ]),
+      }),
+    };
+    const featuredVerification: any = {
+      ...verification,
+      resolveUserProfiles: jest.fn().mockResolvedValue(
+        new Map([["u2", { fullName: "Độc giả 2", avatar: "https://cdn.huki.vn/u2.png" }]]),
+      ),
+      fetchPublicBooksMap: jest.fn().mockResolvedValue(
+        new Map([
+          ["b1", { id: "b1", slug: "nha-gia-kim", title: "Nhà Giả Kim", coverUrl: "https://cdn.huki.vn/b1.jpg" }],
+          ["b2", { id: "b2", slug: "tuoi-tre", title: "Tuổi Trẻ Đáng Giá", coverUrl: "https://cdn.huki.vn/b2.jpg" }],
+        ]),
+      ),
+    };
+    const realAutoMod = new (require("../moderation/auto-moderation.service").AutoModerationService)();
+
+    const svc = new ReviewsService(
+      featuredReviewsModel,
+      featuredRepliesModel,
+      featuredVerification,
+      eventBus as any,
+      realAutoMod,
+    );
+
+    const res = await svc.listFeatured(4);
+
+    expect(res.data.length).toBe(4);
+    expect(res.data.some((r: any) => r.id === idProfane.toString())).toBe(false);
+    // Out of 4 slots, >=70% => at least 3 five-star reviews + 1 highest-engaged 4-star
+    const fiveStarCount = res.data.filter((r: any) => r.rating === 5).length;
+    expect(fiveStarCount).toBeGreaterThanOrEqual(3);
+    expect(res.data[0].id).toBe(idFiveHigh.toString());
+    expect(res.data[0].author.avatar).toBe("https://cdn.huki.vn/u2.png");
+    expect(res.data[0].bookCover).toBe("https://cdn.huki.vn/b2.jpg");
+    expect(res.data[0].bookSlug).toBe("tuoi-tre");
+    expect(res.data[0].likesCount).toBe(8);
+    expect(res.data[0].commentsCount).toBe(1);
+  });
 });
