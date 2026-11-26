@@ -13,6 +13,8 @@ import { bannerApi } from "@/ui/api/bannerApi";
 import { tokenStorage } from "@/ui/api/tokenStorage";
 import { reviewApi } from "@/ui/api/reviewApi";
 import BookCard from "@/ui/components/common/BookCard";
+import UserAvatar from "@/ui/components/common/UserAvatar";
+import { selectFeaturedReviews } from "@/ui/utils/featuredReviews";
 import { personalizationService } from "@/ui/services/personalizationService";
 import { recordBannerClick } from "@/ui/components/admin/AdminMarketingView";
 
@@ -464,33 +466,71 @@ export default function HomePage() {
     };
   }, []);
 
-  // Fetch Real Reviews for top books
+  // Fetch Clean Featured Real Reviews (70% 5-star priority, ranked by likes + comments)
   useEffect(() => {
     if (!realBooks || realBooks.length === 0) return;
-    const topBooks = realBooks.slice(0, 10);
-    const promises = topBooks.map((b) => reviewApi.getBookReviews(b.id, { limit: 3 }));
-    Promise.allSettled(promises).then((results) => {
+    let active = true;
+    const validBooks = realBooks.filter(isValidDisplayBook);
+    const booksById = new Map<string, BookData>();
+    validBooks.forEach((b) => booksById.set(String(b.id), b));
+
+    const enrichWithBook = (item: any, fallbackBook?: BookData) => {
+      const matched =
+        booksById.get(String(item.bookId || item.targetId || '')) || fallbackBook;
+      return {
+        ...item,
+        bookId: matched?.id || item.bookId || item.targetId,
+        bookSlug: matched?.slug || item.bookSlug || matched?.id || item.bookId || item.targetId,
+        bookTitle: matched?.title || item.bookTitle,
+        bookCover: matched?.coverUrl || item.bookCover,
+      };
+    };
+
+    const loadFeatured = async () => {
+      try {
+        const featuredRes = await reviewApi.getFeaturedBookReviews(6);
+        const featuredList = Array.isArray(featuredRes.data) ? featuredRes.data : [];
+        if (featuredRes.success && featuredList.length > 0) {
+          const enriched = featuredList
+            .map((item) => enrichWithBook(item))
+            .filter((item) => !item.bookTitle || isValidDisplayBook({ title: item.bookTitle }));
+          const curated = selectFeaturedReviews(enriched, 6);
+          if (active && curated.length > 0) {
+            setRealReviews(curated);
+            return;
+          }
+        }
+      } catch {
+        // Fallback to scanning valid catalog books below
+      }
+
+      const candidateBooks = validBooks.slice(0, 30);
+      const results = await Promise.allSettled(
+        candidateBooks.map((b) => reviewApi.getBookReviews(b.id, { limit: 5 })),
+      );
       const collected: any[] = [];
       results.forEach((r, idx) => {
         if (r.status === 'fulfilled' && r.value.success && r.value.data) {
           const list = Array.isArray(r.value.data)
             ? r.value.data
             : (r.value.data as any).data || [];
-          const curBook = topBooks[idx];
+          const curBook = candidateBooks[idx];
           list.forEach((item: any) => {
-            collected.push({
-              ...item,
-              bookTitle: curBook?.title,
-              bookId: curBook?.id,
-              bookCover: curBook?.coverUrl,
-            });
+            collected.push(enrichWithBook(item, curBook));
           });
         }
       });
-      if (collected.length > 0) {
-        setRealReviews(collected);
+
+      const curated = selectFeaturedReviews(collected, 6);
+      if (active) {
+        setRealReviews(curated);
       }
-    });
+    };
+
+    void loadFeatured();
+    return () => {
+      active = false;
+    };
   }, [realBooks]);
 
   // Personalization events listener
@@ -1964,56 +2004,112 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-            {realReviews.slice(0, 3).map((rev, idx) => (
-              <div
-                key={rev.id || idx}
-                className="bg-white rounded-xl p-3.5 border border-gray-200/90 shadow-2xs hover:shadow-xs hover:border-[#003B2B]/40 transition-all flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center gap-2.5 mb-2.5">
-                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-[#003B2B] flex items-center justify-center font-bold text-xs shrink-0">
-                      {(rev.author?.fullName || rev.author?.name || 'ĐG').charAt(0).toUpperCase()}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {realReviews.slice(0, 6).map((rev, idx) => {
+              const bookHref = rev.bookSlug
+                ? `/book/${rev.bookSlug}`
+                : rev.bookId
+                ? `/book/${rev.bookId}`
+                : "/books";
+              const likesCount = Number(rev.likesCount ?? rev.helpfulCount ?? 0);
+              const commentsCount = Number(
+                rev.commentsCount ?? (Array.isArray(rev.replies) ? rev.replies.length : 0),
+              );
+              const avatarSrc = rev.author?.avatar || rev.authorAvatar || null;
+              const authorName = rev.author?.fullName || rev.author?.name || 'Độc giả HUKI';
+
+              return (
+                <Link
+                  key={rev.id || idx}
+                  href={bookHref}
+                  className="group bg-white rounded-2xl p-4 border border-gray-200/90 shadow-2xs hover:shadow-md hover:border-[#003B2B]/40 transition-all grid grid-cols-[1fr_88px] sm:grid-cols-[1fr_100px] gap-3.5 items-stretch"
+                >
+                  {/* Cột Trái: Thông tin độc giả, đánh giá, lượt thích & bình luận */}
+                  <div className="flex flex-col justify-between min-w-0">
+                    <div>
+                      <div className="flex items-center gap-2.5 mb-2.5">
+                        <UserAvatar
+                          src={avatarSrc}
+                          name={authorName}
+                          size="md"
+                          className="ring-1 ring-[#003B2B]/15"
+                        />
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-[12.5px] text-gray-900 truncate">
+                            {authorName}
+                          </h4>
+                          <span className="text-[10.5px] text-gray-500 block truncate">
+                            {rev.bookTitle ? `Đã mua: ${rev.bookTitle}` : "Đã mua sách trên HUKI"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <div className="flex items-center gap-0.5 text-amber-400">
+                          {Array.from({ length: Math.min(5, Math.max(1, Math.round(rev.rating || 5))) }).map((_, sIdx) => (
+                            <span
+                              key={sIdx}
+                              className="material-symbols-outlined text-[13px]"
+                              style={{ fontVariationSettings: "'FILL' 1" }}
+                            >
+                              star
+                            </span>
+                          ))}
+                        </div>
+                        {rev.verifiedPurchase && (
+                          <span className="text-[10px] font-semibold text-[#006953] bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200/60">
+                            Đã xác thực
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-[12px] text-gray-700 leading-relaxed italic line-clamp-3">
+                        &ldquo;{rev.content || rev.title}&rdquo;
+                      </p>
                     </div>
-                    <div className="min-w-0">
-                      <h4 className="font-bold text-[12.5px] text-gray-900 truncate">
-                        {rev.author?.fullName || rev.author?.name || 'Độc giả HUKI'}
-                      </h4>
-                      <span className="text-[10px] text-gray-500 block truncate">
-                        {rev.bookTitle ? `Đã mua: ${rev.bookTitle}` : "Đã mua sách trên HUKI"}
+
+                    <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between gap-2 text-gray-500 text-[11px]">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-gray-600" title="Lượt thích / Hữu ích">
+                          <span className="material-symbols-outlined text-[13px] text-[#006953]">thumb_up</span>
+                          {likesCount}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-gray-600" title="Bình luận / Phản hồi">
+                          <span className="material-symbols-outlined text-[13px] text-amber-600">chat_bubble_outline</span>
+                          {commentsCount}
+                        </span>
+                        <span className="text-[10px] text-gray-400 hidden sm:inline truncate" suppressHydrationWarning>
+                          {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString('vi-VN') : ''}
+                        </span>
+                      </div>
+                      <span className="text-[#003B2B] font-semibold flex items-center gap-0.5 shrink-0">
+                        <span className="group-hover:underline">Xem sách</span>
+                        <span className="material-symbols-outlined text-[12px] transition-transform group-hover:translate-x-0.5">
+                          arrow_forward
+                        </span>
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-0.5 text-amber-400 mb-1.5">
-                    {Array.from({ length: Math.round(rev.rating || 5) }).map((_, sIdx) => (
-                      <span key={sIdx} className="material-symbols-outlined text-[13px]">
-                        star
-                      </span>
-                    ))}
+                  {/* Cột Phải: 1 cột riêng hiển thị ảnh bìa cuốn sách */}
+                  <div className="w-[88px] sm:w-[100px] rounded-xl overflow-hidden border border-gray-200/80 bg-[#f6f4ef] flex items-center justify-center shrink-0 relative">
+                    {rev.bookCover ? (
+                      <img
+                        src={rev.bookCover}
+                        alt={rev.bookTitle || 'Bìa sách HUKI'}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center gap-1 p-2 text-center text-[#006953]/60">
+                        <span className="material-symbols-outlined text-2xl">auto_stories</span>
+                        <span className="text-[9.5px] font-semibold line-clamp-2">{rev.bookTitle || 'HuKi Book'}</span>
+                      </div>
+                    )}
                   </div>
-
-                  <p className="text-[12px] text-gray-700 leading-relaxed italic line-clamp-3">
-                    &ldquo;{rev.content || rev.title}&rdquo;
-                  </p>
-                </div>
-
-                <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between text-gray-500 text-[11px]">
-                  <span className="text-[10px] text-gray-400" suppressHydrationWarning>
-                    {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString('vi-VN') : 'Đánh giá đã xác thực'}
-                  </span>
-                  <Link
-                    href={rev.bookId ? `/books/${rev.bookId}` : "/books"}
-                    className="group text-[#003B2B] font-semibold flex items-center gap-0.5"
-                  >
-                    <span className="group-hover:underline">Xem sách</span>
-                    <span className="material-symbols-outlined text-[12px]">
-                      arrow_forward
-                    </span>
-                  </Link>
-                </div>
-              </div>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         </section>
       )}

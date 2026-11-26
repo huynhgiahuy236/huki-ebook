@@ -426,15 +426,7 @@ export default function BookDetailPage() {
     return reviewsList.find((r) => r.author?.id === user.id) || null;
   }, [user?.id, reviewsList]);
 
-  // Prioritize placing user's own review at the top of the reviews list
-  const displayedReviews = useMemo(() => {
-    if (!currentUserReview) return reviewsList;
-    const myReview = reviewsList.find((r) => String(r.id) === String(currentUserReview.id));
-    if (!myReview) return reviewsList;
-    const others = reviewsList.filter((r) => String(r.id) !== String(currentUserReview.id));
-    return [myReview, ...others];
-  }, [reviewsList, currentUserReview]);
-
+  // Prioritize placing user's own review at the top & restrict auto-flagged reviews from public viewers
   const isSellerOrAdmin = useMemo(() => {
     if (!isLoggedIn || !user) return false;
     return Boolean(
@@ -445,6 +437,19 @@ export default function BookDetailPage() {
       Boolean(activeBusinessId)
     );
   }, [isLoggedIn, user, activeBusinessId]);
+
+  const displayedReviews = useMemo(() => {
+    const visibleList = reviewsList.filter((r) => {
+      if (r.status !== 'FLAGGED') return true;
+      const isMine = Boolean(user?.id && r.author?.id === user.id);
+      return isMine || isSellerOrAdmin;
+    });
+    if (!currentUserReview) return visibleList;
+    const myReview = visibleList.find((r) => String(r.id) === String(currentUserReview.id));
+    if (!myReview) return visibleList;
+    const others = visibleList.filter((r) => String(r.id) !== String(currentUserReview.id));
+    return [myReview, ...others];
+  }, [reviewsList, currentUserReview, user?.id, isSellerOrAdmin]);
 
   useEffect(() => {
     fetchBookReviews();

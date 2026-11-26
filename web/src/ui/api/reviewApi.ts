@@ -488,4 +488,47 @@ export const reviewApi = {
       }
     );
   },
+
+  /**
+   * Curated clean featured book reviews for Homepage (sorted by likes+comments, 70% 5-star priority)
+   */
+  async getFeaturedBookReviews(
+    limit = 6
+  ): Promise<
+    ApiResponse<
+      Array<
+        ReviewItemData & {
+          bookId?: string;
+          bookSlug?: string;
+          bookTitle?: string;
+          bookCover?: string;
+          likesCount?: number;
+          commentsCount?: number;
+          engagementScore?: number;
+        }
+      >
+    >
+  > {
+    try {
+      const res = await apiClient<any>(`/reviews/featured?limit=${Math.max(1, limit)}`, {
+        skipAuth: true,
+      });
+      const items = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.data?.data)
+        ? res.data.data
+        : [];
+      return {
+        ...res,
+        success: Boolean(res?.success),
+        data: items,
+      };
+    } catch {
+      return {
+        success: false,
+        error: { code: 'FETCH_FAILED', message: 'Không thể tải đánh giá nổi bật' },
+        data: [],
+      };
+    }
+  },
 };

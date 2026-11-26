@@ -1555,26 +1555,28 @@ export default function CheckoutPage() {
                         </span>
                       </label>
 
-                      <label
-                        onClick={() => setShippingMethod("express")}
-                        className={`p-3 rounded-xl border cursor-pointer flex items-center justify-between text-xs transition-all ${
-                          shippingMethod === "express"
-                            ? "border-[var(--theme-primary,#003B2B)] bg-[var(--theme-primary,#003B2B)]/10 font-bold"
-                            : "border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)]"
-                        }`}
+                      <button
+                        type="button"
+                        disabled
+                        aria-disabled="true"
+                        title="Giao hỏa tốc 2 giờ hiện đang tạm ngưng"
+                        className="p-3 rounded-xl border border-dashed border-[var(--theme-border,#e8e5df)] bg-gray-100/80 dark:bg-white/5 opacity-50 cursor-not-allowed select-none flex items-center justify-between text-xs text-left pointer-events-none"
                       >
                         <div>
-                          <span className="font-bold text-[var(--theme-text,#1c1b1f)] block">
-                            Hỏa Tốc 2 Giờ (Nội thành)
+                          <span className="font-bold text-[var(--theme-text-muted,#49454f)] flex items-center gap-1.5 flex-wrap">
+                            <span>Hỏa Tốc 2 Giờ (Nội thành)</span>
+                            <span className="px-1.5 py-0.5 rounded bg-gray-200 dark:bg-white/10 text-gray-500 text-[9.5px] font-semibold">
+                              Chưa hỗ trợ
+                            </span>
                           </span>
                           <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">
                             Giao bởi GrabExpress
                           </span>
                         </div>
-                        <span className="font-bold text-[var(--theme-primary,#003B2B)]">
+                        <span className="font-bold text-gray-400 shrink-0">
                           {Math.max(35000, Math.round((effectiveShippingFee || 20000) * 1.5)).toLocaleString("vi-VN")}đ
                         </span>
-                      </label>
+                      </button>
                     </div>
                   </div>
                 )}

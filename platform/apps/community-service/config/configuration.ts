@@ -7,6 +7,7 @@ export default () => ({
     secret: process.env.JWT_SECRET ?? "your-super-secret-jwt-key",
   },
   services: {
+    identityUrl: process.env.IDENTITY_SERVICE_URL ?? (process.env.NODE_ENV === "staging" ? "http://identity-service-uat:3001" : "http://localhost:3001"),
     commerceUrl: process.env.COMMERCE_SERVICE_URL ?? (process.env.NODE_ENV === "staging" ? "http://commerce-service-uat:3003" : "http://localhost:3003"),
     businessUrl: process.env.BUSINESS_SERVICE_URL ?? (process.env.NODE_ENV === "staging" ? "http://business-service-uat:3002" : "http://localhost:3002"),
   },

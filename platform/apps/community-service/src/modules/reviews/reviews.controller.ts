@@ -143,6 +143,18 @@ export class StoreReviewsController {
 export class ReviewsController {
   constructor(private readonly reviews: ReviewsService) {}
 
+  @Get("featured")
+  @ApiOperation({
+    summary: "Get curated, clean featured book reviews for Homepage",
+    description:
+      "Returns clean published book reviews prioritized by likes/comments engagement and 70% 5-star mix, excluding flagged/reported or profane content.",
+  })
+  @UseGuards(OptionalCommunityAuthGuard)
+  getFeatured(@Query("limit") limit?: string) {
+    const parsedLimit = limit ? parseInt(limit, 10) : 6;
+    return this.reviews.listFeatured(Number.isFinite(parsedLimit) ? parsedLimit : 6);
+  }
+
   @Get("batch-summary")
   @ApiOperation({
     summary: "Get batch review summaries for books or stores",

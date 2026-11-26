@@ -58,12 +58,32 @@ export class ReviewsService {
     query: ReviewListQueryDto,
     actor?: CommunityActor,
   ) {
-    // Include legacy FLAGGED status until Admin explicitly hides (HIDDEN) or deletes (DELETED).
-    const publicFilter: Record<string, unknown> = {
-      targetType,
-      targetId,
-      status: { $in: ["PUBLISHED", "FLAGGED"] },
-    };
+    const role = String(actor?.role || "").toUpperCase();
+    const isPrivileged =
+      role === "PLATFORM_ADMIN" ||
+      role === "ADMIN" ||
+      role === "BUSINESS" ||
+      role === "SELLER";
+    const publicFilter: Record<string, unknown> = isPrivileged
+      ? {
+          targetType,
+          targetId,
+          status: { $in: ["PUBLISHED", "FLAGGED"] },
+        }
+      : actor?.sub
+      ? {
+          targetType,
+          targetId,
+          $or: [
+            { status: "PUBLISHED" },
+            { status: "FLAGGED", authorId: actor.sub },
+          ],
+        }
+      : {
+          targetType,
+          targetId,
+          status: "PUBLISHED",
+        };
     const listFilter = query.rating
       ? { ...publicFilter, rating: query.rating }
       : publicFilter;
@@ -83,12 +103,15 @@ export class ReviewsService {
       ]),
     ]);
     const reviewIds = reviews.map((review) => review._id);
-    const replies = reviewIds.length
-      ? await this.replies
-        .find({ reviewId: { $in: reviewIds }, status: "ACTIVE" })
-        .sort({ createdAt: 1 })
-        .exec()
-      : [];
+    const [replies, profilesMap] = await Promise.all([
+      reviewIds.length
+        ? this.replies
+            .find({ reviewId: { $in: reviewIds }, status: "ACTIVE" })
+            .sort({ createdAt: 1 })
+            .exec()
+        : Promise.resolve([] as ReviewReplyDocument[]),
+      this.hydrateAuthorProfiles(reviews),
+    ]);
     const repliesByReview = new Map<string, ReviewReplyDocument[]>();
     for (const reply of replies) {
       const key = String(reply.reviewId);
@@ -97,7 +120,7 @@ export class ReviewsService {
 
     return {
       data: reviews.map((review) =>
-        this.reviewView(review, actor, repliesByReview.get(review.id) ?? []),
+        this.reviewView(review, actor, repliesByReview.get(review.id) ?? [], profilesMap),
       ),
       pagination: {
         page: query.page,
@@ -106,6 +129,100 @@ export class ReviewsService {
         totalPages: Math.ceil(total / query.limit),
       },
       summary: this.summary(summaryRows),
+    };
+  }
+
+  async listFeatured(limitInput = 6) {
+    const limit = Math.min(20, Math.max(1, Number(limitInput) || 6));
+    const candidates = await this.reviews
+      .find({
+        targetType: "BOOK",
+        status: "PUBLISHED",
+        isReported: { $ne: true },
+        rating: { $gte: 4 },
+      })
+      .select("+helpful")
+      .sort({ helpfulCount: -1, createdAt: -1 })
+      .limit(100)
+      .exec();
+
+    const cleanCandidates = candidates.filter((review) =>
+      this.isCleanFeaturedReview(review),
+    );
+    if (cleanCandidates.length === 0) {
+      return { data: [] };
+    }
+
+    const reviewIds = cleanCandidates.map((r) => r._id);
+    const [replies, profilesMap, booksMap] = await Promise.all([
+      this.replies
+        .find({ reviewId: { $in: reviewIds }, status: "ACTIVE" })
+        .sort({ createdAt: 1 })
+        .exec(),
+      this.hydrateAuthorProfiles(cleanCandidates),
+      this.verification?.fetchPublicBooksMap
+        ? this.verification.fetchPublicBooksMap()
+        : Promise.resolve(new Map()),
+    ]);
+
+    const repliesByReview = new Map<string, ReviewReplyDocument[]>();
+    for (const reply of replies) {
+      const key = String(reply.reviewId);
+      repliesByReview.set(key, [...(repliesByReview.get(key) ?? []), reply]);
+    }
+
+    const enriched = cleanCandidates
+      .map((review) => {
+        const revReplies = repliesByReview.get(review.id) ?? [];
+        const baseView = this.reviewView(review, undefined, revReplies, profilesMap);
+        const bookInfo = booksMap.get(String(review.targetId));
+        return {
+          ...baseView,
+          bookId: review.targetId,
+          bookSlug: bookInfo?.slug || review.targetId,
+          bookTitle: bookInfo?.title,
+          bookCover: bookInfo?.coverUrl,
+          likesCount: Math.max(0, Number(review.helpfulCount || 0)),
+          commentsCount: revReplies.length,
+        };
+      })
+      .filter((item) => {
+        if (!item.bookTitle) return true;
+        const t = String(item.bookTitle).trim().toLowerCase();
+        return !t.startsWith("test") && !/(sadas|sdasda|asdasd)/i.test(t);
+      });
+
+    const fiveStars = enriched
+      .filter((r) => Math.round(Number(r.rating || 0)) >= 5)
+      .sort((a, b) => this.compareFeaturedEngagement(a, b));
+    const fourStars = enriched
+      .filter((r) => Math.round(Number(r.rating || 0)) === 4)
+      .sort((a, b) => this.compareFeaturedEngagement(a, b));
+
+    const targetCount = Math.min(limit, enriched.length);
+    const fiveStarTarget = Math.min(fiveStars.length, Math.ceil(targetCount * 0.7));
+    const selected = fiveStars.slice(0, fiveStarTarget);
+
+    if (selected.length < targetCount) {
+      selected.push(...fourStars.slice(0, targetCount - selected.length));
+    }
+    if (selected.length < targetCount && fiveStars.length > fiveStarTarget) {
+      selected.push(
+        ...fiveStars.slice(fiveStarTarget, fiveStarTarget + (targetCount - selected.length)),
+      );
+    }
+
+    selected.sort((a, b) => {
+      const scoreDiff = this.compareFeaturedEngagement(a, b);
+      if (scoreDiff !== 0) return scoreDiff;
+      return Number(b.rating || 0) - Number(a.rating || 0);
+    });
+
+    return {
+      data: selected.map((item) => ({
+        ...item,
+        engagementScore: item.likesCount * 2 + item.commentsCount * 3,
+      })),
     };
   }
 
@@ -163,12 +280,15 @@ export class ReviewsService {
       this.reviews.countDocuments(filter),
     ]);
     const reviewIds = reviews.map((review) => review._id);
-    const replies = reviewIds.length
-      ? await this.replies
-        .find({ reviewId: { $in: reviewIds }, status: "ACTIVE" })
-        .sort({ createdAt: 1 })
-        .exec()
-      : [];
+    const [replies, profilesMap] = await Promise.all([
+      reviewIds.length
+        ? this.replies
+            .find({ reviewId: { $in: reviewIds }, status: "ACTIVE" })
+            .sort({ createdAt: 1 })
+            .exec()
+        : Promise.resolve([] as ReviewReplyDocument[]),
+      this.hydrateAuthorProfiles(reviews),
+    ]);
     const repliesByReview = new Map<string, ReviewReplyDocument[]>();
     for (const reply of replies) {
       const key = String(reply.reviewId);
@@ -177,7 +297,7 @@ export class ReviewsService {
 
     return {
       data: reviews.map((review) =>
-        this.reviewView(review, actor, repliesByReview.get(review.id) ?? []),
+        this.reviewView(review, actor, repliesByReview.get(review.id) ?? [], profilesMap),
       ),
       pagination: {
         page: query.page,
@@ -263,12 +383,15 @@ export class ReviewsService {
     ]);
 
     const reviewIds = reviews.map((review) => review._id);
-    const replies = reviewIds.length
-      ? await this.replies
-        .find({ reviewId: { $in: reviewIds }, status: "ACTIVE" })
-        .sort({ createdAt: 1 })
-        .exec()
-      : [];
+    const [replies, profilesMap] = await Promise.all([
+      reviewIds.length
+        ? this.replies
+            .find({ reviewId: { $in: reviewIds }, status: "ACTIVE" })
+            .sort({ createdAt: 1 })
+            .exec()
+        : Promise.resolve([] as ReviewReplyDocument[]),
+      this.hydrateAuthorProfiles(reviews),
+    ]);
     const repliesByReview = new Map<string, ReviewReplyDocument[]>();
     for (const reply of replies) {
       const key = String(reply.reviewId);
@@ -277,7 +400,7 @@ export class ReviewsService {
 
     return {
       data: reviews.map((review) =>
-        this.reviewView(review, actor, repliesByReview.get(review.id) ?? []),
+        this.reviewView(review, actor, repliesByReview.get(review.id) ?? [], profilesMap),
       ),
       pagination: {
         page: query.page,
@@ -590,11 +713,13 @@ export class ReviewsService {
         input.title as string,
         input.content as string,
       );
+      const profilesMap = await this.hydrateAuthorProfiles([{ authorId: actor.sub }]);
+      const identityProfile = profilesMap.get(String(actor.sub));
       const review = await this.reviews.create({
         ...input,
         authorId: actor.sub,
-        authorName: this.actorName(actor),
-        authorAvatar: actor.avatar,
+        authorName: identityProfile?.fullName || this.actorName(actor),
+        authorAvatar: actor.avatar || identityProfile?.avatar,
         status: moderation.flagged ? "FLAGGED" : "PUBLISHED",
         moderationNote: this.autoModeration.note(moderation),
         ...(moderation.flagged
@@ -664,11 +789,78 @@ export class ReviewsService {
     return review;
   }
 
+  private async hydrateAuthorProfiles(
+    reviewsList: Array<{ authorId?: string }>,
+  ): Promise<Map<string, { fullName?: string; avatar?: string }>> {
+    const authorIds = Array.from(
+      new Set(
+        (reviewsList || [])
+          .map((r) => String(r?.authorId || "").trim())
+          .filter(Boolean),
+      ),
+    );
+    if (authorIds.length === 0 || !this.verification?.resolveUserProfiles) {
+      return new Map();
+    }
+    return this.verification.resolveUserProfiles(authorIds);
+  }
+
+  private isCleanFeaturedReview(review: ReviewDocument): boolean {
+    if (review.status !== "PUBLISHED") return false;
+    if (review.isReported || review.moderationNote || review.lastReportReason) {
+      return false;
+    }
+    if (typeof (this.autoModeration as any).isCleanFeaturedContent === "function") {
+      return (this.autoModeration as any).isCleanFeaturedContent({
+        title: review.title,
+        content: review.content,
+        status: review.status,
+        isReported: review.isReported,
+        moderationNote: review.moderationNote,
+        lastReportReason: review.lastReportReason,
+      });
+    }
+    const check = this.autoModeration.inspect(review.title, review.content);
+    return !check.flagged;
+  }
+
+  private compareFeaturedEngagement(
+    a: {
+      likesCount: number;
+      commentsCount: number;
+      verifiedPurchase?: boolean;
+      author?: { avatar?: string };
+      createdAt?: Date | string;
+    },
+    b: {
+      likesCount: number;
+      commentsCount: number;
+      verifiedPurchase?: boolean;
+      author?: { avatar?: string };
+      createdAt?: Date | string;
+    },
+  ): number {
+    const scoreA = a.likesCount * 2 + a.commentsCount * 3;
+    const scoreB = b.likesCount * 2 + b.commentsCount * 3;
+    if (scoreB !== scoreA) return scoreB - scoreA;
+    const totalDiff = b.likesCount + b.commentsCount - (a.likesCount + a.commentsCount);
+    if (totalDiff !== 0) return totalDiff;
+    const avatarDiff = Number(Boolean(b.author?.avatar)) - Number(Boolean(a.author?.avatar));
+    if (avatarDiff !== 0) return avatarDiff;
+    const verifiedDiff = Number(Boolean(b.verifiedPurchase)) - Number(Boolean(a.verifiedPurchase));
+    if (verifiedDiff !== 0) return verifiedDiff;
+    const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return tB - tA;
+  }
+
   private reviewView(
     review: ReviewDocument,
     actor: CommunityActor | undefined,
     replies: ReviewReplyDocument[],
+    profilesMap?: Map<string, { fullName?: string; avatar?: string }>,
   ) {
+    const identityProfile = profilesMap?.get(String(review.authorId));
     return {
       id: review.id,
       targetType: review.targetType,
@@ -678,8 +870,8 @@ export class ReviewsService {
       content: review.content,
       author: {
         id: review.authorId,
-        fullName: review.authorName,
-        avatar: review.authorAvatar,
+        fullName: identityProfile?.fullName || review.authorName,
+        avatar: identityProfile?.avatar || review.authorAvatar,
       },
       verifiedPurchase: review.verifiedPurchase,
       format: review.format,
