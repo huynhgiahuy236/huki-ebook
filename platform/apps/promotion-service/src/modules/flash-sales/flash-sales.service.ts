@@ -682,9 +682,12 @@ export class FlashSalesService
       orderBy: { startsAt: "asc" },
     });
 
-    const shopBookMap = await this.preloadCommerceBooks(
-      shopCampaigns.flatMap((c) => c.items.map((item) => item.bookId)),
-    );
+    const [shopBookMap, businesses] = await Promise.all([
+      this.preloadCommerceBooks(
+        shopCampaigns.flatMap((c) => c.items.map((item) => item.bookId)),
+      ),
+      this.preloadPublicBusinesses(),
+    ]);
 
     const enriched = await Promise.all(
       shopCampaigns.map(async (c) => {
@@ -698,22 +701,51 @@ export class FlashSalesService
           Math.floor((c.endsAt.getTime() - now.getTime()) / 1000),
         );
 
-        let storeDisplayName = "Cửa hàng HUKI";
-        let storeAvatar = "/banners/hero-library.jpg";
+        let storeDisplayName = "";
+        let storeSlug = "";
+        let storeAvatar: string | null = null;
+        let canonicalStoreId = c.storeId || "";
 
         const itemsWithBooks = c.items.map((item) => {
           const { itemView, book } = this.mapItemWithBook(item, c, shopBookMap);
           if (book) {
-            if (book.publisher?.name || book.publisher?.displayName) {
-              storeDisplayName = book.publisher.displayName || book.publisher.name;
-            } else if (book.publisher && typeof book.publisher === "string") {
-              storeDisplayName = book.publisher;
-            } else if (book.businessName || book.storeName) {
-              storeDisplayName = book.businessName || book.storeName;
+            if (!canonicalStoreId && (book.storeId || book.businessId)) {
+              canonicalStoreId = String(book.storeId || book.businessId);
+            }
+            if (!storeDisplayName && (book.store?.name || book.business?.displayName || book.business?.name || book.businessName || book.storeName)) {
+              storeDisplayName =
+                book.store?.name ||
+                book.business?.displayName ||
+                book.business?.name ||
+                book.businessName ||
+                book.storeName;
+            }
+            if (!storeSlug && (book.store?.slug || book.business?.slug)) {
+              storeSlug = book.store?.slug || book.business?.slug;
+            }
+            if (!storeAvatar && (book.store?.logo || book.business?.logo)) {
+              storeAvatar = book.store?.logo || book.business?.logo;
             }
           }
           return itemView;
         });
+
+        const matchedBiz = this.findMatchingBusiness(businesses, canonicalStoreId || itemsWithBooks[0]?.storeId);
+        if (matchedBiz) {
+          const matchedSubStore =
+            matchedBiz.stores?.find(
+              (s: any) =>
+                String(s.id || "").toLowerCase() === String(canonicalStoreId || "").toLowerCase(),
+            ) || matchedBiz.stores?.[0];
+          canonicalStoreId = matchedSubStore?.id || matchedBiz.id || canonicalStoreId;
+          storeDisplayName =
+            matchedSubStore?.name ||
+            matchedBiz.displayName ||
+            matchedBiz.name ||
+            storeDisplayName;
+          storeSlug = matchedSubStore?.slug || matchedBiz.slug || storeSlug || matchedBiz.id;
+          storeAvatar = matchedSubStore?.logo || matchedBiz.logo || storeAvatar;
+        }
 
         return {
           id: c.id,
@@ -721,8 +753,9 @@ export class FlashSalesService
           description: c.description,
           bannerUrl: c.bannerUrl,
           scope: c.scope,
-          storeId: c.storeId || itemsWithBooks[0]?.storeId || "unknown-store",
-          storeName: storeDisplayName,
+          storeId: canonicalStoreId || c.storeId || itemsWithBooks[0]?.storeId || "unknown-store",
+          storeName: storeDisplayName || "Gian Hàng Đối Tác",
+          storeSlug: storeSlug || canonicalStoreId || c.storeId || "unknown-store",
           storeAvatar,
           startsAt: c.startsAt,
           endsAt: c.endsAt,
@@ -735,13 +768,14 @@ export class FlashSalesService
       }),
     );
 
-    // Group by storeId
+    // Group by canonical Shop/Store ID
     const storeMap = new Map<
       string,
       {
         storeId: string;
         storeName: string;
-        storeAvatar: string;
+        storeSlug: string;
+        storeAvatar: string | null;
         campaigns: typeof enriched;
       }
     >();
@@ -752,6 +786,7 @@ export class FlashSalesService
         storeMap.set(sId, {
           storeId: sId,
           storeName: campaign.storeName,
+          storeSlug: campaign.storeSlug,
           storeAvatar: campaign.storeAvatar,
           campaigns: [],
         });
@@ -1556,6 +1591,71 @@ export class FlashSalesService
       (process.env.NODE_ENV === 'staging' ? 'commerce-service-uat' : 'localhost');
     const port = process.env.COMMERCE_SERVICE_PORT || 3003;
     return `http://${host}:${port}`;
+  }
+
+  private getBusinessBaseUrl(): string {
+    if (process.env.BUSINESS_SERVICE_URL) {
+      return process.env.BUSINESS_SERVICE_URL.replace(/\/+$/, "");
+    }
+    const host =
+      process.env.BUSINESS_SERVICE_HOST ||
+      (process.env.NODE_ENV === "staging" ? "business-service-uat" : "localhost");
+    const port = process.env.BUSINESS_SERVICE_PORT || 3002;
+    return `http://${host}:${port}`;
+  }
+
+  private businessesCache: { items: any[]; expiresAt: number } | null = null;
+
+  private async preloadPublicBusinesses(): Promise<any[]> {
+    if (this.businessesCache && Date.now() < this.businessesCache.expiresAt) {
+      return this.businessesCache.items;
+    }
+    try {
+      const base = this.getBusinessBaseUrl();
+      const apiBase = base.endsWith("/api/v1") ? base : `${base}/api/v1`;
+      const response = await fetch(`${apiBase}/businesses?limit=100`, {
+        signal: AbortSignal.timeout(2_500),
+      });
+      if (!response.ok) return [];
+      const body: any = await response.json();
+      const items = Array.isArray(body?.data?.data)
+        ? body.data.data
+        : Array.isArray(body?.data)
+        ? body.data
+        : Array.isArray(body)
+        ? body
+        : [];
+      this.businessesCache = { items, expiresAt: Date.now() + 120_000 };
+      return items;
+    } catch {
+      return this.businessesCache?.items || [];
+    }
+  }
+
+  private findMatchingBusiness(businesses: any[], targetStoreId?: string | null): any | null {
+    if (!targetStoreId || !Array.isArray(businesses) || businesses.length === 0) {
+      return null;
+    }
+    const target = String(targetStoreId).trim().toLowerCase();
+    return (
+      businesses.find((b: any) => {
+        if (
+          String(b?.id || "").toLowerCase() === target ||
+          String(b?.ownerId || "").toLowerCase() === target ||
+          String(b?.slug || "").toLowerCase() === target
+        ) {
+          return true;
+        }
+        return (
+          Array.isArray(b?.stores) &&
+          b.stores.some(
+            (s: any) =>
+              String(s?.id || "").toLowerCase() === target ||
+              String(s?.slug || "").toLowerCase() === target,
+          )
+        );
+      }) || null
+    );
   }
 
   private bookCache = new Map<string, { book: any; expiresAt: number }>();

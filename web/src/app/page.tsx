@@ -932,7 +932,7 @@ export default function HomePage() {
         name: pub.name,
         code: pub.name.split(' ').map((w: string) => w[0]).join('').slice(0, 3).toUpperCase(),
         color: colors[idx % colors.length],
-        followers: bookCount > 0 ? `${bookCount} đầu sách chính hãng` : 'Đối tác chính hãng',
+        followers: bookCount > 0 ? `${bookCount} đầu sách` : 'Nhà xuất bản',
         verified: true,
         slug: pub.slug,
         logo: pub.logo || null,
@@ -1684,19 +1684,19 @@ export default function HomePage() {
       )}
 
       {/* =========================================================================
-          SECTION 5: GIAN HÀNG NXB & ĐỐI TÁC CHÍNH HÃNG (REAL PUBLISHERS)
+          SECTION 5: LỌC SÁCH THEO NHÀ XUẤT BẢN (NXB LÀ THUỘC TÍNH LỌC, KHÔNG PHẢI GIAN HÀNG)
       ========================================================================= */}
       {officialStores.length > 0 && (
         <section className="bg-gray-50/70 rounded-2xl p-3 sm:p-3.5 border border-gray-200/80 flex flex-col gap-2.5">
           <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/60">
             <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-              Gian Hàng NXB &amp; Đối Tác Chính Hãng
+              Nhà Xuất Bản Sách
             </h2>
             <Link
-              href="/stores"
+              href="/books"
               className="group text-[#003B2B] font-bold text-xs flex items-center gap-0.5"
             >
-              <span className="group-hover:underline">Xem Tất Cả</span>
+              <span className="group-hover:underline">Xem Tất Cả Sách</span>
               <span className="material-symbols-outlined text-sm">
                 chevron_right
               </span>
@@ -1704,54 +1704,39 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-            {officialStores.slice(0, 6).map((store) => {
-              const isFollowed = followedShops.includes(store.name);
-              return (
-                <div
-                  key={store.id}
-                  className="bg-white rounded-xl p-2.5 border border-gray-200/80 hover:border-[#003B2B]/40 transition-all flex flex-col items-center text-center shadow-2xs group"
-                >
-                  <Link
-                    href={`/books?publisher=${encodeURIComponent(store.slug || store.name || '')}`}
-                    className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shadow-xs mb-1.5 group-hover:scale-105 transition-transform overflow-hidden bg-white border border-gray-100 text-[#003B2B]"
-                  >
-                    {store.logo ? (
-                      <img
-                        src={store.logo}
-                        alt={store.name}
-                        className="w-full h-full object-cover rounded-xl"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <span className="w-full h-full flex items-center justify-center bg-[#003B2B] text-white rounded-xl">
-                        {store.code}
-                      </span>
-                    )}
-                  </Link>
-
-                  <Link
-                    href={`/books?publisher=${encodeURIComponent(store.slug || store.name || '')}`}
-                    className="font-bold text-[11.5px] text-gray-900 group-hover:text-[#003B2B] transition-colors truncate w-full"
-                  >
-                    {store.name}
-                  </Link>
-                  <span className="text-[9.5px] text-gray-500 mb-2 truncate w-full">
-                    {store.followers}
-                  </span>
-
-                  <button
-                    onClick={() => handleToggleShopFollow(store.name)}
-                    className={`w-full py-1.5 rounded-lg text-[10.5px] font-bold transition-colors cursor-pointer ${
-                      isFollowed
-                        ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                        : "bg-emerald-50 text-[#003B2B] hover:bg-[#003B2B] hover:text-white"
-                    }`}
-                  >
-                    {isFollowed ? "Đang theo dõi" : "Theo dõi"}
-                  </button>
+            {officialStores.slice(0, 6).map((store) => (
+              <Link
+                key={store.id}
+                href={`/books?publisher=${encodeURIComponent(store.slug || store.name || '')}`}
+                className="bg-white rounded-xl p-2.5 border border-gray-200/80 hover:border-[#003B2B]/40 transition-all flex flex-col items-center text-center shadow-2xs group"
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shadow-xs mb-1.5 group-hover:scale-105 transition-transform overflow-hidden bg-white border border-gray-100 text-[#003B2B]">
+                  {store.logo ? (
+                    <img
+                      src={store.logo}
+                      alt={store.name}
+                      className="w-full h-full object-cover rounded-xl"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="w-full h-full flex items-center justify-center bg-[#003B2B] text-white rounded-xl">
+                      {store.code}
+                    </span>
+                  )}
                 </div>
-              );
-            })}
+
+                <span className="font-bold text-[11.5px] text-gray-900 group-hover:text-[#003B2B] transition-colors truncate w-full">
+                  {store.name}
+                </span>
+                <span className="text-[9.5px] text-gray-500 mb-2 truncate w-full">
+                  {store.followers}
+                </span>
+
+                <span className="w-full py-1.5 rounded-lg text-[10.5px] font-bold bg-emerald-50 text-[#003B2B] group-hover:bg-[#003B2B] group-hover:text-white transition-colors">
+                  Lọc theo NXB
+                </span>
+              </Link>
+            ))}
           </div>
         </section>
       )}

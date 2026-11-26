@@ -364,111 +364,8 @@ export default function ShopPage() {
           } catch { }
         }
 
-        // 6. Fallback: match publishers in catalog or predefined partner list
-        if (!businessData) {
-          try {
-            const pubsRes = await catalogApi.getPublishers();
-            if (pubsRes.success && Array.isArray(pubsRes.data)) {
-              const norm = identifier.toLowerCase();
-              const matchedPub = pubsRes.data.find(
-                (p) =>
-                  p.id === identifier ||
-                  (p.slug && p.slug.toLowerCase() === norm) ||
-                  (p.name && p.name.toLowerCase().includes(norm.replace(/-/g, ' '))),
-              );
-              if (matchedPub) {
-                businessData = {
-                  id: matchedPub.id,
-                  name: matchedPub.name,
-                  displayName: matchedPub.name,
-                  slug: matchedPub.slug || identifier,
-                  email: `contact@${matchedPub.slug || 'huki'}.vn`,
-                  description: (matchedPub as any).description || 'Nhà xuất bản và đơn vị phát hành chính thức trên hệ sinh thái HUKI.',
-                  logo: (matchedPub as any).logo || undefined,
-                  banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
-                  status: 'APPROVED',
-                  stores: [
-                    {
-                      id: matchedPub.id,
-                      name: matchedPub.name,
-                      slug: matchedPub.slug || identifier,
-                      logo: (matchedPub as any).logo || undefined,
-                      banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
-                      description: (matchedPub as any).description,
-                    },
-                  ],
-                  businessType: 'CORPORATION',
-                };
-              }
-            }
-          } catch { }
-        }
-
-        // 7. Last fallback: known partner map
-        if (!businessData) {
-          const PARTNER_MAP: Record<string, { name: string; desc: string; banner: string }> = {
-            'alpha-books': {
-              name: 'Alpha Books Official',
-              desc: 'Nhà xuất bản hàng đầu Việt Nam về sách Kinh tế, Quản trị kinh doanh, Khởi nghiệp và Kỹ năng lãnh đạo.',
-              banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
-            },
-            'nxb-tre': {
-              name: 'NXB Trẻ',
-              desc: 'Thương hiệu xuất bản uy tín lâu đời với hàng ngàn đầu sách văn học, khoa học xã hội và tư duy trẻ.',
-              banner: 'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=1200&q=80',
-            },
-            'nha-nam': {
-              name: 'Nhã Nam Books',
-              desc: 'Không gian của những tác phẩm văn học kinh điển, triết học hiện đại và sách tranh nghệ thuật tinh tuyển.',
-              banner: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1200&q=80',
-            },
-            'nha-nam-books': {
-              name: 'Nhã Nam Books',
-              desc: 'Không gian của những tác phẩm văn học kinh điển, triết học hiện đại và sách tranh nghệ thuật tinh tuyển.',
-              banner: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1200&q=80',
-            },
-            'nxb-kim-dong': {
-              name: 'NXB Kim Đồng',
-              desc: 'Nhà xuất bản thiếu nhi lớn nhất Việt Nam, sở hữu bản quyền các bộ truyện tranh và sách giáo dục nổi tiếng.',
-              banner: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80',
-            },
-            'first-news': {
-              name: 'First News Trí Việt',
-              desc: 'Tủ sách Hạt giống tâm hồn và những tác phẩm rèn luyện nhân cách, phát triển kỹ năng con người.',
-              banner: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=1200&q=80',
-            },
-            'pub-4': {
-              name: 'Alpha Books Official',
-              desc: 'Nhà xuất bản hàng đầu Việt Nam về sách Kinh tế, Quản trị kinh doanh, Khởi nghiệp và Kỹ năng lãnh đạo.',
-              banner: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80',
-            },
-          };
-
-          const known = PARTNER_MAP[identifier.toLowerCase()];
-          if (known) {
-            businessData = {
-              id: identifier,
-              name: known.name,
-              displayName: known.name,
-              slug: identifier,
-              email: `contact@${identifier}.vn`,
-              description: known.desc,
-              banner: known.banner,
-              status: 'APPROVED',
-              stores: [
-                {
-                  id: identifier,
-                  name: known.name,
-                  slug: identifier,
-                  banner: known.banner,
-                  description: known.desc,
-                },
-              ],
-              businessType: 'CORPORATION',
-            };
-          }
-        }
-
+        // Chỉ chấp nhận Gian hàng / Doanh nghiệp thật từ business-service.
+        // Nhà xuất bản (Publisher) chỉ là thuộc tính lọc sách (/books?publisher=...), không dựng trang /shop riêng.
         setBusiness(businessData || null);
       } catch {
         setBusiness(null);
@@ -495,28 +392,19 @@ export default function ShopPage() {
           const res = await catalogApi.getPublicBooks({ limit: 100, business: storeId });
           let books = res.success && Array.isArray(res.data) ? res.data : [];
 
-          // 2. Fallback matching across public books by publisher name / slug
+          // 2. Fallback matching across public books solely by Store / Business / Owner IDs (no hardcoded names or publisher conflation)
           if (books.length === 0) {
             const allRes = await catalogApi.getPublicBooks({ limit: 100 });
             if (allRes.success && Array.isArray(allRes.data)) {
-              const cleanSlug = storeSlug.replace(/-(official|store|shop)$/, '');
-              const isAlpha = storeSlug.includes('alpha') || cleanSlug.includes('alpha');
-              const isHuki = storeSlug.includes('huki') || cleanSlug.includes('huki') || storeSlug.includes('tri-tue-viet');
-              const matched = allRes.data.filter((b: any) => {
-                const pSlug = (b.publisher?.slug || '').toLowerCase();
-                const pName = (b.publisher?.name || (typeof b.publisher === 'string' ? b.publisher : '')).toLowerCase();
-                const bTitle = (b.title || '').toLowerCase();
-                return (
-                  (b.storeId && (b.storeId === storeId || b.storeId === business.id)) ||
-                  (b.businessId && (b.businessId === storeId || b.businessId === business.id)) ||
-                  (storeSlug && (pSlug === storeSlug || pSlug === cleanSlug)) ||
-                  (cleanSlug && (pName.includes(cleanSlug.replace(/-/g, ' ')) || cleanSlug.includes(pSlug))) ||
-                  (storeName && (pName.includes(storeName) || storeName.includes(pName))) ||
-                  (isAlpha && (pSlug.includes('alpha') || pName.includes('alpha') || bTitle.includes('atomic habits'))) ||
-                  (isHuki && (b.storeId === '3094e54e-2549-42cc-92fb-14a8f8589277' || b.storeId === '77777777-0000-4000-8000-000000000001' || b.ownerUserId === '8d501a4d-d846-45bd-8f15-fda4e30cf826'))
-                );
+              const validIds = new Set(
+                [storeId, business.id, business.ownerId].filter(Boolean).map((v) => String(v).toLowerCase()),
+              );
+              books = allRes.data.filter((b: any) => {
+                const candidateIds = [b.storeId, b.businessId, b.ownerUserId, b.business?.id, b.store?.id]
+                  .filter(Boolean)
+                  .map((v) => String(v).toLowerCase());
+                return candidateIds.some((cid) => validIds.has(cid));
               });
-              books = matched;
             }
           }
 
@@ -754,14 +642,24 @@ export default function ShopPage() {
     if (!business) {
       return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-          <div className="bg-theme-surface rounded-3xl border border-theme-border p-12 max-w-lg mx-auto shadow-xs">
-            <span className="material-symbols-outlined text-5xl text-theme-primary/30 mb-3 block">storefront</span>
-            <h2 className="font-editorial text-2xl font-bold text-on-surface mb-2">Không Tìm Thấy Doanh Nghiệp</h2>
-            <p className="text-xs sm:text-sm text-on-surface-variant mb-6">Doanh nghiệp này chưa được phê duyệt hoặc đã tạm ngừng hoạt động.</p>
-            <Link href="/" className="bg-theme-primary text-white px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold hover:bg-theme-primary-hover transition-all shadow-sm inline-flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-base">home</span>
-              <span>Về Trang Chủ Sàn</span>
-            </Link>
+          <div className="bg-theme-surface rounded-3xl border border-theme-border p-12 max-w-lg mx-auto shadow-xs space-y-5">
+            <span className="material-symbols-outlined text-5xl text-theme-primary/30 block">storefront</span>
+            <h2 className="font-editorial text-2xl font-bold text-on-surface">Không Tìm Thấy Gian Hàng</h2>
+            <p className="text-xs sm:text-sm text-on-surface-variant">
+              Gian hàng này không tồn tại, chưa được phê duyệt hoặc đây chỉ là tên Nhà xuất bản (không có trang gian hàng riêng).
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+              <Link href="/stores" className="bg-theme-primary text-white px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold hover:bg-theme-primary-hover transition-all shadow-sm inline-flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-base">store</span>
+                <span>Xem Gian Hàng Chính Hãng</span>
+              </Link>
+              {businessSlugOrId && (
+                <Link href={`/books?publisher=${encodeURIComponent(businessSlugOrId)}`} className="border border-theme-border bg-white text-theme-primary px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold hover:bg-theme-secondary-subtle transition-all inline-flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-base">filter_alt</span>
+                  <span>Lọc Sách Theo Từ Khóa Này</span>
+                </Link>
+              )}
+            </div>
           </div>
         </div>
       );
@@ -776,12 +674,12 @@ export default function ShopPage() {
             Trang chủ
           </Link>
           <span>/</span>
-          <Link href="/stores" className="hover:text-primary transition-colors">Doanh nghiệp phát hành</Link>
+          <Link href="/stores" className="hover:text-primary transition-colors">Gian hàng đối tác</Link>
           <span>/</span>
-          <span className="text-theme-primary font-semibold truncate">{business?.name || 'Chi tiết doanh nghiệp'}</span>
+          <span className="text-theme-primary font-semibold truncate">{business?.name || 'Chi tiết gian hàng'}</span>
         </nav>
 
-        {/* Publisher Hero Header & Profile Card */}
+        {/* Store Hero Header & Profile Card */}
         <section className="relative rounded-3xl shadow-sm bg-theme-surface border border-theme-border mb-8 z-30">
           {/* Panoramic Banner */}
           <div className="h-56 md:h-72 w-full relative rounded-t-3xl overflow-hidden bg-slate-900">
@@ -797,19 +695,19 @@ export default function ShopPage() {
             <div className="absolute bottom-6 left-6 right-6 text-white flex flex-col md:flex-row md:items-end justify-between gap-4 z-10">
               <div>
                 <span className="px-3 py-1 bg-theme-accent text-white text-xs font-bold rounded-full uppercase tracking-wider mb-2 inline-block shadow-sm">
-                  NXB Đối Tác Độc Quyền Mall
+                  Gian Hàng Đối Tác Chính Hãng
                 </span>
                 <h1 className="font-editorial text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-white leading-tight">
-                  {business?.name || 'Doanh Nghiệp Sách Chính Hãng'}
+                  {business?.name || 'Gian Hàng Sách Chính Hãng'}
                 </h1>
                 <p className="text-xs sm:text-sm text-white/80 mt-1 max-w-xl line-clamp-2">
-                  {business?.description || legacyProfile?.description || `Trang phát hành chính thức của ${business?.name || 'doanh nghiệp'} trên HUKI.`}
+                  {business?.description || legacyProfile?.description || `Gian hàng phân phối sách chính hãng của ${business?.name || 'đối tác'} trên HUKI.`}
                 </p>
               </div>
               <div className="text-right hidden md:block shrink-0">
                 <span className="text-emerald-300 font-semibold text-sm flex items-center justify-end gap-1">
                   <span className="material-symbols-outlined text-base">verified</span>
-                  HUKI DRM Verified Publisher
+                  HUKI DRM Verified Shop
                 </span>
                 <span className="text-stone-300 text-xs">Phân phối chính hãng toàn quốc</span>
               </div>

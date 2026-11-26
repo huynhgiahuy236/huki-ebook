@@ -1763,7 +1763,54 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
   - Backend `npm run build` & Jest `npm run test:all`: **75/75 suites, 812/812 tests PASS** (gồm unit test mới trong [`auto-moderation.service.spec.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/moderation/auto-moderation.service.spec.ts) & [`reviews.service.spec.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/reviews/reviews.service.spec.ts)).
   - Frontend `tsc --noEmit` + `lint` + Vitest (**12/12 files, 75/75 tests PASS**, gồm [`featuredReviews.test.ts`](file:///e:/HuKi/web/src/ui/utils/__tests__/featuredReviews.test.ts)) + `next build` (142 routes): PASS.
   - E2E script [`test_e2e_bug21_22_23_home_reviews.js`](file:///e:/HuKi/scripts/test_e2e_bug21_22_23_home_reviews.js): PASS toàn bộ (`BUG-21`, `BUG-22`, `BUG-23`, `BUG-24`).
-- **Trạng thái Git:** Đã commit & merge `--no-ff` vào nhánh `develop` local.
+- **Trạng thái Git:** Đã commit & merge `--no-ff` vào nhánh `develop` local (`1a7875a`).
+
+---
+
+## 14. ĐỢT XỬ LÝ BUG-25, BUG-26 — NHÁNH `fix/flash-sale-shop-vs-publisher`
+
+> **Nhánh làm việc:** `fix/flash-sale-shop-vs-publisher` (khởi tạo từ `develop` `1a7875a`)  
+> **Quy trình áp dụng:** [`readme-bug.md`](file:///e:/HuKi/readme-bug.md) (Bước 1 → Bước 12).
+
+### Bước 1: Thu thập & Tái hiện Thực trạng Lỗi (26/11/2026)
+
+| Mã Bug | Mô tả & Bằng chứng từ Người dùng | Thực trạng kiểm chứng trong mã nguồn & UAT | Mức độ |
+| :--- | :--- | :--- | :--- |
+| **`BUG-25`** | Nhà xuất bản (*First News - Trí Việt*, *NXB Trẻ*...) chỉ là thuộc tính/type của sách để lọc, **không phải Gian hàng (Shop)**; tuy nhiên hệ thống lại tự tạo trang `/shop/first-news-tri-viet` giả (kèm banner `NXB ĐỐI TÁC ĐỘC QUYỀN MALL`) và còn hardcode danh sách NXB giả trong code. | - [`web/src/app/shop/[id]/page.tsx`](file:///e:/HuKi/web/src/app/shop/%5Bid%5D/page.tsx#L367-L470): Khi không khớp `Business`/`Store`, vẫn fallback gọi `catalogApi.getPublishers()` (tạo mock business `First News - Trí Việt`) và `PARTNER_MAP` hardcode (`alpha-books`, `nxb-tre`, `nha-nam`, `nxb-kim-dong`, `first-news`); dòng 503–515 còn hardcode `isAlpha`, `isHuki`, `'atomic habits'`.<br>- [`FeaturedStoresSection.tsx`](file:///e:/HuKi/web/src/ui/components/sections/FeaturedStoresSection.tsx#L122-L179): Hardcode 5 gian hàng NXB kèm số follower giả.<br>- [`book/[id]/page.tsx`](file:///e:/HuKi/web/src/app/book/%5Bid%5D/page.tsx#L305-L315): `resolveStore` bỏ sót đối chiếu `biz.ownerId` (khi UAT có ≥ 2 Shop: `Nhà Sách HuKi Official` + `TIỆM SÁCH PHỐ CỔ`) → rơi vào fallback lấy `publisher.name` (`First News - Trí Việt`) và dẫn link sang `/shop/first-news-tri-viet`. | **High** |
+| **`BUG-26`** | Flash Sale trên UAT của **Phương Thúy** (`Nhà Sách HuKi Official`, `ownerId: 99999999-...`) khi vào trong lại hiển thị tên **`First News - Trí Việt`** và bấm vào mở `/shop/first-news-tri-viet`. | - Kiểm tra live UAT `GET /api/v1/flash-sales/shops/grouped`: campaign `b1cd6215-...` có `storeId: 99999999-0000-4000-8000-000000000001` trả về **`"storeName": "First News - Trí Việt"`**!<br>- [`flash-sales.service.ts`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/flash-sales/flash-sales.service.ts#L707-L713): `getGroupedShopFlashSales` đặt `book.publisher.name` ưu tiên trước `storeName`/`businessName` và không gọi `business-service` giải quyết Shop theo `storeId`/`ownerId`.<br>- [`web/src/app/flash-sale/page.tsx`](file:///e:/HuKi/web/src/app/flash-sale/page.tsx#L382-L383): Cũng fallback `storeName` về `book.publisher`. | **High** |
+
+---
+
+### Bước 2: Phân tích Nguyên nhân Gốc rễ & Ma trận Rủi ro Domino
+
+1. **Tách rạch ròi Shop (`Business`/`Store`) khỏi Nhà xuất bản (`Publisher`):**
+   - `Publisher` chỉ là metadata/bộ lọc sách (`/books?publisher=...`), **tuyệt đối không có trang `/shop/[publisher]` riêng** và **không được dùng làm tên Shop**.
+   - `Shop` là thực thể `Business`/`Store` được duyệt từ `business-service` (`Nhà Sách HuKi Official`, `HỘ KINH DOANH TIỆM SÁCH PHỐ CỔ`, ...). Trên UAT, sách và Flash Sale thường lưu `storeId` bằng `ownerId` (`99999999-...`) hoặc `business.id` (`77777777-...`), nên mọi hàm resolve Shop phải so khớp đủ `id`, `slug`, `ownerId`, `stores[].id`, `stores[].slug`.
+2. **Backend Promotion Service & Frontend Storefront:**
+   - Backend `FlashSalesService.getGroupedShopFlashSales` fetch danh sách Business công khai từ `business-service` (có cache TTL ngắn 120s, an toàn fallback nếu timeout) để trả chuẩn `storeName`, `storeSlug`, `storeAvatar` của **Shop thật**; xóa bỏ hoàn toàn việc lấy `book.publisher` làm `storeName`.
+   - Frontend `/shop/[id]`, `/flash-sale`, `/book/[id]`, `/stores`, `FeaturedStoresSection` xóa bỏ mọi mảng hardcode (`PARTNER_MAP`, NXB giả, `isAlpha`/`isHuki`) và tách rạch ròi: **Shop** trỏ `/shop/[slug]`, **NXB** trỏ lọc `/books?publisher=[slug]`.
+
+---
+
+### Bước 3–6: Phương án Đã Phê Duyệt (Phương án 1), Triển khai & Xác minh CI/CD (26/11/2026)
+
+- **Backend ([`platform/apps/promotion-service`](file:///e:/HuKi/platform/apps/promotion-service)):**
+  - [`flash-sales.service.ts`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/flash-sales/flash-sales.service.ts#L685-L766): Bổ sung `preloadPublicBusinesses()` + `findMatchingBusiness()` lấy dữ liệu doanh nghiệp/cửa hàng thật từ `business-service` (khớp `id`, `ownerId`, `stores[].id`), trả chuẩn `storeName`, `storeSlug`, `storeAvatar` trong `getGroupedShopFlashSales` — tuyệt đối không lấy `book.publisher` (`First News - Trí Việt`) làm tên gian hàng.
+- **Frontend ([`web/src`](file:///e:/HuKi/web/src)) & IDE Guard:**
+  - [`flash-sale/page.tsx`](file:///e:/HuKi/web/src/app/flash-sale/page.tsx#L381-L390): Loại bỏ fallback `book.publisher` khỏi `storeName` / `resolvedStoreName`, điều hướng đúng tới `/shop/${resolvedStoreSlug}` của Shop thật.
+  - [`shop/[id]/page.tsx`](file:///e:/HuKi/web/src/app/shop/%5Bid%5D/page.tsx): Xóa hoàn toàn fallback dựng shop từ `catalogApi.getPublishers()`, `PARTNER_MAP` hardcode và logic `isAlpha`/`isHuki`; nếu truy cập slug NXB (VD `/shop/first-news-tri-viet`), hiển thị thông báo kèm nút lọc sách `/books?publisher=...`.
+  - [`FeaturedStoresSection.tsx`](file:///e:/HuKi/web/src/ui/components/sections/FeaturedStoresSection.tsx): Xóa mảng NXB giả hardcode (`42.5k` follower...).
+  - [`stores/page.tsx`](file:///e:/HuKi/web/src/app/stores/page.tsx): Tách rạch ròi Seller (Gian hàng) khỏi NXB (bỏ nhãn `NXB Chính Hãng`, bỏ `publisherId` khi đếm sách shop), tinh gọn hero, tab (`Gian hàng` | `Tác giả`), bỏ các icon rườm rà/lỗi (`person_star`, sao/huy hiệu phủ lên banner) và chip danh mục NXB dư thừa.
+  - [`web/src/app/page.tsx`](file:///e:/HuKi/web/src/app/page.tsx#L1686-L1736): Chuyển Section 5 sang **"Nhà Xuất Bản Sách"** với nút **"Lọc theo NXB"** trỏ thẳng `/books?publisher=...` (không giả lập nút Theo dõi gian hàng cho NXB).
+  - [`book/[id]/page.tsx`](file:///e:/HuKi/web/src/app/book/%5Bid%5D/page.tsx#L305-L318): Thêm đối chiếu `biz.ownerId` trong `resolveStore`, xóa fallback `businesses[0]` và không lấy `book.publisher` làm tên/slug Shop.
+  - [`.vscode/settings.json`](file:///e:/HuKi/.vscode/settings.json): Đặt `"files.autoSave": "off"` tránh VS Code tự động lưu đè buffer cũ.
+- **Kiểm thử & Cổng chất lượng CI/CD:**
+  - `git diff --check`: PASS.
+  - `prisma validate`: 6/6 schemas hợp lệ.
+  - Backend `npm run build` & Jest `npm run test:all`: **75/75 suites, 813/813 tests PASS** (gồm unit test mới trong [`flash-sales.service.spec.ts`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/flash-sales/flash-sales.service.spec.ts#L311-L378)).
+  - E2E script [`test_e2e_bug25_26_shop_vs_publisher.js`](file:///e:/HuKi/scripts/test_e2e_bug25_26_shop_vs_publisher.js): PASS toàn bộ.
+  - Frontend `tsc --noEmit` + `eslint` + Vitest (**12/12 files, 75/75 tests PASS**) + `next build` (142 routes): PASS.
+- **Trạng thái Git:** Sẵn sàng commit & merge `--no-ff` vào `develop` local.
 
 
 

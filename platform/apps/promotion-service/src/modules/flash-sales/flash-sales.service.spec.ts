@@ -306,4 +306,72 @@ describe("FlashSalesService", () => {
       ),
     ).rejects.toThrow("Đang ẩn");
   });
+
+  it("resolves real Seller Shop name instead of book publisher name in getGroupedShopFlashSales (BUG-25, BUG-26)", async () => {
+    const ownerUuid = "99999999-0000-4000-8000-000000000001";
+    const shopCampaign = {
+      id: "camp-shop-1",
+      name: "Flash Sale Giờ Vàng Shop",
+      description: null,
+      bannerUrl: null,
+      scope: "SHOP",
+      storeId: ownerUuid,
+      startsAt: new Date(Date.now() - 60_000),
+      endsAt: new Date(Date.now() + 3_600_000),
+      status: "ACTIVE",
+      items: [
+        {
+          id: "item-1",
+          flashSaleId: "camp-shop-1",
+          bookId: "book-tu-huyet",
+          originalPrice: 115_000,
+          salePrice: 80_500,
+          stock: 9,
+          sold: 1,
+          maxPerUser: 1,
+        },
+      ],
+    };
+    prisma.flashSale.findMany.mockResolvedValue([shopCampaign]);
+
+    const svc: any = new FlashSalesService(prisma, redis, eventBus);
+    svc.preloadCommerceBooks = jest.fn().mockResolvedValue(
+      new Map([
+        [
+          "book-tu-huyet",
+          {
+            id: "book-tu-huyet",
+            title: "Tử Huyệt Cảm Xúc",
+            slug: "tu-huyet-cam-xuc",
+            storeId: ownerUuid,
+            publisher: { id: "pub-fn", name: "First News - Trí Việt", slug: "first-news-tri-viet" },
+          },
+        ],
+      ]),
+    );
+    svc.preloadPublicBusinesses = jest.fn().mockResolvedValue([
+      {
+        id: "77777777-0000-4000-8000-000000000001",
+        name: "Nhà Sách HuKi Official",
+        slug: "nha-sach-huki-official",
+        ownerId: ownerUuid,
+        logo: "https://cdn.huki.vn/huki-logo.png",
+        stores: [
+          {
+            id: "store-huki-1",
+            name: "Nhà Sách HuKi Official",
+            slug: "nha-sach-huki-official",
+            logo: "https://cdn.huki.vn/huki-logo.png",
+          },
+        ],
+      },
+    ]);
+
+    const groups = await svc.getGroupedShopFlashSales();
+    expect(groups.length).toBe(1);
+    expect(groups[0].storeName).toBe("Nhà Sách HuKi Official");
+    expect(groups[0].storeName).not.toBe("First News - Trí Việt");
+    expect(groups[0].storeSlug).toBe("nha-sach-huki-official");
+    expect(groups[0].storeAvatar).toBe("https://cdn.huki.vn/huki-logo.png");
+  });
 });
