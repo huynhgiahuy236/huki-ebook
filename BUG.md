@@ -1319,6 +1319,95 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
    - `npm test` (tại `web/`, Vitest) — **PASS (`10 passed (10); 71 passed (71)`)**.
    - `NODE_ENV=production npm --prefix web run build` (`next build`) — **PASS (`142/142` routes compiled)**.
 
+---
+
+## 9. ĐỢT XỬ LÝ BUG-11, BUG-12, BUG-13 — NHÁNH `fix/moderation-flashsale-ebook`
+
+> **Nhánh làm việc:** `fix/moderation-flashsale-ebook` (khởi tạo từ `develop` `479c971`)  
+> **Quy trình áp dụng:** [`readme-bug.md`](file:///e:/HuKi/readme-bug.md) (Bước 1 → Bước 12, gói 1 giai đoạn gồm 3 bug: `BUG-11`, `BUG-12`, `BUG-13`).
+
+### Bước 1: Thu thập & Tái hiện Thực trạng Lỗi (26/11/2026)
+
+| Mã Bug | Mô tả từ Người dùng | Thực trạng tái hiện & bằng chứng đo trực tiếp | Mức độ |
+| :--- | :--- | :--- | :--- |
+| **`BUG-11`** | Bình luận/đánh giá chứa từ vi phạm được gán nhãn gửi về cho Admin, nhưng cần chia rõ nhóm **"Vi phạm ngôn từ"** và hiện bên Admin (`/admin/moderation`) chưa nhận được để xử lý realtime. | - `AutoModerationService.inspect` phát hiện từ cấm và trả `reasons: ['PROFANITY']` -> [`ReviewsService.create`](file:///e:/HuKi/platform/apps/community-service/src/modules/reviews/reviews.service.ts#L565-L580) & `update` lưu `Review` với `status: 'FLAGGED'`.<br>- Tuy nhiên `ReviewsService` **không tạo bản ghi `Report`** và **không phát notification/socket** tới `admin_channel`; [`AdminModerationView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminModerationView.tsx) chỉ đọc `/admin/moderation/reports` nên **hoàn toàn không thấy** các bình luận vi phạm ngôn từ tự động. | **High** |
+| **`BUG-12`** | Flash Sale Seller & Admin bấm các nút load rất lâu, mọi thao tác liên quan kể cả nút **Xóa** cũng chậm. | - Kiểm tra live UAT `GET /api/v1/flash-sales` trả về tới **286.98 KB JSON** cho chỉ 9 slots (do cho phép lưu `bannerUrl` base64 data URI lớn).<br>- [`FlashSalesService`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/flash-sales/flash-sales.service.ts): `sellerCancelItem` (L2178), `sellerUpdateItem` (L2252), `addItem` (L326), `getParticipatingStoreIds` (L1432) đều gọi HTTP `GET /api/v1/books/:id` sang `commerce-service` -> kích hoạt `BooksService.findOne` thực hiện 4 query + gọi R2 `HeadObject` (trên UAT đang lỗi tốn ~250ms/lần); `cancel`, `endEarly`, `sellerCancelItem` còn `await eventBus.publish(...)` đồng bộ.<br>- Phía UI [`SellerFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerFlashSaleView.tsx) & [`AdminFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminFlashSaleView.tsx): thiếu Optimistic update và tự kích hoạt **Double Reload** thông qua `realtimeSyncBus.publish('FLASH_SALE_UPDATED')`. | **High** |
+| **`BUG-13`** | Sách vẫn chưa đọc được trên UAT (`https://huki-uat.duckdns.org`). | - Probe live UAT lúc 13:48-13:50: `GET /api/v1/books/dac-nhan-tam` (`200 OK`, `hasPdf: false, hasSourceFile: true`) & `GET /api/v1/books/dac-nhan-tam/pdf` trả **`503 EBOOK_STORAGE_UNAVAILABLE` trong 235ms**; tương tự `b1e92cf0-ac7d-43e5-90b0-19507319e9b7/pdf` trả **`503 EBOOK_STORAGE_UNAVAILABLE` trong 372ms** (trong khi `test_e2e_bug07_ebook_r2.js` tại Local đọc R2 thành công `%PDF-`).<br>- Chứng tỏ container `commerce-service-uat` trên VPS chạm tới R2 client (`hasR2Config = true`) nhưng bị Cloudflare R2 từ chối tức thì (403/400/NoSuchBucket hoặc sai biến `CLOUDFLARE_R2_*` trên `/root/huki/.env`), không fallback qua cặp `R2_*` / CDN `R2_PUBLIC_URL`, và không lộ mã chẩn đoán R2 an toàn để xử lý ngay. | **Critical** |
+
+---
+
+### Bước 2: Điều tra Nguyên nhân Gốc rễ 4 Tầng & Ma trận Rủi ro Domino
+
+#### 1. `BUG-11` — Phân loại "Vi phạm ngôn từ" & Đồng bộ Realtime Admin Moderation
+- **Tầng 1 (Schema / DB - `report.schema.ts`, `review.schema.ts`):** `REPORT_REASONS` chỉ có `'OFFENSIVE'` (báo cáo cộng đồng), chưa phân tách `'LANGUAGE_VIOLATION'` cho Auto-Moderation từ ngữ thô tục và chưa lưu `detectionSource` / `violationCategory` / `matchedKeywords`. Unique index `{ reporterId: 1, targetType: 1, targetId: 1 }` hỗ trợ chống tạo trùng report tự động (`reporterId = 'system:auto-moderation'`).
+- **Tầng 2 (Backend - `auto-moderation.service.ts`, `reviews.service.ts`, `moderation.service.ts`, `moderation.dto.ts`):**
+  - `ReviewsService.create` & `update` chưa gọi tạo `Report` tự động và chưa đẩy sự kiện tới `NotificationDeliveryService` (`admin_channel`) + `NotificationGateway` khi `moderation.flagged === true`.
+  - `ModerationService.report` có gửi notification nhưng chưa phát chuyên biệt event socket `moderation:created` / `moderation:resolved` cho phòng `admin_channel`.
+- **Tầng 3 (Realtime Gateway - `notification.gateway.ts`, `useRealtimeNotifications.ts`):** Thiếu helper `emitAdminModerationEvent` và chưa publish `MODERATION_UPDATED` khi socket nhận alert moderation.
+- **Tầng 4 (Frontend - `AdminModerationView.tsx`, `moderationApi.ts`):** Thiếu badge/filter rõ ràng **"Vi phạm ngôn từ"** (phân biệt *Tự động phát hiện* với *Báo cáo người dùng*), chưa đồng bộ realtime khi có bình luận vi phạm mới phát sinh.
+- **Rủi ro Domino:** Đồng bộ khi Admin xử lý `HIDE`/`DELETE`/`DISMISS` phải cập nhật đồng thời trạng thái `Review` gốc và bắn `review:updated`/`review:removed` về trang chi tiết sách + Seller.
+
+#### 2. `BUG-12` — Tối ưu Hiệu năng & Xóa/Tạo/Sửa Tức thì ở Flash Sale Seller & Admin
+- **Tầng 1 & 2 (Backend - `flash-sales.service.ts`, `books.controller.ts`, `books.service.ts`):**
+  - `BooksService.findOne` đang thực hiện `hasReadablePdfKey` (gọi S3 R2 `HeadObject`) cả khi `promotion-service` chỉ cần lấy giá, tồn kho và `storeId` của sách. Khi R2 chậm hoặc lỗi 503, mỗi book lookup bị đội độ trễ lên vài trăm ms–5s!
+  - `sellerCancelItem` (nút **Xóa** sách) luôn `await this.getCommerceBook(item.bookId)` không cache ngay cả khi `item.storeId` đã khớp `businessId`; `cancel`, `endEarly`, `sellerCancelItem`, `sellerBatchRegisterItems` đều `await this.eventBus.publish(...)` đồng bộ.
+  - `findAll` trả nguyên `bannerUrl` base64 dung lượng lớn trong list response (~287KB cho 9 slots).
+- **Tầng 3 & 4 (Frontend - `SellerFlashSaleView.tsx`, `AdminFlashSaleView.tsx`, `[id]/page.tsx`):**
+  - Mỗi mutation phát `realtimeSyncBus.publish('FLASH_SALE_UPDATED')` → listener trong chính component lại gọi `loadData(true)` / `fetchFlashSales(true)` lần 2 (Double Reload) cùng lúc với lời gọi reload trực tiếp sau `await` API.
+  - Chưa có **Optimistic State Update** cho thao tác xóa/hủy/sửa; nút `Lưu` inline ở Admin thiếu loading indicator.
+- **Rủi ro Domino:** Không ảnh hưởng đến tính toàn vẹn giao dịch đặt hàng/tồn kho Redis; vẫn giữ nguyên Redis stock check và PostgreSQL transaction ở luồng reserve/cancel.
+
+#### 3. `BUG-13` — Xử lý Dứt điểm Lỗi `503 EBOOK_STORAGE_UNAVAILABLE` trên UAT Reader
+- **Tầng 1 & 2 (Backend - `r2-ebook.storage.ts`, `books.service.ts`):**
+  - `R2EbookStorage` hiện chỉ khởi tạo **duy nhất 1 `S3Client`**. Nếu trên VPS UAT `/root/huki/.env` có `CLOUDFLARE_R2_*` cũ/sai/nháy kép hoặc sai `forcePathStyle` trong khi `R2_*` hoặc `CLOUDFLARE_R2_PUBLIC_DOMAIN`/`R2_PUBLIC_URL` hợp lệ, toàn bộ stream thất bại ngay ở attempt #1 (`235ms`).
+  - `exists()` chưa có Circuit Breaker nên khi R2 fail, `HeadObject` bị gọi lặp lại gây chậm cả `GET /books/:id` và `FlashSalesService`.
+  - Response `503` hiện tại giấu hết nguyên nhân kỹ thuật an toàn (`NoSuchBucket` / `AccessDenied` / `InvalidAccessKeyId` / `SignatureDoesNotMatch` / `ENOTFOUND` / `R2_NOT_CONFIGURED`).
+- **Tầng 3 & 4 (Frontend - `PdfCanvasViewer.tsx`):**
+  - Khi nhận `503` từ `/api/v1/books/:id/pdf`, cần hiển thị chính xác thông điệp lỗi kết nối + nút **"Thử tải lại PDF"** thay vì thông báo chung.
+- **Rủi ro Domino:** Fallback đọc PDF luôn trả `Content-Type: application/pdf` chuẩn và kiểm tra byte/range, không lộ bất kỳ key/secret R2 nào ra HTTP response hay log.
+
+---
+
+### Bước 3: Phương án Kiến trúc Chuẩn Shopee & Tiêu chuẩn Nghiệm thu (`BUG-11`, `BUG-12`, `BUG-13`) — `[CHỜ PHÊ DUYỆT]`
+
+#### 1. Phương án cho `BUG-11` (Kiểm duyệt "Vi phạm ngôn từ" & Realtime Admin)
+- **Phương án 1 — `(Khuyến nghị) [Chuẩn Shopee Content Moderation Hub]`:**
+  1. Bổ sung phân loại rõ **`LANGUAGE_VIOLATION`** (*Vi phạm ngôn từ*) vào `REPORT_REASONS` + `detectionSource` (`AUTO_MODERATION` | `USER_REPORT`) + `matchedKeywords` trên `Report`.
+  2. Khi `ReviewsService.create` / `update` phát hiện từ vi phạm (`PROFANITY`, `EXCESSIVE_LINKS`, `REPEATED_CHARACTERS`), tự động tạo bản ghi `Report` chờ Admin duyệt ngay, gửi Notification tới `admin_channel` và phát socket **`moderation:created`** realtime.
+  3. Trên [`AdminModerationView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminModerationView.tsx) & `useRealtimeNotifications.ts`: thêm KPI + tab/filter nhanh **"Vi phạm ngôn từ"**, huy hiệu *"Tự động phát hiện"* / *"Ngôn từ vi phạm"*, và lắng nghe `MODERATION_UPDATED` để bảng tự cập nhật ngay lập tức `< 500ms`.
+  - *Ưu điểm:* Admin nhìn thấy tức thì cả bình luận tự động gắn cờ lẫn báo cáo người dùng trong một bảng thống nhất, phân biệt rạch ròi vi phạm ngôn từ.
+  - *Nhược điểm:* Chạm cả `ReviewsService`, `ModerationService`, `NotificationGateway` và `AdminModerationView`.
+- **Phương án 2 — `[Tách riêng Tab "Hàng đợi Auto-Moderation" từ /admin/moderation/queue]`:** Giữ nguyên `Report` cho người dùng, thêm tab phụ ở Frontend gọi `/admin/moderation/queue`.
+  - *Ưu điểm:* Ít sửa `ReviewsService`.
+  - *Nhược điểm:* Tách 2 danh sách rời rạc, thiếu phân loại chi tiết `matchedKeywords`, không tái sử dụng quy trình `RESOLVE`/`DISMISS`/cảnh cáo POL-13 thống nhất.
+- **Acceptance Criteria (BDD/Gherkin):**
+  - `Given` Admin đang mở `/admin/moderation` (hoặc trang Admin bất kỳ có chuông), `When` Buyer gửi đánh giá chứa từ ngữ vi phạm trong `BLOCKED_PHRASES`, `Then` hệ thống tự động tạo `Report` với lý do **`LANGUAGE_VIOLATION`**, gửi Notification & socket `moderation:created` tới Admin trong `< 500ms`, bảng `/admin/moderation` tự cập nhật hiển thị mục **"Vi phạm ngôn từ"** và Admin có thể `Ẩn`/`Xóa`/`Cảnh cáo`/`Bác bỏ` đồng bộ lại Review ngay.
+
+#### 2. Phương án cho `BUG-12` (Tăng tốc mọi nút & Xóa Flash Sale Seller/Admin)
+- **Phương án 1 — `(Khuyến nghị) [Chuẩn Shopee Optimistic UI + Light Internal Lookup]`:**
+  1. **Backend:** Thêm query `?light=1` cho `GET /books/:id` (bỏ qua `hasReadablePdfKey` R2 & order aggregate) để `FlashSalesService.preloadCommerceBooks` không bị treo bởi R2; nâng cache `bookCache` lên 120s; trong `sellerCancelItem` ưu tiên kiểm tra `item.storeId === businessId` trước khi gọi Commerce; chuyển `eventBus.publish` trong `cancel`/`endEarly`/`sellerCancelItem`/`sellerBatchRegisterItems` sang non-blocking; lược bớt chuỗi base64 ảnh quá lớn trong danh sách `findAll`.
+  2. **Frontend:** Thêm **Optimistic UI Update** ngay khi Xóa đợt / Hủy lịch / Xóa sách / Sửa tồn thành công (`0ms` chờ reload), bỏ **Double Reload** từ `realtimeSyncBus` `FLASH_SALE_UPDATED`, và thêm spinner loading cho nút `Lưu` inline Admin.
+  - *Ưu điểm:* Thao tác Xóa/Hủy/Sửa/Tạo phản hồi `< 100ms`, UI không bao giờ bị khựng chờ đồng bộ ngầm.
+  - *Nhược điểm:* Cần cẩn trọng giữ đồng bộ state UI nếu API fail (chỉ update optimistic sau khi API trả `success: true`).
+- **Phương án 2 — `[Chỉ Backend Non-blocking + Bỏ R2 check ở Books.findOne]`:** Tối ưu backend nhưng frontend vẫn `await loadData()` toàn trang trước khi cập nhật bảng.
+  - *Ưu điểm:* Ít chạm JSX.
+  - *Nhược điểm:* Người dùng vẫn phải nhìn spinner đóng băng khi bảng nhiều đợt/nhiều sách cần tải lại.
+- **Acceptance Criteria (BDD/Gherkin):**
+  - `Given` Seller hoặc Admin thao tác Tạo / Sửa Tồn / Xóa Sách / Hủy Lịch / Xóa Đợt Flash Sale, `When` API mutation hoàn tất, `Then` thao tác cập nhật giao diện ngay tức thì (không double reload, không bị R2 timeout kéo chậm, nút `Lưu`/`Xóa` có phản hồi spinner rõ ràng, độ trễ backend Xóa < 150ms).
+
+#### 3. Phương án cho `BUG-13` (Sửa tận gốc Ebook Reader + Multi-Credential R2 + CDN Fallback)
+- **Phương án 1 — `(Khuyến nghị) [Chuẩn Shopee Multi-Credential R2 + Public CDN Fallback + Safe Diagnostics]`:**
+  1. **Backend (`R2EbookStorage` + `BooksService`):** Tách riêng và thử tuần tự các bộ S3 candidate (`CLOUDFLARE_R2_*` → `R2_*` → endpoint chuẩn `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com` kèm `forcePathStyle: true` và fallback `false`); sanitize sạch quotes/trailing paths; bổ sung fallback đọc qua HTTP `CLOUDFLARE_R2_PUBLIC_DOMAIN` / `R2_PUBLIC_URL`; thêm Circuit Breaker 15s khi mọi storage client đều lỗi để tránh nghẽn; trả thêm `diagnostic` an toàn (không lộ key/secret) khi `503` để xác định ngay nguyên nhân trên VPS UAT nếu `.env` VPS cần sửa.
+  2. **Frontend (`PdfCanvasViewer.tsx`):** Đọc đúng `message`/`code` lỗi từ stream API và hiển thị nút **"Thử tải lại PDF"** rõ ràng.
+  - *Ưu điểm:* Tự chữa được cả tình huống VPS UAT lệch biến giữa `CLOUDFLARE_R2_*` và `R2_*`, đồng thời cung cấp bằng chứng chẩn đoán tức thì nếu key R2 trên VPS UAT hết hạn/thu hồi.
+  - *Nhược điểm:* Thay đổi nhiều logic khởi tạo client trong `R2EbookStorage`.
+- **Phương án 2 — `[Chỉ bật Redirect sang R2_PUBLIC_URL khi có key]`:** Bỏ stream qua `commerce-service` khi lỗi, redirect thẳng sang CDN.
+  - *Ưu điểm:* Nhanh gọn.
+  - *Nhược điểm:* Nếu `R2_PUBLIC_URL` trên UAT chưa bật hoặc là URL mẫu (như local `.env` đang để `https://your-public-url.r2.dev`) thì vẫn gãy, và không giải quyết bảo mật/range stream qua backend.
+- **Acceptance Criteria (BDD/Gherkin):**
+  - `Given` Sách điện tử có `pdfKey` / `REAL_EBOOK_MAPPINGS` hợp lệ trên R2 (`dac-nhan-tam`, `vi-giam-doc-mot-phut-va-xay-dung-nhom-lam-viec-hieu-qua`), `When` client mở `/reader/[id]` hoặc gọi `GET /api/v1/books/:id/pdf`, `Then` `R2EbookStorage` tự chọn đúng bộ cấu hình R2 hợp lệ (hoặc Public CDN nếu bật), trả `HTTP 200 application/pdf` (`%PDF-`) trong `< 1s`; nếu thiếu quyền trên VPS thì `503` kèm `diagnostic` an toàn chỉ rõ nguyên nhân (`InvalidAccessKeyId`/`NoSuchBucket`/`AccessDenied`) và UI hiển thị nút Thử lại rõ ràng.
+
+
 
 
 
