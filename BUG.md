@@ -1462,6 +1462,87 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
    - `npm test` (tại `web/`, Vitest) — **PASS (`Test Files: 10 passed (10); Tests: 71 passed (71)`)**.
    - `$env:NODE_ENV='production'; npm run build` (tại `web/`, Next.js `16.3.3` Turbopack) — **PASS (`142/142` routes compiled)**.
 
+---
+
+## 10. ĐỢT XỬ LÝ BUG-14, BUG-15, BUG-16 — NHÁNH `fix/business-update-otp-diff-realtime`
+
+> **Nhánh làm việc:** `fix/business-update-otp-diff-realtime` (khởi tạo từ `develop` `c70e5a7`)  
+> **Quy trình áp dụng:** [`readme-bug.md`](file:///e:/HuKi/readme-bug.md) (Bước 1 → Bước 12, gói 1 giai đoạn gồm 3 bug: `BUG-14`, `BUG-15`, `BUG-16`).
+
+### Bước 1: Thu thập & Tái hiện Thực trạng Lỗi (26/11/2026)
+
+| Mã Bug | Mô tả từ Người dùng | Thực trạng tái hiện & bằng chứng code | Mức độ |
+| :--- | :--- | :--- | :--- |
+| **`BUG-14`** | Khi Seller chỉnh sửa thông tin hồ sơ doanh nghiệp (`/seller/business`), hệ thống **không gửi Email mã OTP 6 số** và **không hiện Popup nhập OTP 6 chữ số** để xác thực trước khi gửi yêu cầu lên Admin. | - [`web/src/app/seller/business/page.tsx`](file:///e:/HuKi/web/src/app/seller/business/page.tsx#L358-L446): `handleSubmitUpdateRequest` gọi thẳng `businessApi.submitUpdateRequest(payload)` (`POST /businesses/my/update-request`) mà không qua bước yêu cầu & nhập OTP 6 số.<br>- [`business.module.ts`](file:///e:/HuKi/platform/apps/business-service/src/modules/business/business.module.ts) chưa import `EmailModule` của `@huki/shared` (`EmailService`), và [`business.service.ts`](file:///e:/HuKi/platform/apps/business-service/src/modules/business/business.service.ts#L795-L848) chưa có endpoint/service sinh, gửi mail và xác thực OTP 6 số (dù `docker-compose.uat.yml` đã truyền sẵn `GMAIL_USER` & `GMAIL_APP_PASSWORD` cho `business-service-uat`). | **High** |
+| **`BUG-15`** | Bên Admin (`Đối Chiếu Yêu Cầu Cập Nhật Hồ Sơ`) hiển thị **2 cột lệch nhau ("kì vậy")** và **không hiện đúng/đủ các trường đã sửa** để so sánh (ví dụ Seller sửa `Nguyễn Phương Thúy` → `Nguyễn Phương Thùy`, cột trái DB không hề có Chủ hộ, Giấy phép, KYC Ngân hàng, Tên shop, còn địa chỉ hiện chuỗi JSON thô `["TP. Hồ Chí Minh"]`, không highlight chỗ khác nhau). | - [`AdminBusinessUpdateRequestsView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminBusinessUpdateRequestsView.tsx#L678-L833): Cột trái (*Dữ liệu Hiện Tại Trong DB*) chỉ render 5 trường rời rạc và không đọc snapshot các trường mở rộng (`repName`, `repIdCardNumber`, `businessLicenseNumber`, `issueDate`, `issuePlace`, `operator*`, `bank*`, `storeName`); cột phải (*Đề Xuất Cập Nhật Mới*) lại render ~12 block nên 2 cột lệch hàng hoàn toàn, không so khớp từng cặp trước/sau và không làm nổi bật trường thay đổi.<br>- Đồng thời tại [`AdminBusinessUpdateRequestsView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminBusinessUpdateRequestsView.tsx#L602), nút **Duyệt** trong subcard truyền nhầm nguyên object `req` vào `handleApprove(req)` thay vì `req.id`. | **High** |
+| **`BUG-16`** | Quá trình gửi yêu cầu cập nhật từ Seller sang Admin và phản hồi Duyệt/Từ chối từ Admin về Seller **thiếu đồng bộ Realtime**. | - [`BusinessModule`](file:///e:/HuKi/platform/apps/business-service/src/modules/business/business.module.ts) chưa sử dụng `BusinessOutboxModule` (`OutboxService`) để phát sự kiện `business.update_requested`, `business.update_approved`, `business.update_rejected`.<br>- [`NotificationEventConsumer`](file:///e:/HuKi/platform/apps/community-service/src/modules/notifications/notification-event.consumer.ts#L19-L47) chưa subscribe các event `business.update_*`, khiến chuông + Socket.io của Admin & Seller không nhận sự kiện tức thì.<br>- [`AdminBusinessUpdateRequestsView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminBusinessUpdateRequestsView.tsx#L100-L102) chỉ fetch dữ liệu 1 lần lúc mount, chưa lắng nghe `realtimeSyncBus`; [`seller/business/page.tsx`](file:///e:/HuKi/web/src/app/seller/business/page.tsx) và [`seller/business/notifications/page.tsx`](file:///e:/HuKi/web/src/app/seller/business/notifications/page.tsx) chỉ phụ thuộc polling 30s hoặc bus local cùng tab. | **High** |
+
+---
+
+### Bước 2: Phân tích Nguyên nhân Gốc rễ 4 Tầng & Ma trận Rủi ro Domino
+
+#### 1. `BUG-14` — Thiếu luồng Email OTP 6 số xác thực chỉnh sửa Hồ sơ Doanh nghiệp
+- **Tầng 1 (Database & Security State - `business-service`):** Bảng `Business` và `BusinessUpdateRequest` chưa có cơ chế lưu/xác thực mã OTP 6 số dùng 1 lần (single-use, TTL 10–15 phút, giới hạn thử sai tối đa 5 lần).
+- **Tầng 2 (Backend - `business.controller.ts`, `business.service.ts`, `business.module.ts`):** `EmailService` đã sẵn sàng trong `@huki/shared` (`EmailModule` hỗ trợ Gmail SMTP / Resend / SendGrid kèm `templateWithOtp`), nhưng `BusinessModule` chưa import và chưa expose endpoint gửi OTP (`POST /businesses/my/update-request/send-otp`) cũng như kiểm tra OTP ở `POST /businesses/my/update-request`.
+- **Tầng 3 (Gateway):** Route `/api/v1/businesses/*` đã proxy JWT qua `business-service`; chỉ cần đảm bảo endpoint mới nằm dưới prefix `/businesses/my/...` được giữ nguyên Auth header.
+- **Tầng 4 (Frontend - `seller/business/page.tsx`, `businessApi.ts`):** Form chỉnh sửa gọi trực tiếp API submit thay vì mở Popup OTP 6 chữ số (hiển thị email nhận mã, đếm ngược gửi lại, 6 ô nhập OTP / paste tự động, nút Xác nhận).
+- **Rủi ro Domino:** Nếu OTP gửi tới email mới nhập chưa xác thực, kẻ xấu chiếm session có thể đổi sang email lạ để vượt qua xác thực; do đó OTP phải gửi về **email pháp lý/chủ sở hữu đang đã xác thực trong DB** (`business.email || user.email`) và khóa chặt OTP theo `userId + businessId + digest(payload)` (hoặc cho phép nhập lại OTP mới nếu thay đổi payload) để chống sửa payload sau khi verify.
+
+#### 2. `BUG-15` — Modal/Panel Đối Chiếu Admin lệch 2 cột & thiếu Snapshot Trước/Sau
+- **Tầng 1 & 2 (Database & Backend - `business.service.ts`):** `createUpdateRequest` chỉ lưu `requestedData` mới mà chưa chụp kèm **snapshot hiện tại** (`previousData` kết hợp bảng `Business`, `Store[0]` và bản `APPROVED` gần nhất cho các trường mở rộng như `repName`, `repIdCardNumber`, `businessLicenseNumber`, `issueDate`, `issuePlace`, `operator*`). `getAllUpdateRequestsForAdmin` và `getUpdateRequestById` cũng chỉ trả về `business` thô chưa hợp nhất trường mở rộng.
+- **Tầng 4 (Frontend - `AdminBusinessUpdateRequestsView.tsx`):**
+  - Thiết kế 2 box đứng độc lập mỗi cột tự render số trường khác nhau → hai bên **không thẳng hàng ngang** để đối chiếu.
+  - Chuỗi `address` lưu dạng JSON string `["TP. Hồ Chí Minh"]` bị hiển thị nguyên dấu ngoặc vuông ở cột trái trong khi cột phải tách badge `Trụ sở 1`.
+  - Lỗi bug ngầm dòng 602: `onClick={() => handleApprove(req)}` truyền nguyên object thay vì `req.id`.
+- **Rủi ro Domino:** Đối với các yêu cầu `PENDING` cũ đã có trong DB trước đợt sửa này (không có trường `_snapshot` lưu sẵn), backend vẫn phải tự động dựng `currentSnapshot` hợp nhất từ `business` + `stores[0]` + `latestApprovedRequest` trước request hiện tại để Admin mở lại vẫn đối chiếu chuẩn 100%.
+
+#### 3. `BUG-16` — Đồng bộ Realtime Seller ↔ Admin qua RabbitMQ + Socket.io
+- **Tầng 1 & 2 (`business-service` Outbox & Controller):** `business.service.ts` cần ghi event vào `OutboxEvent` (`business.update_requested`, `business.update_approved`, `business.update_rejected`) thông qua `BusinessOutboxService`; `BusinessOutboxPublisher` đang chạy poll mỗi `1s` đẩy lên RabbitMQ exchange.
+- **Tầng 3 (`community-service` Consumer & Gateway):** [`NotificationEventConsumer`](file:///e:/HuKi/platform/apps/community-service/src/modules/notifications/notification-event.consumer.ts) nhận event → `NotificationDeliveryService` lưu MongoDB notification + bắn Socket.io:
+  - Khi Seller gửi yêu cầu → gửi về phòng `admin_channel` (`recipientType: 'ADMIN'`, `recipientId: 'admin_channel'`, `type: 'SYSTEM'`, `actionUrl: '/admin/business-requests'`, kèm `emitAdminModerationEvent` hoặc event `'notification'` + `payload.eventType`).
+  - Khi Admin Duyệt/Từ chối → gửi về phòng `userId` (`requestedBy` / `ownerId`) và `business:${businessId}` (`recipientType: 'BUSINESS'`).
+- **Tầng 4 (`@huki/web`):** `useRealtimeNotifications.ts` bắt notification có `businessUpdate` / `eventType` bắt đầu bằng `business.update_` để phát `BUSINESS_STATUS_UPDATED` / `BUSINESS_UPDATE_REQUESTED` lên `realtimeSyncBus`; `AdminBusinessUpdateRequestsView.tsx`, `seller/business/page.tsx`, và `seller/business/notifications/page.tsx` lắng nghe bus để cập nhật dữ liệu tức thì `< 1s` không cần F5.
+
+---
+
+### Bước 3: Phương án Kiến trúc Chuẩn Shopee & Tiêu chuẩn Nghiệm thu (`BUG-14`, `BUG-15`, `BUG-16`) — `[CHỜ PHÊ DUYỆT]`
+
+#### 1. Phương án cho `BUG-14` (Email + Popup OTP 6 số khi sửa Hồ sơ Shop)
+- **Phương án 1 — `(Khuyến nghị) [Stateless HMAC + Single-Use PostgreSQL Audit Nonce & Gmail SMTP/EmailService]`:**
+  1. **Backend (`business-service`):** Import `EmailModule` vào `BusinessModule`. Bổ sung `POST /businesses/my/update-request/send-otp`: tạo mã OTP 6 chữ số ngẫu nhiên (`crypto.randomInt`), ký kèm `otpToken` (JWT/HMAC chứa `sha256(otp)`, `businessId`, `userId`, `email`, `exp: 10 phút`, `nonce`), lưu bản ghi đánh dấu vào `AuditLog` (`action: 'UPDATE_REQUEST_OTP_SENT'`) để kiểm soát cooldown gửi lại (`60s`) & chống dùng lại (single-use check via `AuditLog` `UPDATE_REQUEST_OTP_USED`), và gửi email HTML OTP 6 số đẹp qua `EmailService` tới email chủ sở hữu đã xác thực (`business.email || actor.email`). Khi gọi `POST /businesses/my/update-request`, yêu cầu bắt buộc `otpCode` (6 chữ số) + `otpToken` hợp lệ (hoặc bypass an toàn cho internal test nếu có cờ rõ ràng? Không bypass ở prod, luôn verify thật!). **Không cần thêm bảng DB mới dễ lỗi migrate.**
+  2. **Frontend (`seller/business/page.tsx`, `businessApi.ts`):** Khi bấm Lưu / Gửi cập nhật sau validate form, hệ thống gọi `sendUpdateRequestOtp()` gửi email thực và mở **Popup Xác Thực OTP 6 Số** (hiển thị email nhận mã đã che một phần, 6 ô nhập tách rời hỗ trợ dán 6 số + tự focus, đồng hồ đếm ngược 60s gửi lại mã, hiển thị lỗi ngay trong popup nếu sai OTP).
+  - *Ưu điểm:* Không phụ thuộc thêm bảng PostgreSQL mới, an toàn mật mã + single-use replay protection, dùng đúng `EmailService` Gmail/Resend đã cấu hình sẵn trên UAT (`docker-compose.uat.yml`).
+  - *Nhược điểm:* Cần truyền thêm `otpToken` + `otpCode` từ popup khi submit.
+- **Phương án 2 — `[Thêm bảng BusinessOtpCode mới bằng Prisma schema]`:** Tạo bảng riêng lưu OTP trong PostgreSQL.
+  - *Ưu điểm:* Truy vấn trực quan bằng SQL.
+  - *Nhược điểm:* Phụ thuộc bước `prisma db push` trên server trước khi service mới chạy lần đầu; trong khi `AuditLog` + HMAC token hoạt động tức thì trên schema hiện hành.
+
+#### 2. Phương án cho `BUG-15` (Bảng Đối Chiếu Song Song Trước ↔ Sau Từng Trường + Highlight Thay Đổi)
+- **Phương án 1 — `(Khuyến nghị) [Aligned Row-by-Row Diff Table + Backend Snapshot]`:**
+  1. **Backend (`business.service.ts`):** Khi `createUpdateRequest`, chụp đầy đủ `previousSnapshot` (hợp nhất `Business`, `Store[0]` và bản `APPROVED` gần nhất cho các trường mở rộng `repName`, `repIdCardNumber`, `businessLicenseNumber`, `issueDate`, `issuePlace`, `operator*`, `bank*`, `internationalName`, `shortName`, `website`, `ecommerceIndustryCodes`, `headquarters`); đồng thời `getAllUpdateRequestsForAdmin` & `getUpdateRequestById` luôn chuẩn hóa trả về `currentSnapshot` đồng bộ đầy đủ (kể cả request cũ chưa có snapshot). Khi `approveUpdateRequest`, chuẩn hóa lưu và đọc lại đầy đủ từ cả `Business` và `latestApprovedRequest`.
+  2. **Frontend (`AdminBusinessUpdateRequestsView.tsx`):** Thay 2 thẻ lệch nhau bằng **Bảng Đối Chiếu Song Hàng 3 Cột (`Trường thông tin` | `1. Hiện Tại (Trong DB)` | `2. Đề Xuất Cập Nhật Mới`)** — mỗi trường nằm trên **cùng 1 hàng ngang**, hiển thị badge **"Đã thay đổi"** màu vàng/xanh cho đúng các trường khác nhau (như `Chủ hộ: Nguyễn Phương Thúy` ↔ `Nguyễn Phương Thùy` tô nổi bật phần khác), map `INDIVIDUAL → Hộ Kinh Doanh Cá Thể`, parse mảng địa chỉ sạch sẽ (`Trụ sở 1: ...`), có nút gạt **"Chỉ hiện trường thay đổi (N)"**, và sửa lỗi dòng 602 `handleApprove(req.id)`.
+  - *Ưu điểm:* Đối chiếu 1-1 tuyệt đối từng dòng, nhìn 1 giây thấy ngay đúng chỗ vừa sửa dù hồ sơ có 15–20 trường.
+  - *Nhược điểm:* Sửa khá nhiều JSX ở phần panel đối chiếu `AdminBusinessUpdateRequestsView.tsx`.
+- **Phương án 2 — `[Giữ layout 2 Card cũ nhưng bổ sung đủ trường còn thiếu cho cột trái]`:** Thêm `repName`, `bank*`, `storeName` vào box trái hiện tại.
+  - *Ưu điểm:* Sửa nhanh.
+  - *Nhược điểm:* Nếu 1 bên xuống dòng dài (địa chỉ/giấy phép), 2 cột vẫn bị lệch hàng ngang và khó lọc nhanh những trường bị sửa.
+
+#### 3. Phương án cho `BUG-16` (Realtime E2E Seller ↔ Admin cho Hồ Sơ Doanh Nghiệp)
+- **Phương án 1 — `(Khuyến nghị) [Outbox RabbitMQ -> NotificationDeliveryService -> Socket.io + RealtimeSyncBus]`:**
+  1. **Backend (`business-service` & `community-service`):** Import `BusinessOutboxModule` vào `BusinessModule`. `createUpdateRequest` phát `business.update_requested` (gửi Admin `admin_channel`); `approveUpdateRequest` & `rejectUpdateRequest` phát `business.update_approved` / `business.update_rejected` (gửi Seller owner `userId` + room `business:${businessId}`). `NotificationEventConsumer` xử lý 3 event này, lưu DB notification + đẩy Socket.io kèm payload `businessId`, `requestId`, `status`, `reason`.
+  2. **Frontend (`@huki/web`):** `useRealtimeNotifications.ts` publish `BUSINESS_UPDATE_REQUESTED` / `BUSINESS_STATUS_UPDATED` lên `realtimeSyncBus` khi nhận notification doanh nghiệp; `AdminBusinessUpdateRequestsView.tsx`, `seller/business/page.tsx`, và `seller/business/notifications/page.tsx` subscribe bus để tự reload im lặng + hiện toast + đồng bộ badge chuông ngay lập tức `< 1s`.
+  - *Ưu điểm:* Tái sử dụng 100% hạ tầng Outbox → RabbitMQ → `community-service` Socket.io đã chứng minh ổn định ở đơn hàng & Flash Sale, đảm bảo đa tab / đa trình duyệt (Seller ↔ Admin trên 2 máy khác nhau vẫn realtime).
+  - *Nhược điểm:* Phải build & chạy đồng bộ cả `business-service`, `community-service` và `web`.
+- **Phương án 2 — `[Chỉ Polling ngắn 5s ở Admin & Seller]`:** Giữ nguyên backend, chỉ giảm interval polling xuống 5 giây.
+  - *Ưu điểm:* Không chạm RabbitMQ.
+  - *Nhược điểm:* Tốn request liên tục mỗi 5s, không thực sự realtime và không đẩy được Toast + Chuông Admin/Seller tức thì.
+
+- **Acceptance Criteria (BDD/Gherkin):**
+  - `Given` Seller mở `/seller/business`, bấm **Cập nhật thông tin** và sửa tên Chủ hộ từ `Nguyễn Phương Thúy` → `Nguyễn Phương Thùy`, `When` bấm gửi cập nhật, `Then` hệ thống gửi email OTP 6 chữ số qua `EmailService` và mở Popup nhập OTP 6 số; nhập sai OTP bị chặn (`400`), nhập đúng OTP 6 số mới tạo `BusinessUpdateRequest` và gửi thành công (OTP cũ không dùng lại được lần 2).
+  - `Given` Admin đang mở sẵn `/admin/business-requests`, `When` Seller gửi yêu cầu vừa xác thực OTP, `Then` Admin nhận thông báo realtime trên chuông + toast và danh sách yêu cầu tự động cập nhật mà **không cần F5**; khi bấm **Đối Chiếu**, bảng 3 cột thẳng hàng hiển thị rõ `Nguyễn Phương Thúy (Nhà Sách HuKi)` ở cột Hiện Tại và `Nguyễn Phương Thùy (Nhà Sách HuKi)` được highlight **"Đã thay đổi"** ở cột Đề Xuất.
+  - `Given` Seller đang mở `/seller/business` hoặc `/seller/business/notifications`, `When` Admin bấm **Chấp nhận** hoặc **Từ chối**, `Then` Seller nhận toast + badge realtime `< 1s` và hồ sơ tự động cập nhật trạng thái mới nhất không cần F5.
+
+
 
 
 
