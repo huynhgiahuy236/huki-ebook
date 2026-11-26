@@ -462,6 +462,38 @@ export const businessApi = {
   },
 
   /**
+   * Lấy nhật ký hoạt động & kiểm toán hồ sơ doanh nghiệp (Seller)
+   */
+  async getMyAuditLogs(params?: { page?: number; limit?: number; action?: string; resource?: string }): Promise<
+    ApiResponse<{
+      items: Array<{
+        id: string;
+        actorId?: string;
+        actorRole?: string;
+        action: string;
+        resource: string;
+        resourceId?: string;
+        beforeState?: any;
+        afterState?: any;
+        changedFields?: string[];
+        metadata?: any;
+        createdAt: string;
+      }>;
+      total: number;
+      page: number;
+      limit: number;
+    }>
+  > {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.action) query.set('action', params.action);
+    if (params?.resource) query.set('resource', params.resource);
+    const url = `/businesses/my/audit-logs${query.toString() ? `?${query.toString()}` : ''}`;
+    return apiClient<any>(url, { method: 'GET' });
+  },
+
+  /**
    * Lấy tất cả yêu cầu cập nhật hồ sơ (Admin Sàn)
    */
   async getAllUpdateRequests(params?: { status?: string; page?: number; limit?: number }): Promise<ApiResponse<{ data: any[]; pagination: any }>> {

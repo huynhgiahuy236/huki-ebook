@@ -138,6 +138,28 @@ export class BusinessService {
       },
     });
 
+    // Record Audit Log for initial business registration
+    await this.recordBusinessAudit({
+      actorId: userId,
+      actorRole: 'BUSINESS',
+      action: AuditAction.CREATE,
+      resource: 'Business',
+      resourceId: business.id,
+      businessId: business.id,
+      afterState: {
+        name: business.name,
+        taxCode: business.taxCode,
+        businessType: business.businessType,
+        email: business.email,
+        phone: business.phone,
+        address: business.address,
+        status: business.status,
+        storeName: storefrontName,
+      },
+      changedFields: ['name', 'taxCode', 'businessType', 'email', 'phone', 'address', 'status'],
+      metadata: { storeName: storefrontName },
+    });
+
     // Emit event
     this.eventEmitter.emit(BUSINESS_EVENTS.REGISTERED, {
       businessId: business.id,
@@ -342,6 +364,39 @@ export class BusinessService {
   }
 
   // ==================== UPDATE ====================
+  private async recordBusinessAudit(params: {
+    actorId: string;
+    actorRole?: string;
+    action: AuditAction | string;
+    resource: string;
+    resourceId: string;
+    businessId: string;
+    beforeState?: any;
+    afterState?: any;
+    changedFields?: string[];
+    metadata?: Record<string, any>;
+    actorContext?: Partial<AuditActorContext>;
+  }) {
+    await this.auditService?.record({
+      actor: {
+        actorId: params.actorId,
+        actorRole: params.actorRole || params.actorContext?.actorRole || 'BUSINESS',
+        requestId: params.actorContext?.requestId,
+        ip: params.actorContext?.ip,
+        userAgent: params.actorContext?.userAgent,
+      },
+      module: 'BUSINESS',
+      action: params.action,
+      resource: params.resource,
+      resourceId: params.resourceId,
+      storeId: params.businessId,
+      beforeState: params.beforeState,
+      afterState: params.afterState,
+      changedFields: params.changedFields,
+      metadata: params.metadata,
+    });
+  }
+
   async updateBusiness(id: string, userId: string, dto: UpdateBusinessDto) {
     // Check ownership
     const business = await this.prisma.business.findUnique({
@@ -356,10 +411,37 @@ export class BusinessService {
       throwForbidden(ErrorCode.AUTHZ_NOT_OWNER);
     }
 
-    return this.prisma.business.update({
+    const updatedBusiness = await this.prisma.business.update({
       where: { id },
       data: dto,
     });
+
+    const changedFields = Object.keys((dto || {}) as Record<string, any>);
+    await this.recordBusinessAudit({
+      actorId: userId,
+      actorRole: 'BUSINESS',
+      action: AuditAction.UPDATE,
+      resource: 'Business',
+      resourceId: id,
+      businessId: id,
+      beforeState: {
+        name: business!.name,
+        email: business!.email,
+        phone: business!.phone,
+        address: business!.address,
+        bankName: business!.bankName,
+      },
+      afterState: {
+        name: updatedBusiness.name,
+        email: updatedBusiness.email,
+        phone: updatedBusiness.phone,
+        address: updatedBusiness.address,
+        bankName: updatedBusiness.bankName,
+      },
+      changedFields,
+    });
+
+    return updatedBusiness;
   }
 
   // ==================== APPROVAL FLOW ====================
@@ -1206,6 +1288,22 @@ export class BusinessService {
       },
     });
 
+    await this.recordBusinessAudit({
+      actorId: userId,
+      actorRole: 'BUSINESS',
+      action: AuditAction.CREATE,
+      resource: 'BusinessUpdateRequest',
+      resourceId: updateRequest.id,
+      businessId: business.id,
+      beforeState: previousSnapshot,
+      afterState: cleanRequestedData,
+      changedFields,
+      metadata: {
+        status: 'PENDING',
+        changedFieldCount: changedFields.length,
+      },
+    });
+
     await this.outboxService?.addToOutbox('business.update_requested', updateRequest.id, {
       eventType: 'business.update_requested',
       requestId: updateRequest.id,
@@ -1538,19 +1636,150 @@ export class BusinessService {
     };
   }
 
+  private buildLifecycleMilestoneLogs(
+    business: any,
+    existingItems: any[],
+    actionFilter?: string,
+    resourceFilter?: string,
+  ) {
+    if (!business) return [];
+    if (resourceFilter && resourceFilter !== 'Business') return [];
+
+    const milestones: any[] = [];
+    const hasAction = (action: string) =>
+      existingItems.some((item) => item.resource === 'Business' && item.action === action);
+
+    if (!hasAction('CREATE') && business.createdAt && (!actionFilter || actionFilter === 'CREATE')) {
+      milestones.push({
+        id: `milestone-create-${business.id}`,
+        actorId: business.ownerId,
+        actorRole: 'BUSINESS',
+        service: 'business-service',
+        module: 'BUSINESS',
+        action: 'CREATE',
+        resource: 'Business',
+        resourceId: business.id,
+        storeId: business.id,
+        beforeState: null,
+        afterState: {
+          name: business.name,
+          status: 'PENDING_APPROVAL',
+          taxCode: business.taxCode,
+          storeName: business.stores?.[0]?.name || business.name,
+        },
+        changedFields: ['name', 'taxCode', 'status'],
+        metadata: {
+          synthetic: true,
+          summary: 'Đăng ký hồ sơ doanh nghiệp & gian hàng',
+        },
+        createdAt: business.createdAt,
+      });
+    }
+
+    if (!hasAction('APPROVE') && business.approvedAt && (!actionFilter || actionFilter === 'APPROVE')) {
+      milestones.push({
+        id: `milestone-approve-${business.id}`,
+        actorId: business.approvedBy || 'SYSTEM',
+        actorRole: 'PLATFORM_ADMIN',
+        service: 'business-service',
+        module: 'BUSINESS',
+        action: 'APPROVE',
+        resource: 'Business',
+        resourceId: business.id,
+        storeId: business.id,
+        beforeState: { status: 'PENDING_APPROVAL' },
+        afterState: { status: 'APPROVED', name: business.name },
+        changedFields: ['status'],
+        metadata: {
+          synthetic: true,
+          summary: 'Ban quản trị sàn đã phê duyệt hồ sơ doanh nghiệp',
+        },
+        createdAt: business.approvedAt,
+      });
+    }
+
+    if (!hasAction('REJECT') && business.rejectedAt && (!actionFilter || actionFilter === 'REJECT')) {
+      milestones.push({
+        id: `milestone-reject-${business.id}`,
+        actorId: business.rejectedBy || 'SYSTEM',
+        actorRole: 'PLATFORM_ADMIN',
+        service: 'business-service',
+        module: 'BUSINESS',
+        action: 'REJECT',
+        resource: 'Business',
+        resourceId: business.id,
+        storeId: business.id,
+        beforeState: { status: 'PENDING_APPROVAL' },
+        afterState: { status: 'REJECTED', rejectionReason: business.rejectionReason || null },
+        changedFields: ['status', 'rejectionReason'],
+        metadata: {
+          synthetic: true,
+          summary: 'Hồ sơ doanh nghiệp bị từ chối',
+        },
+        createdAt: business.rejectedAt,
+      });
+    }
+
+    return milestones;
+  }
+
   async getBusinessAuditLogs(
     businessId: string,
-    params: { page?: number; limit?: number; action?: string },
+    params: { page?: number; limit?: number; action?: string; resource?: string },
   ) {
-    if (!this.auditService) {
-      return { items: [], total: 0, page: 1, limit: 10 };
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params.limit) || 20));
+
+    const result = this.auditService
+      ? await this.auditService.queryAuditLogs({
+          businessScopeId: businessId,
+          resource: params.resource,
+          page,
+          limit,
+          action: params.action,
+        })
+      : { items: [], total: 0, page, limit };
+
+    if (page === 1) {
+      const business = await this.prisma.business.findUnique({
+        where: { id: businessId },
+        include: { stores: { where: { deletedAt: null }, take: 1 } },
+      });
+      const milestones = this.buildLifecycleMilestoneLogs(
+        business,
+        result.items || [],
+        params.action,
+        params.resource,
+      );
+      if (milestones.length > 0) {
+        const merged = [...(result.items || []), ...milestones].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+        return {
+          items: merged.slice(0, limit),
+          total: (result.total || 0) + milestones.length,
+          page,
+          limit,
+        };
+      }
     }
-    return this.auditService.queryAuditLogs({
-      resource: 'Business',
-      resourceId: businessId,
-      page: params.page,
-      limit: params.limit,
-      action: params.action,
-    });
+
+    return result;
+  }
+
+  async getMyAuditLogs(
+    userId: string,
+    params: { page?: number; limit?: number; action?: string; resource?: string },
+  ) {
+    const business = await this.resolveBusinessForOwnerOrMember(userId);
+    if (!business) {
+      return {
+        items: [],
+        total: 0,
+        page: Math.max(1, Number(params.page) || 1),
+        limit: Math.min(100, Math.max(1, Number(params.limit) || 20)),
+      };
+    }
+    return this.getBusinessAuditLogs(business.id, params);
   }
 }

@@ -117,10 +117,10 @@ export function AdminFinanceView() {
       code: 'NHANAM',
       ordersCount: 2840,
       grossSales: 620400000,
-      shareRatio: '85% NXB / 15% Sàn',
-      platformFee: 93060000,
+      shareRatio: '95% NXB / 5% Sàn',
+      platformFee: 31020000,
       taxWithheld: 6204000,
-      netPayout: 521136000,
+      netPayout: 583176000,
       bankAccount: 'Ngân hàng Vietcombank - CN Ba Đình (001100489281)',
       period: 'Kỳ 1: 01/06 - 15/06/2026',
       status: 'pending_approval',
@@ -132,10 +132,10 @@ export function AdminFinanceView() {
       code: 'TRE',
       ordersCount: 2150,
       grossSales: 485600000,
-      shareRatio: '85% NXB / 15% Sàn',
-      platformFee: 72840000,
+      shareRatio: '95% NXB / 5% Sàn',
+      platformFee: 24280000,
       taxWithheld: 4856000,
-      netPayout: 407904000,
+      netPayout: 456464000,
       bankAccount: 'Ngân hàng VietinBank - CN TP.HCM (102893847291)',
       period: 'Kỳ 1: 01/06 - 15/06/2026',
       status: 'pending_approval',
@@ -147,10 +147,10 @@ export function AdminFinanceView() {
       code: 'KIMDONG',
       ordersCount: 2420,
       grossSales: 512300000,
-      shareRatio: '85% NXB / 15% Sàn',
-      platformFee: 76845000,
+      shareRatio: '95% NXB / 5% Sàn',
+      platformFee: 25615000,
       taxWithheld: 5123000,
-      netPayout: 430332000,
+      netPayout: 481562000,
       bankAccount: 'Ngân hàng BIDV - CN Hà Nội (12010009827361)',
       period: 'Kỳ 1: 01/06 - 15/06/2026',
       status: 'paid',
@@ -826,11 +826,11 @@ export function AdminFinanceView() {
       },
       {
         key: 'feesAndTax',
-        title: 'Phí Sàn 15% & Thuế',
+        title: 'Phí Sàn 5% & Thuế',
         render: (_val, batch) => (
           <div className="flex flex-col gap-0.5 text-[11px]">
             <span className="font-bold text-amber-700 font-mono">
-              -{(batch.platformFee || 0).toLocaleString()}₫ <span className="text-gray-400 font-normal">({batch.shareRatio || '85/15'})</span>
+              -{(batch.platformFee || 0).toLocaleString()}₫ <span className="text-gray-400 font-normal">({batch.shareRatio || '95/5'})</span>
             </span>
             <span className="text-gray-500 font-mono text-[10.5px]">
               Thuế: -{(batch.taxWithheld || 0).toLocaleString()}₫
@@ -1340,7 +1340,7 @@ export function AdminFinanceView() {
                   <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Khấu Trừ Sàn &amp; Nghĩa Vụ Thuế</h4>
                 </div>
                 <div className="text-[11px] space-y-1.5 text-gray-600">
-                  <div><span className="text-gray-400">Tỷ lệ phân chia:</span> <strong className="text-gray-900">{batch.shareRatio || '85% NXB / 15% Sàn'}</strong></div>
+                  <div><span className="text-gray-400">Tỷ lệ phân chia:</span> <strong className="text-gray-900">{batch.shareRatio || '95% NXB / 5% Sàn'}</strong></div>
                   <div><span className="text-gray-400">Phí hoa hồng sàn:</span> <span className="font-mono font-bold text-amber-700">-{(batch.platformFee || 0).toLocaleString()}₫</span></div>
                   <div><span className="text-gray-400">Thuế TNCN/TNDN tạm khấu:</span> <span className="font-mono text-gray-700">-{(batch.taxWithheld || 0).toLocaleString()}₫</span></div>
                   <div className="pt-1 border-t border-slate-100"><span className="text-gray-400">Thực nhận sau khấu trừ:</span> <strong className="font-mono text-[#00875A] text-xs block">{(batch.netPayout || 0).toLocaleString()}₫</strong></div>

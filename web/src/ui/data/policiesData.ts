@@ -228,7 +228,7 @@ export const POLICIES_DATA: Record<string, PolicyDocument> = {
         title: '3. Cam Kết Tác Quyền Của Nhà Xuất Bản & Tác Giả',
         content: [
           'Nhà xuất bản và Nhà bán hàng cam kết sở hữu đầy đủ Hợp đồng chuyển nhượng quyền tác giả hoặc Hợp đồng phân phối hợp pháp tại Việt Nam.',
-          'HuKi cam kết chia sẻ doanh thu minh bạch (tỷ lệ 85% cho NXB / 15% phí nền tảng vận hành), đối soát và hiển thị báo cáo lượt đọc theo thời gian thực (Realtime Royalty Dashboard).',
+          'HuKi cam kết chia sẻ doanh thu minh bạch (tỷ lệ 95% cho NXB / 5% phí nền tảng vận hành), đối soát và hiển thị báo cáo lượt đọc theo thời gian thực (Realtime Royalty Dashboard).',
         ],
       },
     ],

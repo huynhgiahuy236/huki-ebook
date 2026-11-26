@@ -190,7 +190,7 @@ export function AdminPublisherLeadsView() {
 
         <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs">
           <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">Chính Sách Hoa Hồng</span>
-          <div className="text-xl font-bold text-emerald-800 mt-1">85% NXB - 15% Sàn</div>
+          <div className="text-xl font-bold text-emerald-800 mt-1">95% NXB - 5% Sàn</div>
           <span className="text-[11px] text-gray-500 font-medium block mt-0.5">Áp dụng chuẩn toàn hệ thống</span>
         </div>
 

@@ -341,6 +341,27 @@ export class BusinessController {
     };
   }
 
+  @Get('my/audit-logs')
+  @ApiOperation({ summary: 'Get business activity and governance audit logs (Seller)' })
+  async getMyAuditLogs(
+    @CurrentUser('id') userId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('action') action?: string,
+    @Query('resource') resource?: string,
+  ) {
+    const data = await this.businessService.getMyAuditLogs(userId, {
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20,
+      action,
+      resource,
+    });
+    return {
+      success: true,
+      data,
+    };
+  }
+
   @Get('admin/update-requests')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('PLATFORM_ADMIN')

@@ -70,6 +70,21 @@ export interface SellerFinancialMetrics {
   totalCount: number;             // Alias
 }
 
+export const DEFAULT_PLATFORM_COMMISSION_PERCENT = 5;
+export const DEFAULT_PARTNER_REVENUE_PERCENT = 100 - DEFAULT_PLATFORM_COMMISSION_PERCENT;
+export const DEFAULT_PLATFORM_FEE_RATE = DEFAULT_PLATFORM_COMMISSION_PERCENT / 100;
+
+export function formatRevenueSplitLabel(
+  platformPercent = DEFAULT_PLATFORM_COMMISSION_PERCENT,
+  style: 'dot' | 'dash' | 'slash' = 'dot',
+): string {
+  const safePlatform = Math.min(100, Math.max(0, Math.round(platformPercent)));
+  const partnerPercent = 100 - safePlatform;
+  if (style === 'dash') return `${partnerPercent}% NXB - ${safePlatform}% Sàn`;
+  if (style === 'slash') return `${partnerPercent}% NXB / ${safePlatform}% Sàn`;
+  return `${partnerPercent}% Đối tác • ${safePlatform}% Sàn`;
+}
+
 export interface CalculateFinanceOptions {
   escrowItems: SellerEscrowItem[];
   wallet?: WalletData | null;
@@ -83,7 +98,7 @@ export interface CalculateFinanceOptions {
  * Đảm bảo 100% tính toán đồng nhất, không mock, khớp từng đồng giữa /seller/finance, /seller/reports và /seller/escrow.
  */
 export function calculateSellerFinancials(options: CalculateFinanceOptions): SellerFinancialMetrics {
-  const { escrowItems = [], wallet, payouts = [], transactions = [], platformFeeRate = 0.05 } = options;
+  const { escrowItems = [], wallet, payouts = [], transactions = [], platformFeeRate = DEFAULT_PLATFORM_FEE_RATE } = options;
 
   // Lọc chỉ lấy các đơn hợp lệ (bỏ qua CANCELLED / REFUNDED)
   const validItems = escrowItems.filter((it) => {
