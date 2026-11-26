@@ -1280,6 +1280,23 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
   - [`scripts/test_e2e_bug08_chat_notification.js`](file:///e:/HuKi/scripts/test_e2e_bug08_chat_notification.js): Verified real MongoDB `ChatService.sendMessage` → `chat.message.sent` → `NotificationEventConsumer` fan-out (`ownerUserIds`), idempotency (`sourceKey`), `NotificationDeliveryService.push()` FCM `$in`, `NotificationGateway` `BUSINESS_STAFF` room join, and 4-channel UI sync — **PASS**.
   - [`scripts/test_e2e_bug09_seller_flash_sale.js`](file:///e:/HuKi/scripts/test_e2e_bug09_seller_flash_sale.js): Verified 0 `window.confirm`, `CountdownConfirmModal` `5s → 0s` lock/unlock & portal, `StudioBookRow` memoization, `startTransition`, `animate-spin` feedback — **PASS**.
 
+---
+
+### Bước 4 — Giai đoạn 2: Thực thi Sửa lỗi & Kiểm thử E2E (`BUG-10`) — `[ĐÃ SỬA & PASS E2E GĐ2]`
+
+#### 1. `BUG-10` — Tái thiết kế `/admin/flash-sales` dùng `GroupedDataTable` đồng bộ Seller + Modal xóa đếm ngược 5s — `[ĐÃ SỬA & PASS E2E]`
+- **Thay đổi đã thực hiện:**
+  - [`web/src/ui/components/admin/AdminFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminFlashSaleView.tsx):
+    - Thay toàn bộ danh sách card/table bung sẵn bằng [`GroupedDataTable<FlashSaleSlot>`](file:///e:/HuKi/web/src/ui/components/common/GroupedDataTable.tsx) với 5 cột đồng bộ 1-1 với Seller (`Đợt Flash Sale & Khung Giờ`, `Shop & Chính Sách`, `Ấn Phẩm Đăng Ký`, `Tiến Độ & Doanh Thu`, `Trạng Thái & Thao Tác`), sắp xếp nhất quán (`ACTIVE → SCHEDULED → ENDED → CANCELLED`) và phân trang chuẩn `10` phiên/trang.
+    - Hỗ trợ `expandable={true}` + `expandedRowRender` hiển thị bảng danh sách sách trong từng phiên với thao tác inline `Sửa Tồn` và `Xóa`.
+    - Thay thế toàn bộ 2 `window.confirm` (`handleCancelSlot` và `handleRemoveItem`) bằng [`CountdownConfirmModal`](file:///e:/HuKi/web/src/ui/components/common/CountdownConfirmModal.tsx) yêu cầu đếm ngược `5s → 0s` mới cho phép xác nhận.
+    - Tối ưu `handleOpenStudio` qua `React.startTransition` và chuyển `handleBatchSubmit` sang gọi song song theo batch (`CHUNK_SIZE = 5` với `Promise.allSettled`) kèm spinner `progress_activity`, đồng thời giữ nguyên Form 4 mốc, Modal Kết Thúc Sớm 5 phút và Tab Kiểm soát Sao Quả Tạ (`AdminPenaltyArbitrationView`).
+
+#### 2. Kết quả Kiểm chứng Tự động (Giai đoạn 2)
+- **Frontend TypeScript (`@huki/web`):** `npm --prefix e:\HuKi\web run typecheck` (`tsc --noEmit`) — **PASS (exit 0)**.
+- **E2E Verification Script:** [`scripts/test_e2e_bug10_admin_flash_sales.js`](file:///e:/HuKi/scripts/test_e2e_bug10_admin_flash_sales.js) — **PASS** (5/5 kiểm thử cấu trúc `GroupedDataTable<FlashSaleSlot>`, 5 cột chuẩn hóa, 10/trang, 0 `window.confirm`, `CountdownConfirmModal` 5s cho `CANCEL_SLOT` & `REMOVE_ITEM`, `Promise.allSettled` batch `CHUNK_SIZE = 5` và mô phỏng sort/slicing/KPI 15 phiên).
+
+
 
 
 
