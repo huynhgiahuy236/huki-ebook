@@ -1711,7 +1711,50 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
   - Backend build (`npm run build`) & Jest `test:all`: **75/75 suites, 809/809 tests PASS** (gồm unit test mới trong [`business.service.spec.ts`](file:///e:/HuKi/platform/apps/business-service/src/modules/business/business.service.spec.ts)).
   - Frontend `typecheck` + `lint` + Vitest (11 test files, gồm [`sellerFinanceEngine.test.ts`](file:///e:/HuKi/web/src/ui/utils/__tests__/sellerFinanceEngine.test.ts)) + `next build` (142 routes): PASS.
   - E2E script [`test_e2e_bug19_20_commission_audit_log.js`](file:///e:/HuKi/scripts/test_e2e_bug19_20_commission_audit_log.js) & hồi quy [`test_e2e_bug14_15_16_business_otp_diff_realtime.js`](file:///e:/HuKi/scripts/test_e2e_bug14_15_16_business_otp_diff_realtime.js): PASS.
-- **Trạng thái Git:** Sẵn sàng commit trên `fix/business-commission-audit-log` và merge `--no-ff` vào `develop` local.
+- **Trạng thái Git:** Đã commit & merge `--no-ff` vào `develop` (`8f87e37`).
+
+---
+
+## 13. ĐỢT XỬ LÝ BUG-21, BUG-22, BUG-23 — NHÁNH `fix/home-reviews-moderation-avatar`
+
+> **Nhánh làm việc:** `fix/home-reviews-moderation-avatar` (khởi tạo từ `develop` `8f87e37`)  
+> **Quy trình áp dụng:** [`readme-bug.md`](file:///e:/HuKi/readme-bug.md) (Bước 1 → Bước 12).
+
+### Bước 1: Thu thập & Tái hiện Thực trạng Lỗi (26/11/2026)
+
+| Mã Bug | Mô tả & Bằng chứng từ Người dùng | Thực trạng kiểm chứng trong mã nguồn | Mức độ |
+| :--- | :--- | :--- | :--- |
+| **`BUG-21`** | Trang chủ (`Cảm Nhận Từ Độc Giả Đã Mua Sách`) đang hiển thị cả review **vi phạm ngôn từ** (`"đụ mẹ ngu quá"` — `status: FLAGGED`, `isReported: true`), avatar chỉ hiện chữ cái (`N`, `H`) dù user có avatar Google thật, và Book Detail cũng chưa hydrate avatar chuẩn từ Identity Service cũng như vẫn lộ nội dung bị gắn cờ vi phạm ngôn từ ra công khai. | - [`reviews.service.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/reviews/reviews.service.ts#L62-L66): `list()` trả công khai `status: { $in: ["PUBLISHED", "FLAGGED"] }`, và `create()` chỉ lấy `actor.avatar` từ JWT (thường rỗng/cũ) mà chưa hydrate từ [`InternalUserController.profiles`](file:///e:/HuKi/platform/apps/identity-service/src/modules/user/internal-user.controller.ts#L58-L61).<br>- [`web/src/app/page.tsx`](file:///e:/HuKi/web/src/app/page.tsx#L468-L494): chỉ lấy 10 sách đầu, gom mù toàn bộ review (kể cả `FLAGGED`/`isReported`/rác) và render `<div ...>H</div>` cứng tại dòng 1975 thay vì `<UserAvatar />`. | **Critical** |
+| **`BUG-22`** | Card đánh giá trên Trang chủ hiện thiếu hình ảnh cuốn sách (cột ảnh bên phải), nút `Xem sách →` trỏ nhầm route `/books/${bookId}` (gây 404) thay vì `/book/${slug \|\| id}`. | - [`web/src/app/page.tsx`](file:///e:/HuKi/web/src/app/page.tsx#L1967-L2015): card chỉ có 1 cột chữ, không hiển thị `bookCover` và link tới `/books/${rev.bookId}` không tồn tại (route chi tiết thật là `/book/[id]`). | **Medium** |
+| **`BUG-23`** | Trang chủ chưa tính điểm xếp hạng dựa trên lượt thích (`helpfulCount`) + bình luận/phản hồi (`replies.length`) và chưa ưu tiên tỷ lệ **70% đánh giá 5 sao**. | - [`web/src/app/page.tsx`](file:///e:/HuKi/web/src/app/page.tsx#L470-L492): chỉ lấy `topBooks = realBooks.slice(0, 10)` và `realReviews.slice(0, 3)` theo thứ tự ngẫu nhiên sách đầu tiên. | **Medium** |
+
+---
+
+### Bước 2: Phân tích Nguyên nhân Gốc rễ & Ma trận Rủi ro Domino
+
+1. **Avatar (`identity-service` -> `community-service` -> Home & Book Detail):**
+   - JWT access token không luôn mang ảnh đại diện mới nhất. Cần cấu hình `identityUrl` trong [`community-service/config/configuration.ts`](file:///e:/HuKi/platform/apps/community-service/config/configuration.ts) và gọi batch `POST /internal/users/profiles` trong `ReviewsService` khi tạo mới & khi trả danh sách đánh giá (dùng chung helper `hydrateAuthorProfiles`), giúp **cả Trang chủ và Book Detail** đồng bộ avatar thật của người dùng; nếu user chưa có ảnh, `<UserAvatar />` tự fallback về chữ cái đầu sạch sẽ.
+2. **Kiểm soát vi phạm trên Home & Book Detail:**
+   - **Trang chủ (`GET /reviews/featured`):** Chỉ chọn review `targetType: "BOOK"`, `status: "PUBLISHED"`, `isReported !== true`, `rating >= 4`, không có `moderationNote`, vượt qua `AutoModerationService.inspect` và bộ lọc spam/chuỗi vô nghĩa/sách test.
+   - **Book Detail (`/book/[id]`):** Không làm vỡ flow Admin xử lý báo cáo từ user (`isReported` khi đang `PUBLISHED`), nhưng với review đã bị auto-flag/vi phạm ngôn từ (`status === 'FLAGGED'` hoặc `PROFANITY`), chỉ tác giả / Seller / Admin mới xem được trạng thái cảnh báo; độc giả công khai không bị phơi bày nội dung vi phạm ra giao diện.
+3. **Bố cục 2 cột & Thuật toán Ưu tiên 5 sao 70% theo Tương tác:**
+   - Tính điểm tương tác từ `likesCount (helpfulCount) + commentsCount (replies.length)` (cộng trọng số nhỏ cho `verifiedPurchase` và độ mới để tách hòa).
+   - Phân bổ suất hiển thị với tối thiểu **`Math.ceil(slots * 0.7)` (≥ 70%) là đánh giá 5 sao** tương tác cao nhất, phần còn lại (≤ 30%) là đánh giá 4 sao sạch tương tác cao nhất (tự động bù chéo nếu thiếu).
+   - Card Trang chủ dùng lưới **2 cột (`Trái`: Avatar thật + Tên + Sách đã mua + Sao + Nhận xét + Thích/Bình luận + Ngày; `Phải`: 1 cột ảnh bìa sách)**, bấm vào thẻ/ảnh/link sẽ mở `/book/${rev.bookSlug || rev.bookId}`.
+
+---
+
+### Bước 3: Phương án Đề Xuất & Tiêu chuẩn Nghiệm thu (`BUG-21`, `BUG-22`, `BUG-23`) — `[CHỜ PHÊ DUYỆT]`
+
+- **Phương án 1 — `(Khuyến nghị) [Lọc Sạch + Hydrate Avatar Identity + Card 2 Cột Ảnh Sách Phải + Xếp hạng Like/Bình luận ưu tiên 70% 5 sao]`:**
+  1. Thêm `GET /reviews/featured` tại `community-service` + hydrate avatar thật từ `identity-service` cho cả Home (`featured`) và Book Detail (`list`, `listSellerReviews`); hạn chế hiển thị review `FLAGGED`/vi phạm ngôn từ ra công khai.
+  2. Xây dựng helper xếp hạng theo `likesCount + commentsCount` và chọn ưu tiên **≥ 70% đánh giá 5 sao**.
+  3. Thiết kế lại card trên [`web/src/app/page.tsx`](file:///e:/HuKi/web/src/app/page.tsx) thành **2 cột** (Trái: thông tin người đánh giá dùng `<UserAvatar />`, sao, cảm nhận, lượt thích/bình luận; Phải: ảnh bìa sách 1 cột) và bấm vào chuyển thẳng tới `/book/${slug || id}`.
+- **Phương án 2 — `[Chỉ lọc ở Frontend mà giữ nguyên query cũ]`:** Bị giới hạn trong 10 sách đầu, không lấy được avatar thật từ Identity Service cho các review cũ.
+- **Acceptance Criteria (BDD/Gherkin):**
+  - `Given` Hệ thống có cả review `PUBLISHED` lẫn `FLAGGED`/chứa từ thô tục (như `"đụ mẹ ngu quá"`), `When` người dùng mở Trang chủ `/`, `Then` chỉ các review sạch (`PUBLISHED`, không vi phạm, có ảnh bìa & thông tin hợp lệ) mới hiển thị.
+  - `Given` Người dùng có avatar trên Identity Service, `When` xem đánh giá trên Trang chủ và Trang chi tiết sách (`/book/[id]`), `Then` avatar thật hiển thị chuẩn ở cả 2 nơi.
+  - `Given` Card đánh giá trên Trang chủ, `Then` bên trái hiển thị thông tin + lượt thích/bình luận, bên phải là 1 cột hình bìa sách, tỷ lệ review 5 sao đạt **≥ 70%** ưu tiên theo tương tác cao nhất, và bấm vào mở đúng trang `/book/[slug-hoặc-id]`.
 
 
 
