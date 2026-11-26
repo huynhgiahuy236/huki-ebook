@@ -1657,6 +1657,44 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 3. **Gate 3 — Backend Build & Full Jest:** `npm --prefix platform run build` exit 0; `npm --prefix platform test -- --runInBand --forceExit` — **`75/75` suites, `808/808` tests PASS**.
 4. **Gate 4 — Frontend Checks & Production Build:** `typecheck` pass, `lint` pass, Vitest (`10/10` files, `71/71` tests) pass, `next build` (`142/142` routes) — **PASS**.
 
+---
+
+## 12. ĐỢT XỬ LÝ BUG-19, BUG-20 — NHÁNH `fix/business-commission-audit-log`
+
+> **Nhánh làm việc:** `fix/business-commission-audit-log` (khởi tạo từ `develop` `7a402ad`)  
+> **Quy trình áp dụng:** [`readme-bug.md`](file:///e:/HuKi/readme-bug.md) (Bước 1 → Bước 12).
+
+### Bước 1: Thu thập & Tái hiện Thực trạng Lỗi (26/11/2026)
+
+| Mã Bug | Mô tả & Bằng chứng từ Người dùng | Thực trạng kiểm chứng trong mã nguồn | Mức độ |
+| :--- | :--- | :--- | :--- |
+| **`BUG-19`** | Trang Hồ sơ gian hàng (`/seller/business`) hiển thị sai **"Tỷ lệ phân chia doanh thu: 85% Đối tác • 15% Sàn"** (thực tế hệ thống chỉ thu phí sàn **5%** → phải là **95% Đối tác • 5% Sàn**). | - Engine tài chính [`policy-config.defaults.ts`](file:///e:/HuKi/platform/libs/shared/src/config/policy-config.defaults.ts#L16) (`platformCommissionPercent: 5`), [`sellerFinancials.ts`](file:///e:/HuKi/web/src/ui/utils/sellerFinancials.ts#L86) (`platformFeeRate = 0.05`) và [`seller/finance/page.tsx`](file:///e:/HuKi/web/src/app/seller/finance/page.tsx#L361) đều tính **5% Sàn / 95% Đối tác**.<br>- Tuy nhiên [`seller/business/page.tsx`](file:///e:/HuKi/web/src/app/seller/business/page.tsx#L815) (cùng các nhãn cũ ở [`AdminSettingsView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminSettingsView.tsx#L18), [`AdminFinanceView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminFinanceView.tsx#L120), [`AdminPublishersView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminPublishersView.tsx#L64), [`AdminPublisherLeadsView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminPublisherLeadsView.tsx#L193)) lại hardcode **`85% / 15%`**. | **Medium** |
+| **`BUG-20`** | Trang Thông Báo Yêu Cầu Chỉnh Sửa Hồ Sơ (`/seller/business/notifications`) hiện **`Tất cả (0)` / Không tìm thấy thông báo nào** — *"chưa ghi log chỗ này"* (dù Seller đã đăng ký, được duyệt, sửa hoặc mở từ chuông thông báo). | - [`business.service.ts`](file:///e:/HuKi/platform/apps/business-service/src/modules/business/business.service.ts): `registerBusiness`, `updateBusiness`, `createUpdateRequest` **chưa ghi bản ghi vào bảng `audit_logs`** (`auditService.record` chỉ mới gọi ở hành động Admin approve/reject); đồng thời chưa có endpoint `GET /businesses/my/audit-logs` cho Seller.<br>- [`seller/business/notifications/page.tsx`](file:///e:/HuKi/web/src/app/seller/business/notifications/page.tsx) chỉ đọc `business_update_requests` và `user?.business?.id` mà không gọi `getMyBusiness()`, không hợp nhất **Nhật ký hoạt động & thẩm định hồ sơ (`audit_logs`)** cùng mốc **Đăng ký / Phê duyệt ban đầu** của doanh nghiệp → gian hàng mới duyệt hoặc nhân viên/một số thao tác thấy toàn `(0)` trống trơn. | **High** |
+
+---
+
+### Bước 2: Phân tích Nguyên nhân Gốc rễ & Ma trận Rủi ro Domino
+
+1. **`BUG-19` (Sai Tỷ lệ Phân chia 85/15 thay vì 95/5):**
+   - *Nguyên nhân:* Chuỗi text tĩnh `85% Đối tác • 15% Sàn` được viết cứng trong UI trước khi chuẩn `DEC-002` (`5%` phí sàn) áp dụng vào engine `sellerFinancials.ts` / `escrow` / `wallet`.
+   - *Domino:* Cập nhật thống nhất toàn bộ nhãn hiển thị sang **`95% Đối tác • 5% Sàn`** (`95% NXB / 5% Sàn`) mà không làm sai lệch bất kỳ phép tính tiền nào đang đúng `5%` ở Escrow/Wallet.
+2. **`BUG-20` (Ghi Log Đầy Đủ & Nhật Ký Hồ Sơ Seller):**
+   - *Tầng 1 & 2 (`business.service.ts`, `business.controller.ts`):* Bổ sung `auditService.record(...)` cho `registerBusiness` (`CREATE`), `updateBusiness` (`UPDATE`), `createUpdateRequest` (`UPDATE_REQUEST` / `CREATE` kèm `changedFields`), đồng thời bổ sung endpoint `GET /businesses/my/audit-logs` trả về toàn bộ nhật ký kiểm toán (`audit_logs` của `businessId` + fallback mốc `createdAt`/`approvedAt` của chính `Business` nếu shop được tạo trước đó khi chưa có log) và cho phép cả Owner lẫn Member đang hoạt động đọc qua `resolveBusinessForOwnerOrMember(..., { allowAnyMember: true })`.
+   - *Tầng 4 (`seller/business/notifications/page.tsx`, `seller/business/page.tsx`, `businessApi.ts`):* Hợp nhất tải đồng thời `getMyBusiness()`, `getMyUpdateRequests()`, và `getMyAuditLogs()` + đồng bộ `bizId = business?.id || user?.business?.id || activeBusinessId`; hiển thị thêm tab / dòng thời gian **Nhật ký Hoạt động & Thẩm định Hồ sơ (Audit Log)** bên cạnh danh sách Yêu cầu chỉnh sửa, giúp Seller theo dõi trọn vẹn mọi log (đăng ký, phê duyệt ban đầu, gửi OTP, gửi yêu cầu sửa, Admin duyệt/từ chối) theo thời gian thực.
+
+---
+
+### Bước 3: Phương án Đề Xuất & Tiêu chuẩn Nghiệm thu (`BUG-19`, `BUG-20`) — `[CHỜ PHÊ DUYỆT]`
+
+- **Phương án 1 — `(Khuyến nghị) [Đồng bộ 95% Đối tác / 5% Sàn + Ghi AuditLog đầy đủ & Hợp nhất Nhật ký Seller]`:**
+  1. Cập nhật tỷ lệ hiển thị từ `85% / 15%` → **`95% Đối tác • 5% Sàn`** (tại `/seller/business` và đồng bộ các màn hình Admin Finance/Settings/Publishers hiển thị sai).
+  2. Ghi log DB (`audit_logs`) cho mọi sự kiện vòng đời Business (`registerBusiness`, `updateBusiness`, `createUpdateRequest`) và mở `GET /businesses/my/audit-logs`; nâng cấp `/seller/business/notifications` hiển thị cả **Yêu cầu chỉnh sửa** lẫn **Nhật ký Hoạt động & Thẩm định Hồ Sơ** realtime (bao gồm lịch sử Đăng ký & Duyệt gian hàng ban đầu cho các shop chưa có update request).
+- **Phương án 2 — `[Chỉ sửa text 95% Đối tác / 5% Sàn tại /seller/business và bỏ qua ghi AuditLog Seller]`:** Nhanh nhưng `/seller/business/notifications` của các shop vừa duyệt hoặc thao tác cập nhật vẫn không có nhật ký log đầy đủ.
+- **Acceptance Criteria (BDD/Gherkin):**
+  - `Given` Seller mở `/seller/business`, `When` trang tải xong, `Then` thẻ Tỷ lệ phân chia doanh thu hiển thị chính xác **`95% Đối tác • 5% Sàn`** khớp với engine tài chính `5%`.
+  - `Given` Seller tạo/cập nhật/gửi yêu cầu chỉnh sửa hồ sơ (hoặc vừa được duyệt gian hàng), `When` mở `/seller/business/notifications`, `Then` hệ thống hiển thị đầy đủ bản ghi yêu cầu chỉnh sửa + nhật ký **Audit Log** có thời gian, người thực hiện, hành động và chi tiết thay đổi, đồng bộ realtime khi có sự kiện mới.
+
+
 
 
 
