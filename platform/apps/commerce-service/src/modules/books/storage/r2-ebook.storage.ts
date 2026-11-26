@@ -13,19 +13,49 @@ export class R2EbookStorage implements EbookStorage {
   private readonly existsCache = new Map<string, { value: boolean; expiresAt: number }>();
 
   constructor(configService: ConfigService) {
-    const endpoint = configService.get<string>('storage.r2.endpoint');
-    const accessKeyId = configService.get<string>('storage.r2.accessKeyId', '');
-    const secretAccessKey = configService.get<string>('storage.r2.secretAccessKey', '');
-    this.bucket = configService.get<string>('storage.r2.bucket', 'huki-ebooks');
-    this.hasR2Config = Boolean(endpoint && accessKeyId && secretAccessKey);
+    const accountId = process.env.R2_ACCOUNT_ID?.trim();
+    const rawEndpoint =
+      configService.get<string>('storage.r2.endpoint')?.trim() ||
+      process.env.CLOUDFLARE_R2_ENDPOINT?.trim() ||
+      process.env.R2_ENDPOINT?.trim() ||
+      (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : '');
+    const accessKeyId =
+      configService.get<string>('storage.r2.accessKeyId')?.trim() ||
+      process.env.CLOUDFLARE_R2_ACCESS_KEY_ID?.trim() ||
+      process.env.R2_ACCESS_KEY_ID?.trim() ||
+      '';
+    const secretAccessKey =
+      configService.get<string>('storage.r2.secretAccessKey')?.trim() ||
+      process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY?.trim() ||
+      process.env.R2_SECRET_ACCESS_KEY?.trim() ||
+      '';
+    this.bucket =
+      configService.get<string>('storage.r2.bucket')?.trim() ||
+      process.env.CLOUDFLARE_R2_BUCKET?.trim() ||
+      process.env.R2_BUCKET_NAME?.trim() ||
+      'huki-ebooks';
+    const normalizedEndpoint = rawEndpoint
+      .replace(/\/+$/, '')
+      .replace(new RegExp(`/${this.bucket}$`, 'i'), '');
+    this.hasR2Config = Boolean(normalizedEndpoint && accessKeyId && secretAccessKey);
+    if (!this.hasR2Config) {
+      console.warn('[R2EbookStorage] R2 credentials/endpoint are not configured; falling back to local assets only.');
+    }
     this.client = new S3Client({
       region: 'auto',
-      endpoint,
+      endpoint: normalizedEndpoint || undefined,
+      forcePathStyle: true,
       credentials: {
         accessKeyId,
         secretAccessKey,
       },
     });
+  }
+
+  private isNotFoundError(err: any): boolean {
+    const status = err?.$metadata?.httpStatusCode;
+    const code = err?.name || err?.Code || err?.code;
+    return status === 404 || code === 'NotFound' || code === 'NoSuchKey';
   }
 
   private findLocalAssetPath(key: string): string | null {
@@ -131,8 +161,12 @@ export class R2EbookStorage implements EbookStorage {
       );
       this.existsCache.set(key, { value: true, expiresAt: now + 60_000 });
       return true;
-    } catch {
-      this.existsCache.set(key, { value: false, expiresAt: now + 30_000 });
+    } catch (err: any) {
+      const notFound = this.isNotFoundError(err);
+      if (!notFound) {
+        console.warn(`[R2EbookStorage] HeadObject failed for ${key}: ${err?.name || ''} ${err?.message || err}`);
+      }
+      this.existsCache.set(key, { value: false, expiresAt: now + (notFound ? 30_000 : 5_000) });
       return false;
     }
   }

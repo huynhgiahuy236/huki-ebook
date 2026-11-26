@@ -1219,7 +1219,9 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 
 ---
 
-### Bước 3 — Giai đoạn 2: Phương án Kiến trúc Chuẩn Shopee & Tiêu chuẩn Nghiệm thu (`BUG-10`)
+### Bước 3 — Giai đoạn 2: Phương án Kiến trúc Chuẩn Shopee & Tiêu chuẩn Nghiệm thu (`BUG-10`) — `[ĐÃ PHÊ DUYỆT]`
+
+> **Quyết định của Người dùng / PO:** Đã phê duyệt **Phương án 1 `(Khuyến nghị) [Chuẩn Shopee Seller/Admin Center]`** cho bố cục `GroupedDataTable` và đồng bộ Modal xác nhận đếm ngược 5s cho `/admin/flash-sales`.
 
 #### 4. Phương án cho `BUG-10` (`/admin/flash-sales` dùng `GroupedDataTable` đồng bộ Seller)
 - **Phương án 1 — `(Khuyến nghị) [Chuẩn Shopee Seller/Admin Center]`:**
@@ -1240,6 +1242,44 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 - **Acceptance Criteria (BDD/Gherkin):**
   - `Given` Admin truy cập `/admin/flash-sales`, `When` dữ liệu tải xong, `Then` danh sách đợt Flash Sale hiển thị bằng `GroupedDataTable` đồng bộ giao diện Seller với 5 cột rõ ràng, phân trang tối đa 10 phiên/trang, lọc tab & tìm kiếm tức thì.
   - `Given` Admin bấm mở rộng (`>`) một phiên trong `GroupedDataTable`, `When` thao tác Sửa tồn / Xóa sách / Studio Gán Sách / Kết thúc sớm / Hủy lịch, `Then` tất cả thao tác hoạt động bình thường với API thật, 0 lỗi console, không còn popup `window.confirm` mặc định của trình duyệt.
+
+---
+
+### Bước 4 — Giai đoạn 1: Thực thi Sửa lỗi & Kiểm thử E2E (`BUG-07`, `BUG-08`, `BUG-09`) — `[ĐÃ SỬA & PASS E2E GĐ1]`
+
+#### 1. `BUG-07` — Ebook Reader (`hasPdf: false`, `404 NO_PDF_AVAILABLE` dù sách có key trên R2) — `[ĐÃ SỬA & PASS E2E]`
+- **Thay đổi đã thực hiện:**
+  - [`platform/apps/commerce-service/config/configuration.ts`](file:///e:/HuKi/platform/apps/commerce-service/config/configuration.ts): Chuẩn hóa cấu hình R2 đa nguồn biến môi trường (`CLOUDFLARE_R2_*` và `R2_*`, tự tổng hợp endpoint từ `R2_ACCOUNT_ID`).
+  - [`docker-compose.uat.yml`](file:///e:/HuKi/docker-compose.uat.yml): Truyền đầy đủ cả `CLOUDFLARE_R2_*` lẫn `R2_*` vào container `commerce-service-uat`.
+  - [`platform/apps/commerce-service/src/modules/books/storage/r2-ebook.storage.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/storage/r2-ebook.storage.ts): Bật `forcePathStyle: true`, cảnh báo startup khi thiếu cấu hình R2, chuẩn hóa kiểm tra `isNotFoundError`, rút ngắn TTL cache lỗi tạm thời còn 5s để tránh cache sai 404.
+  - [`platform/apps/commerce-service/src/modules/books/books.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/books.service.ts): `hasReadablePdfKey`, `findOne`, `findBySlug` kiểm tra bổ sung `REAL_EBOOK_MAPPINGS[slug]`; `streamPdf` thử lần lượt `candidateStreamKeys` và trả `503 EBOOK_STORAGE_UNAVAILABLE` khi R2 lỗi kết nối/timeout thay vì `404 NO_PDF_AVAILABLE`; cập nhật unit test tại [`books.service.spec.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/books.service.spec.ts).
+  - [`platform/apps/api-gateway/src/modules/proxy/route-classification.ts`](file:///e:/HuKi/platform/apps/api-gateway/src/modules/proxy/route-classification.ts): Mở `HEAD` bên cạnh `GET` cho các public route ebook/system.
+  - [`web/src/app/reader/page.tsx`](file:///e:/HuKi/web/src/app/reader/page.tsx): Không short-circuit sớm màn "Chưa Có Bản Đọc Số" khi metadata sách còn `hasSourceFile` hoặc `hasPreviewFile`.
+
+#### 2. `BUG-08` — Buyer → Seller Chat thiếu Chuông / Badge / Push / Toast — `[ĐÃ SỬA & PASS E2E]`
+- **Thay đổi đã thực hiện:**
+  - [`platform/apps/community-service/src/modules/notifications/seller-scope-resolver.service.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/notifications/seller-scope-resolver.service.ts): Thêm mở rộng alias Official Store (`OFFICIAL_STORE_ALIASES`) và `resolveTarget(targetId)` gọi `/internal/resolve-target/:targetId` (cache 30s) để ánh xạ `storeId`/`businessId` ↔ danh sách `ownerUserIds` duy nhất.
+  - [`platform/apps/community-service/src/modules/notifications/notification-event.consumer.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/notifications/notification-event.consumer.ts): `resolveTargets(event)` tự động fan-out target `BUSINESS` của `chat.message.sent` ra từng `ownerUserId` với `sourceKey` chống trùng (`${eventId}:${ownerUserId}:${type}`); bổ sung unit test tại [`notification-event.consumer.spec.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/notifications/notification-event.consumer.spec.ts).
+  - [`platform/apps/community-service/src/modules/notifications/notification-delivery.service.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/notifications/notification-delivery.service.ts): `push()` truy vấn FCM `devices` theo `$in` bao gồm `recipientId` và `ownerUserIds`.
+  - [`platform/apps/community-service/src/modules/notifications/notification.gateway.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/notifications/notification.gateway.ts): Cho phép `BUSINESS_OWNER` và `BUSINESS_STAFF` join room `seller_channel`, `store:*`, `business:*`, `business_user:*`.
+  - [`platform/apps/community-service/src/modules/chat/chat.module.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/chat/chat.module.ts) & [`chat.service.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/chat/chat.service.ts): Mở rộng `participantIds` của phòng chat `BUSINESS` kèm `businessIds`, `storeIds`, `ownerUserIds` khi gửi tin nhắn.
+  - Frontend 4 kênh đồng bộ: [`ToastContext.tsx`](file:///e:/HuKi/web/src/ui/context/ToastContext.tsx) (khử trùng lặp theo `id` trong 8s), [`useRealtimeNotifications.ts`](file:///e:/HuKi/web/src/ui/hooks/useRealtimeNotifications.ts) (tránh kêu trùng khi đang đứng trên `/seller/chat`), [`SellerHeader.tsx`](file:///e:/HuKi/web/src/ui/components/layout/SellerHeader.tsx) (gom đủ alias `storeId` + `chat_msg_*` dedupe), [`UniversalNotificationBell.tsx`](file:///e:/HuKi/web/src/ui/components/common/UniversalNotificationBell.tsx) (hiển thị thẻ `NEW_MESSAGE`).
+
+#### 3. `BUG-09` — `/seller/promotions/flash-sale` chống đóng băng UI & Modal Xóa đếm ngược 5s — `[ĐÃ SỬA & PASS E2E]`
+- **Thay đổi đã thực hiện:**
+  - Tạo mới [`web/src/ui/components/common/CountdownConfirmModal.tsx`](file:///e:/HuKi/web/src/ui/components/common/CountdownConfirmModal.tsx): Modal portal xác nhận hành động xóa với đồng hồ đếm ngược `5s → 0s`, khóa `disabled` nút xác nhận suốt 5 giây đầu.
+  - [`web/src/ui/components/seller/SellerFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerFlashSaleView.tsx): Tách `StudioBookRow` (`React.memo`), ổn định callbacks (`useCallback`), bọc thao tác mở studio trong `React.startTransition`, thêm `animate-spin` phản hồi tức thì khi bấm xác nhận đăng ký, `void loadData(true)` không chặn luồng đóng studio, và thay `window.confirm` xóa đợt bằng `CountdownConfirmModal`.
+  - [`web/src/app/seller/promotions/flash-sale/[id]/page.tsx`](file:///e:/HuKi/web/src/app/seller/promotions/flash-sale/[id]/page.tsx): Đồng bộ thay thế `window.confirm` khi xóa đợt bằng `CountdownConfirmModal`.
+
+#### 4. Kết quả Kiểm chứng Tự động (Giai đoạn 1)
+- **Backend Builds (`@huki/platform`):** `build:commerce`, `build:community`, `build:gateway` — **PASS (exit 0)**.
+- **Backend Unit Tests (`jest`):** `books.service.spec`, `digital-books.service.spec`, `physical-books.service.spec`, `notification-event.consumer.spec`, `chat.service.spec`, `route-classification.spec` — **6/6 suites PASS, 36/36 tests PASS**.
+- **Frontend TypeScript (`@huki/web`):** `npm --prefix e:\HuKi\web run typecheck` (`tsc --noEmit`) — **PASS (exit 0)**.
+- **E2E Verification Scripts (`scripts/`):**
+  - [`scripts/test_e2e_bug07_ebook_r2.js`](file:///e:/HuKi/scripts/test_e2e_bug07_ebook_r2.js): Verified real Cloudflare R2 `HeadObject` + `GetObject` (`%PDF-`) on both `R2_*` and `CLOUDFLARE_R2_*`, `503 EBOOK_STORAGE_UNAVAILABLE`, Gateway `GET`/`HEAD`, Reader guard — **PASS**.
+  - [`scripts/test_e2e_bug08_chat_notification.js`](file:///e:/HuKi/scripts/test_e2e_bug08_chat_notification.js): Verified real MongoDB `ChatService.sendMessage` → `chat.message.sent` → `NotificationEventConsumer` fan-out (`ownerUserIds`), idempotency (`sourceKey`), `NotificationDeliveryService.push()` FCM `$in`, `NotificationGateway` `BUSINESS_STAFF` room join, and 4-channel UI sync — **PASS**.
+  - [`scripts/test_e2e_bug09_seller_flash_sale.js`](file:///e:/HuKi/scripts/test_e2e_bug09_seller_flash_sale.js): Verified 0 `window.confirm`, `CountdownConfirmModal` `5s → 0s` lock/unlock & portal, `StudioBookRow` memoization, `startTransition`, `animate-spin` feedback — **PASS**.
+
 
 
 

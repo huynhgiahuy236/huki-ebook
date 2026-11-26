@@ -80,14 +80,18 @@ function ReaderContent() {
   const currentTitle = realBook?.title || fallbackMockBook.title;
   const currentAuthor = realBook?.author?.name || fallbackMockBook.author || 'Tác giả HUKI';
   const effectiveBookId = realBook?.id || targetBookId;
+  const hasKnownPdfSource = Boolean(
+    realBook?.hasPdf === true ||
+      realBook?.hasSourceFile === true ||
+      realBook?.hasPreviewFile === true ||
+      realBook?.digitalDetails?.hasSourceFile ||
+      realBook?.digitalDetails?.hasPreviewFile,
+  );
   const bookExplicitlyMissingPdf =
     isBookResolved &&
     realBook !== null &&
-    (realBook.hasPdf === false ||
-      (realBook.digitalDetails != null &&
-        !realBook.digitalDetails.hasSourceFile &&
-        !realBook.digitalDetails.hasPreviewFile &&
-        realBook.hasPdf !== true));
+    realBook.hasPdf === false &&
+    !hasKnownPdfSource;
   const currentPdfUrl = !isBookResolved
     ? undefined
     : bookExplicitlyMissingPdf

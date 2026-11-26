@@ -71,7 +71,12 @@ export class NotificationGateway implements OnGatewayConnection {
       const role = actor.role?.toUpperCase();
       if (role === "PLATFORM_ADMIN" || role === "ADMIN") {
         await client.join("admin_channel");
-      } else if (role === "BUSINESS" || role === "SELLER") {
+      } else if (
+        role === "BUSINESS" ||
+        role === "SELLER" ||
+        role === "BUSINESS_OWNER" ||
+        role === "BUSINESS_STAFF"
+      ) {
         await client.join("seller_channel");
         await client.join(`business_user:${actor.sub}`);
         const extra = actor as unknown as Record<string, unknown>;

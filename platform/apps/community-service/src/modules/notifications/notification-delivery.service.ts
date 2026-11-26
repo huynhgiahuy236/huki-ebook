@@ -134,7 +134,24 @@ export class NotificationDeliveryService {
   ) {
     if (!this.pushEnabled(notification.type, preference)) return;
     const devices = await this.devices
-      .find({ recipientId: notification.recipientId, enabled: true })
+      .find({
+        recipientId: {
+          $in: Array.from(
+            new Set(
+              [
+                notification.recipientId,
+                ...(Array.isArray((notification.payload as any)?.ownerUserIds)
+                  ? (notification.payload as any).ownerUserIds.map(String)
+                  : []),
+                ...((notification.payload as any)?.ownerUserId
+                  ? [String((notification.payload as any).ownerUserId)]
+                  : []),
+              ].filter(Boolean),
+            ),
+          ),
+        },
+        enabled: true,
+      })
       .select("deviceToken")
       .lean();
     const tokens = devices.map((device) => device.deviceToken);

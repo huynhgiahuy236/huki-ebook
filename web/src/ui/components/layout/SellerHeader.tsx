@@ -19,21 +19,42 @@ export interface SellerHeaderProps {
 export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggleMobileSidebar }: SellerHeaderProps) {
   const pathname = usePathname() || '';
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, activeBusinessId } = useAuth();
   const { showToast } = useToast();
   const sellerName = user?.business?.name || user?.fullName || user?.name || "NXB Doanh Nghiệp";
   const storeId = React.useMemo(() => {
     const ids = new Set<string>();
+    if (activeBusinessId) ids.add(activeBusinessId);
     const biz = user?.business as any;
     if (biz?.id) ids.add(biz.id);
+    if (biz?.slug) ids.add(biz.slug);
+    if (biz?.taxCode) ids.add(biz.taxCode);
+    if (Array.isArray(user?.memberships)) {
+      user.memberships.forEach((m: any) => {
+        if (m?.businessId) ids.add(m.businessId);
+      });
+    }
     if (Array.isArray(biz?.stores)) {
       biz.stores.forEach((s: any) => {
         if (s?.id) ids.add(s.id);
+        if (s?.slug) ids.add(s.slug);
       });
     }
-    if (ids.size === 0 && user?.id) ids.add(user.id);
-    return Array.from(ids).join(',');
-  }, [user]);
+    if (user?.id) ids.add(user.id);
+    const OFFICIAL_ALIASES = [
+      '77777777-0000-4000-8000-000000000001',
+      '88888888-0000-4000-8000-000000000001',
+      '99999999-0000-4000-8000-000000000001',
+      '3094e54e-2549-42cc-92fb-14a8f8589277',
+      '1079fc76-a467-48a9-8034-b072aaa5afea',
+      'nha-sach-huki-official',
+      'huki-official',
+    ];
+    if (Array.from(ids).some((id) => OFFICIAL_ALIASES.includes(id))) {
+      OFFICIAL_ALIASES.forEach((alias) => ids.add(alias));
+    }
+    return Array.from(ids).filter(Boolean).join(',');
+  }, [user, activeBusinessId]);
 
   const [isMuted, setIsMuted] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
@@ -120,6 +141,7 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
         : (msg?.messageType === 'IMAGE' ? '[Đã gửi một hình ảnh]' : 'Bạn có một tin nhắn mới');
 
       showToast({
+        id: msg?.id ? `chat_msg_${msg.id}` : undefined,
         title: `Tin nhắn từ ${senderName}`,
         message: snippet,
         type: 'info',

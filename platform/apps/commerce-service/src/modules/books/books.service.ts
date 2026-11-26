@@ -260,10 +260,12 @@ export class BooksService implements OnModuleInit {
   }
 
   private async hasReadablePdfKey(key?: string | null, slug?: string | null): Promise<boolean> {
-    if (!key && slug !== 'con-duong-phia-truoc') return false;
+    const mappedSlugKey = slug ? REAL_EBOOK_MAPPINGS[slug] : undefined;
+    if (!key && !mappedSlugKey && slug !== 'con-duong-phia-truoc') return false;
     const candidateKeys = Array.from(
       new Set([
         ...(key ? [key] : []),
+        ...(mappedSlugKey ? [mappedSlugKey] : []),
         ...(slug === 'con-duong-phia-truoc'
           ? ['ebooks/con-duong-phia-truoc.pdf', 'ebooks/Con_duong_phia_truoc__Bill_Gates.pdf']
           : []),
@@ -502,7 +504,7 @@ export class BooksService implements OnModuleInit {
     });
     const soldCount = sales._sum.quantity || 0;
     const hasPdf = await this.hasReadablePdfKey(
-      book!.digitalDetails?.pdfKey || book!.digitalDetails?.previewPdfKey,
+      book!.digitalDetails?.pdfKey || book!.digitalDetails?.previewPdfKey || REAL_EBOOK_MAPPINGS[book!.slug],
       book!.slug,
     );
     return this.serializeBook(book!, canAccess, discountsMap.get(book!.id), soldCount, hasPdf);
@@ -809,7 +811,7 @@ export class BooksService implements OnModuleInit {
     });
     const soldCount = sales._sum.quantity || 0;
     const hasPdf = await this.hasReadablePdfKey(
-      book!.digitalDetails?.pdfKey || book!.digitalDetails?.previewPdfKey,
+      book!.digitalDetails?.pdfKey || book!.digitalDetails?.previewPdfKey || REAL_EBOOK_MAPPINGS[book!.slug],
       book!.slug,
     );
     return this.serializeBook(book!, canAccess, discountsMap.get(book!.id), soldCount, hasPdf);
@@ -1331,7 +1333,7 @@ export class BooksService implements OnModuleInit {
       }
     };
 
-    const serveLocalFallback = async () => {
+    const serveLocalFallback = async (storageErr?: any) => {
       const isBillGatesBook =
         (book.slug && book.slug.includes('con-duong-phia-truoc')) ||
         (book.title && book.title.includes('Con Đường Phía Trước'));
@@ -1388,6 +1390,25 @@ export class BooksService implements OnModuleInit {
         }
       }
 
+      const errStatus = storageErr?.$metadata?.httpStatusCode;
+      const errCode = storageErr?.name || storageErr?.Code || storageErr?.code;
+      const errMsg = String(storageErr?.message || '');
+      const isExplicitMissing =
+        !storageErr ||
+        errStatus === 404 ||
+        errCode === 'NoSuchKey' ||
+        errCode === 'NotFound' ||
+        errMsg.toLowerCase().includes('not found');
+
+      if (!isExplicitMissing) {
+        res.status(HttpStatus.SERVICE_UNAVAILABLE).json({
+          statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+          code: 'EBOOK_STORAGE_UNAVAILABLE',
+          message: 'Không thể kết nối kho lưu trữ Ebook. Vui lòng thử lại sau giây lát.',
+        });
+        return;
+      }
+
       res.status(HttpStatus.NOT_FOUND).json({
         statusCode: HttpStatus.NOT_FOUND,
         code: 'NO_PDF_AVAILABLE',
@@ -1395,34 +1416,41 @@ export class BooksService implements OnModuleInit {
       });
     };
 
-    try {
-      if (!this.ebookStorage?.getStream) {
-        await serveLocalFallback();
-        return;
-      }
+    const candidateStreamKeys = Array.from(
+      new Set([pdfKey, ...(mappedSlugKey ? [mappedSlugKey] : [])]),
+    );
+    let lastStorageError: any = null;
 
+    if (this.ebookStorage?.getStream) {
       const rangeHeader = req.headers?.range;
-      const fileData = await this.ebookStorage.getStream(pdfKey, rangeHeader);
+      for (const streamKey of candidateStreamKeys) {
+        try {
+          const fileData = await this.ebookStorage.getStream(streamKey, rangeHeader);
 
-      res.setHeader('Content-Type', fileData.contentType || 'application/pdf');
-      res.setHeader('Accept-Ranges', 'bytes');
-      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(book.slug || book.id)}.pdf"`);
-      res.setHeader('Cache-Control', 'public, max-age=3600');
+          res.setHeader('Content-Type', fileData.contentType || 'application/pdf');
+          res.setHeader('Accept-Ranges', 'bytes');
+          res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(book.slug || book.id)}.pdf"`);
+          res.setHeader('Cache-Control', 'public, max-age=3600');
 
-      if (rangeHeader && fileData.contentRange) {
-        res.status(HttpStatus.PARTIAL_CONTENT);
-        res.setHeader('Content-Range', fileData.contentRange);
-        if (fileData.contentLength !== undefined) {
-          res.setHeader('Content-Length', fileData.contentLength.toString());
+          if (rangeHeader && fileData.contentRange) {
+            res.status(HttpStatus.PARTIAL_CONTENT);
+            res.setHeader('Content-Range', fileData.contentRange);
+            if (fileData.contentLength !== undefined) {
+              res.setHeader('Content-Length', fileData.contentLength.toString());
+            }
+          } else if (fileData.contentLength !== undefined) {
+            res.setHeader('Content-Length', fileData.contentLength.toString());
+          }
+
+          fileData.stream.pipe(res);
+          return;
+        } catch (err: any) {
+          lastStorageError = err;
+          console.warn(`[BooksService] Storage stream error for ${streamKey}: ${err?.name || ''} ${err?.message || err}`);
         }
-      } else if (fileData.contentLength !== undefined) {
-        res.setHeader('Content-Length', fileData.contentLength.toString());
       }
-
-      fileData.stream.pipe(res);
-    } catch (err: any) {
-      console.warn(`[BooksService] Storage stream error for ${pdfKey}, falling back to local asset: ${err?.message || err}`);
-      await serveLocalFallback();
     }
+
+    await serveLocalFallback(lastStorageError);
   }
 }

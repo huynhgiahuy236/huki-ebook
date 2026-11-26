@@ -179,4 +179,37 @@ describe('BooksService (Prisma)', () => {
       expect.objectContaining({ skipDuplicates: true }),
     );
   });
+
+  it('returns 503 EBOOK_STORAGE_UNAVAILABLE when R2 storage throws a non-404 error', async () => {
+    const ebookStorage = {
+      upload: jest.fn(),
+      delete: jest.fn(),
+      getStream: jest.fn().mockRejectedValue(Object.assign(new Error('R2 timeout'), { name: 'TimeoutError' })),
+    };
+    const prismaWithFirst = {
+      ...prisma,
+      book: {
+        ...prisma.book,
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'book-r2-err',
+          slug: 'sach-loi-r2',
+          title: 'Sách Lỗi R2',
+          digitalDetails: { pdfKey: 'stores/s1/books/b1/pdf-1.pdf' },
+        }),
+      },
+    };
+    const svc = new BooksService(prismaWithFirst as any, undefined, undefined, ebookStorage as any);
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+      setHeader: jest.fn(),
+    };
+
+    await svc.streamPdf('sach-loi-r2', { headers: {} }, res);
+
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'EBOOK_STORAGE_UNAVAILABLE' }),
+    );
+  });
 });

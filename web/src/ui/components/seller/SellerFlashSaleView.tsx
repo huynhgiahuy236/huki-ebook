@@ -13,6 +13,7 @@ import { catalogApi, type BookData } from '@/ui/api/catalogApi';
 import { businessApi } from '@/ui/api/businessApi';
 import { flashSaleApi, invalidateFlashSaleCache, type FlashSaleSlot } from '@/ui/api/flashSaleApi';
 import GroupedDataTable, { type Column } from '@/ui/components/common/GroupedDataTable';
+import CountdownConfirmModal from '@/ui/components/common/CountdownConfirmModal';
 import {
   SellerActionButton,
   SellerFilterTabs,
@@ -253,6 +254,251 @@ function PlatformSlotCountdownCard({
     </div>
   );
 }
+
+interface StudioBookRowProps {
+  book: BookData;
+  config?: ConfiguredBookItem;
+  isPlatformScope: boolean;
+  platformDiscountPercent: number;
+  platformMaxPerUser: number;
+  conflictInfo?: {
+    hasConflict: boolean;
+    conflictScope: 'PLATFORM' | 'SHOP';
+    conflictSessionName: string;
+  };
+  onToggleSelect: (bookId: string) => void;
+  onUpdateField: (bookId: string, field: 'salePrice' | 'stock' | 'maxPerUser', val: number) => void;
+}
+
+const StudioBookRow = React.memo(function StudioBookRow({
+  book,
+  config,
+  isPlatformScope,
+  platformDiscountPercent,
+  platformMaxPerUser,
+  conflictInfo,
+  onToggleSelect,
+  onUpdateField,
+}: StudioBookRowProps) {
+  const orig = Number(book.price || 0);
+  const defaultSale = isPlatformScope
+    ? Math.max(1, Math.round(orig * (1 - platformDiscountPercent / 100)))
+    : Math.round(orig * 0.7);
+  const defaultMaxUser = isPlatformScope ? platformMaxPerUser : 1;
+
+  const isSelected = Boolean(config?.isSelected);
+  const salePriceValue = config?.salePrice ?? defaultSale;
+  const stockValue = config?.stock ?? 10;
+  const maxPerUserValue = config?.maxPerUser ?? defaultMaxUser;
+
+  const sale = isPlatformScope ? defaultSale : salePriceValue;
+  const disc = isPlatformScope
+    ? platformDiscountPercent
+    : orig > 0 && sale > 0 && sale < orig
+      ? Math.round(((orig - sale) / orig) * 100)
+      : 0;
+  const avail = Number((book as any).available ?? book.physicalDetails?.stock ?? (book as any).stock ?? 20);
+  const isConflicted = Boolean(conflictInfo?.hasConflict);
+
+  const lowest30d = (book as any).lowestPrice30Days || orig;
+  const antiFakeValidation = useMemo(
+    () =>
+      sellerPenaltyService.validateBookForFlashSale(
+        orig,
+        sale,
+        lowest30d,
+        isPlatformScope ? platformDiscountPercent : 10,
+      ),
+    [orig, sale, lowest30d, isPlatformScope, platformDiscountPercent],
+  );
+
+  return (
+    <tr
+      className={`transition-colors ${
+        isConflicted
+          ? 'bg-gray-100/60 opacity-60'
+          : isSelected
+            ? 'bg-orange-50/50 hover:bg-orange-50/80 font-medium'
+            : 'hover:bg-gray-50/60'
+      }`}
+    >
+      <td className="py-2.5 px-3 text-center">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          disabled={isConflicted}
+          onChange={() => onToggleSelect(book.id)}
+          title={
+            isConflicted
+              ? `Cuốn sách này đang tham gia đợt "${conflictInfo?.conflictSessionName}" (${conflictInfo?.conflictScope === 'PLATFORM' ? 'Flash Sale Sàn' : 'Flash Sale Shop'}) trong cùng khung giờ`
+              : undefined
+          }
+          className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+        />
+      </td>
+
+      <td className="py-2.5 px-3">
+        <div className="flex items-center gap-2.5">
+          <img
+            src={book.coverImage || book.coverUrl || (book as any).cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=200&q=80'}
+            alt={book.title}
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            className="w-8 h-11 object-cover rounded-md border border-gray-200 shadow-2xs shrink-0"
+          />
+          <div className="min-w-0">
+            <div className="font-bold text-gray-900 line-clamp-1">{book.title}</div>
+            <div className="text-[10px] text-gray-500">
+              {book.author?.name || (book as any).author || 'Tác giả'} •{' '}
+              <span className="text-gray-400">{book.category?.name || 'Chung'}</span>
+            </div>
+            {isConflicted && (
+              <span
+                title={`Đang tham gia "${conflictInfo?.conflictSessionName}"`}
+                className={`inline-flex items-center gap-1 text-[9.5px] font-bold px-1.5 py-0.5 rounded-md mt-0.5 ${
+                  conflictInfo?.conflictScope === 'PLATFORM'
+                    ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                    : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[11px]">lock</span>
+                <span>
+                  {conflictInfo?.conflictScope === 'PLATFORM'
+                    ? 'Đang tham gia Flash Sale Sàn'
+                    : 'Đang tham gia Flash Sale Shop'}
+                </span>
+              </span>
+            )}
+          </div>
+        </div>
+      </td>
+
+      <td className="py-2.5 px-3">
+        {book.format === 'DIGITAL' ? (
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+            <span className="material-symbols-outlined text-[12px]">bolt</span>
+            <span>Ebook DRM</span>
+          </span>
+        ) : book.format === 'BOTH' ? (
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-200">
+            <span className="material-symbols-outlined text-[12px]">auto_stories</span>
+            <span>Hybrid (Cả 2)</span>
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+            <span className="material-symbols-outlined text-[12px]">inventory_2</span>
+            <span>Sách Giấy</span>
+          </span>
+        )}
+      </td>
+
+      <td className="py-2.5 px-3 font-semibold text-gray-600">{avail} cuốn</td>
+
+      <td className="py-2.5 px-3 font-bold text-gray-800">{orig.toLocaleString('vi-VN')} đ</td>
+
+      <td className="py-2.5 px-3">
+        {isPlatformScope ? (
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              value={`${sale.toLocaleString('vi-VN')} đ`}
+              disabled
+              className="w-28 px-2 py-1 bg-amber-50/70 border border-amber-300 rounded-lg text-xs font-mono font-bold text-red-700 cursor-not-allowed"
+            />
+            <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 shrink-0">
+              Trợ giá
+            </span>
+          </div>
+        ) : (
+          <input
+            type="number"
+            min={1000}
+            max={orig - 1}
+            value={config?.salePrice ?? defaultSale}
+            onChange={(e) => onUpdateField(book.id, 'salePrice', Number(e.target.value))}
+            disabled={!isSelected}
+            className="w-28 px-2 py-1 bg-white border border-gray-300 rounded-lg text-xs font-bold text-orange-700 outline-none focus:border-orange-500 disabled:opacity-50"
+          />
+        )}
+      </td>
+
+      <td className="py-2.5 px-3">
+        {isPlatformScope ? (
+          <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-200 whitespace-nowrap">
+            -{platformDiscountPercent}%
+          </span>
+        ) : (
+          <span
+            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+              disc >= 50
+                ? 'bg-red-100 text-red-700'
+                : disc >= 30
+                  ? 'bg-orange-100 text-orange-700'
+                  : disc > 0
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-gray-100 text-gray-500'
+            }`}
+          >
+            -{disc}%
+          </span>
+        )}
+      </td>
+
+      <td className="py-2.5 px-3">
+        <input
+          type="number"
+          min={1}
+          max={avail || 999}
+          value={stockValue || ''}
+          onChange={(e) => onUpdateField(book.id, 'stock', Number(e.target.value))}
+          disabled={!isSelected}
+          className="w-20 px-2 py-1 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-900 outline-none focus:border-orange-500 disabled:opacity-50"
+        />
+      </td>
+
+      <td className="py-2.5 px-3">
+        {isPlatformScope ? (
+          <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 border border-blue-200 whitespace-nowrap">
+            {platformMaxPerUser} cuốn
+          </span>
+        ) : (
+          <select
+            value={maxPerUserValue || 1}
+            onChange={(e) => onUpdateField(book.id, 'maxPerUser', Number(e.target.value))}
+            disabled={!isSelected}
+            className="px-2 py-1 bg-white border border-gray-300 rounded-lg text-[11px] font-medium outline-none disabled:opacity-50"
+          >
+            <option value="1">1 cuốn</option>
+            <option value="2">2 cuốn</option>
+            <option value="5">5 cuốn</option>
+          </select>
+        )}
+      </td>
+
+      <td className="py-2.5 px-3">
+        <div className="flex flex-col gap-0.5">
+          <div className="text-[10px] text-gray-500 font-mono">
+            Min 30d: <strong className="text-gray-800">{lowest30d.toLocaleString('vi-VN')} đ</strong>
+          </div>
+          {antiFakeValidation.isValid ? (
+            <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 w-fit">
+              <span className="material-symbols-outlined text-[10px]">verified</span>
+              <span>Hợp lệ (-{orig > 0 ? Math.round(((orig - sale) / orig) * 100) : 0}%)</span>
+            </span>
+          ) : (
+            <span
+              title={antiFakeValidation.reason}
+              className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 w-fit"
+            >
+              <span className="material-symbols-outlined text-[10px]">warning</span>
+              <span>Cảnh báo giá ảo</span>
+            </span>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+});
 
 export function SellerFlashSaleView() {
   const { user, activeBusinessId, setActiveBusinessId } = useAuth();
@@ -782,61 +1028,74 @@ export function SellerFlashSaleView() {
     return studioBooks.every((b) => bookConfigMap[b.id]?.isSelected);
   }, [studioBooks, bookConfigMap]);
 
-  // Toggle single book selection
-  const handleToggleSelectBook = (bookId: string) => {
-    const conflict = bookConflictMap.get(bookId);
-    if (conflict?.hasConflict) {
-      showToast(
-        `Sách này đang tham gia đợt "${conflict.conflictSessionName}" (${conflict.conflictScope === 'PLATFORM' ? 'Flash Sale Sàn' : 'Flash Sale Shop'}) trong cùng khung giờ, không thể chọn!`,
-        'warning'
-      );
-      return;
-    }
+  const selectedBooksCountRef = useRef(0);
+  selectedBooksCountRef.current = selectedBooksList.length;
 
-    const currentItem = bookConfigMap[bookId];
-    // Platform Flash Sale Sao Quả Tạ Eligibility & Quota Guard
-    if (isPlatformScope && currentItem && !currentItem.isSelected) {
-      if (!platformEligibility.eligible) {
+  // Toggle single book selection (stable callback for memoized StudioBookRow)
+  const handleToggleSelectBook = useCallback(
+    (bookId: string) => {
+      const conflict = bookConflictMap.get(bookId);
+      if (conflict?.hasConflict) {
         showToast(
-          platformEligibility.reason || 'Gian hàng không đủ điều kiện tham gia Flash Sale Sàn!',
-          'error'
-        );
-        setIsPolicyModalOpen(true);
-        return;
-      }
-      if (selectedBooksList.length >= penaltyProfile.maxBooksPerPlatformSlot) {
-        showToast(
-          `Cấp Sao Quả Tạ hiện tại của bạn chỉ cho phép tối đa ${penaltyProfile.maxBooksPerPlatformSlot} cuốn sách trong đợt Flash Sale Sàn!`,
-          'warning'
+          `Sách này đang tham gia đợt "${conflict.conflictSessionName}" (${conflict.conflictScope === 'PLATFORM' ? 'Flash Sale Sàn' : 'Flash Sale Shop'}) trong cùng khung giờ, không thể chọn!`,
+          'warning',
         );
         return;
       }
-    }
 
-    setBookConfigMap((prev) => {
-      const current = prev[bookId];
-      if (!current) return prev;
-      const nextSelected = !current.isSelected;
-      let nextSalePrice = current.salePrice;
-      let nextMaxPerUser = current.maxPerUser;
+      setBookConfigMap((prev) => {
+        const current = prev[bookId];
+        if (!current) return prev;
+        const nextSelected = !current.isSelected;
 
-      if (nextSelected && isPlatformScope) {
-        const orig = Number(current.book.price || 0);
-        nextSalePrice = Math.max(1, Math.round(orig * (1 - platformDiscountPercent / 100)));
-        nextMaxPerUser = platformMaxPerUser;
-      }
+        if (isPlatformScope && nextSelected) {
+          if (!platformEligibility.eligible) {
+            showToast(
+              platformEligibility.reason || 'Gian hàng không đủ điều kiện tham gia Flash Sale Sàn!',
+              'error',
+            );
+            setIsPolicyModalOpen(true);
+            return prev;
+          }
+          if (selectedBooksCountRef.current >= penaltyProfile.maxBooksPerPlatformSlot) {
+            showToast(
+              `Cấp Sao Quả Tạ hiện tại của bạn chỉ cho phép tối đa ${penaltyProfile.maxBooksPerPlatformSlot} cuốn sách trong đợt Flash Sale Sàn!`,
+              'warning',
+            );
+            return prev;
+          }
+        }
 
-      return {
-        ...prev,
-        [bookId]: {
-          ...current,
-          isSelected: nextSelected,
-          salePrice: nextSalePrice,
-          maxPerUser: nextMaxPerUser,
-        },
-      };
-    });
-  };
+        let nextSalePrice = current.salePrice;
+        let nextMaxPerUser = current.maxPerUser;
+
+        if (nextSelected && isPlatformScope) {
+          const orig = Number(current.book.price || 0);
+          nextSalePrice = Math.max(1, Math.round(orig * (1 - platformDiscountPercent / 100)));
+          nextMaxPerUser = platformMaxPerUser;
+        }
+
+        return {
+          ...prev,
+          [bookId]: {
+            ...current,
+            isSelected: nextSelected,
+            salePrice: nextSalePrice,
+            maxPerUser: nextMaxPerUser,
+          },
+        };
+      });
+    },
+    [
+      bookConflictMap,
+      isPlatformScope,
+      platformEligibility,
+      penaltyProfile.maxBooksPerPlatformSlot,
+      platformDiscountPercent,
+      platformMaxPerUser,
+      showToast,
+    ],
+  );
 
   // Toggle select all in current filtered view (ignoring conflicted books, honoring penalty quota)
   const handleToggleSelectAll = () => {
@@ -895,24 +1154,27 @@ export function SellerFlashSaleView() {
     }
   };
 
-  // Update a single field on a book
-  const handleUpdateBookField = (
-    bookId: string,
-    field: 'salePrice' | 'stock' | 'maxPerUser',
-    val: number
-  ) => {
-    if (isPlatformScope && (field === 'salePrice' || field === 'maxPerUser')) {
-      return; // Locked by platform campaign
-    }
-    setBookConfigMap((prev) => {
-      const current = prev[bookId];
-      if (!current) return prev;
-      return {
-        ...prev,
-        [bookId]: { ...current, [field]: val },
-      };
-    });
-  };
+  // Update a single field on a book (stable callback for memoized StudioBookRow)
+  const handleUpdateBookField = useCallback(
+    (
+      bookId: string,
+      field: 'salePrice' | 'stock' | 'maxPerUser',
+      val: number,
+    ) => {
+      if (isPlatformScope && (field === 'salePrice' || field === 'maxPerUser')) {
+        return; // Locked by platform campaign
+      }
+      setBookConfigMap((prev) => {
+        const current = prev[bookId];
+        if (!current) return prev;
+        return {
+          ...prev,
+          [bookId]: { ...current, [field]: val },
+        };
+      });
+    },
+    [isPlatformScope],
+  );
 
   // Bulk Apply Percent Discount
   const handleApplyBulkDiscount = (target: 'ALL_SELECTED' | 'BY_CATEGORY', specificPercent?: number) => {
@@ -1045,6 +1307,7 @@ export function SellerFlashSaleView() {
   // Submit Batch Registration
   const handleSubmitBatch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
 
     let targetSlotId = selectedSlotId;
 
@@ -1188,8 +1451,7 @@ export function SellerFlashSaleView() {
           return reset;
         });
         invalidateFlashSaleCache();
-        await loadData(true);
-        realtimeSyncBus.publish('FLASH_SALE_UPDATED', { flashSaleId: targetSlotId });
+        void loadData(true);
       } else {
         if (slotMode === 'CUSTOM' && targetSlotId) {
           try {
@@ -1246,23 +1508,24 @@ export function SellerFlashSaleView() {
   };
 
   const [deletingSlotId, setDeletingSlotId] = useState<string | null>(null);
+  const [deleteSlotModal, setDeleteSlotModal] = useState<{ id: string; name?: string } | null>(null);
 
-  const handleDeleteSlot = async (slotId: string, slotName?: string) => {
-    if (
-      !window.confirm(
-        `Bạn có chắc chắn muốn xóa đợt Flash Sale "${slotName || 'này'}"? Toàn bộ sách đã đăng ký trong đợt này sẽ bị hủy.`
-      )
-    ) {
-      return;
-    }
+  const handleDeleteSlot = (slotId: string, slotName?: string) => {
+    setDeleteSlotModal({ id: slotId, name: slotName });
+  };
+
+  const handleConfirmDeleteSlot = async () => {
+    if (!deleteSlotModal) return;
+    const { id: slotId } = deleteSlotModal;
     try {
       setDeletingSlotId(slotId);
       const res = await flashSaleApi.sellerDeleteSlot(slotId);
       if (res.success) {
         showToast('Đã xóa đợt Flash Sale thành công! ', 'success');
+        setDeleteSlotModal(null);
         realtimeSyncBus.publish('FLASH_SALE_UPDATED', { slotId });
         invalidateFlashSaleCache();
-        await loadData();
+        void loadData(true);
       } else {
         showToast((res as any)?.message || 'Không thể xóa đợt Flash Sale', 'error');
       }
@@ -1735,15 +1998,17 @@ export function SellerFlashSaleView() {
                   return;
                 }
                 const nextState = !isFormOpen;
-                setIsFormOpen(nextState);
-                if (nextState) {
-                  const freshTimes = getInitialTimes();
-                  setCustomStartsAt(freshTimes.startsAt);
-                  setCustomEndsAt(freshTimes.endsAt);
-                  if (slots.length > 0 && !selectedSlotId) {
-                    setSelectedSlotId(slots[0].id);
+                React.startTransition(() => {
+                  setIsFormOpen(nextState);
+                  if (nextState) {
+                    const freshTimes = getInitialTimes();
+                    setCustomStartsAt(freshTimes.startsAt);
+                    setCustomEndsAt(freshTimes.endsAt);
+                    if (slots.length > 0 && !selectedSlotId) {
+                      setSelectedSlotId(slots[0].id);
+                    }
                   }
-                }
+                });
               }}
               className={`px-5 py-3 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
                 existingShopSlot && !isFormOpen
@@ -2432,233 +2697,19 @@ export function SellerFlashSaleView() {
                         </td>
                       </tr>
                     ) : (
-                      studioBooks.map((book) => {
-                        const orig = Number(book.price || 0);
-                        const defaultSale = isPlatformScope
-                          ? Math.max(1, Math.round(orig * (1 - platformDiscountPercent / 100)))
-                          : Math.round(orig * 0.7);
-                        const defaultMaxUser = isPlatformScope ? platformMaxPerUser : 1;
-
-                        const config = bookConfigMap[book.id] || {
-                          book,
-                          isSelected: false,
-                          salePrice: defaultSale,
-                          stock: 10,
-                          maxPerUser: defaultMaxUser,
-                        };
-                        const sale = isPlatformScope ? defaultSale : config.salePrice;
-                        const disc = isPlatformScope ? platformDiscountPercent : (orig > 0 && sale > 0 && sale < orig ? Math.round(((orig - sale) / orig) * 100) : 0);
-                        const avail = Number((book as any).available ?? book.physicalDetails?.stock ?? (book as any).stock ?? 20);
-
-                        const conflictInfo = bookConflictMap.get(book.id);
-                        const isConflicted = Boolean(conflictInfo?.hasConflict);
-
-                        // 30-Day Anti-Fake-Discount & Pricing Guard
-                        const lowest30d = (book as any).lowestPrice30Days || orig;
-                        const antiFakeValidation = sellerPenaltyService.validateBookForFlashSale(
-                          orig,
-                          sale,
-                          lowest30d,
-                          isPlatformScope ? platformDiscountPercent : 10
-                        );
-
-                        return (
-                          <tr
-                            key={book.id}
-                            className={`transition-colors ${
-                              isConflicted
-                                ? 'bg-gray-100/60 opacity-60'
-                                : config.isSelected
-                                ? 'bg-orange-50/50 hover:bg-orange-50/80 font-medium'
-                                : 'hover:bg-gray-50/60'
-                            }`}
-                          >
-                            <td className="py-2.5 px-3 text-center">
-                              <input
-                                type="checkbox"
-                                checked={config.isSelected}
-                                disabled={isConflicted}
-                                onChange={() => handleToggleSelectBook(book.id)}
-                                title={
-                                  isConflicted
-                                    ? `Cuốn sách này đang tham gia đợt "${conflictInfo?.conflictSessionName}" (${conflictInfo?.conflictScope === 'PLATFORM' ? 'Flash Sale Sàn' : 'Flash Sale Shop'}) trong cùng khung giờ`
-                                    : undefined
-                                }
-                                className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
-                              />
-                            </td>
-
-                            <td className="py-2.5 px-3">
-                              <div className="flex items-center gap-2.5">
-                                <img
-                                  src={book.coverImage || book.coverUrl || (book as any).cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=200&q=80'}
-                                  alt={book.title}
-                                  referrerPolicy="no-referrer"
-                                  className="w-8 h-11 object-cover rounded-md border border-gray-200 shadow-2xs shrink-0"
-                                />
-                                <div className="min-w-0">
-                                  <div className="font-bold text-gray-900 line-clamp-1">{book.title}</div>
-                                  <div className="text-[10px] text-gray-500">
-                                    {book.author?.name || (book as any).author || 'Tác giả'} •{' '}
-                                    <span className="text-gray-400">{book.category?.name || 'Chung'}</span>
-                                  </div>
-                                  {isConflicted && (
-                                    <span
-                                      title={`Đang tham gia "${conflictInfo?.conflictSessionName}"`}
-                                      className={`inline-flex items-center gap-1 text-[9.5px] font-bold px-1.5 py-0.5 rounded-md mt-0.5 ${
-                                        conflictInfo?.conflictScope === 'PLATFORM'
-                                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                                          : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                      }`}
-                                    >
-                                      <span className="material-symbols-outlined text-[11px]">lock</span>
-                                      <span>
-                                        {conflictInfo?.conflictScope === 'PLATFORM'
-                                          ? 'Đang tham gia Flash Sale Sàn'
-                                          : 'Đang tham gia Flash Sale Shop'}
-                                      </span>
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-
-                            <td className="py-2.5 px-3">
-                              {book.format === 'DIGITAL' ? (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                  <span className="material-symbols-outlined text-[12px]">bolt</span>
-                                  <span>Ebook DRM</span>
-                                </span>
-                              ) : book.format === 'BOTH' ? (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-200">
-                                  <span className="material-symbols-outlined text-[12px]">auto_stories</span>
-                                  <span>Hybrid (Cả 2)</span>
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
-                                  <span className="material-symbols-outlined text-[12px]">inventory_2</span>
-                                  <span>Sách Giấy</span>
-                                </span>
-                              )}
-                            </td>
-
-                            <td className="py-2.5 px-3 font-semibold text-gray-600">
-                              {avail} cuốn
-                            </td>
-
-                            <td className="py-2.5 px-3 font-bold text-gray-800">
-                              {orig.toLocaleString('vi-VN')} đ
-                            </td>
-
-                            <td className="py-2.5 px-3">
-                              {isPlatformScope ? (
-                                <div className="flex items-center gap-1.5">
-                                  <input
-                                    type="text"
-                                    value={`${sale.toLocaleString('vi-VN')} đ`}
-                                    disabled
-                                    className="w-28 px-2 py-1 bg-amber-50/70 border border-amber-300 rounded-lg text-xs font-mono font-bold text-red-700 cursor-not-allowed"
-                                  />
-                                  <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 shrink-0">
-                                    Trợ giá
-                                  </span>
-                                </div>
-                              ) : (
-                                <input
-                                  type="number"
-                                  min={1000}
-                                  max={orig - 1}
-                                  value={config.salePrice || ''}
-                                  onChange={(e) =>
-                                    handleUpdateBookField(book.id, 'salePrice', Number(e.target.value))
-                                  }
-                                  disabled={!config.isSelected}
-                                  className="w-28 px-2 py-1 bg-white border border-gray-300 rounded-lg text-xs font-bold text-orange-700 outline-none focus:border-orange-500 disabled:opacity-50"
-                                />
-                              )}
-                            </td>
-
-                            <td className="py-2.5 px-3">
-                              {isPlatformScope ? (
-                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-200 whitespace-nowrap">
-                                   -{platformDiscountPercent}%
-                                </span>
-                              ) : (
-                                <span
-                                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
-                                    disc >= 50
-                                      ? 'bg-red-100 text-red-700'
-                                      : disc >= 30
-                                      ? 'bg-orange-100 text-orange-700'
-                                      : disc > 0
-                                      ? 'bg-amber-100 text-amber-700'
-                                      : 'bg-gray-100 text-gray-500'
-                                  }`}
-                                >
-                                  -{disc}%
-                                </span>
-                              )}
-                            </td>
-
-                            <td className="py-2.5 px-3">
-                              <input
-                                type="number"
-                                min={1}
-                                max={avail || 999}
-                                value={config.stock || ''}
-                                onChange={(e) =>
-                                  handleUpdateBookField(book.id, 'stock', Number(e.target.value))
-                                }
-                                disabled={!config.isSelected}
-                                className="w-20 px-2 py-1 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-900 outline-none focus:border-orange-500 disabled:opacity-50"
-                              />
-                            </td>
-
-                            <td className="py-2.5 px-3">
-                              {isPlatformScope ? (
-                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 border border-blue-200 whitespace-nowrap">
-                                   {platformMaxPerUser} cuốn
-                                </span>
-                              ) : (
-                                <select
-                                  value={config.maxPerUser || 1}
-                                  onChange={(e) =>
-                                    handleUpdateBookField(book.id, 'maxPerUser', Number(e.target.value))
-                                  }
-                                  disabled={!config.isSelected}
-                                  className="px-2 py-1 bg-white border border-gray-300 rounded-lg text-[11px] font-medium outline-none disabled:opacity-50"
-                                >
-                                  <option value="1">1 cuốn</option>
-                                  <option value="2">2 cuốn</option>
-                                  <option value="5">5 cuốn</option>
-                                </select>
-                              )}
-                            </td>
-
-                            <td className="py-2.5 px-3">
-                              <div className="flex flex-col gap-0.5">
-                                <div className="text-[10px] text-gray-500 font-mono">
-                                  Min 30d: <strong className="text-gray-800">{lowest30d.toLocaleString('vi-VN')} đ</strong>
-                                </div>
-                                {antiFakeValidation.isValid ? (
-                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 w-fit">
-                                    <span className="material-symbols-outlined text-[10px]">verified</span>
-                                    <span>Hợp lệ (-{orig > 0 ? Math.round(((orig - sale) / orig) * 100) : 0}%)</span>
-                                  </span>
-                                ) : (
-                                  <span
-                                    title={antiFakeValidation.reason}
-                                    className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 w-fit"
-                                  >
-                                    <span className="material-symbols-outlined text-[10px]">warning</span>
-                                    <span>Cảnh báo giá ảo</span>
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
+                      studioBooks.map((book) => (
+                        <StudioBookRow
+                          key={book.id}
+                          book={book}
+                          config={bookConfigMap[book.id]}
+                          isPlatformScope={isPlatformScope}
+                          platformDiscountPercent={platformDiscountPercent}
+                          platformMaxPerUser={platformMaxPerUser}
+                          conflictInfo={bookConflictMap.get(book.id)}
+                          onToggleSelect={handleToggleSelectBook}
+                          onUpdateField={handleUpdateBookField}
+                        />
+                      ))
                     )}
                   </tbody>
                 </table>
@@ -2700,7 +2751,7 @@ export function SellerFlashSaleView() {
                   }
                   className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-md shadow-orange-500/20 flex items-center gap-2 transition-all cursor-pointer hover:scale-[1.02]"
                 >
-                  <span className="material-symbols-outlined text-base">
+                  <span className={`material-symbols-outlined text-base ${submitting ? 'animate-spin' : ''}`}>
                     {submitting ? 'progress_activity' : isPlatformScope && !platformEligibility.eligible ? 'gavel' : 'bolt'}
                   </span>
                   <span>
@@ -3681,6 +3732,25 @@ export function SellerFlashSaleView() {
           </div>
         </div>
       )}
+
+      <CountdownConfirmModal
+        isOpen={Boolean(deleteSlotModal)}
+        title="Xác nhận xóa đợt Flash Sale"
+        description={
+          <>
+            Bạn có chắc chắn muốn xóa đợt Flash Sale{' '}
+            <strong className="text-slate-900">
+              &ldquo;{deleteSlotModal?.name || 'này'}&rdquo;
+            </strong>
+            ? Toàn bộ sách đã đăng ký trong đợt này sẽ bị hủy và trở về giá niêm yết ban đầu.
+          </>
+        }
+        countdownSeconds={5}
+        confirmLabel="Xác nhận xóa"
+        loading={Boolean(deletingSlotId)}
+        onConfirm={handleConfirmDeleteSlot}
+        onCancel={() => !deletingSlotId && setDeleteSlotModal(null)}
+      />
     </div>
   );
 }
