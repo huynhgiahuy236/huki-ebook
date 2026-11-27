@@ -758,34 +758,24 @@ export function AdminEscrowView() {
     };
   }, [items]);
 
-  // Định nghĩa các cột hiển thị của bảng Đơn Hàng Chính (5 cột cân đối, bỏ cột Thanh Toán thừa, bổ sung Khách & Giao Vận)
+  // Định nghĩa các cột hiển thị của bảng Đơn Hàng Chính (5 cột tinh tế, clean icon, typography cao cấp)
   const orderColumns = useMemo<Column<EscrowOrderGroup>[]>(
     () => [
       {
         key: 'orderCode',
         title: 'Mã đơn',
-        width: 190,
+        width: 180,
         render: (_, row) => (
-          <div className="flex flex-col gap-1 py-1">
-            <div className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[#00875A] text-[16px]">
-                shopping_bag
-              </span>
-              <span className="font-mono font-bold text-theme-text text-[13px]">
-                #{row.orderCode}
-              </span>
-            </div>
-            <div
+          <div className="flex flex-col gap-0.5 py-1">
+            <span className="font-mono font-bold text-theme-text text-[13px] tracking-tight">
+              #{row.orderCode}
+            </span>
+            <span
               suppressHydrationWarning
-              className="text-theme-text-muted font-normal text-[11px] flex items-center gap-1.5 whitespace-nowrap"
+              className="text-theme-text-muted font-normal text-[11px] whitespace-nowrap"
             >
-              <span className="material-symbols-outlined text-[13px]">schedule</span>
-              <span>{formatVietnamDateTime(row.orderCreatedAt)}</span>
-              <span>·</span>
-              <span className="font-semibold text-slate-700 dark:text-slate-300">
-                {row.itemsCount || row.items.length || 1} món
-              </span>
-            </div>
+              {formatVietnamDateTime(row.orderCreatedAt)} · {row.itemsCount || row.items.length || 1} món
+            </span>
           </div>
         ),
       },
@@ -798,21 +788,18 @@ export function AdminEscrowView() {
           const isMultiStore = uniqueStores.length > 1;
 
           return (
-            <div className="flex flex-col gap-1 py-1">
+            <div className="flex flex-col gap-0.5 py-1">
               {isMultiStore ? (
-                <div className="flex items-center gap-1.5 font-semibold text-emerald-800 dark:text-emerald-300 text-xs">
-                  <span className="material-symbols-outlined text-[15px] text-emerald-600 shrink-0">storefront</span>
-                  <span>Đa gian hàng ({uniqueStores.length} Shop)</span>
-                </div>
+                <span className="font-semibold text-emerald-700 dark:text-emerald-300 text-xs">
+                  Đa gian hàng ({uniqueStores.length} Shop)
+                </span>
               ) : (
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-theme-text min-w-0">
-                  <span className="material-symbols-outlined text-[15px] text-emerald-600 shrink-0">storefront</span>
-                  <span className="break-words line-clamp-1" title={row.storeName}>{row.storeName}</span>
-                </div>
+                <span className="font-semibold text-theme-text text-xs break-words line-clamp-1" title={row.storeName}>
+                  {row.storeName}
+                </span>
               )}
-              <span className="text-[11px] text-theme-text-muted flex items-center gap-1">
-                <span className="material-symbols-outlined text-[13px]">inventory_2</span>
-                <span>{row.items.length} kiện hàng ký quỹ</span>
+              <span className="text-[11px] text-theme-text-muted">
+                {isMultiStore ? 'Nhiều người bán' : 'Đối tác chính hãng'}
               </span>
             </div>
           );
@@ -823,21 +810,19 @@ export function AdminEscrowView() {
         title: 'Khách hàng & Giao vận',
         minWidth: 220,
         render: (_, row) => (
-          <div className="flex flex-col gap-1 py-1 text-xs">
+          <div className="flex flex-col gap-0.5 py-1 text-xs">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="material-symbols-outlined text-[14px] text-slate-400 shrink-0">person</span>
               <span className="font-medium text-theme-text">{row.customerName}</span>
-              <span className="text-slate-400">·</span>
-              <span className="font-mono text-theme-text-muted text-[11px]">{row.customerPhone}</span>
+              <span className="text-slate-300 dark:text-slate-600">·</span>
+              <span className="font-mono text-theme-text-muted text-[11.5px]">{row.customerPhone}</span>
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-theme-text-muted">
-              <span className="material-symbols-outlined text-[13px] text-amber-600 shrink-0">local_shipping</span>
+            <span className="text-[11px] text-theme-text-muted">
               {row.remittanceInfo?.shipperName ? (
-                <span>Bưu tá: <strong className="text-slate-700 dark:text-slate-300">{row.remittanceInfo.shipperName}</strong></span>
+                <>Bưu tá: <strong className="text-slate-700 dark:text-slate-300 font-medium">{row.remittanceInfo.shipperName}</strong></>
               ) : (
-                <span className="text-slate-500">Giao hàng sàn HuKi</span>
+                'Giao tiêu chuẩn'
               )}
-            </div>
+            </span>
           </div>
         ),
       },
