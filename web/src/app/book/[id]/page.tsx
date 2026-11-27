@@ -31,6 +31,7 @@ import BookAffiliateCard from '@/ui/components/affiliate/BookAffiliateCard';
 import { userApi } from '@/ui/api/userApi';
 import { StoreLogoImg } from '@/ui/components/common/StoreLogoImg';
 import { sanitizeImageUrl } from '@/ui/utils/imageUtils';
+import BookReportModal from '@/ui/components/book/BookReportModal';
 
 export interface TableOfContentItem {
   id: number | string;
@@ -101,6 +102,7 @@ export default function BookDetailPage() {
   const [activeTab, setActiveTab] = useState('intro');
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   // Sync wishlist from localStorage and RealtimeBus
   useEffect(() => {
@@ -1438,6 +1440,17 @@ export default function BookDetailPage() {
                     <span>Đồng bộ mây</span>
                   </div>
                 </div>
+
+                {/* Báo cáo sách vi phạm */}
+                <button
+                  type="button"
+                  onClick={() => setIsReportModalOpen(true)}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-[11px] font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50/70 transition-colors cursor-pointer border border-transparent hover:border-rose-200/60 group mt-1"
+                  title="Báo cáo tác phẩm có dấu hiệu vi phạm bản quyền hoặc nội dung không phù hợp"
+                >
+                  <span className="material-symbols-outlined text-[15px] text-slate-400 group-hover:text-rose-600 transition-colors">flag</span>
+                  <span>Báo cáo sách vi phạm</span>
+                </button>
               </div>
             </div>
           </div>
@@ -2443,6 +2456,23 @@ export default function BookDetailPage() {
           <span>Mua ngay</span>
         </button>
       </div>
+      {/* Book Report Modal */}
+      <BookReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        book={{
+          id: book.id,
+          title: book.title,
+          author: book.author,
+          cover: book.cover,
+          publisher: book.publisher || book.issuingCompany,
+          sellerId: (realBook as any)?.storeId || (realBook as any)?.businessId || (book as any)?.businessId,
+          sellerName: (realBook as any)?.store?.name || book.issuingCompany || book.publisher,
+          isbn: book.isbn,
+          format: selectedFormat,
+          price: book.price,
+        }}
+      />
     </div>
   );
 }

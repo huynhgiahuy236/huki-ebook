@@ -125,6 +125,7 @@ export interface CreateBookPayload {
   physicalDetails?: PhysicalDetails;
   digitalDetails?: DigitalDetails;
   enableAffiliate?: boolean;
+  status?: 'DRAFT' | 'PUBLISHED' | 'HIDDEN' | 'ARCHIVED' | 'SUSPENDED';
 }
 
 function isUuid(val: unknown): boolean {

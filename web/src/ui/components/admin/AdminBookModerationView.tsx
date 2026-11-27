@@ -1,1048 +1,789 @@
 "use client";
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useToast } from '../../context/ToastContext';
-import { catalogApi, BookData } from '../../api/catalogApi';
-import { useSmartFormCollapse } from '../../utils/formHooks';
-
-import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer } from './AdminUI';
+import { realtimeSyncBus } from '../../services/realtimeSyncBus';
 import {
-  DataTableFilterBar,
-  DateFilterValue,
-  matchesDateFilter,
-  BulkActionGroup,
-} from '../common';
+  bookModerationService,
+  ReportedBook,
+  BookReportReason,
+  BOOK_REPORT_REASON_LABELS,
+  BookModerationStatus,
+} from '../../services/bookModerationService';
+import { AdminStatusBadge, AdminPagination } from './AdminUI';
 
 export function AdminBookModerationView() {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState('all');
+
+  const [activeTab, setActiveTab] = useState<'all' | BookModerationStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFormat, setSelectedFormat] = useState('all');
-  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
-  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
-  const [bulkLoading, setBulkLoading] = useState(false);
+  const [selectedReason, setSelectedReason] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
-  const [inspectingBook, setInspectingBook] = useState<any>(null);
-  const [isDrmPreviewOpen, setIsDrmPreviewOpen] = useState(false);
-  const [rejectReasonModal, setRejectReasonModal] = useState<any>(null);
-  const [customReason, setCustomReason] = useState('');
-  const [customReasonError, setCustomReasonError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [actionLoadingId, setActionLoadingId] = useState<any>(null);
 
-  const [queueItems, setQueueItems] = useState<any[]>([]);
+  const [reportedBooks, setReportedBooks] = useState<ReportedBook[]>([]);
+  const [stats, setStats] = useState({ total: 0, pending: 0, blocked: 0, dismissed: 0 });
 
-  const inspectPanelRef = useSmartFormCollapse({
-    isOpen: Boolean(inspectingBook),
-    onClose: () => setInspectingBook(null),
-    isDirty: false,
-  });
+  // Detail & Action Modal State
+  const [activeBook, setActiveBook] = useState<ReportedBook | null>(null);
+  const [actionTab, setActionTab] = useState<'BLOCK' | 'DISMISS' | 'UNBLOCK'>('BLOCK');
+  const [blockReason, setBlockReason] = useState<BookReportReason>('COPYRIGHT');
+  const [adminNote, setAdminNote] = useState('');
+  const [notifySeller, setNotifySeller] = useState(true);
+  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
 
-  const drmPreviewRef = useSmartFormCollapse({
-    isOpen: isDrmPreviewOpen && Boolean(inspectingBook),
-    onClose: () => setIsDrmPreviewOpen(false),
-    isDirty: false,
-  });
-
-  const isRejectDirty = Boolean(customReason.trim());
-  const rejectFormRef = useSmartFormCollapse({
-    isOpen: Boolean(rejectReasonModal),
-    onClose: () => {
-      setRejectReasonModal(null);
-      setCustomReason('');
-      setCustomReasonError('');
-    },
-    isDirty: isRejectDirty,
-  });
-
-  const fetchBooksQueue = useCallback(async () => {
-    setIsLoading(true);
+  const loadData = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
-      const res = await catalogApi.getPublicBooks({ limit: 100 });
-      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-        const mapped = res.data.map(b => {
-          const isPublished = b.status === 'PUBLISHED';
-          const isDraft = b.status === 'DRAFT' || !b.status;
-          const format = b.format === 'PHYSICAL' ? 'physical' : b.format === 'DIGITAL' ? 'ebook' : 'hybrid';
-          const formatLabel = b.format === 'PHYSICAL' ? 'Sách Giấy' : b.format === 'DIGITAL' ? 'Ebook DRM' : 'Combo Sách + Ebook';
-          const cover = b.coverUrl || b.coverImage || b.cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&auto=format&fit=crop&q=80';
+      const res = await bookModerationService.getReportedBooks({
+        status: activeTab,
+        reason: selectedReason,
+        searchQuery,
+      });
+      setReportedBooks(res.items);
+      setStats(res.stats);
 
-          return {
-            id: b.id,
-            rawBookId: b.id,
-            title: b.title,
-            publisher: b.publisher?.name || 'Nhà Xuất Bản Đối Tác',
-            publisherCode: b.publisher?.name?.substring(0, 4)?.toUpperCase() || 'NXB',
-            publisherLogo: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=100&auto=format&fit=crop&q=80',
-            cover,
-            author: b.author?.name || 'Tác giả chính',
-            format,
-            formatLabel,
-            isbn: (b as any).isbn || 'Chưa cấp ISBN',
-            licenseNo: `QĐXB-${b.id.substring(0, 6).toUpperCase()}-2026`,
-            price: b.price || 0,
-            ebookPrice: b.format !== 'PHYSICAL' ? (b.price ? Math.round(b.price * 0.6) : 0) : null,
-            createdAt: b.createdAt || new Date().toISOString(),
-            submittedAt: b.createdAt ? new Date(b.createdAt).toLocaleDateString('vi-VN') : 'Gần đây',
-            status: isPublished ? 'approved' : 'pending',
-            statusLabel: isPublished ? 'Đã phê duyệt' : 'Chờ kiểm duyệt',
-            drmStatus: b.format !== 'PHYSICAL' ? 'Đã mã hóa AES-256 (Hợp lệ)' : 'Không áp dụng (Sách in)',
-            samplePages: 15,
-            totalPages: 320,
-            fileSize: b.format !== 'PHYSICAL' ? '18.4 MB (EPUB)' : 'N/A',
-            urgency: isDraft ? 'high' : 'low',
-            notes: b.description || 'Đầy đủ hồ sơ kiểm duyệt nội dung theo tiêu chuẩn xuất bản.',
-          };
-        });
-        setQueueItems(mapped);
-      } else {
-        setQueueItems([]);
+      // Nếu đang mở xem xét một cuốn sách, cập nhật lại dữ liệu mới nhất
+      if (activeBook) {
+        const latest = res.items.find((b) => b.bookId === activeBook.bookId);
+        if (latest) setActiveBook(latest);
       }
-    } catch {
-      setQueueItems([]);
+    } catch (err) {
+      if (!silent) {
+        showToast({
+          title: 'Lỗi tải dữ liệu',
+          message: 'Không thể tải danh sách sách bị báo cáo.',
+          type: 'error',
+        });
+      }
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
-  }, []);
+  }, [activeTab, selectedReason, searchQuery, activeBook, showToast]);
 
   useEffect(() => {
-    fetchBooksQueue();
-  }, [fetchBooksQueue]);
+    loadData(false);
 
-  const handleApprove = async (bookId: any) => {
-    setActionLoadingId(bookId);
-    try {
-      const res = await catalogApi.publishBook(bookId);
-      if (res.success) {
-        showToast?.('Đã phê duyệt và kích hoạt phân phối toàn sàn HUKI!', 'success');
-        setQueueItems(prev => prev.map(item => {
-          if (item.id === bookId) {
-            return { ...item, status: 'approved', statusLabel: 'Đã phê duyệt' };
-          }
-          return item;
-        }));
-        await fetchBooksQueue();
-      } else {
-        showToast?.(res.error?.message || 'Không thể phê duyệt sách.', 'error');
-      }
-    } catch {
-      showToast?.('Lỗi kết nối khi phê duyệt sách.', 'error');
-    } finally {
-      setActionLoadingId(null);
-      setInspectingBook(null);
-    }
-  };
-
-  const handleRequestEdit = async (bookId: any) => {
-    setActionLoadingId(bookId);
-    try {
-      await catalogApi.suspendBook(bookId, 'Yêu cầu NXB kiểm tra và cập nhật lại hồ sơ giấy phép xuất bản');
-      setQueueItems(prev => prev.map(item => {
-        if (item.id === bookId) {
-          return { ...item, status: 'need_update', statusLabel: 'Cần bổ sung thông tin' };
+    // Lắng nghe sự kiện Realtime khi có độc giả gửi báo cáo hoặc admin xử lý
+    const unsubscribe = realtimeSyncBus.subscribe((event) => {
+      if (
+        event.type === 'BOOK_REPORTED' ||
+        event.type === 'BOOK_MODERATED' ||
+        event.type === 'ADMIN_NOTIFICATIONS_UPDATED'
+      ) {
+        void loadData(true);
+        if (event.type === 'BOOK_REPORTED') {
+          showToast({
+            title: 'Báo cáo sách mới',
+            message: `Có độc giả vừa báo cáo vi phạm tác phẩm: ${(event.payload as any)?.bookTitle || 'Sách'}`,
+            type: 'warning',
+          });
         }
-        return item;
-      }));
-      showToast?.('Đã gửi thông báo yêu cầu NXB chỉnh sửa giấy phép!', 'info');
-    } catch (e: any) {
-      showToast?.(e?.message || 'Có lỗi khi yêu cầu chỉnh sửa', 'error');
-    } finally {
-      setActionLoadingId(null);
-      setInspectingBook(null);
-    }
-  };
-
-  const handleReject = async (bookId: any, reason: any) => {
-    const finalReason = typeof reason === 'string' ? reason.trim() : customReason.trim();
-    if (!finalReason) {
-      setCustomReasonError('Vui lòng chọn hoặc nhập lý do từ chối phát hành ấn phẩm.');
-      return;
-    }
-    setActionLoadingId(bookId);
-    try {
-      await catalogApi.suspendBook(bookId, finalReason);
-      setQueueItems(prev => prev.map(item => {
-        if (item.id === bookId) {
-          return { ...item, status: 'rejected', statusLabel: 'Từ chối phát hành', rejectReason: finalReason };
-        }
-        return item;
-      }));
-      showToast?.(`Đã từ chối phát hành tựa sách: ${finalReason}`, 'warning');
-    } catch (e: any) {
-      showToast?.(e?.message || 'Có lỗi khi đình chỉ phát hành ấn phẩm', 'error');
-    } finally {
-      setActionLoadingId(null);
-      setRejectReasonModal(null);
-      setCustomReason('');
-      setCustomReasonError('');
-      setInspectingBook(null);
-    }
-  };
-
-  const filteredItems = queueItems.filter(item => {
-    if (activeTab !== 'all' && item.status !== activeTab) return false;
-    if (selectedFormat !== 'all' && item.format !== selectedFormat) return false;
-    if (!matchesDateFilter(item.createdAt, dateFilter)) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      return (
-        item.title.toLowerCase().includes(q) ||
-        item.publisher.toLowerCase().includes(q) ||
-        item.isbn.toLowerCase().includes(q) ||
-        item.licenseNo.toLowerCase().includes(q) ||
-        item.author.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
-
-  const moderationBulkActionGroups: BulkActionGroup[] = useMemo(
-    () => [
-      {
-        groupLabel: 'Xử lý kiểm duyệt',
-        actions: [
-          {
-            label: 'Phê duyệt lên kệ sách đã chọn',
-            value: 'APPROVE_BOOKS',
-            icon: 'verified',
-            variant: 'primary',
-          },
-          {
-            label: 'Yêu cầu bổ sung giấy phép',
-            value: 'NEED_UPDATE',
-            icon: 'edit_note',
-          },
-          {
-            label: 'Từ chối kiểm duyệt sách đã chọn',
-            value: 'REJECT_BOOKS',
-            icon: 'cancel',
-            variant: 'danger',
-            confirmMessage: 'Bạn có chắc chắn muốn từ chối các tựa sách đã chọn không? Nhà xuất bản sẽ nhận thông báo từ chối.',
-          },
-        ],
-      },
-    ],
-    []
-  );
-
-  const handleExecuteBulkAction = async (actionValue: string) => {
-    if (selectedItemIds.length === 0) return;
-    setBulkLoading(true);
-    try {
-      if (actionValue === 'APPROVE_BOOKS') {
-        await Promise.allSettled(selectedItemIds.map(id => catalogApi.publishBook(id)));
-        setQueueItems(prev => prev.map(item => selectedItemIds.includes(item.id) ? { ...item, status: 'approved', statusLabel: 'Đã phê duyệt' } : item));
-        showToast?.(`Đã phê duyệt thành công ${selectedItemIds.length} tựa sách lên kệ!`, 'success');
-        setSelectedItemIds([]);
-      } else if (actionValue === 'NEED_UPDATE') {
-        await Promise.allSettled(selectedItemIds.map(id => catalogApi.hideBook(id)));
-        setQueueItems(prev => prev.map(item => selectedItemIds.includes(item.id) ? { ...item, status: 'need_update', statusLabel: 'Cần bổ sung' } : item));
-        showToast?.(`Đã yêu cầu bổ sung giấy phép cho ${selectedItemIds.length} tựa sách.`, 'info');
-        setSelectedItemIds([]);
-      } else if (actionValue === 'REJECT_BOOKS') {
-        await Promise.allSettled(selectedItemIds.map(id => catalogApi.suspendBook(id)));
-        setQueueItems(prev => prev.map(item => selectedItemIds.includes(item.id) ? { ...item, status: 'rejected', statusLabel: 'Đã từ chối' } : item));
-        showToast?.(`Đã từ chối ${selectedItemIds.length} tựa sách.`, 'warning');
-        setSelectedItemIds([]);
       }
-    } finally {
-      setBulkLoading(false);
-    }
-  };
-
-  const toggleSelectItem = (id: string) => {
-    setSelectedItemIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
-  };
-
-  const toggleSelectAllItems = (allIds: string[]) => {
-    if (selectedItemIds.length === allIds.length && allIds.length > 0) {
-      setSelectedItemIds([]);
-    } else {
-      setSelectedItemIds(allIds);
-    }
-  };
-
-  const pendingCount = queueItems.filter(i => i.status === 'pending').length;
-  const needUpdateCount = queueItems.filter(i => i.status === 'need_update').length;
-  const approvedCount = queueItems.filter(i => i.status === 'approved').length;
-
-  const totalPages = Math.ceil(filteredItems.length / pageSize) || 1;
-  const paginatedItems = filteredItems.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-
-  const handleTabChange = (tabId: string) => {
-    setActiveTab(tabId);
-    setCurrentPage(1);
-  };
-
-  const [expandedRowIds, setExpandedRowIds] = useState<Set<string>>(new Set());
-
-  const toggleExpandRow = (id: string) => {
-    setExpandedRowIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
     });
+
+    return () => unsubscribe();
+  }, [loadData, showToast]);
+
+  // Reset trang về 1 khi đổi bộ lọc
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, selectedReason, searchQuery]);
+
+  // Phân trang
+  const totalPages = Math.ceil(reportedBooks.length / pageSize) || 1;
+  const paginatedBooks = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return reportedBooks.slice(start, start + pageSize);
+  }, [reportedBooks, currentPage, pageSize]);
+
+  // Mở modal xem xét và chuẩn bị dữ liệu
+  const handleOpenActionCenter = (book: ReportedBook) => {
+    setActiveBook(book);
+    setActionTab(book.status === 'BLOCKED' ? 'UNBLOCK' : 'BLOCK');
+    setBlockReason(book.reasons[0]?.reason || 'COPYRIGHT');
+    setAdminNote('');
+    setNotifySeller(true);
+  };
+
+  // Thực thi hành động của Admin
+  const handleExecuteAction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeBook) return;
+
+    setIsSubmittingAction(true);
+    try {
+      const reasonLabel = BOOK_REPORT_REASON_LABELS[blockReason]?.label || 'Vi phạm chính sách';
+      await bookModerationService.moderateBook({
+        bookId: activeBook.bookId,
+        action: actionTab,
+        reasonText: actionTab === 'BLOCK' ? reasonLabel : undefined,
+        note: adminNote.trim(),
+        adminName: 'Huki Super Admin',
+        notifySeller,
+      });
+
+      showToast({
+        title: actionTab === 'BLOCK' ? 'Đã khóa sách vi phạm' : actionTab === 'DISMISS' ? 'Đã bác bỏ báo cáo' : 'Đã mở khóa sách',
+        message: actionTab === 'BLOCK'
+          ? `Tác phẩm "${activeBook.title}" đã bị khóa và gửi thông báo kỷ luật về Shop.`
+          : actionTab === 'DISMISS'
+          ? `Đã xác nhận tác phẩm "${activeBook.title}" hợp lệ, bác bỏ các phản ánh.`
+          : `Đã mở khóa và khôi phục phát hành tác phẩm "${activeBook.title}".`,
+        type: actionTab === 'BLOCK' ? 'warning' : 'success',
+      });
+
+      setActiveBook(null);
+      void loadData(false);
+    } catch (err: any) {
+      showToast({
+        title: 'Thao tác thất bại',
+        message: err.message || 'Có lỗi xảy ra khi xử lý kiểm duyệt.',
+        type: 'error',
+      });
+    } finally {
+      setIsSubmittingAction(false);
+    }
   };
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
-      {/* 1. TOP HEADER & METRICS SUMMARY */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-gray-200">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200">
+      {/* 1. TOP HEADER & TITLE */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-gray-200">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
-            Kiểm Duyệt Sách &amp; Bản Quyền Số
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-700 text-xs font-bold border border-rose-200 mb-1.5">
+            <span className="material-symbols-outlined text-[15px]">report_problem</span>
+            <span>Hậu Kiểm &amp; Xử Lý Vi Phạm Tác Phẩm</span>
+          </div>
+          <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight font-editorial">
+            Kiểm Duyệt Sách Vi Phạm (Báo Cáo Độc Giả)
           </h1>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Người bán đăng sách tự do. Ban Quản Trị tiếp nhận phản ánh vi phạm bản quyền, nội dung nhạy cảm và chất lượng từ cộng đồng để thẩm tra và xử lý.
+          </p>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
-          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[#E2E8F0] text-xs font-semibold text-gray-700 shadow-2xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Mã hóa DRM: Chuẩn AES-GCM-256</span>
-          </div>
-
-          <button 
-            onClick={() => showToast?.('Đang quét tự động kiểm tra ISBN trùng lặp...', 'info')}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-all shadow-sm cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
-            <span>Quét ISBN Tự Động</span>
-          </button>
-        </div>
+        <button
+          onClick={() => loadData(false)}
+          disabled={isLoading}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shadow-2xs cursor-pointer self-start sm:self-auto disabled:opacity-60"
+        >
+          <span className={`material-symbols-outlined text-[16px] ${isLoading ? 'animate-spin text-emerald-600' : 'text-gray-500'}`}>
+            refresh
+          </span>
+          <span>Làm mới Realtime</span>
+        </button>
       </div>
 
-      {/* 2. STATS OVERVIEW CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-4.5 border border-[#E2E8F0] shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Chờ Kiểm Duyệt Ngay</span>
-            <span className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-xs">
-              {pendingCount}
-            </span>
+      {/* 2. STATS CARDS */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-2xs flex items-center justify-between">
+          <div className="space-y-0.5">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Tổng Sách Bị Báo Cáo</span>
+            <div className="text-2xl font-black text-gray-900">{stats.total}</div>
+            <span className="text-[11px] text-gray-400">Toàn bộ tác phẩm có phản ánh</span>
           </div>
-          <div className="text-2xl font-extrabold text-gray-900 mt-2">{pendingCount} Tựa Sách</div>
-          <div className="mt-2 text-xs text-amber-700 font-semibold flex items-center gap-1">
-            <span className="material-symbols-outlined text-[14px]">schedule</span>
-            <span>Thời gian phản hồi &lt; 4h</span>
+          <div className="w-11 h-11 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-700 shrink-0">
+            <span className="material-symbols-outlined text-[22px]">inventory_2</span>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4.5 border border-[#E2E8F0] shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Cần Bổ Sung Giấy Phép</span>
-            <span className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-xs">
-              {needUpdateCount}
-            </span>
+        <div className="p-4 rounded-2xl bg-white border border-amber-200 shadow-2xs flex items-center justify-between">
+          <div className="space-y-0.5">
+            <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Chờ Admin Xem Xét</span>
+            <div className="text-2xl font-black text-amber-700">{stats.pending}</div>
+            <span className="text-[11px] text-amber-600">Cần BQT thẩm định &amp; xử lý</span>
           </div>
-          <div className="text-2xl font-extrabold text-gray-900 mt-2">{needUpdateCount} Tựa Sách</div>
-          <div className="mt-2 text-xs text-rose-700 font-semibold flex items-center gap-1">
-            <span className="material-symbols-outlined text-[14px]">error</span>
-            <span>Chờ NXB tải lên QĐXB</span>
+          <div className="w-11 h-11 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-700 shrink-0 border border-amber-200/60">
+            <span className="material-symbols-outlined text-[22px]">hourglass_top</span>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4.5 border border-[#E2E8F0] shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Đã Lên Kệ Tuần Này</span>
-            <span className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs">
-              {approvedCount}
-            </span>
+        <div className="p-4 rounded-2xl bg-white border border-rose-200 shadow-2xs flex items-center justify-between">
+          <div className="space-y-0.5">
+            <span className="text-xs font-bold text-rose-800 uppercase tracking-wider">Đã Khóa / Chặn Sàn</span>
+            <div className="text-2xl font-black text-rose-700">{stats.blocked}</div>
+            <span className="text-[11px] text-rose-600">Đã gỡ và thông báo kỷ luật Shop</span>
           </div>
-          <div className="text-2xl font-extrabold text-gray-900 mt-2">142 Đầu Sách</div>
-          <div className="mt-2 text-xs text-emerald-700 font-semibold flex items-center gap-1">
-            <span className="material-symbols-outlined text-[14px]">check_circle</span>
-            <span>Bảo vệ DRM thành công</span>
+          <div className="w-11 h-11 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-700 shrink-0 border border-rose-200/60">
+            <span className="material-symbols-outlined text-[22px]">lock</span>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4.5 border border-[#E2E8F0] shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Tỷ Lệ Duyệt Thành Công</span>
-            <span className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs">
-              96.8%
-            </span>
+        <div className="p-4 rounded-2xl bg-white border border-emerald-200 shadow-2xs flex items-center justify-between">
+          <div className="space-y-0.5">
+            <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Đã Bác Bỏ / Hợp Lệ</span>
+            <div className="text-2xl font-black text-emerald-700">{stats.dismissed}</div>
+            <span className="text-[11px] text-emerald-600">Sách an toàn, báo cáo sai lệch</span>
           </div>
-          <div className="text-2xl font-extrabold text-gray-900 mt-2">96.8%</div>
-          <div className="mt-2 text-xs text-blue-700 font-semibold flex items-center gap-1">
-            <span className="material-symbols-outlined text-[14px]">verified_user</span>
-            <span>Chuẩn hóa nghiêm ngặt</span>
+          <div className="w-11 h-11 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-700 shrink-0 border border-emerald-200/60">
+            <span className="material-symbols-outlined text-[22px]">verified</span>
           </div>
         </div>
       </div>
 
-      {/* 3. FILTERS, SEARCH, FORMAT TABS & BULK ACTIONS */}
-      <DataTableFilterBar
-        className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
-        searchPlaceholder="Tìm tên sách, ISBN, NXB..."
-        searchValue={searchQuery}
-        onSearchChange={(val) => {
-          setSearchQuery(val);
-          setCurrentPage(1);
-        }}
-        statusFilter={{
-          current: activeTab,
-          options: [
-            { value: 'all', label: 'Tất Cả', count: queueItems.length },
-            { value: 'pending', label: 'Chờ Xét Duyệt', count: pendingCount },
-            { value: 'need_update', label: 'Cần Bổ Sung', count: needUpdateCount },
-            { value: 'approved', label: 'Đã Phê Duyệt', count: approvedCount },
-          ],
-          onChange: handleTabChange,
-        }}
-        dateFilter={{
-          value: dateFilter,
-          onChange: (df) => {
-            setDateFilter(df);
-            setCurrentPage(1);
-          },
-        }}
-        bulkActions={{
-          selectedCount: selectedItemIds.length,
-          loading: bulkLoading,
-          groups: moderationBulkActionGroups,
-          onSelectAction: handleExecuteBulkAction,
-        }}
-        leftCustomActions={
+      {/* 3. TABS & FILTER BAR */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-3.5 rounded-2xl border border-gray-200 shadow-2xs">
+        {/* Status Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
+          {[
+            { key: 'all', label: 'Tất Cả', count: stats.total },
+            { key: 'PENDING_REVIEW', label: 'Chờ Xem Xét', count: stats.pending, alert: stats.pending > 0 },
+            { key: 'BLOCKED', label: 'Đã Khóa / Chặn', count: stats.blocked },
+            { key: 'DISMISSED', label: 'Bác Bỏ / Hợp Lệ', count: stats.dismissed },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key as any)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                activeTab === tab.key
+                  ? 'bg-[#00875A] text-white shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                  activeTab === tab.key
+                    ? 'bg-white/20 text-white'
+                    : tab.alert
+                    ? 'bg-amber-100 text-amber-800 font-extrabold'
+                    : 'bg-gray-200 text-gray-700'
+                }`}
+              >
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Reason Filter & Search Input */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <select
-            value={selectedFormat}
-            onChange={(e: any) => {
-              setSelectedFormat(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="px-3 py-1.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-xs font-semibold text-gray-700 focus:outline-none focus:border-[#00875A]"
+            value={selectedReason}
+            onChange={(e) => setSelectedReason(e.target.value)}
+            className="h-9 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 cursor-pointer focus:outline-none focus:border-[#00875A]"
           >
-            <option value="all">Mọi Định Dạng</option>
-            <option value="hybrid">Combo Sách + Ebook</option>
-            <option value="ebook">Ebook DRM Độc Quyền</option>
-            <option value="physical">Sách Giấy In</option>
+            <option value="all">Tất Cả Loại Vi Phạm</option>
+            {(Object.keys(BOOK_REPORT_REASON_LABELS) as BookReportReason[]).map((r) => (
+              <option key={r} value={r}>
+                {BOOK_REPORT_REASON_LABELS[r].label}
+              </option>
+            ))}
           </select>
-        }
-      />
 
-      {/* 4. MODERATION QUEUE TABLE - Compact Stacked Rows & Expandable Detail */}
-      <AdminTableContainer>
-        <table className="w-full text-left text-xs border-collapse">
-          <thead className="bg-[#003B2B] text-[10.5px] font-bold text-white uppercase tracking-wider border-b border-[#00281D]">
-            <tr>
-              <th className="py-3 px-2 w-8 text-center">
-                <input
-                  type="checkbox"
-                  checked={paginatedItems.length > 0 && paginatedItems.every(i => selectedItemIds.includes(i.id))}
-                  onChange={() => toggleSelectAllItems(paginatedItems.map(i => i.id))}
-                  className="rounded text-[#00875A] cursor-pointer"
-                />
-              </th>
-              <th className="py-3 px-2 w-8 text-center"></th>
-              <th className="py-3 px-2 w-10 text-center">STT</th>
-              <th className="py-2.5 px-3 text-white">Tác phẩm</th>
-              <th className="py-2.5 px-3 text-white">Tác giả & NXB</th>
-              <th className="py-2.5 px-3 text-white">Định dạng</th>
-              <th className="py-2.5 px-3 text-white">Giá niêm yết</th>
-              <th className="py-3 px-4 text-right">Trạng thái & Thao tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {paginatedItems.length === 0 ? (
+          <div className="relative w-full sm:w-72">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">
+              search
+            </span>
+            <input
+              type="text"
+              placeholder="Tìm theo tên sách, shop, ISBN..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-9 pl-9 pr-3 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 4. REPORTED BOOKS TABLE CONTAINER */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[#003B2B] text-[10.5px] uppercase font-bold text-white tracking-wider select-none border-b border-[#00281D]">
               <tr>
-                <td colSpan={8} className="py-12 text-center text-gray-400">
-                  <span className="material-symbols-outlined text-4xl mb-2 text-gray-300">find_in_page</span>
-                  <p className="font-semibold text-xs">Không tìm thấy hồ sơ sách nào phù hợp điều kiện lọc.</p>
-                </td>
+                <th className="py-3 px-4 text-white">Tác Phẩm Bị Báo Cáo</th>
+                <th className="py-3 px-4 text-white">Gian Hàng / Đối Tác</th>
+                <th className="py-3 px-4 text-white text-center">Lượt Báo Cáo</th>
+                <th className="py-3 px-4 text-white">Phản Ánh Phổ Biến</th>
+                <th className="py-3 px-4 text-white text-center">Trạng Thái Sàn</th>
+                <th className="py-3 px-4 text-white text-right">Thao Tác Xử Lý</th>
               </tr>
-            ) : (
-              paginatedItems.map((item, idx) => {
-                const isExpanded = expandedRowIds.has(item.id);
-                const itemIndex = (currentPage - 1) * pageSize + idx + 1;
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="py-16 text-center text-gray-400">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <span className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+                      <span className="text-xs font-semibold">Đang tải danh sách sách bị báo cáo...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedBooks.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-16 text-center text-gray-400">
+                    <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                      <span className="material-symbols-outlined text-[36px] text-emerald-600/70">verified</span>
+                      <h3 className="text-sm font-bold text-gray-700">Không có tác phẩm nào bị báo cáo</h3>
+                      <p className="text-xs text-gray-500 leading-relaxed">
+                        Hiện không có sách nào vi phạm tiêu chuẩn cộng đồng theo bộ lọc hiện tại. Toàn sàn đang hoạt động an toàn.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                paginatedBooks.map((item) => {
+                  const mainReason = item.reasons[0]?.reason || 'OTHER';
+                  const reasonMeta = BOOK_REPORT_REASON_LABELS[mainReason] || BOOK_REPORT_REASON_LABELS.OTHER;
 
-                return (
-                  <React.Fragment key={item.id}>
-                    {/* Dòng tóm tắt chính */}
-                    <tr
-                      className={`transition-colors group ${
-                        isExpanded ? 'bg-emerald-50/30' : idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'
-                      } hover:bg-emerald-50/50`}
-                    >
-                      {/* Checkbox */}
-                      <td className="py-3 px-2 text-center" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={selectedItemIds.includes(item.id)}
-                          onChange={() => toggleSelectItem(item.id)}
-                          className="rounded text-[#00875A] cursor-pointer"
-                        />
-                      </td>
-
-                      {/* Mũi tên mở rộng */}
-                      <td className="py-3 px-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => toggleExpandRow(item.id)}
-                          className="w-6 h-6 rounded-md hover:bg-emerald-100 text-gray-500 hover:text-emerald-800 flex items-center justify-center transition-all cursor-pointer"
-                          title={isExpanded ? 'Thu gọn chi tiết' : 'Mở rộng chi tiết'}
-                        >
-                          <span className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${isExpanded ? 'rotate-90 text-emerald-700' : ''}`}>
-                            chevron_right
-                          </span>
-                        </button>
-                      </td>
-
-                      {/* STT */}
-                      <td className="py-3 px-2 text-center text-[11px] font-mono text-gray-400 font-semibold">
-                        {itemIndex}
-                      </td>
-
-                      {/* Tác Phẩm & Mã ISBN */}
+                  return (
+                    <tr key={item.bookId} className="hover:bg-slate-50/70 transition-colors">
+                      {/* Tác phẩm */}
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <img 
-                            src={item.cover} 
-                            alt={item.title} 
-                            className="w-9 h-12 object-cover rounded-lg shadow-2xs border border-gray-200 shrink-0"
+                        <div className="flex items-start gap-3">
+                          <img
+                            src={item.cover}
+                            alt={item.title}
+                            className="w-10 h-14 object-cover rounded-lg shadow-2xs shrink-0 border border-slate-200"
+                            onError={(e) => {
+                              (e.target as any).src = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=100&auto=format&fit=crop&q=80';
+                            }}
                           />
-                          <div className="min-w-0 max-w-[280px]">
-                            <span 
-                              onClick={() => toggleExpandRow(item.id)}
-                              className="font-bold text-gray-900 text-xs block break-words line-clamp-2 leading-snug hover:text-[#00875A] transition-colors cursor-pointer"
-                            >
+                          <div className="space-y-0.5 min-w-0">
+                            <span className="font-bold text-slate-900 block truncate max-w-xs sm:max-w-md">
                               {item.title}
                             </span>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="font-mono text-[10px] text-gray-400">#{item.id?.substring(0, 8)}</span>
-                              <span className="text-gray-300">•</span>
-                              <span className="font-mono text-[10.5px] text-gray-600 font-medium">ISBN: {item.isbn}</span>
+                            <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                              <span>Tác giả: <strong className="text-slate-700 font-semibold">{item.author}</strong></span>
+                              <span>•</span>
+                              <span>ISBN: <strong className="text-slate-700 font-semibold">{item.isbn}</strong></span>
                             </div>
+                            <span className="inline-block text-[10px] px-2 py-0.2 rounded-md bg-slate-100 text-slate-600 font-semibold">
+                              {item.formatLabel}
+                            </span>
                           </div>
                         </div>
                       </td>
 
-                      {/* Tác Giả & NXB */}
-                      <td className="py-3 px-3">
-                        <div className="font-semibold text-gray-900 text-xs break-words line-clamp-1">{item.author}</div>
-                        <div className="text-[10.5px] text-gray-500 mt-0.5 break-words line-clamp-1">{item.publisher}</div>
-                      </td>
-
-                      {/* Định Dạng & DRM */}
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`inline-flex items-center gap-1 font-bold text-[11px] ${
-                            item.format === 'hybrid' ? 'text-emerald-700' :
-                            item.format === 'ebook' ? 'text-purple-700' : 'text-blue-700'
-                          }`}>
-                            <span className="material-symbols-outlined text-[13px]">
-                              {item.format === 'hybrid' ? 'auto_stories' : item.format === 'ebook' ? 'devices' : 'menu_book'}
-                            </span>
-                            {item.formatLabel}
+                      {/* Gian hàng */}
+                      <td className="py-3 px-4">
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-800 block truncate max-w-[200px]">
+                            {item.sellerName}
+                          </span>
+                          <span className="text-[11px] text-slate-400 block truncate">
+                            {item.sellerEmail || item.publisher}
                           </span>
                         </div>
-                        <div className="text-[10px] text-gray-400 mt-0.5 truncate max-w-[160px]">{item.drmStatus}</div>
                       </td>
 
-                      {/* Giá Sách / Ebook */}
-                      <td className="py-3 px-3">
-                        <div className="font-bold text-gray-900 text-xs">
-                          {item.price ? `${item.price.toLocaleString()}₫` : 'Miễn phí'}
+                      {/* Lượt báo cáo */}
+                      <td className="py-3 px-4 text-center">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black border ${
+                            item.totalReports >= 3
+                              ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
+                              : 'bg-amber-100 text-amber-900 border-amber-300'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[13px]">
+                            {item.totalReports >= 3 ? 'local_fire_department' : 'warning'}
+                          </span>
+                          <span>{item.totalReports} phản ánh</span>
+                        </span>
+                      </td>
+
+                      {/* Phản ánh phổ biến */}
+                      <td className="py-3 px-4">
+                        <div className="space-y-1">
+                          <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-bold border ${reasonMeta.color}`}>
+                            {reasonMeta.label}
+                          </span>
+                          <p className="text-[11px] text-slate-500 line-clamp-1 italic">
+                            &ldquo;{item.reports[0]?.description || 'Độc giả phản ánh nội dung có vấn đề'}&rdquo;
+                          </p>
                         </div>
-                        {item.ebookPrice && (
-                          <div className="text-[10.5px] text-[#00875A] font-bold mt-0.5">
-                            Ebook: {item.ebookPrice.toLocaleString()}₫
-                          </div>
+                      </td>
+
+                      {/* Trạng thái kiểm duyệt */}
+                      <td className="py-3 px-4 text-center">
+                        {item.status === 'BLOCKED' ? (
+                          <AdminStatusBadge
+                            variant="danger"
+                            label="Đã khóa / Chặn"
+                            icon="lock"
+                            dot
+                          />
+                        ) : item.status === 'DISMISSED' ? (
+                          <AdminStatusBadge
+                            variant="success"
+                            label="Đã bác bỏ / Hợp lệ"
+                            icon="verified"
+                            dot
+                          />
+                        ) : (
+                          <AdminStatusBadge
+                            variant="warning"
+                            label="Chờ BQT xem xét"
+                            icon="hourglass_top"
+                            dot
+                          />
                         )}
                       </td>
 
-                      {/* Trạng Thái & Thao Tác */}
+                      {/* Nút hành động */}
                       <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <AdminStatusBadge
-                            variant={
-                              item.status === 'approved' ? 'success' :
-                              item.status === 'pending' ? 'warning' :
-                              item.status === 'need_update' ? 'danger' : 'neutral'
-                            }
-                            label={item.statusLabel}
-                          />
-
-                          <button
-                            onClick={() => setInspectingBook(item)}
-                            className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer"
-                            title="Thẩm định chi tiết"
-                          >
-                            <span className="material-symbols-outlined text-[14px]">visibility</span>
-                            <span>Thẩm Định</span>
-                          </button>
-
-                          {item.status === 'pending' && (
-                            <button
-                              onClick={() => handleApprove(item.id)}
-                              disabled={actionLoadingId === item.id}
-                              className="px-2.5 py-1 rounded-lg bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
-                              title="Phê duyệt nhanh"
-                            >
-                              <span className="material-symbols-outlined text-[14px]">check</span>
-                              <span>Duyệt</span>
-                            </button>
-                          )}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenActionCenter(item)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 hover:border-[#00875A] text-xs font-bold text-slate-800 hover:text-[#00875A] transition-all shadow-2xs cursor-pointer active:scale-95"
+                          title="Mở hồ sơ bằng chứng &amp; Xử lý vi phạm"
+                        >
+                          <span className="material-symbols-outlined text-[16px] text-slate-500">gavel</span>
+                          <span>Xử Lý Vi Phạm</span>
+                        </button>
                       </td>
                     </tr>
-
-                    {/* Khối Master-Detail mở rộng (3-card subpanel) */}
-                    {isExpanded && (
-                      <tr className="bg-emerald-50/20 border-b border-emerald-100">
-                        <td colSpan={8} className="p-4 sm:p-5">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs">
-                            {/* Cột 1: Thông tin xuất bản & Hồ sơ */}
-                            <div className="space-y-2 text-xs border-r border-gray-100 pr-3">
-                              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5 text-emerald-800">
-                                <span className="material-symbols-outlined text-[14px]">menu_book</span>
-                                <span>Hồ Sơ &amp; Giấy Phép Xuất Bản</span>
-                              </div>
-                              <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
-                                <div>
-                                  <span className="text-gray-400 block">Quyết định XB:</span>
-                                  <span className="font-mono font-semibold text-gray-800">{item.licenseNo}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-400 block">Số trang mẫu:</span>
-                                  <span className="font-semibold text-gray-800">{item.samplePages}/{item.totalPages} trang</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-400 block">Kích thước file:</span>
-                                  <span className="font-semibold text-gray-800">{item.fileSize}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-400 block">Thời gian gửi:</span>
-                                  <span className="font-semibold text-gray-800">{item.submittedAt}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Cột 2: Bảo mật DRM & Ghi chú */}
-                            <div className="space-y-2 text-xs border-r border-gray-100 pr-3">
-                              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5 text-emerald-800">
-                                <span className="material-symbols-outlined text-[14px]">lock</span>
-                                <span>Bảo Mật DRM &amp; Bản Quyền</span>
-                              </div>
-                              <div className="text-[11px] text-gray-700 space-y-1 pt-1">
-                                <div><span className="text-gray-400">Trạng thái DRM: </span><span className="font-semibold">{item.drmStatus}</span></div>
-                                <div><span className="text-gray-400">Ghi chú duyệt: </span><span className="text-gray-600">{item.notes}</span></div>
-                              </div>
-                            </div>
-
-                            {/* Cột 3: Thao tác trực tiếp */}
-                            <div className="space-y-2 text-xs flex flex-col justify-between">
-                              <div>
-                                <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5 text-emerald-800">
-                                  <span className="material-symbols-outlined text-[14px]">tune</span>
-                                  <span>Hành Động Kiểm Duyệt</span>
-                                </div>
-                                <p className="text-[11px] text-gray-500 mt-1">
-                                  Kiểm tra tệp DRM hoặc xem trước các trang mẫu trước khi kích hoạt phân phối.
-                                </p>
-                              </div>
-                              <div className="flex flex-wrap gap-2 pt-2">
-                                <button
-                                  onClick={() => setInspectingBook(item)}
-                                  className="px-3 py-1.5 rounded-lg bg-[#003B2B] hover:bg-[#00281D] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-                                >
-                                  <span className="material-symbols-outlined text-[14px]">policy</span>
-                                  <span>Thẩm Định Đầy Đủ</span>
-                                </button>
-                                {item.status === 'pending' && (
-                                  <>
-                                    <button
-                                      onClick={() => handleRequestEdit(item.id)}
-                                      className="px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-xs transition-colors cursor-pointer"
-                                    >
-                                      Yêu Cầu Sửa
-                                    </button>
-                                    <button
-                                      onClick={() => setRejectReasonModal(item)}
-                                      className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer"
-                                    >
-                                      Từ Chối
-                                    </button>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-
-        {/* Luôn hiển thị thanh phân trang mặc định */}
-        <AdminPagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={filteredItems.length}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
-          itemLabel="tựa sách kiểm duyệt"
-        />
-      </AdminTableContainer>
-
-      {/* 5. QUICK INSPECTION IN-PAGE COLLAPSIBLE PANEL */}
-      {inspectingBook && (
-        <div ref={inspectPanelRef} className="mt-6 bg-white rounded-3xl p-6 sm:p-8 shadow-sm border-2 border-emerald-500/20 space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
-          {/* Header */}
-          <div className="pb-4 border-b border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-[#00875A] flex items-center justify-center font-bold shadow-2xs">
-                <span className="material-symbols-outlined text-[22px]">verified</span>
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  Thẩm Định Bản Quyền &amp; Xuất Bản
-                </h2>
-                <span className="text-xs font-mono text-gray-500">Mã hồ sơ: {inspectingBook.id}</span>
-              </div>
-            </div>
-            <button
-              onClick={() => setInspectingBook(null)}
-              className="px-3 py-1.5 text-xs font-semibold text-gray-500 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors cursor-pointer"
-            >
-              ✕ Đóng bảng
-            </button>
-          </div>
-
-          {/* Body */}
-          <div className="space-y-6 text-xs text-gray-700">
-            {/* Book Card Highlight */}
-            <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-2xl bg-gray-50 border border-gray-200">
-              <img
-                src={inspectingBook.cover}
-                alt={inspectingBook.title}
-                className="w-20 h-28 object-cover rounded-xl shadow-sm border border-gray-200 shrink-0 mx-auto sm:mx-0"
-              />
-              <div className="flex flex-col justify-between">
-                <div>
-                  <span className="inline-block px-2 py-0.5 rounded bg-[#00875A]/10 text-[#00875A] font-extrabold text-[10px] uppercase">
-                    {inspectingBook.formatLabel}
-                  </span>
-                  <h3 className="text-sm font-extrabold text-gray-900 mt-1 leading-snug">
-                    {inspectingBook.title}
-                  </h3>
-                  <p className="text-gray-500 text-xs mt-0.5">Tác giả: <strong>{inspectingBook.author}</strong></p>
-                </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-base font-extrabold text-[#00875A]">{inspectingBook.price.toLocaleString()}₫</span>
-                  <span className="text-gray-400">·</span>
-                  <span className="text-gray-500">{inspectingBook.totalPages} trang</span>
-                  <span className="text-gray-400">·</span>
-                  <span className="text-gray-500">{inspectingBook.fileSize}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Legal & Publishing Verification Box */}
-            <div>
-              <h4 className="font-bold text-gray-900 text-sm mb-3 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[18px] text-[#00875A]">gavel</span>
-                1. Xác Minh Pháp Lý &amp; Cục Xuất Bản
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-4 rounded-2xl border border-gray-200">
-                <div>
-                  <span className="text-gray-400 text-[11px] block">Mã ISBN Quốc Tế</span>
-                  <span className="font-mono font-bold text-gray-900 text-xs">{inspectingBook.isbn}</span>
-                  <span className="text-emerald-600 text-[10px] font-semibold block mt-0.5">✓ Đã đối chiếu Cục Xuất Bản</span>
-                </div>
-                <div>
-                  <span className="text-gray-400 text-[11px] block">Số Quyết Định Xuất Bản</span>
-                  <span className="font-mono font-bold text-gray-900 text-xs">{inspectingBook.licenseNo}</span>
-                  <span className="text-emerald-600 text-[10px] font-semibold block mt-0.5">✓ Tem hợp chuẩn Bộ TTTT</span>
-                </div>
-                <div>
-                  <span className="text-gray-400 text-[11px] block">Đơn Vị Xuất Bản</span>
-                  <span className="font-bold text-gray-900 text-xs">{inspectingBook.publisher}</span>
-                </div>
-                <div>
-                  <span className="text-gray-400 text-[11px] block">Mã Nhà Xuất Bản Sàn</span>
-                  <span className="font-mono font-bold text-gray-900 text-xs">{inspectingBook.publisherCode}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* DRM Protection & Watermark Engine Box */}
-            <div>
-              <h4 className="font-bold text-gray-900 text-sm mb-3 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[18px] text-purple-600">lock</span>
-                2. Kiểm Tra Mã Hóa DRM &amp; Thử Nghiệm Đọc Thử
-              </h4>
-              <div className="bg-purple-50/50 border border-purple-200 p-4 rounded-2xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-purple-950 text-xs">Mã hóa bản quyền DRM SHA-256 AES-GCM</div>
-                    <p className="text-purple-700 text-[11px] mt-0.5">Watermark động nhúng Email độc giả khi mở sách trên Web/App</p>
-                  </div>
-                  <span className="px-2 py-1 rounded-lg bg-purple-600 text-white font-mono font-bold text-[10px]">
-                    DRM PASSED
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-purple-200/60">
-                  <span className="text-purple-900 font-medium">Bản đọc thử cấp phép: <strong>{inspectingBook.samplePages} trang</strong></span>
-                  <button
-                    onClick={() => setIsDrmPreviewOpen(true)}
-                    className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
-                  >
-                    <span className="material-symbols-outlined text-[15px]">auto_stories</span>
-                    <span>Mở Trình Đọc DRM Thử Nghiệm</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Notes from Publisher */}
-            <div>
-              <h4 className="font-bold text-gray-900 text-sm mb-2 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[18px] text-gray-500">notes</span>
-                3. Ghi Chú Của Nhà Xuất Bản
-              </h4>
-              <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-200 text-gray-700 text-xs italic">
-                "{inspectingBook.notes}"
-              </div>
-            </div>
-          </div>
-
-          {/* Footer Actions */}
-          <div className="pt-4 border-t border-gray-100 flex items-center justify-between gap-3">
-            <button
-              onClick={() => {
-                setRejectReasonModal(inspectingBook);
-                setCustomReason('');
-                setCustomReasonError('');
-              }}
-              className="px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer"
-            >
-              Từ Chối Phát Hành
-            </button>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handleRequestEdit(inspectingBook.id)}
-                className="px-4 py-2.5 rounded-xl border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold text-xs transition-colors cursor-pointer"
-              >
-                Yêu Cầu Bổ Sung Giấy Phép
-              </button>
-
-              <button
-                onClick={() => handleApprove(inspectingBook.id)}
-                className="px-5 py-2.5 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">verified</span>
-                <span>Phê Duyệt &amp; Phát Hành Toàn Sàn</span>
-              </button>
-            </div>
-          </div>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
 
-      {/* 6. DRM PREVIEW IN-PAGE PANEL */}
-      {isDrmPreviewOpen && inspectingBook && (
-        <div
-          ref={drmPreviewRef}
-          className="mt-6 bg-[#1E293B] text-white rounded-3xl overflow-hidden shadow-sm border-2 border-slate-700 flex flex-col animate-in fade-in slide-in-from-top-4 duration-300"
-        >
-          {/* DRM Header Bar */}
-          <div className="px-6 py-4 bg-[#0F172A] border-b border-gray-800 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-emerald-400 text-[24px]">lock</span>
-              <div>
-                <div className="font-bold text-sm text-white flex items-center gap-2">
-                  {inspectingBook.title}
-                  <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-mono px-2 py-0.5 rounded">
-                    DRM ENCRYPTED SAMPLE
-                  </span>
+        {/* 5. PAGINATION */}
+        {!isLoading && reportedBooks.length > 0 && (
+          <AdminPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={reportedBooks.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            itemLabel="sách bị báo cáo"
+            className="p-4 border-t border-gray-100"
+          />
+        )}
+      </div>
+
+      {/* 6. MODERATION ACTION CENTER MODAL */}
+      {activeBook && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-4xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-slate-100">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-rose-600 text-[22px]">gavel</span>
+                  <h2 className="text-xl font-black text-slate-900 leading-tight">
+                    Hồ Sơ Thẩm Tra &amp; Xử Lý Vi Phạm Sách
+                  </h2>
                 </div>
-                <span className="text-[11px] text-gray-400">
-                  Mã khóa phiên đọc: #DRM-KEY-99281-AUTH-SUPERADMIN
-                </span>
-              </div>
-            </div>
-            <button 
-              onClick={() => setIsDrmPreviewOpen(false)}
-              className="w-8 h-8 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white flex items-center justify-center cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-            </button>
-          </div>
-
-          {/* DRM Simulated Reader Viewport */}
-          <div className="bg-[#F8FAFC] text-gray-900 p-8 overflow-y-auto relative select-none max-h-[600px]">
-            {/* Security Watermark Background */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5 rotate-[-25deg]">
-              <div className="text-4xl font-extrabold text-gray-900 tracking-widest text-center">
-                HUKI EBOOK DRM PROTECTED<br />
-                SUPER ADMIN AUDIT 2026<br />
-                {inspectingBook.isbn}
-              </div>
-            </div>
-
-            {/* Sample Content Simulation */}
-            <div className="max-w-2xl mx-auto space-y-6 font-serif text-sm leading-relaxed text-gray-800">
-              <div className="text-center py-6 border-b border-gray-200">
-                <span className="text-xs uppercase font-sans text-gray-400 tracking-widest">Trang Bản Quyền Số</span>
-                <h1 className="text-2xl font-bold font-editorial text-gray-900 mt-2">{inspectingBook.title}</h1>
-                <p className="text-sm font-sans text-gray-600 mt-1">Tác giả: {inspectingBook.author}</p>
-                <p className="text-xs font-sans text-[#00875A] font-bold mt-1">Bản quyền phát hành thuộc về {inspectingBook.publisher}</p>
-              </div>
-
-              <h2 className="text-lg font-bold text-gray-900 font-editorial">CHƯƠNG 1: BƯỚC KHỞI ĐẦU</h2>
-              <p>
-                Trong thế giới kinh tế học hiện đại, việc thấu hiểu hành vi con người không chỉ dừng lại ở các phương trình toán học khô khan hay những biểu đồ cung cầu truyền thống. Thực tế chứng minh rằng mọi quyết định tài chính lớn lao đều bị chi phối sâu sắc bởi cảm xúc, định kiến nhận thức và bối cảnh tâm lý của từng cá nhân...
-              </p>
-              <p>
-                Khi chúng ta phân tích các chu kỳ thị trường trong suốt một thế kỷ qua, điểm chung lớn nhất không nằm ở công nghệ hay các công cụ tài chính tối tân, mà nằm ở bản chất tâm lý con người vốn ít khi thay đổi. Lòng tham, nỗi sợ hãi, niềm hy vọng và sự hoài nghi luôn lặp lại dưới những hình thức mới...
-              </p>
-              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 font-sans text-xs text-amber-900">
-                <strong>Thông tin DRM:</strong> File mã hóa hiển thị chuẩn xác phông chữ tiếng Việt, không phát hiện lỗi vỡ layout hoặc thiếu dấu phụ âm.
-              </div>
-            </div>
-          </div>
-
-          {/* DRM Footer Bar */}
-          <div className="px-6 py-3 bg-[#0F172A] border-t border-gray-800 flex items-center justify-between text-xs text-gray-400">
-            <span>Trang 1 / {inspectingBook.samplePages} (Bản đọc thử kiểm duyệt)</span>
-            <button
-              onClick={() => {
-                setIsDrmPreviewOpen(false);
-                handleApprove(inspectingBook.id);
-              }}
-              className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer shadow-xs"
-            >
-              Xác Nhận Đạt Chuẩn DRM &amp; Phê Duyệt
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 7. REJECT REASON IN-PAGE FORM */}
-      {rejectReasonModal && (
-        <div
-          ref={rejectFormRef}
-          className="mt-6 bg-white rounded-3xl p-6 sm:p-8 shadow-sm border-2 border-rose-300 animate-in fade-in slide-in-from-top-4 duration-300 max-w-2xl"
-        >
-          <div className="flex items-center justify-between border-b border-rose-100 pb-4">
-            <div className="flex items-center gap-3 text-rose-600">
-              <div className="w-10 h-10 rounded-2xl bg-rose-50 flex items-center justify-center">
-                <span className="material-symbols-outlined text-2xl">cancel</span>
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Từ Chối Phê Duyệt Tựa Sách</h3>
                 <p className="text-xs text-slate-500">
-                  Đối tác NXB: <strong>{rejectReasonModal.publisher}</strong> &bull; Tựa sách: <strong>{rejectReasonModal.title}</strong>
+                  Xem xét bằng chứng từ độc giả và quyết định chặn lưu hành tác phẩm hoặc gửi cảnh cáo trực tiếp đến Shop.
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setActiveBook(null)}
+                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setRejectReasonModal(null);
-                setCustomReason('');
-                setCustomReasonError('');
-              }}
-              className="text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-xl">close</span>
-            </button>
-          </div>
 
-          <div className="flex flex-col gap-3 mt-5">
-            <div>
-              <span className="text-xs font-bold text-slate-700 block mb-2">
-                Chọn lý do từ chối tiêu chuẩn:
-              </span>
-              <div className="space-y-2 mb-3">
-                {[
-                  'Mã ISBN không khớp với dữ liệu đăng ký tại Cục Xuất Bản',
-                  'Thiếu hợp đồng nhượng quyền tác phẩm từ tác giả / NXB quốc tế',
-                  'File Ebook mã hóa lỗi font hoặc chất lượng hình ảnh không đạt chuẩn',
-                  'Nội dung có dấu hiệu vi phạm chính sách kiểm duyệt bản quyền'
-                ].map((reason, idx) => (
-                  <label
-                    key={idx}
-                    className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer text-xs transition-all ${
-                      customReason === reason
-                        ? 'border-rose-400 bg-rose-50/50 text-rose-900 font-medium'
-                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto space-y-6 pr-1 text-xs">
+              {/* Sách & Gian hàng card */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3.5">
+                  <img
+                    src={activeBook.cover}
+                    alt={activeBook.title}
+                    className="w-14 h-20 object-cover rounded-xl shadow-xs border border-slate-200 shrink-0"
+                  />
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-slate-900 leading-snug">{activeBook.title}</h3>
+                    <div className="flex flex-wrap gap-2 text-slate-600 text-xs">
+                      <span>Tác giả: <strong>{activeBook.author}</strong></span>
+                      <span>•</span>
+                      <span>ISBN: <strong>{activeBook.isbn}</strong></span>
+                      <span>•</span>
+                      <span>Định dạng: <strong>{activeBook.formatLabel}</strong></span>
+                    </div>
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <span className="text-[#006953] font-bold">Gian hàng: {activeBook.sellerName}</span>
+                      <span className="text-slate-300">•</span>
+                      <span className="text-slate-500 font-semibold">{activeBook.price.toLocaleString('vi-VN')} đ</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:items-end gap-2 shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-500">Trạng thái sàn:</span>
+                    {activeBook.status === 'BLOCKED' ? (
+                      <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[11px] font-bold">
+                        Đang bị khóa
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                        Đang lưu hành
+                      </span>
+                    )}
+                  </div>
+                  <Link
+                    href={`/book/${activeBook.bookId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-semibold shadow-2xs hover:bg-slate-100 transition-colors"
+                  >
+                    <span>Mở trang sách trên sàn</span>
+                    <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Danh sách các báo cáo từ độc giả */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-rose-600 text-[18px]">feedback</span>
+                    <span>Danh Sách Phản Ánh Từ Độc Giả ({activeBook.reports.length})</span>
+                  </h4>
+                  <span className="text-[11px] text-slate-500">
+                    Báo cáo mới nhất: {new Date(activeBook.lastReportedAt).toLocaleString('vi-VN')}
+                  </span>
+                </div>
+
+                <div className="space-y-2.5">
+                  {activeBook.reports.map((r, idx) => {
+                    const rMeta = BOOK_REPORT_REASON_LABELS[r.reason] || BOOK_REPORT_REASON_LABELS.OTHER;
+                    return (
+                      <div
+                        key={r.id || idx}
+                        className="p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 shadow-2xs space-y-2"
+                      >
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center">
+                              {idx + 1}
+                            </span>
+                            <span className="font-bold text-slate-900">{r.reporterName}</span>
+                            <span className={`text-[10px] px-2 py-0.2 rounded-md font-bold border ${rMeta.color}`}>
+                              {rMeta.label}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-400">
+                            {new Date(r.createdAt).toLocaleString('vi-VN')}
+                          </span>
+                        </div>
+
+                        <p className="text-slate-800 leading-relaxed bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs">
+                          {r.description}
+                        </p>
+
+                        {r.evidenceUrl && (
+                          <div className="pt-1 flex items-center gap-1.5 text-xs text-blue-600 hover:underline">
+                            <span className="material-symbols-outlined text-[14px]">link</span>
+                            <a href={r.evidenceUrl} target="_blank" rel="noopener noreferrer">
+                              Bằng chứng đối chiếu: {r.evidenceUrl}
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Form Hành Động Của Admin */}
+              <form onSubmit={handleExecuteAction} className="pt-4 border-t border-slate-200 space-y-4">
+                <div className="space-y-2">
+                  <label className="block font-black text-slate-900 text-xs uppercase tracking-wider">
+                    Quyết Định Xử Lý Của Ban Quản Trị *
+                  </label>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setActionTab('BLOCK')}
+                      className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
+                        actionTab === 'BLOCK'
+                          ? 'border-rose-600 bg-rose-50 text-rose-800 shadow-2xs ring-2 ring-rose-500/20'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-xs">
+                        <span className="material-symbols-outlined text-[17px]">lock</span>
+                        <span>Khóa Sách &amp; Xử Phạt Shop</span>
+                      </div>
+                      <span className="text-[10.5px] text-slate-500">Gỡ sách khỏi sàn, bắn cảnh cáo về shop</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActionTab('DISMISS')}
+                      className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
+                        actionTab === 'DISMISS'
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-800 shadow-2xs ring-2 ring-emerald-500/20'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-xs">
+                        <span className="material-symbols-outlined text-[17px]">verified</span>
+                        <span>Bác Bỏ Báo Cáo (Hợp Lệ)</span>
+                      </div>
+                      <span className="text-[10.5px] text-slate-500">Xác minh sách hợp lệ, giữ lưu hành bình thường</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActionTab('UNBLOCK')}
+                      className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
+                        actionTab === 'UNBLOCK'
+                          ? 'border-blue-600 bg-blue-50 text-blue-800 shadow-2xs ring-2 ring-blue-500/20'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-xs">
+                        <span className="material-symbols-outlined text-[17px]">lock_open</span>
+                        <span>Mở Khóa Lại Sách</span>
+                      </div>
+                      <span className="text-[10.5px] text-slate-500">Khôi phục sau khi shop khiếu nại thành công</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sub Options when BLOCK */}
+                {actionTab === 'BLOCK' && (
+                  <div className="p-4 rounded-2xl bg-rose-50/50 border border-rose-200/80 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">
+                          Lý Do Xử Phạt Vi Phạm *
+                        </label>
+                        <select
+                          value={blockReason}
+                          onChange={(e) => setBlockReason(e.target.value as any)}
+                          className="w-full h-10 px-3.5 bg-white border border-slate-200 rounded-lg font-semibold text-xs text-slate-800 focus:outline-none focus:border-rose-600"
+                        >
+                          {(Object.keys(BOOK_REPORT_REASON_LABELS) as BookReportReason[]).map((rKey) => (
+                            <option key={rKey} value={rKey}>
+                              {BOOK_REPORT_REASON_LABELS[rKey].label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex items-center pt-5">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800">
+                          <input
+                            type="checkbox"
+                            checked={notifySeller}
+                            onChange={(e) => setNotifySeller(e.target.checked)}
+                            className="w-4 h-4 rounded text-rose-600"
+                          />
+                          <span>Tự động bắn thông báo vi phạm đến Shop qua Top Bar &amp; Chuông</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">
+                        Ghi Chú Kỷ Luật &amp; Yêu Cầu Giải Trình Cho Shop *
+                      </label>
+                      <textarea
+                        value={adminNote}
+                        onChange={(e) => setAdminNote(e.target.value)}
+                        rows={3}
+                        placeholder="Ví dụ: Tác phẩm nhận phản ánh vi phạm bản quyền dịch. Gian hàng vui lòng cung cấp hợp đồng chuyển nhượng hợp lệ trong vòng 48h..."
+                        className="w-full p-3 bg-white border border-slate-200 rounded-lg text-slate-800 text-xs focus:outline-none focus:border-rose-600 leading-relaxed"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub Options when DISMISS */}
+                {actionTab === 'DISMISS' && (
+                  <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-2">
+                    <label className="block font-bold text-slate-700">
+                      Ghi Chú Xác Minh Của Admin (Lưu hồ sơ nội bộ)
+                    </label>
+                    <textarea
+                      value={adminNote}
+                      onChange={(e) => setAdminNote(e.target.value)}
+                      rows={2}
+                      placeholder="Ví dụ: Đã kiểm tra số ISBN và giấy phép NXB đối chiếu hợp lệ. Bác bỏ các phản ánh sai lệch..."
+                      className="w-full p-3 bg-white border border-slate-200 rounded-lg text-slate-800 text-xs focus:outline-none focus:border-emerald-600 leading-relaxed"
+                    />
+                  </div>
+                )}
+
+                {/* Sub Options when UNBLOCK */}
+                {actionTab === 'UNBLOCK' && (
+                  <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-200/80 space-y-3">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={notifySeller}
+                        onChange={(e) => setNotifySeller(e.target.checked)}
+                        className="w-4 h-4 rounded text-blue-600"
+                      />
+                      <span>Gửi thông báo xác nhận mở khóa hoạt động lại cho gian hàng</span>
+                    </label>
+                    <textarea
+                      value={adminNote}
+                      onChange={(e) => setAdminNote(e.target.value)}
+                      rows={2}
+                      placeholder="Ghi chú mở khóa lại sách..."
+                      className="w-full p-3 bg-white border border-slate-200 rounded-lg text-slate-800 text-xs focus:outline-none focus:border-blue-600 leading-relaxed"
+                    />
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="pt-3 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setActiveBook(null)}
+                    disabled={isSubmittingAction}
+                    className="px-4 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition-colors cursor-pointer text-xs"
+                  >
+                    Hủy Bỏ
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmittingAction || (actionTab === 'BLOCK' && !adminNote.trim())}
+                    className={`px-6 py-2.5 rounded-xl font-bold transition-all shadow-md inline-flex items-center gap-2 cursor-pointer text-xs text-white ${
+                      actionTab === 'BLOCK'
+                        ? 'bg-rose-600 hover:bg-rose-700 disabled:opacity-50'
+                        : actionTab === 'DISMISS'
+                        ? 'bg-emerald-600 hover:bg-emerald-700'
+                        : 'bg-blue-600 hover:bg-blue-700'
                     }`}
                   >
-                    <input
-                      type="radio"
-                      name="rejectReason"
-                      value={reason}
-                      checked={customReason === reason}
-                      onChange={(e: any) => {
-                        setCustomReason(e.target.value);
-                        if (customReasonError) setCustomReasonError('');
-                      }}
-                      className="mt-0.5 text-rose-600 focus:ring-rose-500"
-                    />
-                    <span>{reason}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Hoặc nhập ghi chú chi tiết cụ thể cho NXB <span className="text-rose-500">*</span>:
-              </label>
-              <textarea
-                placeholder="Ghi chú chi tiết thêm cho NXB để điều chỉnh lại..."
-                value={customReason}
-                onChange={(e: any) => {
-                  setCustomReason(e.target.value);
-                  if (customReasonError) setCustomReasonError('');
-                }}
-                rows={3}
-                className={`w-full p-3.5 rounded-xl border text-xs text-slate-800 focus:outline-none transition-all resize-none ${
-                  customReasonError
-                    ? 'border-rose-400 focus:border-rose-500 bg-rose-50/30'
-                    : 'border-slate-200 focus:border-rose-500 bg-slate-50 focus:bg-white'
-                }`}
-              />
-              {customReasonError && (
-                <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
-                  <span className="material-symbols-outlined text-[14px]">error</span>
-                  <span>{customReasonError}</span>
-                </p>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 mt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setRejectReasonModal(null);
-                  setCustomReason('');
-                  setCustomReasonError('');
-                }}
-                className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-sm transition-colors cursor-pointer"
-              >
-                Hủy Bỏ
-              </button>
-              <button
-                type="button"
-                onClick={() => handleReject(rejectReasonModal.id, customReason)}
-                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
-              >
-                <span className="material-symbols-outlined text-lg">cancel</span>
-                <span>Xác Nhận Từ Chối Xuất Bản</span>
-              </button>
+                    {isSubmittingAction ? (
+                      <>
+                        <span className="material-symbols-outlined text-[16px] animate-spin">refresh</span>
+                        <span>Đang thực thi...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-[16px]">
+                          {actionTab === 'BLOCK' ? 'lock' : actionTab === 'DISMISS' ? 'verified' : 'lock_open'}
+                        </span>
+                        <span>
+                          {actionTab === 'BLOCK'
+                            ? 'Xác Nhận Khóa Sách & Bắn Thông Báo Shop'
+                            : actionTab === 'DISMISS'
+                            ? 'Bác Bỏ Báo Cáo (Sách Hợp Lệ)'
+                            : 'Mở Khóa Lưu Hành Lại Sách'}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
