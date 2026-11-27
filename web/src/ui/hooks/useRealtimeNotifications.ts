@@ -7,6 +7,7 @@ import { tokenStorage } from '../api/tokenStorage';
 import { soundEffects } from '../utils/soundEffects';
 import { useToast } from '../context/ToastContext';
 import { realtimeSyncBus } from '../services/realtimeSyncBus';
+import { markNotificationSocketActive } from './useFlashSaleRealtimeSync';
 
 export interface RealtimeNotification {
   id: string;
@@ -243,6 +244,7 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
   useEffect(() => {
     const token = tokenStorage.getAccessToken();
     if (!token) return;
+    markNotificationSocketActive(true);
 
     let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3005';
     if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
@@ -363,9 +365,19 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
       ) {
         realtimeSyncBus.publish('BUSINESS_STATUS_UPDATED', newNoti.payload as any);
       }
+      if (
+        evtType.startsWith('flash_sale.') ||
+        String(newNoti.type || '').toUpperCase() === 'PROMOTION'
+      ) {
+        realtimeSyncBus.publish('FLASH_SALE_UPDATED', newNoti.payload as any);
+      }
       if (newNoti.recipientType === 'ADMIN' || newNoti.type === 'WATCHDOG_ALERT') {
         realtimeSyncBus.publish('MODERATION_UPDATED' as any, newNoti);
       }
+    });
+
+    socket.on('flash_sale:updated', (evt: any) => {
+      realtimeSyncBus.publish('FLASH_SALE_UPDATED', evt);
     });
 
     socket.on('moderation:created', (evt: any) => {
@@ -408,6 +420,7 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
       }
       socket.disconnect();
       socketRef.current = null;
+      markNotificationSocketActive(false);
     };
   }, [showToast, recipientType]);
 

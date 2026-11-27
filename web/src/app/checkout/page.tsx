@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/ui/context/CartContext";
@@ -9,10 +9,12 @@ import { useToast } from "@/ui/context/ToastContext";
 import { addressApi } from "@/ui/api/addressApi";
 import { cartApi } from "@/ui/api/cartApi";
 import { checkoutApi } from "@/ui/api/checkoutApi";
+import { flashSaleApi, invalidateFlashSaleCache } from "@/ui/api/flashSaleApi";
 import { paymentApi } from "@/ui/api/paymentApi";
 import { voucherApi } from "@/ui/api/voucherApi";
 import { tokenStorage } from "@/ui/api/tokenStorage";
 import { realtimeSyncBus } from "@/ui/services/realtimeSyncBus";
+import { useFlashSaleRealtimeSync } from "@/ui/hooks/useFlashSaleRealtimeSync";
 import CustomLocationSelector from "@/ui/components/common/CustomLocationSelector";
 import AddressMapPreview from "@/ui/components/common/AddressMapPreview";
 import PaymentCountdownModal from "@/ui/components/checkout/PaymentCountdownModal";
@@ -781,6 +783,36 @@ export default function CheckoutPage() {
     }
   };
 
+  const [flashSaleSyncTick, setFlashSaleSyncTick] = useState(0);
+  const hadFlashSaleInPreviewRef = useRef(false);
+
+  const checkoutBookIds = useMemo(
+    () =>
+      checkedItems
+        .map((it: any) => String(it.bookId || it.id || ""))
+        .filter(Boolean),
+    [checkedItems],
+  );
+
+  useFlashSaleRealtimeSync({
+    enabled: isLoggedIn && checkoutBookIds.length > 0,
+    bookIds: checkoutBookIds,
+    onUpdate: (evtPayload) => {
+      invalidateFlashSaleCache();
+      setFlashSaleSyncTick((n) => n + 1);
+      if (evtPayload?.eventType === "flash_sale.early_ending_scheduled") {
+        showToast(
+          {
+            title: "Flash Sale sắp kết thúc sớm!",
+            message:
+              "Khung giờ Flash Sale chỉ còn 5 phút. Vui lòng hoàn tất thanh toán trước khi giá ưu đãi đóng lại.",
+          },
+          "warning",
+        );
+      }
+    },
+  });
+
   // Trigger checkout preview with vouchers
   useEffect(() => {
     if (!isLoggedIn || checkedItems.length === 0) return;
@@ -842,6 +874,22 @@ export default function CheckoutPage() {
         const res = await checkoutApi.previewCheckout(payload);
 
         if (isMounted && res.success && res.data?.sessionId) {
+          const nextHasFlashSale = Boolean(
+            res.data.groups?.some((g: any) =>
+              g.items?.some((it: any) => Boolean(it.isFlashSale)),
+            ),
+          );
+          if (hadFlashSaleInPreviewRef.current && !nextHasFlashSale && flashSaleSyncTick > 0) {
+            showToast(
+              {
+                title: "Giá Flash Sale đã cập nhật",
+                message:
+                  "Ưu đãi Flash Sale cho sản phẩm vừa kết thúc. Hệ thống đã tự động tính lại tổng thanh toán theo giá hiện hành.",
+              },
+              "warning",
+            );
+          }
+          hadFlashSaleInPreviewRef.current = nextHasFlashSale;
           setSessionId(res.data.sessionId);
           setCheckoutPreview(res.data);
         }
@@ -871,6 +919,7 @@ export default function CheckoutPage() {
     appliedPlatformVoucher?.code,
     appliedShippingVoucher?.code,
     JSON.stringify(appliedStoreVouchers),
+    flashSaleSyncTick,
   ]);
 
   const serverUnitPrices = useMemo(() => {
@@ -1427,13 +1476,21 @@ export default function CheckoutPage() {
               : typeof confirmRes.error?.details === "string"
               ? confirmRes.error.details
               : "";
+          const errMsg =
+            errorDetail ||
+            confirmRes.error?.message ||
+            "Có lỗi khi xác nhận đơn hàng từ máy chủ.";
+          if (
+            String(confirmRes.error?.code || "") === "FLASH_SALE_NOT_ACTIVE" ||
+            errMsg.toLowerCase().includes("flash sale")
+          ) {
+            invalidateFlashSaleCache();
+            setFlashSaleSyncTick((n) => n + 1);
+          }
           showToast(
             {
               title: "Đặt hàng không thành công",
-              message:
-                errorDetail ||
-                confirmRes.error?.message ||
-                "Có lỗi khi xác nhận đơn hàng từ máy chủ.",
+              message: errMsg,
             },
             "error"
           );

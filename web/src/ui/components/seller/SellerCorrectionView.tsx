@@ -10,7 +10,9 @@ import {
   SellerTableContainer,
   SellerStatusBadge,
   SellerPagination,
+  SellerActionButton,
 } from '@/ui/components/seller/SellerUI';
+import { getFlashSaleFormatStyle } from '@/ui/utils/flashSaleFormat';
 import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 
 export interface DraftBookItem {
@@ -81,7 +83,7 @@ export default function SellerCorrectionView() {
           originalPrice: b.originalPrice != null ? Number(b.originalPrice) : (b.price != null ? Number(b.price) * 1.25 : 0),
           format: (b.format as BookFormat) || 'PHYSICAL',
           status: b.status || 'DRAFT',
-          coverUrl: b.coverUrl || b.coverImage || b.cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&auto=format&fit=crop&q=80',
+          coverUrl: b.coverUrl || b.coverImage || b.cover || (b as any).coverImageUrl || '/images/book-placeholder.png',
           updatedAt: b.updatedAt ? new Date(b.updatedAt).toLocaleDateString('vi-VN') : 'Gần đây',
           stock: b.physicalDetails?.stock ?? 0,
         }));
@@ -92,6 +94,7 @@ export default function SellerCorrectionView() {
         if (b && b.id) {
           combinedMap.set(b.id, {
             ...b,
+            coverUrl: b.coverUrl || b.coverImage || b.cover || (b as any).coverImageUrl || '/images/book-placeholder.png',
             price: Number(b.price || 0),
             status: b.status || 'DRAFT',
             stock: Number(b.stock || 0),
@@ -198,25 +201,37 @@ export default function SellerCorrectionView() {
         key: 'book',
         title: 'Sản Phẩm & Ảnh Bìa',
         minWidth: 260,
-        render: (_val, book) => (
-          <div className="flex items-center gap-3 py-1">
-            <img
-              src={book.coverUrl}
-              alt={book.title}
-              className="w-10 h-14 object-cover rounded-lg border border-slate-200 shadow-2xs shrink-0 bg-slate-100"
-            />
-            <div className="min-w-0">
-              <span className="font-bold text-slate-900 block break-words line-clamp-2 leading-snug text-xs" title={book.title}>
-                {book.title}
-              </span>
-              <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2 font-mono">
-                <span>ISBN: {book.isbn || 'N/A'}</span>
-                <span>•</span>
-                <span>{book.updatedAt}</span>
+        render: (_val, book) => {
+          const rawCover = book.coverUrl || (book as any).coverImage || (book as any).coverImageUrl || (book as any).cover;
+          const cover = rawCover && !rawCover.includes('unsplash') ? rawCover : '/images/book-placeholder.png';
+          return (
+            <div className="flex items-center gap-3 py-1">
+              <img
+                src={cover}
+                alt={book.title}
+                referrerPolicy="no-referrer"
+                className="w-10 h-14 object-cover rounded-lg border border-slate-200 shadow-2xs shrink-0 bg-slate-100"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  if (!target.dataset.fallbackApplied) {
+                    target.dataset.fallbackApplied = '1';
+                    target.src = '/images/book-placeholder.png';
+                  }
+                }}
+              />
+              <div className="min-w-0">
+                <span className="font-bold text-slate-900 block break-words line-clamp-2 leading-snug text-xs" title={book.title}>
+                  {book.title}
+                </span>
+                <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2 font-mono">
+                  <span>ISBN: {book.isbn || 'N/A'}</span>
+                  <span>•</span>
+                  <span>{book.updatedAt}</span>
+                </div>
               </div>
             </div>
-          </div>
-        ),
+          );
+        },
       },
       {
         key: 'author',
@@ -234,26 +249,17 @@ export default function SellerCorrectionView() {
         title: 'Định Dạng & Tồn Kho',
         width: 170,
         render: (_val, book) => {
-          const formatBadge = book.format === 'DIGITAL' ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-              <span className="material-symbols-outlined text-xs">devices</span>
-              <span>Ebook DRM</span>
-            </span>
-          ) : book.format === 'BOTH' ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <span className="material-symbols-outlined text-xs">auto_awesome</span>
-              <span>Combo</span>
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-              <span className="material-symbols-outlined text-xs">menu_book</span>
-              <span>Sách Giấy</span>
-            </span>
-          );
+          const fmtStyle = getFlashSaleFormatStyle(book.format);
+          const shortLabel = book.format === 'BOTH' ? 'Combo' : fmtStyle.label;
 
           return (
             <div className="py-1 flex flex-col gap-1 text-xs">
-              <div>{formatBadge}</div>
+              <div>
+                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] font-semibold ${fmtStyle.badgeClass}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${fmtStyle.dotClass}`} />
+                  <span>{shortLabel}</span>
+                </span>
+              </div>
               {book.format !== 'DIGITAL' && (
                 <span className="text-[11px] text-slate-500 font-mono">
                   Tồn kho: <strong className="text-slate-800">{book.stock || 0}</strong>
@@ -284,40 +290,38 @@ export default function SellerCorrectionView() {
       {
         key: 'actions',
         title: 'Thao Tác',
-        width: 220,
+        width: 260,
         align: 'right',
         render: (_val, book) => {
           const isBusy = actionLoadingId === book.id;
           return (
-            <div className="flex items-center justify-end gap-1.5 flex-wrap">
-              <button
-                type="button"
-                onClick={() => handlePublishNow(book)}
-                disabled={isBusy}
-                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+            <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
+              <SellerActionButton
+                size="sm"
+                variant="primary"
+                icon="store"
+                label="Xuất Bản"
                 title="Mở bán công khai trực tiếp lên sàn"
-              >
-                <span className="material-symbols-outlined text-xs">store</span>
-                <span>Xuất Bản</span>
-              </button>
-
-              <Link
-                href={`/seller/product/create-hybrid?editId=${book.id}`}
-                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center gap-1 transition-all cursor-pointer"
-                title="Chỉnh sửa nội dung sách"
-              >
-                <span className="material-symbols-outlined text-xs">edit</span>
-                <span>Sửa</span>
+                disabled={isBusy}
+                loading={isBusy}
+                onClick={() => handlePublishNow(book)}
+              />
+              <Link href={`/seller/product/create-hybrid?editId=${book.id}`} title="Chỉnh sửa nội dung sách">
+                <SellerActionButton
+                  size="sm"
+                  variant="neutral"
+                  icon="edit"
+                  label="Sửa"
+                />
               </Link>
-
-              <button
-                type="button"
-                onClick={() => handleDeleteDraft(book.id, book.title)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+              <SellerActionButton
+                size="sm"
+                variant="danger"
+                icon="delete"
+                label="Xóa"
                 title="Xóa bản nháp"
-              >
-                <span className="material-symbols-outlined text-sm">delete</span>
-              </button>
+                onClick={() => handleDeleteDraft(book.id, book.title)}
+              />
             </div>
           );
         },

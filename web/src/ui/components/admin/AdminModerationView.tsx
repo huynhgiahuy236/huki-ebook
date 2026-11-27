@@ -20,13 +20,13 @@ import {
 } from '../common';
 
 const REASON_LABELS: Record<string, { label: string; color: string }> = {
-  LANGUAGE_VIOLATION: { label: 'Vi phạm ngôn từ', color: 'bg-rose-100 text-rose-800 border-rose-300' },
-  SPAM: { label: 'Spam / Rác', color: 'bg-amber-100 text-amber-800 border-amber-200' },
-  OFFENSIVE: { label: 'Ngôn từ xúc phạm', color: 'bg-rose-100 text-rose-800 border-rose-200' },
-  HARASSMENT: { label: 'Quấy rối / Bắt nạt', color: 'bg-purple-100 text-purple-800 border-purple-200' },
-  MISINFORMATION: { label: 'Thông tin sai lệch', color: 'bg-orange-100 text-orange-800 border-orange-200' },
-  COPYRIGHT: { label: 'Vi phạm bản quyền', color: 'bg-blue-100 text-blue-800 border-blue-200' },
-  OTHER: { label: 'Lý do khác', color: 'bg-gray-100 text-gray-800 border-gray-200' },
+  LANGUAGE_VIOLATION: { label: 'Vi phạm ngôn từ', color: 'bg-rose-50 text-rose-700 border-rose-200' },
+  SPAM: { label: 'Spam / Rác', color: 'bg-amber-50 text-amber-800 border-amber-200' },
+  OFFENSIVE: { label: 'Ngôn từ xúc phạm', color: 'bg-rose-50 text-rose-700 border-rose-200' },
+  HARASSMENT: { label: 'Quấy rối / Bắt nạt', color: 'bg-slate-100 text-slate-700 border-slate-200' },
+  MISINFORMATION: { label: 'Thông tin sai lệch', color: 'bg-slate-100 text-slate-700 border-slate-200' },
+  COPYRIGHT: { label: 'Vi phạm bản quyền', color: 'bg-slate-100 text-slate-700 border-slate-200' },
+  OTHER: { label: 'Lý do khác', color: 'bg-slate-100 text-slate-700 border-slate-200' },
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -342,16 +342,13 @@ export function AdminModerationView() {
       {
         key: 'targetType',
         title: 'Đối Tượng',
-        width: 170,
+        width: 150,
         render: (_, item) => {
           const rc = item.content || item.targetContent;
           return (
             <div className="space-y-0.5 min-w-0">
-              <div className="font-semibold text-gray-800 text-xs">
-                {item.targetType === 'REVIEW' ? 'Đánh Giá Sách' : item.targetType}
-              </div>
-              <div className="font-mono text-[10px] text-gray-400 truncate max-w-[140px]" title={item.targetId}>
-                ID: {item.targetId}
+              <div className="font-medium text-slate-800 text-xs">
+                {item.targetType === 'REVIEW' ? 'Đánh giá sách' : item.targetType}
               </div>
               {rc?.targetId && (
                 <a
@@ -359,7 +356,7 @@ export function AdminModerationView() {
                   target="_blank"
                   rel="noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="inline-flex items-center gap-0.5 text-[10.5px] font-semibold text-[#006953] hover:underline"
+                  className="inline-flex items-center gap-0.5 text-[11px] font-medium text-[#006953] hover:underline"
                 >
                   <span>Xem trang sách</span>
                   <span className="material-symbols-outlined text-[12px]">open_in_new</span>
@@ -371,66 +368,52 @@ export function AdminModerationView() {
       },
       {
         key: 'content',
-        title: 'Nội Dung Đánh Giá Bị Báo Cáo',
-        minWidth: 280,
+        title: 'Nội Dung Bị Báo Cáo',
+        minWidth: 260,
         render: (_, item) => {
           const rc = item.content || item.targetContent;
           if (!rc) {
             return (
-              <span className="text-gray-400 italic text-[11px]">
-                Nội dung không còn khả dụng hoặc đã bị xóa.
+              <span className="text-slate-400 italic text-xs">
+                Nội dung không còn khả dụng.
               </span>
             );
           }
-          const isLong = (rc.content?.length || 0) > 120 || (rc.title?.length || 0) > 60;
-          const isExpanded = expandedReportIds.includes(item.id);
+          const rawTitle = (rc.title || '').trim();
+          const rawContent = (rc.content || '').trim();
+          const showSeparateTitle = Boolean(rawTitle && rawTitle !== rawContent);
           return (
-            <div className="p-2.5 rounded-xl bg-amber-50/50 border border-amber-200/70 space-y-1 max-w-md min-w-0">
-              <div className="flex items-center justify-between gap-2 text-[10.5px]">
-                <span className="font-bold text-gray-800 truncate">
+            <div className="space-y-1 max-w-md min-w-0">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="font-semibold text-slate-900 truncate">
                   {rc.authorName || 'Độc giả HUKI'}
                 </span>
-                <div className="flex items-center gap-1 shrink-0">
-                  {typeof rc.rating === 'number' && (
-                    <span className="inline-flex items-center gap-0.5 text-amber-600 font-bold">
-                      ★ {rc.rating}/5
-                    </span>
-                  )}
-                  {rc.status === 'HIDDEN' && (
-                    <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[9.5px] font-bold">
-                      Đã ẩn
-                    </span>
-                  )}
-                </div>
+                {typeof rc.rating === 'number' && (
+                  <span className="text-[11px] text-slate-500 font-medium shrink-0">
+                    · {rc.rating}/5★
+                  </span>
+                )}
+                {rc.status === 'HIDDEN' && (
+                  <span className="text-[10.5px] font-medium text-slate-500 shrink-0">
+                    · Đã ẩn
+                  </span>
+                )}
               </div>
-              {rc.title && (
-                <div className="font-bold text-gray-900 text-[11px] truncate" title={rc.title}>
-                  {rc.title}
+              {showSeparateTitle && (
+                <div className="font-medium text-slate-800 text-xs truncate" title={rawTitle}>
+                  {rawTitle}
                 </div>
               )}
-              <p className="text-gray-700 text-[11.5px] line-clamp-2 break-words leading-relaxed">
-                {rc.content || '(Không có nội dung chữ)'}
+              <p className="text-slate-600 text-xs line-clamp-2 break-words leading-relaxed">
+                {rawContent || '(Không có nội dung chữ)'}
               </p>
-              {isLong && !isExpanded && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setExpandedReportIds((prev) => [...prev, item.id]);
-                  }}
-                  className="text-[10.5px] font-bold text-[#006953] hover:underline inline-flex items-center gap-0.5 cursor-pointer"
-                >
-                  <span>Bấm mũi tên để đọc hết</span>
-                  <span className="material-symbols-outlined text-[12px]">expand_more</span>
-                </button>
-              )}
             </div>
           );
         },
       },
       {
         key: 'reason',
-        title: 'Lý Do & Khiếu Nại',
+        title: 'Lý Do Báo Cáo',
         minWidth: 190,
         sortable: true,
         render: (_, item) => {
@@ -438,27 +421,30 @@ export function AdminModerationView() {
           const isAutoFlagged =
             item.detectionSource === 'AUTO_MODERATION' ||
             item.reporterId === 'system:auto-moderation';
+          const keywords = Array.isArray(item.matchedKeywords) && item.matchedKeywords.length > 0
+            ? item.matchedKeywords.join(', ')
+            : '';
           return (
             <div className="space-y-1 max-w-[240px] min-w-0">
-              <div className="flex items-center gap-1 flex-wrap">
-                <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${reasonInfo.color}`}>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-medium border ${reasonInfo.color}`}>
                   {reasonInfo.label}
                 </span>
                 {isAutoFlagged && (
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9.5px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                    <span className="material-symbols-outlined text-[11px]">smart_toy</span>
-                    <span>Tự động</span>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    · Tự động
                   </span>
                 )}
               </div>
-              {Array.isArray(item.matchedKeywords) && item.matchedKeywords.length > 0 && (
-                <div className="text-[10px] font-mono text-rose-700 truncate" title={item.matchedKeywords.join(', ')}>
-                  Từ khóa: {item.matchedKeywords.join(', ')}
+              {keywords ? (
+                <div className="text-[11px] text-slate-600 truncate" title={keywords}>
+                  Từ khóa: {keywords}
                 </div>
+              ) : (
+                <p className="text-slate-500 text-[11.5px] line-clamp-1 break-words" title={item.description || ''}>
+                  {item.description || 'Không có mô tả thêm'}
+                </p>
               )}
-              <p className="text-gray-700 text-[11.5px] line-clamp-2 break-words leading-relaxed" title={item.description || ''}>
-                {item.description || 'Không có mô tả chi tiết từ người báo cáo.'}
-              </p>
             </div>
           );
         },
@@ -469,7 +455,7 @@ export function AdminModerationView() {
         width: 135,
         sortable: true,
         render: (_, item) => (
-          <span className="text-gray-500 whitespace-nowrap text-[11px]">
+          <span className="text-slate-500 whitespace-nowrap text-xs">
             {new Date(item.createdAt).toLocaleDateString('vi-VN', {
               day: '2-digit',
               month: '2-digit',
@@ -491,17 +477,17 @@ export function AdminModerationView() {
         key: 'actions',
         title: 'Thao Tác',
         align: 'right',
-        width: 190,
+        width: 185,
         render: (_, item) => (
           <div className="flex items-center justify-end gap-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
             {item.status === 'PENDING' && (
               <button
                 type="button"
                 onClick={() => handleStartReview(item.id)}
-                className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[11px] border border-blue-200 transition-colors cursor-pointer"
+                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs border border-slate-200 transition-colors cursor-pointer"
                 title="Bắt đầu xem xét báo cáo này"
               >
-                Tiếp Nhận
+                Tiếp nhận
               </button>
             )}
 
@@ -515,10 +501,10 @@ export function AdminModerationView() {
                     setChosenAction('HIDE');
                     setResolutionNotes('');
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] border border-rose-200 transition-colors cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-rose-50 text-rose-700 font-semibold text-xs border border-rose-200 transition-colors cursor-pointer"
                   title="Xử lý nội dung vi phạm"
                 >
-                  Xử Lý
+                  Xử lý
                 </button>
                 <button
                   type="button"
@@ -527,23 +513,22 @@ export function AdminModerationView() {
                     setActionModalType('DISMISS');
                     setResolutionNotes('');
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium text-[11px] transition-colors cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-600 font-medium text-xs border border-slate-200 transition-colors cursor-pointer"
                   title="Bác bỏ báo cáo nếu không vi phạm"
                 >
-                  Bác Bỏ
+                  Bác bỏ
                 </button>
               </>
             )}
 
             {item.status === 'RESOLVED' && (
-              <span className="text-[11px] text-emerald-700 font-bold inline-flex items-center gap-0.5">
-                <span className="material-symbols-outlined text-sm">check_circle</span>
-                <span>{ACTION_LABELS[item.actionTaken || ''] || item.actionTaken || 'Đã xử lý'}</span>
+              <span className="text-xs text-slate-500 font-medium">
+                {ACTION_LABELS[item.actionTaken || ''] || item.actionTaken || 'Đã xử lý'}
               </span>
             )}
 
             {item.status === 'DISMISSED' && (
-              <span className="text-[11px] text-gray-400 font-medium italic">
+              <span className="text-xs text-slate-400">
                 Đã bác bỏ
               </span>
             )}

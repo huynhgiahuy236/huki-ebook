@@ -15,7 +15,7 @@ import {
 } from "@/ui/api/flashSaleApi";
 import { catalogApi, type BookData } from "@/ui/api/catalogApi";
 import { businessApi, type BusinessData } from "@/ui/api/businessApi";
-import { realtimeSyncBus } from "@/ui/services/realtimeSyncBus";
+import { useFlashSaleRealtimeSync } from "@/ui/hooks/useFlashSaleRealtimeSync";
 
 interface DisplayFlashItem extends FlashSaleItem {
   title: string;
@@ -60,40 +60,12 @@ export default function FlashSalePage() {
     fetchSlots();
   }, []);
 
-  useEffect(() => {
-    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
-      if (
-        msg.type === 'FLASH_SALE_UPDATED' ||
-        msg.type === 'NOTIFICATIONS_UPDATED' ||
-        msg.type === 'ADMIN_NOTIFICATIONS_UPDATED'
-      ) {
-        invalidateFlashSaleCache();
-        fetchSlots(false);
-      }
-    });
-
-    const handleDomUpdate = () => {
+  useFlashSaleRealtimeSync({
+    onUpdate: () => {
       invalidateFlashSaleCache();
       fetchSlots(false);
-    };
-    window.addEventListener('huki_flash_sale_updated', handleDomUpdate);
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        const now = Date.now();
-        if (now - lastSyncAtRef.current >= 15_000) {
-          fetchSlots(false);
-        }
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      unsubscribe();
-      window.removeEventListener('huki_flash_sale_updated', handleDomUpdate);
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
-  }, []);
+    },
+  });
 
   const fetchSlots = async (showLoading = true) => {
     lastSyncAtRef.current = Date.now();

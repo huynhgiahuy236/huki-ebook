@@ -4,7 +4,7 @@ describe("NotificationDeliveryService", () => {
   const notifications = { updateOne: jest.fn(), findOne: jest.fn() };
   const preferences = { findOne: jest.fn() };
   const devices = { find: jest.fn(), updateMany: jest.fn() };
-  const gateway = { notification: jest.fn() };
+  const gateway = { notification: jest.fn(), broadcast: jest.fn(), sendToRoom: jest.fn() };
   const firebase = { send: jest.fn() };
   const eventBus = { publish: jest.fn() };
   const service = new NotificationDeliveryService(
@@ -87,5 +87,30 @@ describe("NotificationDeliveryService", () => {
       { deviceToken: { $in: ["invalid-token"] } },
       { $set: { enabled: false } },
     );
+  });
+
+  it("broadcasts public_broadcast USER alerts to broadcast_channel instead of an unreachable user room", async () => {
+    const publicInput = {
+      sourceKey: "fs-early-1:public_broadcast:PROMOTION",
+      recipientId: "public_broadcast",
+      recipientType: "USER" as const,
+      type: "PROMOTION" as const,
+      title: "Flash Sale sắp kết thúc",
+      message: "Còn 5 phút",
+      payload: { eventType: "flash_sale.early_ending_scheduled" },
+    };
+    notifications.updateOne.mockResolvedValue({ upsertedCount: 1 });
+    notifications.findOne.mockResolvedValue({
+      id: "notif-fs-1",
+      ...publicInput,
+      isRead: false,
+    });
+    eventBus.publish.mockResolvedValue(undefined);
+
+    await service.deliver(publicInput);
+    expect(gateway.broadcast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Flash Sale sắp kết thúc" }),
+    );
+    expect(gateway.notification).not.toHaveBeenCalled();
   });
 });

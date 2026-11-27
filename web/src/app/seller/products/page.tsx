@@ -706,16 +706,23 @@ function SellerProductsContent() {
         ),
       },
       {
+        key: 'status',
+        title: 'Trạng Thái',
+        width: 115,
+        align: 'center',
+        render: (_val, book) => (
+          <SellerStatusBadge status={book.status || 'DRAFT'} />
+        ),
+      },
+      {
         key: 'actions',
-        title: 'Trạng Thái & Thao Tác',
-        width: 260,
+        title: 'Thao Tác',
+        width: 225,
         align: 'right',
         render: (_val, book) => {
           const isBusy = actionLoadingId === book.id;
           return (
-            <div className="flex items-center justify-end gap-1.5 flex-wrap">
-              <SellerStatusBadge status={book.status || 'DRAFT'} />
-
+            <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
               {canUpdateProduct && (
                 <>
                   <SellerActionButton
@@ -732,23 +739,21 @@ function SellerProductsContent() {
                     size="sm"
                     label="Nhanh"
                     icon="tune"
+                    title="Chỉnh sửa nhanh giá & tồn kho"
                     disabled={isBusy}
                     onClick={() => openEditForm(book)}
                   />
 
                   {(book.status === 'PUBLISHED' || book.status === 'HIDDEN') && (
-                    <button
-                      type="button"
-                      onClick={() => handleVisibility(book)}
-                      disabled={isBusy}
-                      className="px-2 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-semibold text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                    <SellerActionButton
+                      variant="neutral"
+                      size="sm"
+                      label={book.status === 'PUBLISHED' ? 'Ẩn' : 'Hiện'}
+                      icon={book.status === 'PUBLISHED' ? 'visibility_off' : 'visibility'}
                       title={book.status === 'PUBLISHED' ? 'Tạm ẩn sách' : 'Mở bán sách'}
-                    >
-                      <span className="material-symbols-outlined text-[13px] text-slate-500">
-                        {book.status === 'PUBLISHED' ? 'visibility_off' : 'visibility'}
-                      </span>
-                      <span>{book.status === 'PUBLISHED' ? 'Ẩn' : 'Hiện'}</span>
-                    </button>
+                      disabled={isBusy}
+                      onClick={() => handleVisibility(book)}
+                    />
                   )}
                 </>
               )}

@@ -8,7 +8,7 @@ import { useToast } from '@/ui/context/ToastContext';
 import { useAuth } from '@/ui/context/AuthContext';
 import { catalogApi } from '@/ui/api/catalogApi';
 import { businessApi } from '@/ui/api/businessApi';
-import { flashSaleApi } from '@/ui/api/flashSaleApi';
+import { flashSaleApi, invalidateFlashSaleCache } from '@/ui/api/flashSaleApi';
 import {
   doesFlashSaleMatchPurchaseFormat,
   formatTargetFormatLabel,
@@ -25,6 +25,7 @@ import { personalizationService } from '@/ui/services/personalizationService';
 import { realtimeSyncBus, InventoryUpdatePayload } from '@/ui/services/realtimeSyncBus';
 import { reviewSummaryService } from '@/ui/services/reviewSummaryService';
 import { useReviewSocket } from '@/ui/hooks/useReviewSocket';
+import { useFlashSaleRealtimeSync } from '@/ui/hooks/useFlashSaleRealtimeSync';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 import BookAffiliateCard from '@/ui/components/affiliate/BookAffiliateCard';
 import { userApi } from '@/ui/api/userApi';
@@ -379,6 +380,40 @@ export default function BookDetailPage() {
       isCancelled = true;
     };
   }, [realBook]);
+
+  const flashSaleInfoRef = useRef<any>(null);
+  flashSaleInfoRef.current = flashSaleInfo;
+
+  useFlashSaleRealtimeSync({
+    enabled: Boolean(realBook?.id),
+    bookIds: realBook?.id ? [realBook.id] : undefined,
+    onUpdate: (evtPayload) => {
+      if (!realBook?.id) return;
+      invalidateFlashSaleCache();
+      const prevFs = flashSaleInfoRef.current;
+      flashSaleApi
+        .getBookPrice(realBook.id)
+        .then((res) => {
+          const fresh = res?.success && res.data && res.data.salePrice ? res.data : null;
+          setFlashSaleInfo(fresh);
+          if (prevFs?.salePrice && !fresh) {
+            showToast(
+              'Ưu đãi Flash Sale cho sách này vừa kết thúc. Giá đã tự động cập nhật.',
+              'info',
+            );
+          } else if (
+            evtPayload?.eventType === 'flash_sale.early_ending_scheduled' &&
+            fresh?.endsAt
+          ) {
+            showToast(
+              'Flash Sale cho sách này sẽ kết thúc sớm sau 5 phút. Nhanh tay đặt hàng nhé!',
+              'warning',
+            );
+          }
+        })
+        .catch(() => {});
+    },
+  });
 
   useEffect(() => {
     if (!flashSaleInfo?.endsAt) {

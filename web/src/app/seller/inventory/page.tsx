@@ -673,29 +673,29 @@ export default function SellerInventoryPage() {
       {
         key: 'actions',
         title: 'Thao Tác',
-        width: 220,
+        width: 255,
         align: 'right',
         render: (_val, book) => (
-          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+          <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
             <SellerActionButton
               type="button"
               variant="primary"
               size="sm"
-              icon="add_box"
+              icon="add"
               label="Nhập"
               onClick={() => handleOpenAdjust(book, 'ADD')}
             />
             <SellerActionButton
               type="button"
-              variant="secondary"
+              variant="neutral"
               size="sm"
-              icon="remove_circle_outline"
+              icon="remove"
               label="Xuất"
               onClick={() => handleOpenAdjust(book, 'SUBTRACT')}
             />
             <SellerActionButton
               type="button"
-              variant="ghost"
+              variant="neutral"
               size="sm"
               icon="history"
               label="Lịch sử"

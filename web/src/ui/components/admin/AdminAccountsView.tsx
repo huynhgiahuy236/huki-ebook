@@ -765,18 +765,19 @@ export function AdminAccountsView() {
         key: 'actions',
         title: 'Thao tác',
         align: 'right',
+        width: 240,
         render: (_val, u) => {
           const isPlatformAdmin = u.role === 'PLATFORM_ADMIN';
           const isLocked = u.status === 'LOCKED' || u.status === 'BLOCKED';
           return (
-            <div className="flex items-center justify-end gap-1 py-0.5">
+            <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap py-0.5">
               <button
                 type="button"
                 onClick={() => {
                   setInspectingUser(u);
                   setInspectingTab('info');
                 }}
-                className="px-2 py-0.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors flex items-center gap-1 cursor-pointer"
+                className="px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors inline-flex items-center gap-1 cursor-pointer"
                 title="Xem chi tiết & lịch sử"
               >
                 <span className="material-symbols-outlined text-[13px] text-slate-500">visibility</span>
@@ -785,23 +786,25 @@ export function AdminAccountsView() {
               <button
                 type="button"
                 onClick={() => handleOpenEdit(u)}
-                className="p-1 rounded-lg border border-amber-200 bg-amber-50/60 hover:bg-amber-100 text-amber-700 transition-colors cursor-pointer"
+                className="px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors inline-flex items-center gap-1 cursor-pointer"
                 title="Chỉnh sửa tài khoản"
               >
-                <span className="material-symbols-outlined text-[13px]">edit</span>
+                <span className="material-symbols-outlined text-[13px] text-slate-500">edit</span>
+                <span>Sửa</span>
               </button>
               {!isPlatformAdmin && (
                 <button
                   type="button"
                   onClick={() => { setAuditReason(''); setLockingUser(u); }}
-                  className={`p-1 rounded-lg border transition-colors cursor-pointer ${
+                  className={`px-2 py-1 rounded-lg border bg-white font-semibold text-xs transition-colors inline-flex items-center gap-1 cursor-pointer ${
                     isLocked
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                      : 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
+                      ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                      : 'border-rose-200 text-rose-700 hover:bg-rose-50'
                   }`}
                   title={isLocked ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
                 >
                   <span className="material-symbols-outlined text-[13px]">{isLocked ? 'lock_open' : 'lock'}</span>
+                  <span>{isLocked ? 'Mở' : 'Khóa'}</span>
                 </button>
               )}
             </div>

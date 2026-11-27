@@ -109,6 +109,7 @@ export class NotificationsService {
       if (type === "USER") {
         conditions.push({ recipientType: "USER", recipientId: actor.sub });
         conditions.push({ recipientType: "USER", recipientId: "*" });
+        conditions.push({ recipientType: "USER", recipientId: "public_broadcast" });
         return conditions;
       }
     }
@@ -128,6 +129,7 @@ export class NotificationsService {
       // Default to USER
       conditions.push({ recipientType: "USER", recipientId: actor.sub });
       conditions.push({ recipientType: "USER", recipientId: "*" });
+      conditions.push({ recipientType: "USER", recipientId: "public_broadcast" });
       conditions.push({ recipientId: actor.sub });
     }
     return conditions;

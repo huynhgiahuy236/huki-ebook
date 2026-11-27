@@ -10,6 +10,7 @@ import {
   NotificationInput,
   NotificationDeliveryService,
 } from "./notification-delivery.service";
+import { NotificationGateway } from "./notification.gateway";
 import { SellerScopeResolverService } from "./seller-scope-resolver.service";
 
 type Target = Omit<NotificationInput, "sourceKey" | "payload">;
@@ -38,6 +39,7 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
     "penalty.appeal_reviewed",
     "flash_sale.early_ending_scheduled",
     "flash_sale.cancelled",
+    "flash_sale.deleted",
     "flash_sale.registered",
     "flash_sale.item_cancelled",
     "flash_sale.paused",
@@ -55,6 +57,7 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
     private readonly bus: RabbitMqEventBus,
     private readonly delivery: NotificationDeliveryService,
     @Optional() private readonly sellerScopeResolver?: SellerScopeResolverService,
+    @Optional() private readonly gateway?: NotificationGateway,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -66,6 +69,12 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
   }
 
   private async handle(event: DomainEvent): Promise<void> {
+    if (event.eventType.startsWith("flash_sale.")) {
+      this.gateway?.emitFlashSaleUpdate({
+        eventType: event.eventType,
+        ...(event.payload || {}),
+      });
+    }
     const targets = await this.resolveTargets(event);
     await Promise.all(
       targets.map((target) =>
@@ -367,12 +376,18 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
         });
         break;
       }
+      case "flash_sale.deleted":
       case "flash_sale.cancelled": {
+        const isDeleted = event.eventType === "flash_sale.deleted";
         const slotName = payload.flashSaleName || payload.name || "Khung Giờ Flash Sale";
-        const title = `❌ Flash Sale "${slotName}" đã được hủy`;
-        const message = `Khung giờ Flash Sale "${slotName}" đã được hủy bởi Ban quản trị sàn HUKI.`;
+        const title = isDeleted
+          ? `🗑️ Flash Sale "${slotName}" đã được xóa`
+          : `❌ Flash Sale "${slotName}" đã được hủy`;
+        const message = isDeleted
+          ? `Đợt Flash Sale "${slotName}" đã được gỡ bỏ khỏi lịch phát sóng.`
+          : `Khung giờ Flash Sale "${slotName}" đã được hủy bởi Ban quản trị sàn HUKI.`;
 
-        // ONLY notify participating stores
+        // Notify participating stores
         const storeIds: string[] = payload.participatingStoreIds || [];
         for (const storeId of storeIds) {
           targets.push({

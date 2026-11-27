@@ -374,10 +374,10 @@ export function AdminStoresView() {
               <button
                 type="button"
                 onClick={() => setSelectedStore(st)}
-                className="px-2 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/80 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-semibold text-xs flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap"
                 title="Xem chi tiết cửa hàng"
               >
-                <span className="material-symbols-outlined text-[13px]">visibility</span>
+                <span className="material-symbols-outlined text-[13px] text-slate-500">visibility</span>
                 <span>Hồ sơ</span>
               </button>
               {isPending && (

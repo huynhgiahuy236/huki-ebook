@@ -1559,9 +1559,37 @@ export function SellerFlashSaleView() {
 
   const [deletingSlotId, setDeletingSlotId] = useState<string | null>(null);
   const [deleteSlotModal, setDeleteSlotModal] = useState<{ id: string; name?: string } | null>(null);
+  const [endingEarlySlotId, setEndingEarlySlotId] = useState<string | null>(null);
+  const [endEarlySlotModal, setEndEarlySlotModal] = useState<{ id: string; name?: string } | null>(null);
 
   const handleDeleteSlot = (slotId: string, slotName?: string) => {
     setDeleteSlotModal({ id: slotId, name: slotName });
+  };
+
+  const handleConfirmEndEarlySlot = async () => {
+    if (!endEarlySlotModal) return;
+    const { id: slotId, name: slotName } = endEarlySlotModal;
+    try {
+      setEndingEarlySlotId(slotId);
+      const res = await flashSaleApi.sellerEndEarlySlot(slotId);
+      if (res.success) {
+        showToast(
+          `Đã kích hoạt kết thúc sớm sau 5 phút cho "${slotName || 'đợt Flash Sale'}". Khách hàng đang thanh toán có 5 phút để hoàn tất đơn.`,
+          'success',
+        );
+        setEndEarlySlotModal(null);
+        skipSelfBusUntilRef.current = Date.now() + 800;
+        realtimeSyncBus.publish('FLASH_SALE_UPDATED', { slotId });
+        invalidateFlashSaleCache();
+        void loadData(true);
+      } else {
+        showToast((res as any)?.message || (res as any)?.error?.message || 'Không thể kết thúc sớm đợt Flash Sale', 'error');
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Có lỗi xảy ra khi kết thúc sớm đợt Flash Sale', 'error');
+    } finally {
+      setEndingEarlySlotId(null);
+    }
   };
 
   const handleConfirmDeleteSlot = async () => {
@@ -1946,41 +1974,54 @@ export function SellerFlashSaleView() {
           const statusLabel = isActive ? 'Đang mở bán' : isEnded ? 'Đã kết thúc' : 'Sắp diễn ra';
 
           return (
-            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+            <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
               <SellerStatusBadge status={statusKey} label={statusLabel} />
               <Link href={`/seller/promotions/flash-sale/${slot.id}`}>
                 <SellerActionButton
-                  variant="view"
-                  label="Chi tiết"
+                  variant="neutral"
                   icon="visibility"
+                  label="Chi tiết"
                   size="sm"
                 />
               </Link>
               {!isEnded && (
                 <SellerActionButton
                   variant="primary"
-                  label="Thêm sách"
                   icon="add"
+                  label="Thêm sách"
                   size="sm"
                   onClick={() => handleOpenRegisterForSlot(slot.id)}
                 />
               )}
               {(slot.scope === 'SHOP' || slot.storeId) && (
-                <SellerActionButton
-                  variant="danger"
-                  icon="delete"
-                  title="Xóa đợt Flash Sale này"
-                  size="sm"
-                  loading={deletingSlotId === slot.id}
-                  onClick={() => handleDeleteSlot(slot.id, slot.name)}
-                />
+                isActive ? (
+                  <SellerActionButton
+                    variant="warning"
+                    icon="timer_off"
+                    label="Kết thúc sớm"
+                    title="Kết thúc sớm sau 5 phút để khách đang mua kịp hoàn tất đơn hàng"
+                    size="sm"
+                    loading={endingEarlySlotId === slot.id}
+                    onClick={() => setEndEarlySlotModal({ id: slot.id, name: slot.name })}
+                  />
+                ) : (
+                  <SellerActionButton
+                    variant="danger"
+                    icon="delete"
+                    label="Xóa"
+                    title="Xóa đợt Flash Sale này"
+                    size="sm"
+                    loading={deletingSlotId === slot.id}
+                    onClick={() => handleDeleteSlot(slot.id, slot.name)}
+                  />
+                )
               )}
             </div>
           );
         },
       },
     ],
-    [deletingSlotId]
+    [deletingSlotId, endingEarlySlotId]
   );
 
   return (
@@ -3825,6 +3866,26 @@ export function SellerFlashSaleView() {
         loading={Boolean(deletingSlotId)}
         onConfirm={handleConfirmDeleteSlot}
         onCancel={() => !deletingSlotId && setDeleteSlotModal(null)}
+      />
+
+      <CountdownConfirmModal
+        isOpen={Boolean(endEarlySlotModal)}
+        title="Kết thúc sớm Flash Sale (5 phút)"
+        description={
+          <>
+            Khung giờ{' '}
+            <strong className="text-slate-900">
+              &ldquo;{endEarlySlotModal?.name || 'này'}&rdquo;
+            </strong>{' '}
+            đang diễn ra nên không thể xóa ngang. Hệ thống sẽ đóng phiên sau{' '}
+            <strong className="text-amber-700">5 phút</strong> và thông báo real-time để khách đang mua kịp hoàn tất đơn hàng.
+          </>
+        }
+        countdownSeconds={3}
+        confirmLabel="Kết thúc sau 5 phút"
+        loading={Boolean(endingEarlySlotId)}
+        onConfirm={handleConfirmEndEarlySlot}
+        onCancel={() => !endingEarlySlotId && setEndEarlySlotModal(null)}
       />
     </div>
   );

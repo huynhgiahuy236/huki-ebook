@@ -4,7 +4,8 @@ import { NotificationEventConsumer } from "./notification-event.consumer";
 describe("NotificationEventConsumer", () => {
   const bus = { subscribe: jest.fn() };
   const delivery = { deliver: jest.fn() };
-  const consumer = new NotificationEventConsumer(bus as any, delivery as any);
+  const gateway = { emitFlashSaleUpdate: jest.fn() };
+  const consumer = new NotificationEventConsumer(bus as any, delivery as any, undefined, gateway as any);
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -192,6 +193,34 @@ describe("NotificationEventConsumer", () => {
         type: "PAYMENT_SUCCESS",
         priority: "HIGH",
         actionUrl: "/account/affiliate/dashboard",
+      }),
+    );
+  });
+
+  it("emits real-time flash_sale:updated broadcast on flash_sale.* lifecycle events", async () => {
+    await (consumer as any).handle({
+      eventId: "evt-fs-del-1",
+      eventType: "flash_sale.deleted",
+      payload: {
+        flashSaleId: "fs-1",
+        flashSaleName: "Flash Sale Test",
+        bookIds: ["book-123"],
+        participatingStoreIds: ["store-1"],
+      },
+    });
+
+    expect(gateway.emitFlashSaleUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "flash_sale.deleted",
+        flashSaleId: "fs-1",
+        bookIds: ["book-123"],
+      }),
+    );
+    expect(delivery.deliver).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: "store-1",
+        recipientType: "BUSINESS",
+        type: "PROMOTION",
       }),
     );
   });

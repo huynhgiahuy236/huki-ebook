@@ -31,8 +31,7 @@ import { ErrorCode } from "@huki/shared/errors";
 
 @Injectable()
 export class FlashSalesService
-  implements OnApplicationBootstrap, OnModuleDestroy
-{
+  implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(FlashSalesService.name);
   private statusTimer?: NodeJS.Timeout;
   private lastStatusSyncAt = 0;
@@ -42,7 +41,7 @@ export class FlashSalesService
     private readonly prisma: PrismaService,
     @Inject("FLASH_SALE_REDIS") private readonly redis: Redis,
     @Optional() private readonly eventBus?: RabbitMqEventBus,
-  ) {}
+  ) { }
 
   async onApplicationBootstrap() {
     if (this.redis.status === "wait") {
@@ -417,7 +416,7 @@ export class FlashSalesService
     }
     const availableStock = Number(
       book.available ??
-        Math.max(0, Number(book.stock || 0) - Number(book.reserved || 0)),
+      Math.max(0, Number(book.stock || 0) - Number(book.reserved || 0)),
     );
     if (targetFormat !== FlashSaleTargetFormat.DIGITAL && dto.stock > availableStock) {
       throwBadRequest(
@@ -692,9 +691,9 @@ export class FlashSalesService
             ? Math.max(0, Math.floor((c.endsAt.getTime() - now.getTime()) / 1000))
             : status === FlashSaleStatus.SCHEDULED
               ? Math.max(
-                  0,
-                  Math.floor((c.startsAt.getTime() - now.getTime()) / 1000),
-                )
+                0,
+                Math.floor((c.startsAt.getTime() - now.getTime()) / 1000),
+              )
               : 0;
 
         const itemsWithBooks = c.items.map((item) => this.mapItemWithBook(item, c, slotBookMap).itemView);
@@ -1034,7 +1033,7 @@ export class FlashSalesService
     const ttlSeconds = Math.max(
       86_400,
       Math.ceil((activeItem.flashSale.endsAt.getTime() - Date.now()) / 1000) +
-        86_400,
+      86_400,
     );
     const reservationTtl = 30 * 24 * 60 * 60;
 
@@ -1197,10 +1196,10 @@ export class FlashSalesService
       const eventType = isGrace
         ? 'flash_sale.grace_started'
         : isPaused
-        ? 'flash_sale.paused'
-        : status === FlashSaleStatus.ACTIVE
-        ? 'flash_sale.resumed'
-        : 'flash_sale.status_changed';
+          ? 'flash_sale.paused'
+          : status === FlashSaleStatus.ACTIVE
+            ? 'flash_sale.resumed'
+            : 'flash_sale.status_changed';
 
       await this.eventBus.publish({
         eventId: randomUUID(),
@@ -1250,18 +1249,27 @@ export class FlashSalesService
     return updated;
   }
 
-  async endEarly(id: string) {
+  async endEarly(id: string, actorBusinessId?: string) {
     const flashSale = await this.prisma.flashSale.findUnique({
       where: { id },
       include: { items: true },
     });
     if (!flashSale) throwNotFound(ErrorCode.FLASH_SALE_NOT_FOUND);
+    if (
+      actorBusinessId &&
+      (flashSale!.scope !== FlashSaleScope.SHOP || flashSale!.storeId !== actorBusinessId)
+    ) {
+      throwForbidden(
+        ErrorCode.AUTHZ_FORBIDDEN,
+        "Bạn không có quyền kết thúc sớm đợt Flash Sale này",
+      );
+    }
 
     const now = new Date();
     if (
-      flashSale.status === FlashSaleStatus.ENDED ||
-      flashSale.status === FlashSaleStatus.CANCELLED ||
-      now > flashSale.endsAt
+      flashSale!.status === FlashSaleStatus.ENDED ||
+      flashSale!.status === FlashSaleStatus.CANCELLED ||
+      now > flashSale!.endsAt
     ) {
       throwBadRequest(
         ErrorCode.FLASH_SALE_NOT_ACTIVE,
@@ -1282,7 +1290,10 @@ export class FlashSalesService
     });
 
     if (this.eventBus) {
-      void this.getParticipatingStoreIds(id, flashSale.items)
+      const bookIds = Array.from(
+        new Set((flashSale!.items || []).map((it: any) => it.bookId).filter(Boolean)),
+      );
+      void this.getParticipatingStoreIds(id, flashSale!.items)
         .then((storeIds) =>
           this.eventBus!.publish({
             eventId: randomUUID(),
@@ -1293,14 +1304,15 @@ export class FlashSalesService
             aggregateId: id,
             payload: {
               flashSaleId: id,
-              flashSaleName: flashSale.name,
+              flashSaleName: flashSale!.name,
               endsAt: newEndsAt.toISOString(),
               remainingSeconds: 300,
+              bookIds,
               participatingStoreIds: storeIds, // only stores participating in this slot!
             },
           }).then(() => {
             this.logger.log(
-              `Published flash_sale.early_ending_scheduled for "${flashSale.name}" (endsAt: ${newEndsAt.toISOString()}) to ${storeIds.length} stores`,
+              `Published flash_sale.early_ending_scheduled for "${flashSale!.name}" (endsAt: ${newEndsAt.toISOString()}) to ${storeIds.length} stores`,
             );
           }),
         )
@@ -1318,6 +1330,21 @@ export class FlashSalesService
       include: { items: true },
     });
     if (!flashSale) throwNotFound(ErrorCode.FLASH_SALE_NOT_FOUND);
+    const now = new Date();
+    const isLiveWindow =
+      flashSale!.status === FlashSaleStatus.ACTIVE ||
+      (flashSale!.status === FlashSaleStatus.SCHEDULED &&
+        (flashSale!.items?.length ?? 0) > 0 &&
+        flashSale!.startsAt &&
+        flashSale!.endsAt &&
+        now >= flashSale!.startsAt &&
+        now <= flashSale!.endsAt);
+    if (isLiveWindow) {
+      throwBadRequest(
+        ErrorCode.FLASH_SALE_NOT_ACTIVE,
+        "Đợt Flash Sale đang diễn ra. Vui lòng sử dụng Kết Thúc Sớm (5 phút) để khách hàng kịp hoàn tất thanh toán.",
+      );
+    }
 
     const updated = await this.prisma.flashSale.update({
       where: { id },
@@ -1327,13 +1354,16 @@ export class FlashSalesService
       },
     });
 
-    if (flashSale.items && flashSale.items.length > 0) {
-      const keys = flashSale.items.map((it) => this.stockKey(it.id));
+    if (flashSale!.items && flashSale!.items.length > 0) {
+      const keys = flashSale!.items.map((it) => this.stockKey(it.id));
       await this.redis.del(...keys);
     }
 
     if (this.eventBus) {
-      void this.getParticipatingStoreIds(id, flashSale.items)
+      const bookIds = Array.from(
+        new Set((flashSale!.items || []).map((it: any) => it.bookId).filter(Boolean)),
+      );
+      void this.getParticipatingStoreIds(id, flashSale!.items)
         .then((storeIds) =>
           this.eventBus!.publish({
             eventId: randomUUID(),
@@ -1344,13 +1374,14 @@ export class FlashSalesService
             aggregateId: id,
             payload: {
               flashSaleId: id,
-              flashSaleName: flashSale.name,
+              flashSaleName: flashSale!.name,
               status: FlashSaleStatus.CANCELLED,
+              bookIds,
               participatingStoreIds: storeIds,
             },
           }).then(() => {
             this.logger.log(
-              `Published flash_sale.cancelled for "${flashSale.name}" to ${storeIds.length} stores`,
+              `Published flash_sale.cancelled for "${flashSale!.name}" to ${storeIds.length} stores`,
             );
           }),
         )
@@ -1362,19 +1393,56 @@ export class FlashSalesService
     return updated;
   }
 
-  async delete(id: string) {
+  async delete(id: string, actorBusinessId?: string) {
     const flashSale = await this.prisma.flashSale.findUnique({
       where: { id },
-      include: { items: { select: { id: true, sold: true } } },
+      include: {
+        items: { select: { id: true, sold: true, bookId: true, storeId: true } },
+      },
     });
     if (!flashSale) throwNotFound(ErrorCode.FLASH_SALE_NOT_FOUND);
     const campaign = flashSale!;
+    if (
+      actorBusinessId &&
+      (campaign.scope !== FlashSaleScope.SHOP || campaign.storeId !== actorBusinessId)
+    ) {
+      throwForbidden(
+        ErrorCode.AUTHZ_FORBIDDEN,
+        "Bạn không có quyền xóa đợt Flash Sale này",
+      );
+    }
     if (campaign.items.some((item) => item.sold > 0)) {
       throwBadRequest(
         ErrorCode.FLASH_SALE_NOT_ACTIVE,
         "Không thể xóa đợt Flash Sale đã phát sinh đơn hàng đã bán",
       );
     }
+    const now = new Date();
+    const isLiveWindow =
+      campaign.status === FlashSaleStatus.ACTIVE ||
+      (campaign.status === FlashSaleStatus.SCHEDULED &&
+        campaign.startsAt &&
+        campaign.endsAt &&
+        now >= campaign.startsAt &&
+        now <= campaign.endsAt);
+    if (isLiveWindow && campaign.items.length > 0) {
+      throwBadRequest(
+        ErrorCode.FLASH_SALE_NOT_ACTIVE,
+        "Không thể xóa đợt Flash Sale đang diễn ra. Vui lòng sử dụng Kết Thúc Sớm (5 phút) để khách hàng kịp hoàn tất thanh toán.",
+      );
+    }
+
+    const bookIds = Array.from(
+      new Set(campaign.items.map((item) => item.bookId).filter(Boolean)),
+    );
+    const participatingStoreIds = Array.from(
+      new Set(
+        [
+          campaign.storeId,
+          ...campaign.items.map((item) => item.storeId),
+        ].filter(Boolean) as string[],
+      ),
+    );
 
     await this.prisma.flashSaleItem.deleteMany({
       where: { flashSaleId: id },
@@ -1383,6 +1451,28 @@ export class FlashSalesService
     if (keys.length) await this.redis.del(...keys);
 
     await this.prisma.flashSale.delete({ where: { id } });
+
+    if (this.eventBus && campaign.items.length > 0) {
+      void this.eventBus
+        .publish({
+          eventId: randomUUID(),
+          eventType: "flash_sale.deleted",
+          occurredAt: new Date().toISOString(),
+          producer: "promotion-service",
+          version: 1,
+          aggregateId: id,
+          payload: {
+            flashSaleId: id,
+            flashSaleName: campaign.name,
+            bookIds,
+            participatingStoreIds,
+          },
+        })
+        .catch((err: any) => {
+          this.logger.warn(`Failed to publish flash_sale.deleted event: ${err?.message || err}`);
+        });
+    }
+
     return { success: true };
   }
 
@@ -1408,14 +1498,14 @@ export class FlashSalesService
       status: slotStatus,
       flashSale: fs
         ? {
-            id: fs.id,
-            name: fs.name,
-            status: fs.status,
-            scope: fs.scope,
-            startsAt: fs.startsAt,
-            endsAt: fs.endsAt,
-            storeId: fs.storeId,
-          }
+          id: fs.id,
+          name: fs.name,
+          status: fs.status,
+          scope: fs.scope,
+          startsAt: fs.startsAt,
+          endsAt: fs.endsAt,
+          storeId: fs.storeId,
+        }
         : undefined,
       bookId: item.bookId,
       bookTitle: item.bookTitle ?? null,
@@ -1732,10 +1822,10 @@ export class FlashSalesService
       const items = Array.isArray(body?.data?.data)
         ? body.data.data
         : Array.isArray(body?.data)
-        ? body.data
-        : Array.isArray(body)
-        ? body
-        : [];
+          ? body.data
+          : Array.isArray(body)
+            ? body
+            : [];
       this.businessesCache = { items, expiresAt: Date.now() + 120_000 };
       return items;
     } catch {
@@ -2003,12 +2093,12 @@ export class FlashSalesService
         book.status === "HIDDEN"
           ? "Đang ẩn"
           : book.status === "DRAFT"
-          ? "Bản nháp"
-          : book.status === "ARCHIVED"
-          ? "Đã lưu trữ"
-          : book.status === "SUSPENDED"
-          ? "Bị tạm khóa"
-          : book.status;
+            ? "Bản nháp"
+            : book.status === "ARCHIVED"
+              ? "Đã lưu trữ"
+              : book.status === "SUSPENDED"
+                ? "Bị tạm khóa"
+                : book.status;
       throwBadRequest(
         ErrorCode.FLASH_SALE_NOT_ACTIVE,
         `Sách "${book.title || dto.bookId}" đang ở trạng thái "${statusLabel}", vui lòng xuất bản công khai trước khi đăng ký Flash Sale`,
@@ -2055,7 +2145,7 @@ export class FlashSalesService
 
     const availableStock = Number(
       book.available ??
-        Math.max(0, Number(book.stock || 0) - Number(book.reserved || 0)),
+      Math.max(0, Number(book.stock || 0) - Number(book.reserved || 0)),
     );
     if (targetFormat !== FlashSaleTargetFormat.DIGITAL && dto.stock > availableStock) {
       throwBadRequest(
@@ -2337,7 +2427,7 @@ export class FlashSalesService
       const book = bookMap.get(item.bookId);
       const bookBizId = book?.businessId || book?.business?.id || book?.storeId;
       const bookOwnerId = book?.ownerUserId || book?.ownerId || book?.userId;
-      
+
       const isMatch =
         !businessId ||
         businessId === "ADMIN" ||
@@ -2353,33 +2443,33 @@ export class FlashSalesService
           ...this.mapItemView(item, item.flashSale),
           book: book
             ? {
-                id: book.id,
-                title: book.title,
-                coverImage: book.coverImage || book.cover || book.coverUrl,
-                price: Number(book.price),
-                format: book.format || "PHYSICAL",
-                pricePaper: book.pricePaper,
-                priceEbook: book.priceEbook,
-                priceCombo: book.priceCombo,
-                author:
-                  book.author?.name ||
-                  book.author ||
-                  book.authorName ||
-                  "Nhiều tác giả",
-                available:
-                  book.available ??
-                  book.physicalDetails?.stock ??
-                  book.stock ??
-                  20,
-              }
+              id: book.id,
+              title: book.title,
+              coverImage: book.coverImage || book.cover || book.coverUrl,
+              price: Number(book.price),
+              format: book.format || "PHYSICAL",
+              pricePaper: book.pricePaper,
+              priceEbook: book.priceEbook,
+              priceCombo: book.priceCombo,
+              author:
+                book.author?.name ||
+                book.author ||
+                book.authorName ||
+                "Nhiều tác giả",
+              available:
+                book.available ??
+                book.physicalDetails?.stock ??
+                book.stock ??
+                20,
+            }
             : {
-                id: item.bookId,
-                title: (item as any).bookTitle || "Sách Flash Sale",
-                coverImage: (item as any).coverUrl || "/banners/hero-library.jpg",
-                price: Number(item.originalPrice),
-                author: (item as any).author || "Nhiều tác giả",
-                available: item.stock,
-              },
+              id: item.bookId,
+              title: (item as any).bookTitle || "Sách Flash Sale",
+              coverImage: (item as any).coverUrl || "/banners/hero-library.jpg",
+              price: Number(item.originalPrice),
+              author: (item as any).author || "Nhiều tác giả",
+              available: item.stock,
+            },
         });
       }
     }
@@ -2506,15 +2596,15 @@ export class FlashSalesService
 
     const resolved = book
       ? this.resolveBookTargetFormatAndPrice(
-          book,
-          dto.targetFormat ?? item.targetFormat,
-        )
+        book,
+        dto.targetFormat ?? item.targetFormat,
+      )
       : {
-          targetFormat:
-            this.normalizeTargetFormat(dto.targetFormat ?? item.targetFormat) ||
-            FlashSaleTargetFormat.PHYSICAL,
-          originalPrice: Number(item.originalPrice),
-        };
+        targetFormat:
+          this.normalizeTargetFormat(dto.targetFormat ?? item.targetFormat) ||
+          FlashSaleTargetFormat.PHYSICAL,
+        originalPrice: Number(item.originalPrice),
+      };
     const originalPrice = resolved.originalPrice;
     if (dto.salePrice !== undefined) {
       if (dto.salePrice >= originalPrice) {

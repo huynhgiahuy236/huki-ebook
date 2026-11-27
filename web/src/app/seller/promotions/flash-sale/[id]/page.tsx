@@ -18,6 +18,7 @@ import {
   getFlashSaleFormatStyle,
   type FlashSaleTargetFormat,
 } from '@/ui/utils/flashSaleFormat';
+import { sanitizeImageUrl } from '@/ui/utils/imageUtils';
 
 interface AddableBookConfig {
   book: BookData;
@@ -82,9 +83,11 @@ export default function SellerFlashSaleDetailPage() {
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
-  // Delete Slot state
+  // Delete / End-Early Slot state
   const [deletingSlot, setDeletingSlot] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [endingEarly, setEndingEarly] = useState(false);
+  const [isEndEarlyModalOpen, setIsEndEarlyModalOpen] = useState(false);
 
   // Add Books inline panel state
   const [isAddPanelOpen, setIsAddPanelOpen] = useState(false);
@@ -195,6 +198,14 @@ export default function SellerFlashSaleDetailPage() {
     () => Boolean(slot && (slot.scope === 'PLATFORM' || !slot.storeId)),
     [slot]
   );
+
+  const sellerBookByIdMap = useMemo(() => {
+    const map = new Map<string, BookData>();
+    for (const book of sellerBooks) {
+      if (book?.id) map.set(book.id, book);
+    }
+    return map;
+  }, [sellerBooks]);
 
   const metrics = useMemo(() => {
     const totalSold = items.reduce((sum, i) => sum + Number(i.sold || 0), 0);
@@ -390,6 +401,30 @@ export default function SellerFlashSaleDetailPage() {
     setIsDeleteModalOpen(true);
   };
 
+  const handleConfirmEndEarlySlot = async () => {
+    if (!slot) return;
+    try {
+      setEndingEarly(true);
+      const res = await flashSaleApi.sellerEndEarlySlot(slot.id);
+      if (res.success) {
+        showToast(
+          'Đã kích hoạt kết thúc sớm sau 5 phút. Khách hàng đang thanh toán có 5 phút để hoàn tất đơn.',
+          'success',
+        );
+        setIsEndEarlyModalOpen(false);
+        invalidateFlashSaleCache();
+        realtimeSyncBus.publish('FLASH_SALE_UPDATED', { slotId: slot.id });
+        void loadDetail(true);
+      } else {
+        showToast((res as any)?.message || (res as any)?.error?.message || 'Không thể kết thúc sớm đợt Flash Sale', 'error');
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Lỗi khi kết thúc sớm đợt Flash Sale', 'error');
+    } finally {
+      setEndingEarly(false);
+    }
+  };
+
   const handleConfirmDeleteSlot = async () => {
     if (!slot) return;
     try {
@@ -504,13 +539,23 @@ export default function SellerFlashSaleDetailPage() {
             />
           )}
           {!isPlatformScope && (
-            <SellerActionButton
-              variant="danger"
-              label="Xóa đợt"
-              icon="delete"
-              onClick={handleDeleteSlot}
-              loading={deletingSlot}
-            />
+            statusMeta.isActive ? (
+              <SellerActionButton
+                variant="warning"
+                label="Kết thúc sớm (5p)"
+                icon="timer_off"
+                onClick={() => setIsEndEarlyModalOpen(true)}
+                loading={endingEarly}
+              />
+            ) : (
+              <SellerActionButton
+                variant="danger"
+                label="Xóa đợt"
+                icon="delete"
+                onClick={handleDeleteSlot}
+                loading={deletingSlot}
+              />
+            )
           )}
         </div>
       </div>
@@ -766,7 +811,17 @@ export default function SellerFlashSaleDetailPage() {
                       const discountPct = orig > 0 ? Math.max(1, Math.round(((orig - sale) / orig) * 100)) : 0;
                       const isEditing = editingItemId === item.id;
                       const isConfirmCancel = confirmCancelId === item.id;
-                      const coverUrl = item.book?.coverImageUrl || item.book?.coverUrl || item.coverUrl || '/images/placeholder-book.jpg';
+                      const matchedBook = sellerBookByIdMap.get(item.bookId) as any;
+                      const rawCover =
+                        item.book?.coverImage ||
+                        item.book?.coverImageUrl ||
+                        item.book?.coverUrl ||
+                        item.book?.cover ||
+                        item.coverUrl ||
+                        matchedBook?.coverImage ||
+                        matchedBook?.coverUrl ||
+                        matchedBook?.cover;
+                      const coverUrl = sanitizeImageUrl(rawCover) || '/images/book-placeholder.png';
 
                       return (
                         <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
@@ -774,7 +829,15 @@ export default function SellerFlashSaleDetailPage() {
                             <div className="flex items-center gap-3">
                               <img
                                 src={coverUrl}
-                                alt={item.book?.title || 'Book'}
+                                alt={item.book?.title || matchedBook?.title || 'Book'}
+                                referrerPolicy="no-referrer"
+                                onError={(e) => {
+                                  const img = e.currentTarget;
+                                  if (!img.dataset.fallbackApplied) {
+                                    img.dataset.fallbackApplied = '1';
+                                    img.src = '/images/book-placeholder.png';
+                                  }
+                                }}
                                 className="w-10 h-14 rounded-lg object-cover border border-slate-200 shrink-0 bg-slate-100"
                               />
                               <div className="min-w-0">
@@ -915,18 +978,19 @@ export default function SellerFlashSaleDetailPage() {
                                 />
                               </div>
                             ) : (
-                              <div className="inline-flex items-center gap-1.5">
+                              <div className="inline-flex items-center gap-1.5 flex-nowrap whitespace-nowrap">
                                 <SellerActionButton
-                                  variant="edit"
-                                  label="Sửa"
+                                  variant="neutral"
                                   icon="edit"
+                                  label="Sửa"
                                   size="sm"
                                   onClick={() => handleStartEdit(item)}
                                 />
                                 <SellerActionButton
                                   variant="danger"
                                   icon="delete"
-                                  title="Gỡ sách khỏi đợt"
+                                  label="Gỡ"
+                                  title="Gỡ sách khỏi đợt Flash Sale"
                                   size="sm"
                                   onClick={() => setConfirmCancelId(item.id)}
                                 />
@@ -1043,6 +1107,24 @@ export default function SellerFlashSaleDetailPage() {
         loading={deletingSlot}
         onConfirm={handleConfirmDeleteSlot}
         onCancel={() => !deletingSlot && setIsDeleteModalOpen(false)}
+      />
+
+      <CountdownConfirmModal
+        isOpen={isEndEarlyModalOpen}
+        title="Kết thúc sớm Flash Sale (5 phút)"
+        description={
+          <>
+            Đợt <strong className="text-slate-900">&ldquo;{slot.name}&rdquo;</strong> đang mở bán
+            nên không thể xóa ngang. Hệ thống sẽ đóng phiên sau{' '}
+            <strong className="text-amber-700">5 phút</strong> và thông báo real-time cho khách
+            hàng đang thanh toán.
+          </>
+        }
+        countdownSeconds={3}
+        confirmLabel="Kết thúc sau 5 phút"
+        loading={endingEarly}
+        onConfirm={handleConfirmEndEarlySlot}
+        onCancel={() => !endingEarly && setIsEndEarlyModalOpen(false)}
       />
     </div>
   );

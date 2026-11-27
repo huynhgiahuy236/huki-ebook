@@ -378,5 +378,16 @@ export const flashSaleApi = {
       method: "DELETE",
     });
   },
+
+  sellerEndEarlySlot: async (
+    slotId: string,
+  ): Promise<ApiResponse<FlashSaleSlot>> => {
+    return apiClient<FlashSaleSlot>(
+      `/flash-sales/seller/slots/${slotId}/end-early`,
+      {
+        method: "PATCH",
+      },
+    );
+  },
 };
 

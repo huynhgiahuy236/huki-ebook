@@ -54,8 +54,8 @@ const STATUS_CONFIG = {
 
 const FORMAT_CONFIG = {
   PHYSICAL: { label: 'Sách Giấy', color: 'bg-amber-50 text-amber-800 border-amber-200' },
-  DIGITAL: { label: 'Ebook Số', color: 'bg-blue-50 text-blue-800 border-blue-200' },
-  BOTH: { label: 'Combo Hybrid', color: 'bg-purple-50 text-purple-800 border-purple-200' },
+  DIGITAL: { label: 'Ebook DRM', color: 'bg-blue-50 text-blue-800 border-blue-200' },
+  BOTH: { label: 'Combo', color: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
 };
 
 export function AdminBooksView() {
@@ -477,11 +477,11 @@ export function AdminBooksView() {
                   let formatLabel = 'Sách Giấy';
                   let formatBadge = 'bg-amber-50 text-amber-800 border-amber-200';
                   if (book.format === 'DIGITAL') {
-                    formatLabel = 'Ebook Số';
+                    formatLabel = 'Ebook DRM';
                     formatBadge = 'bg-blue-50 text-blue-800 border-blue-200';
                   } else if (book.format === 'BOTH') {
-                    formatLabel = 'Combo Hybrid';
-                    formatBadge = 'bg-purple-50 text-purple-800 border-purple-200';
+                    formatLabel = 'Combo';
+                    formatBadge = 'bg-emerald-50 text-emerald-800 border-emerald-200';
                   }
 
                   return (
@@ -526,7 +526,15 @@ export function AdminBooksView() {
                           <div className="flex items-center gap-2.5">
                             <div className="w-7 h-9 rounded bg-gray-100 bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center shadow-2xs">
                               {cover ? (
-                                <img src={cover} alt={book.title} className="w-full h-full object-cover" />
+                                <img
+                                  src={cover}
+                                  alt={book.title}
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = '/images/book-placeholder.png';
+                                  }}
+                                />
                               ) : (
                                 <span className="material-symbols-outlined text-gray-400 text-[18px]">book</span>
                               )}
@@ -590,48 +598,46 @@ export function AdminBooksView() {
                         </td>
 
                         {/* 7. Trạng Thái & Thao Tác Nhanh */}
-                        <td className="py-3 px-3.5 text-right">
-                          <div className="flex flex-col items-end gap-1.5">
+                        <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-2 flex-nowrap whitespace-nowrap">
                             <AdminStatusBadge variant={statusVariant} label={statusLabel} />
-                            <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => toggleExpandRow(book.id)}
+                              className="px-2 py-1 rounded-md bg-gray-100 hover:bg-emerald-50 hover:text-emerald-800 text-gray-700 font-semibold text-[11px] transition-colors cursor-pointer flex items-center gap-0.5"
+                            >
+                              <span>{isExpanded ? 'Thu lại' : 'Chi tiết'}</span>
+                              <span className="material-symbols-outlined text-[13px]">
+                                {isExpanded ? 'expand_less' : 'expand_more'}
+                              </span>
+                            </button>
+
+                            {isSuspended ? (
                               <button
                                 type="button"
-                                onClick={() => toggleExpandRow(book.id)}
-                                className="px-2 py-0.5 rounded-md bg-gray-100 hover:bg-emerald-50 hover:text-emerald-800 text-gray-700 font-semibold text-[10.5px] transition-colors cursor-pointer flex items-center gap-0.5"
+                                onClick={() => handleActivate(book)}
+                                disabled={isBusy}
+                                className="px-2 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1 shadow-2xs"
+                                title="Mở khóa sách"
                               >
-                                <span>{isExpanded ? 'Thu lại' : 'Chi tiết'}</span>
-                                <span className="material-symbols-outlined text-[12px]">
-                                  {isExpanded ? 'expand_less' : 'expand_more'}
-                                </span>
+                                <span className="material-symbols-outlined text-[13px]">lock_open</span>
+                                <span>Mở</span>
                               </button>
-
-                              {isSuspended ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleActivate(book)}
-                                  disabled={isBusy}
-                                  className="px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[10.5px] transition-all cursor-pointer disabled:opacity-50 flex items-center gap-0.5 shadow-2xs"
-                                  title="Mở khóa sách"
-                                >
-                                  <span className="material-symbols-outlined text-[12px]">lock_open</span>
-                                  <span>Mở</span>
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSuspendModalBook(book);
-                                    setSuspendReason('');
-                                  }}
-                                  disabled={isBusy}
-                                  className="px-2 py-0.5 rounded-md bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-semibold text-[10.5px] transition-all cursor-pointer disabled:opacity-50 flex items-center gap-0.5"
-                                  title="Khóa sách vi phạm"
-                                >
-                                  <span className="material-symbols-outlined text-[12px]">lock</span>
-                                  <span>Khóa</span>
-                                </button>
-                              )}
-                            </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSuspendModalBook(book);
+                                  setSuspendReason('');
+                                }}
+                                disabled={isBusy}
+                                className="px-2 py-1 rounded-md bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-semibold text-[11px] transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                                title="Khóa sách vi phạm"
+                              >
+                                <span className="material-symbols-outlined text-[13px]">lock</span>
+                                <span>Khóa</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

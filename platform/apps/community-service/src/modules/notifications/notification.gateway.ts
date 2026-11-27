@@ -226,6 +226,11 @@ export class NotificationGateway implements OnGatewayConnection {
     this.server.to("admin_channel").emit(eventName, data);
   }
 
+  emitFlashSaleUpdate(data: Record<string, unknown>) {
+    if (!this.server) return;
+    this.server.to("broadcast_channel").emit("flash_sale:updated", data);
+  }
+
   private room(recipientId: string) {
     return `user:${recipientId}`;
   }

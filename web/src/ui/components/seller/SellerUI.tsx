@@ -63,6 +63,8 @@ const statusToVariantMap: Record<string, SellerStatusVariant> = {
   // Thành công / Hoàn tất
   APPROVED: 'success',
   ACTIVE: 'success',
+  PUBLISHED: 'success',
+  HIDDEN: 'neutral',
   COMPLETED: 'success',
   DELIVERED: 'success',
   PAID: 'success',
@@ -108,6 +110,8 @@ const statusToVariantMap: Record<string, SellerStatusVariant> = {
 const statusLabels: Record<string, string> = {
   APPROVED: 'Đã Duyệt',
   ACTIVE: 'Đang Bán',
+  PUBLISHED: 'Đang Bán',
+  HIDDEN: 'Đang Ẩn',
   COMPLETED: 'Hoàn Tất',
   DELIVERED: 'Đã Giao Hàng',
   PAID: 'Đã Thanh Toán',

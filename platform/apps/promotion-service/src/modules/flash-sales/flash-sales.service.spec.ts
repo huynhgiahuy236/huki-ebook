@@ -446,4 +446,88 @@ describe("FlashSalesService", () => {
     expect(matchQuote.isFlashSale).toBe(true);
     expect(matchQuote.salePrice).toBe(35_000);
   });
+
+  it("blocks deleting an ACTIVE campaign with registered items and directs to endEarly", async () => {
+    prisma.flashSale.findUnique.mockResolvedValueOnce({
+      ...campaign,
+      scope: "SHOP",
+      storeId: "store-1",
+      status: "ACTIVE",
+      items: [{ id: "item-1", sold: 0, bookId: item.bookId, storeId: "store-1" }],
+    });
+
+    await expect(service.delete(campaign.id, "store-1")).rejects.toThrow(
+      "Kết Thúc Sớm (5 phút)",
+    );
+    expect(prisma.flashSale.delete).not.toHaveBeenCalled();
+  });
+
+  it("allows rollback cleanup of an empty ACTIVE custom slot and deletes SCHEDULED empty/unsold slots", async () => {
+    prisma.flashSale.findUnique.mockResolvedValueOnce({
+      ...campaign,
+      scope: "SHOP",
+      storeId: "store-1",
+      status: "ACTIVE",
+      items: [],
+    });
+    prisma.flashSale.delete.mockResolvedValueOnce({ id: campaign.id });
+
+    await expect(service.delete(campaign.id, "store-1")).resolves.toEqual({ success: true });
+    expect(prisma.flashSale.delete).toHaveBeenCalledWith({ where: { id: campaign.id } });
+  });
+
+  it("publishes flash_sale.deleted with bookIds when a scheduled campaign with items is deleted", async () => {
+    prisma.flashSale.findUnique.mockResolvedValueOnce({
+      ...campaign,
+      scope: "SHOP",
+      storeId: "store-1",
+      status: "SCHEDULED",
+      startsAt: new Date(Date.now() + 60_000),
+      endsAt: new Date(Date.now() + 3_600_000),
+      items: [{ id: "item-1", sold: 0, bookId: item.bookId, storeId: "store-1" }],
+    });
+    prisma.flashSale.delete.mockResolvedValueOnce({ id: campaign.id });
+
+    await service.delete(campaign.id, "store-1");
+
+    expect(eventBus.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "flash_sale.deleted",
+        payload: expect.objectContaining({
+          flashSaleId: campaign.id,
+          bookIds: [item.bookId],
+        }),
+      }),
+    );
+  });
+
+  it("allows seller endEarly on own SHOP slot and forbids another store", async () => {
+    prisma.flashSale.findUnique.mockResolvedValueOnce({
+      ...campaign,
+      scope: "SHOP",
+      storeId: "store-1",
+      items: [{ id: "item-1", bookId: item.bookId, storeId: "store-1" }],
+    });
+
+    await expect(service.endEarly(campaign.id, "other-store")).rejects.toThrow();
+
+    prisma.flashSale.findUnique.mockResolvedValueOnce({
+      ...campaign,
+      scope: "SHOP",
+      storeId: "store-1",
+      items: [{ id: "item-1", bookId: item.bookId, storeId: "store-1" }],
+    });
+    prisma.flashSale.update.mockResolvedValueOnce({ ...campaign, status: "ACTIVE" });
+
+    await service.endEarly(campaign.id, "store-1");
+    expect(eventBus.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "flash_sale.early_ending_scheduled",
+        payload: expect.objectContaining({
+          flashSaleId: campaign.id,
+          bookIds: [item.bookId],
+        }),
+      }),
+    );
+  });
 });

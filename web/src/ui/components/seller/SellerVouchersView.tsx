@@ -869,7 +869,7 @@ export function SellerVouchersView() {
       {
         key: 'actions',
         title: 'Thao Tác',
-        width: 140,
+        width: 330,
         align: 'right',
         render: (_val, voucher) => {
           const now = new Date();
@@ -877,36 +877,40 @@ export function SellerVouchersView() {
           const isActionLoading = actionLoadingId === voucher.id;
 
           return (
-            <div className="flex items-center justify-end gap-1">
-              {!isExpired && (
-                <SellerActionButton
-                  size="sm"
-                  variant={voucher.status === 'ACTIVE' ? 'warning' : 'success'}
-                  icon={voucher.status === 'ACTIVE' ? 'pause_circle' : 'play_circle'}
-                  title={voucher.status === 'ACTIVE' ? 'Tạm tắt voucher' : 'Kích hoạt voucher'}
-                  loading={isActionLoading}
-                  onClick={() => handleToggleStatus(voucher)}
-                />
-              )}
+            <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
               <SellerActionButton
                 size="sm"
-                variant="info"
-                icon="analytics"
+                variant="neutral"
+                icon="bar_chart"
+                label="Thống kê"
                 title="Xem thống kê sử dụng"
                 onClick={() => handleOpenStats(voucher)}
               />
               <SellerActionButton
                 size="sm"
-                variant="edit"
+                variant="neutral"
                 icon="edit"
+                label="Sửa"
                 title="Chỉnh sửa voucher"
                 onClick={() => handleOpenEdit(voucher)}
               />
+              {!isExpired && (
+                <SellerActionButton
+                  size="sm"
+                  variant="neutral"
+                  icon={voucher.status === 'ACTIVE' ? 'pause' : 'play_arrow'}
+                  label={voucher.status === 'ACTIVE' ? 'Tắt' : 'Bật'}
+                  title={voucher.status === 'ACTIVE' ? 'Tạm tắt voucher' : 'Kích hoạt voucher'}
+                  loading={isActionLoading}
+                  onClick={() => handleToggleStatus(voucher)}
+                />
+              )}
               {voucher.currentUsage === 0 && (
                 <SellerActionButton
                   size="sm"
                   variant="danger"
                   icon="delete"
+                  label="Xóa"
                   title="Xóa voucher"
                   loading={isActionLoading}
                   onClick={() => handleDeleteVoucher(voucher)}

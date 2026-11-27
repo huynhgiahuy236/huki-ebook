@@ -12,6 +12,7 @@ import {
   Headers,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Put,
   UseGuards,
@@ -168,6 +169,21 @@ export class SellerFlashSalesController {
     return this.flashSales.sellerCancelItem(business.id, itemId);
   }
 
+  @Patch("slots/:slotId/end-early")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Gracefully end an active shop flash sale early (5 minutes)",
+    description: "Shortens an active shop flash sale end time to 5 minutes from now so shoppers can complete checkout.",
+  })
+  @ApiParam({ name: "slotId", description: "Flash Sale Slot ID" })
+  @ApiResponse({ status: 200, description: "Flash sale early ending scheduled" })
+  async endEarlySlot(
+    @CurrentBusiness() business: any,
+    @Param("slotId", ParseUUIDPipe) slotId: string,
+  ) {
+    return this.flashSales.endEarly(slotId, business?.id);
+  }
+
   @Delete("slots/:slotId")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -177,8 +193,9 @@ export class SellerFlashSalesController {
   @ApiParam({ name: "slotId", description: "Flash Sale Slot ID" })
   @ApiResponse({ status: 200, description: "Flash sale slot deleted successfully" })
   async deleteSlot(
+    @CurrentBusiness() business: any,
     @Param("slotId", ParseUUIDPipe) slotId: string,
   ) {
-    return this.flashSales.delete(slotId);
+    return this.flashSales.delete(slotId, business?.id);
   }
 }

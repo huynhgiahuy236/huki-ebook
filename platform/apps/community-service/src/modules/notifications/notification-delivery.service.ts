@@ -63,7 +63,9 @@ export class NotificationDeliveryService {
     const isBroadcast =
       input.recipientId === "*" ||
       input.recipientType === "ALL" ||
-      input.recipientId === "admin_channel";
+      input.recipientId === "admin_channel" ||
+      input.recipientId === "public_broadcast" ||
+      input.recipientId === "seller_channel";
     let preference = null;
     if (!isBroadcast) {
       preference = await this.preferences.findOne({
@@ -101,18 +103,22 @@ export class NotificationDeliveryService {
 
     const view = this.view(created);
     if (isBroadcast) {
-      if (input.recipientType === "ALL" || input.recipientId === "*") {
-        this.gateway.broadcast(view);
+      if (
+        input.recipientType === "ALL" ||
+        input.recipientId === "*" ||
+        input.recipientId === "public_broadcast"
+      ) {
+        this.gateway.broadcast?.(view);
       } else if (input.recipientType === "ADMIN" || input.recipientId === "admin_channel") {
-        this.gateway.sendToRoom("admin_channel", view);
-      } else if (input.recipientType === "BUSINESS") {
-        this.gateway.sendToRoom("seller_channel", view);
+        this.gateway.sendToRoom?.("admin_channel", view);
+      } else if (input.recipientType === "BUSINESS" || input.recipientId === "seller_channel") {
+        this.gateway.sendToRoom?.("seller_channel", view);
       } else if (input.recipientType === "DELIVERY") {
-        this.gateway.sendToRoom("shipper_channel", view);
+        this.gateway.sendToRoom?.("shipper_channel", view);
       } else if ((input.recipientType as string) === "AFFILIATE" || input.recipientId === "affiliate_channel") {
-        this.gateway.sendToRoom("affiliate_channel", view);
+        this.gateway.sendToRoom?.("affiliate_channel", view);
       } else {
-        this.gateway.broadcast(view);
+        this.gateway.broadcast?.(view);
       }
     } else {
       if (input.recipientType === "ADMIN" || input.recipientId === "admin_channel") {
