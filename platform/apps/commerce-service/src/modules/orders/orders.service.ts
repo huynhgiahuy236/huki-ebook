@@ -2466,7 +2466,7 @@ export class OrdersService {
               (h.metadata as any)?.orderItemId === item.id,
           );
 
-          const isItemDigital = item.format === 'DIGITAL' || item.bookTitle.toLowerCase().includes('ebook');
+          const isItemDigital = item.format === 'DIGITAL' || item.format === 'BOTH' || item.bookTitle.toLowerCase().includes('ebook');
 
           const freezeEntry = histories.find(
             (h) =>
@@ -2794,7 +2794,7 @@ export class OrdersService {
               (h.metadata as any)?.orderItemId === item.id,
           );
 
-          const isItemDigital = item.format === 'DIGITAL' || item.bookTitle.toLowerCase().includes('ebook');
+          const isItemDigital = item.format === 'DIGITAL' || item.format === 'BOTH' || item.bookTitle.toLowerCase().includes('ebook');
 
           const freezeEntry = histories.find(
             (h) =>
@@ -4291,7 +4291,7 @@ export class OrdersService {
       : order.sellerOrders;
 
     for (const so of targetSellerOrders) {
-      const ebookItems = so.items.filter((it: any) => it.format === 'DIGITAL' || it.bookTitle?.toLowerCase().includes('ebook'));
+      const ebookItems = so.items.filter((it: any) => it.format === 'DIGITAL' || it.format === 'BOTH' || it.bookTitle?.toLowerCase().includes('ebook'));
       const physicalItems = so.items.filter((it: any) => it.format !== 'DIGITAL' && !it.bookTitle?.toLowerCase().includes('ebook'));
       const hasPhysical = physicalItems.length > 0;
       const ebookSubtotal = ebookItems.reduce((sum: number, it: any) => sum + Number(it.subtotal), 0);

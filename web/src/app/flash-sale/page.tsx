@@ -271,7 +271,7 @@ export default function FlashSalePage() {
         (matchedBook as any)?.author ||
         (matchedBook as any)?.authorName ||
         "Tác giả HUKI",
-      format: (item as any).format || matchedBook?.format || "PHYSICAL",
+      format: (item as any).targetFormat || (item as any).format || matchedBook?.format || "PHYSICAL",
     };
   };
 
@@ -294,6 +294,7 @@ export default function FlashSalePage() {
           bookId: item.bookId,
           flashSaleId: item.flashSaleId,
           quantity: 1,
+          targetFormat: (item.format as any) || undefined,
         });
 
         if (quotaCheck.success && quotaCheck.data && !quotaCheck.data.allowed) {
@@ -326,7 +327,7 @@ export default function FlashSalePage() {
           businessId: (item as any).businessId || (item as any).book?.businessId || (item as any).storeId || "huki-official",
           book: (item as any).book,
         },
-        item.format === "DIGITAL" ? "ebook" : "paper",
+        item.format === "DIGITAL" ? "ebook" : item.format === "BOTH" ? "hybrid" : "paper",
         1,
       );
       showToast(
@@ -355,6 +356,7 @@ export default function FlashSalePage() {
           bookId: item.bookId,
           flashSaleId: item.flashSaleId,
           quantity: 1,
+          targetFormat: (item.format as any) || undefined,
         });
 
         if (quotaCheck.success && quotaCheck.data && !quotaCheck.data.allowed) {
@@ -377,7 +379,7 @@ export default function FlashSalePage() {
         cover: item.coverUrl,
         quantity: 1,
         format: item.format || "PHYSICAL",
-        type: item.format === "DIGITAL" ? "ebook" : "physical",
+        type: item.format === "DIGITAL" ? "ebook" : item.format === "BOTH" ? "hybrid" : "physical",
         storeId: (item as any).storeId || (item as any).book?.storeId || "huki-official",
         storeName:
           (item as any).storeName ||

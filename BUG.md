@@ -1942,19 +1942,24 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
    - **AC-3 (`BUG-31`):** Trang `/seller/reports` không còn 2 biểu đồ dư thừa, 0 lỗi TypeScript/JSX.
    - **AC-4 (`BUG-32`):** `/seller/finance` và `/seller/reports` không trùng tab; Sổ cái ví chỉ ghi 1 dòng tiếng Việt sạch cho mỗi sự kiện biến động thật, nhãn và số dư Trước/Sau nhất quán 100%.
 
+---
 
+### Bước 4 — Giai đoạn 1 (`BUG-29`, `BUG-30`, `BUG-31`): Triển khai & E2E Độc Lập (27/11/2026)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+- **Backend ([`promotion-service`](file:///e:/HuKi/platform/apps/promotion-service) & [`commerce-service`](file:///e:/HuKi/platform/apps/commerce-service)):**
+  - [`promotion-service/prisma/schema.prisma`](file:///e:/HuKi/platform/apps/promotion-service/prisma/schema.prisma#L267-L278): Bổ sung enum `FlashSaleFormat` (`PHYSICAL`, `DIGITAL`, `BOTH`) và cột `targetFormat` (`target_format`, nullable) cho `FlashSaleItem`.
+  - [`flash-sale.dto.ts`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/flash-sales/dto/flash-sale.dto.ts#L37-L368), [`flash-sales.controller.ts`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/flash-sales/flash-sales.controller.ts#L86-L94), [`flash-sales.service.ts`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/flash-sales/flash-sales.service.ts): Bổ sung `resolveBookTargetFormatAndPrice()`, `normalizeTargetFormat()`, đối chiếu `targetFormat` trong `sellerRegisterItem` / `addItem` / `sellerUpdateItem` / `findActiveItem` / `getBookFlashSalePrice(bookId, format?)` / `validateUserQuota` / `reserveQuotaAndStock`.
+  - [`commerce-service/prisma/schema.prisma`](file:///e:/HuKi/platform/apps/commerce-service/prisma/schema.prisma#L32-L36): Bổ sung `BOTH` vào `CartItemFormat`.
+  - [`cart.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/cart/cart.service.ts), [`flash-sale-client.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/flash-sale-client.service.ts), [`checkout.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/checkout.service.ts), [`inventory-reservation.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/inventory-reservation.service.ts), [`payments.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/payments/payments.service.ts), [`settlement.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/settlement.service.ts), [`orders.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/orders.service.ts): Hỗ trợ đầy đủ `CartItemFormat.BOTH` (trừ tồn kho vật lý + cấp quyền Ebook + tính giá gốc/Flash Sale đúng định dạng mua).
+- **Frontend ([`web/src`](file:///e:/HuKi/web/src)):**
+  - [`flashSaleFormat.ts`](file:///e:/HuKi/web/src/ui/utils/flashSaleFormat.ts): Helper dùng chung `resolveBookOriginalPriceByFormat`, `getDefaultFlashSaleTargetFormat`, `doesFlashSaleMatchPurchaseFormat`, `formatTargetFormatLabel`.
+  - [`SellerFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerFlashSaleView.tsx), [`seller/promotions/flash-sale/[id]/page.tsx`](file:///e:/HuKi/web/src/app/seller/promotions/flash-sale/%5Bid%5D/page.tsx), [`AdminFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminFlashSaleView.tsx), [`flashSaleApi.ts`](file:///e:/HuKi/web/src/ui/api/flashSaleApi.ts): Thêm `<select>` chọn định dạng áp dụng Flash Sale cho sách `BOTH` (tự cập nhật Giá Gốc, Giá Flash Sale & Chống Giá Ảo), bổ sung bộ lọc `BOTH`.
+  - [`book/[id]/page.tsx`](file:///e:/HuKi/web/src/app/book/%5Bid%5D/page.tsx), [`flash-sale/page.tsx`](file:///e:/HuKi/web/src/app/flash-sale/page.tsx), [`CartContext.tsx`](file:///e:/HuKi/web/src/ui/context/CartContext.tsx), [`cartApi.ts`](file:///e:/HuKi/web/src/ui/api/cartApi.ts), [`checkout/page.tsx`](file:///e:/HuKi/web/src/app/checkout/page.tsx): Gắn nhãn `[⚡ FLASH SALE]` và giá giảm chỉ cho đúng hình thức tham gia; chuyển qua hình thức khác trả đúng giá riêng của hình thức đó; sửa lỗi `CartContext` nhận nhầm `Combo Giấy + Ebook` thành `DIGITAL`.
+  - [`seller/reports/page.tsx`](file:///e:/HuKi/web/src/app/seller/reports/page.tsx): Gỡ 2 khối biểu đồ dư thừa (`Biểu Đồ Vòng Đời Dòng Tiền` & `Cơ Cấu Phương Thức Thanh Toán`), giữ gọn 5 thẻ KPI.
+- **Kiểm thử Giai đoạn 1:**
+  - `prisma validate`: `promotion-service` & `commerce-service` VALID.
+  - `build:shared` + `build:promotion` + `build:commerce`: PASS (0 errors).
+  - `test:promotion`: **3/3 suites, 42/42 tests PASS** (gồm test mới `targetFormat` trong [`flash-sales.service.spec.ts`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/flash-sales/flash-sales.service.spec.ts)).
+  - `test:commerce`: **37/38 suites PASS** trong lượt chạy song song (riêng `books.service.spec.ts` timeout do chạy song song; chạy lại `--runInBand` đạt **11/11 tests PASS**).
+  - `web run typecheck` (0 errors) + `npm --prefix web test` (Vitest): **13/13 files, 79/79 tests PASS** (gồm [`flashSaleFormat.test.ts`](file:///e:/HuKi/web/src/ui/utils/__tests__/flashSaleFormat.test.ts)).
+  - E2E script [`test_e2e_bug29_30_31_flash_sale_format_reports.js`](file:///e:/HuKi/scripts/test_e2e_bug29_30_31_flash_sale_format_reports.js): **PASS toàn bộ**.

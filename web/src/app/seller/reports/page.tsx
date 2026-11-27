@@ -251,6 +251,11 @@ export default function SellerFinancialReportsPage() {
     setItemsPage(1);
   }, [dateRange, customStartDate, customEndDate]);
 
+  // Tỷ trọng phương thức thanh toán cho thẻ KPI 4 & 5
+  const totalPaymentGMV = stats.codGMV + stats.payosGMV || 1;
+  const codPercent = Math.round((stats.codGMV / totalPaymentGMV) * 100);
+  const payosPercent = 100 - codPercent;
+
   // Export CSV Function
   const handleExportCSV = () => {
     const headers = [
@@ -311,18 +316,6 @@ export default function SellerFinancialReportsPage() {
     link.click();
     document.body.removeChild(link);
   };
-
-  // Tính tỷ lệ % cho biểu đồ Donut phương thức thanh toán
-  const totalPaymentGMV = (stats.codGMV + stats.payosGMV) || 1;
-  const codPercent = Math.round((stats.codGMV / totalPaymentGMV) * 100);
-  const payosPercent = 100 - codPercent;
-
-  // Tính tỷ lệ cho biểu đồ Dòng tiền (Waterfall flow)
-  const totalFlowBase = (stats.inTransitNet + stats.holdingNet + stats.availableBalance + stats.totalWithdrawn) || 1;
-  const inTransitFlowPct = Math.round((stats.inTransitNet / totalFlowBase) * 100);
-  const holdingFlowPct = Math.round((stats.holdingNet / totalFlowBase) * 100);
-  const availableFlowPct = Math.round((stats.availableBalance / totalFlowBase) * 100);
-  const withdrawnFlowPct = Math.max(0, 100 - inTransitFlowPct - holdingFlowPct - availableFlowPct);
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
@@ -599,200 +592,7 @@ export default function SellerFinancialReportsPage() {
         </div>
       </div>
 
-      {/* 5. CỤM BIỂU ĐỒ DASHBOARD DÒNG TIỀN (INTERACTIVE CHARTS) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* BIỂU ĐỒ 1: PHỄU VÒNG ĐỜI DÒNG TIỀN (WATERFALL / LIFECYCLE PIPELINE) */}
-        <div className="lg:col-span-7 bg-white rounded-2xl border border-gray-200 p-5 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <span className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-lg">schema</span>
-                </span>
-                <div>
-                  <h3 className="text-sm font-bold text-gray-900">Biểu Đồ Vòng Đời Dòng Tiền (Cash Flow Lifecycle)</h3>
-                  <p className="text-[11px] text-gray-500">Tiến trình luân chuyển tiền từ lúc giao hàng đến khi rút về ngân hàng</p>
-                </div>
-              </div>
-              <span className="text-xs font-mono font-bold text-gray-700 bg-gray-100 px-2.5 py-1 rounded-lg">
-                Tổng 95%: {formatVND(stats.totalNetRevenue)}
-              </span>
-            </div>
-
-            {/* Pipeline Step Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 my-4">
-              <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200 text-center">
-                <span className="text-[10px] font-bold text-blue-700 uppercase">1. Đang Giao</span>
-                <div className="text-sm font-black text-blue-800 font-mono mt-1">{formatVND(stats.inTransitNet)}</div>
-                <div className="text-[10px] text-blue-600 mt-0.5">{stats.inTransitCount} món ({inTransitFlowPct}%)</div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-center">
-                <span className="text-[10px] font-bold text-amber-700 uppercase">2. Ký Quỹ Đổi Trả</span>
-                <div className="text-sm font-black text-amber-800 font-mono mt-1">{formatVND(stats.holdingNet)}</div>
-                <div className="text-[10px] text-amber-600 mt-0.5">{stats.holdingCount} món ({holdingFlowPct}%)</div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-center">
-                <span className="text-[10px] font-bold text-emerald-700 uppercase">3. Khả Dụng Ví</span>
-                <div className="text-sm font-black text-emerald-800 font-mono mt-1">{formatVND(stats.availableBalance)}</div>
-                <div className="text-[10px] text-emerald-600 mt-0.5">Sẵn sàng rút ({availableFlowPct}%)</div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200 text-center">
-                <span className="text-[10px] font-bold text-indigo-700 uppercase">4. Đã Rút Về STK</span>
-                <div className="text-sm font-black text-indigo-800 font-mono mt-1">{formatVND(stats.totalWithdrawn)}</div>
-                <div className="text-[10px] text-indigo-600 mt-0.5">Giải ngân ({withdrawnFlowPct}%)</div>
-              </div>
-            </div>
-
-            {/* Visual Multi-Segment Progress Bar */}
-            <div className="space-y-1.5 mt-2">
-              <div className="h-3 w-full bg-gray-100 rounded-full overflow-hidden flex">
-                <div
-                  style={{ width: `${Math.max(stats.inTransitNet > 0 ? 5 : 0, inTransitFlowPct)}%` }}
-                  className="bg-blue-500 h-full transition-all duration-500"
-                  title={`Đang giao: ${formatVND(stats.inTransitNet)} (${inTransitFlowPct}%)`}
-                />
-                <div
-                  style={{ width: `${Math.max(stats.holdingNet > 0 ? 5 : 0, holdingFlowPct)}%` }}
-                  className="bg-amber-500 h-full transition-all duration-500"
-                  title={`Ký quỹ: ${formatVND(stats.holdingNet)} (${holdingFlowPct}%)`}
-                />
-                <div
-                  style={{ width: `${Math.max(stats.availableBalance > 0 ? 5 : 0, availableFlowPct)}%` }}
-                  className="bg-emerald-500 h-full transition-all duration-500"
-                  title={`Khả dụng: ${formatVND(stats.availableBalance)} (${availableFlowPct}%)`}
-                />
-                <div
-                  style={{ width: `${Math.max(stats.totalWithdrawn > 0 ? 5 : 0, withdrawnFlowPct)}%` }}
-                  className="bg-indigo-600 h-full transition-all duration-500"
-                  title={`Đã rút về STK: ${formatVND(stats.totalWithdrawn)} (${withdrawnFlowPct}%)`}
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-[10.5px] text-gray-500 pt-1">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-blue-500"></span> Đang giao
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-amber-500"></span> Ký quỹ đổi trả
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Khả dụng trong ví
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-indigo-600"></span> Đã giải ngân về STK
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-600 bg-gray-50/70 p-3 rounded-xl">
-            <span className="flex items-center gap-1 text-[11px]">
-              <span className="material-symbols-outlined text-sm text-emerald-600">verified</span>
-              <span>Bảo chứng Escrow: Hết {ESCROW_CONFIG.DURATION_LABEL} đổi trả, tiền tự động nhảy sang Khả dụng và ghi lịch sử.</span>
-            </span>
-            <Link href="/seller/finance" className="text-emerald-700 font-bold hover:underline shrink-0 text-xs">
-              Mở Ví Rút Tiền &rarr;
-            </Link>
-          </div>
-        </div>
-
-        {/* BIỂU ĐỒ 2: CƠ CẤU THANH TOÁN (COD vs CHUYỂN KHOẢN) */}
-        <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-200 p-5 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <span className="w-8 h-8 rounded-lg bg-orange-50 text-orange-700 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-lg">pie_chart</span>
-                </span>
-                <div>
-                  <h3 className="text-sm font-bold text-gray-900">Cơ Cấu Phương Thức Thanh Toán</h3>
-                  <p className="text-[11px] text-gray-500">Tiền mặt COD vs Chuyển khoản trực tuyến</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Donut Chart Visual */}
-            <div className="flex items-center justify-center gap-6 my-4">
-              <div className="relative w-32 h-32 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                  <path
-                    className="text-gray-100"
-                    strokeWidth="4"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                  {/* COD Segment */}
-                  <path
-                    className="text-orange-500 transition-all duration-700"
-                    strokeDasharray={`${codPercent}, 100`}
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                  {/* PayOS Segment */}
-                  <path
-                    className="text-indigo-600 transition-all duration-700"
-                    strokeDasharray={`${payosPercent}, 100`}
-                    strokeDashoffset={`-${codPercent}`}
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                </svg>
-                <div className="absolute flex flex-col items-center justify-center text-center">
-                  <span className="text-[10px] text-gray-400 font-bold uppercase">Tổng GMV</span>
-                  <span className="text-xs font-black text-gray-900 font-mono">{formatVND(stats.totalGrossGMV)}</span>
-                </div>
-              </div>
-
-              <div className="space-y-3 flex-1 text-xs">
-                <div className="p-2.5 rounded-xl bg-orange-50/60 border border-orange-200">
-                  <div className="flex items-center justify-between text-orange-900 font-bold">
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
-                      <span>Tiền Mặt COD ({codPercent}%)</span>
-                    </span>
-                    <span className="font-mono">{formatVND(stats.codGMV)}</span>
-                  </div>
-                  <div className="text-[10.5px] text-orange-700 mt-0.5 flex justify-between">
-                    <span>{stats.codCount} đơn hàng thu tiền tận nơi</span>
-                    <span>Thực nhận: {formatVND(stats.codNet)}</span>
-                  </div>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-indigo-50/60 border border-indigo-200">
-                  <div className="flex items-center justify-between text-indigo-900 font-bold">
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
-                      <span>Chuyển Khoản ({payosPercent}%)</span>
-                    </span>
-                    <span className="font-mono">{formatVND(stats.payosGMV)}</span>
-                  </div>
-                  <div className="text-[10.5px] text-indigo-700 mt-0.5 flex justify-between">
-                    <span>{stats.payosCount} đơn VietQR / PayOS</span>
-                    <span>Thực nhận: {formatVND(stats.payosNet)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2.5 border-t border-gray-100 text-[11px] text-gray-500 flex items-center justify-between">
-            <span>Khấu trừ sàn cố định 5%: <strong>-{formatVND(stats.totalPlatformFee)}</strong></span>
-            <span className="text-emerald-700 font-bold">Shop hưởng 95%</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 6. BẢNG DỮ LIỆU ĐỐI SOÁT CHI TIẾT & NHẬT KÝ BIẾN ĐỘNG */}
+      {/* 5. BẢNG DỮ LIỆU ĐỐI SOÁT CHI TIẾT & NHẬT KÝ BIẾN ĐỘNG */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
         {/* Navigation Tabs for Tables */}
         <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-50/50">

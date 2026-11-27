@@ -98,21 +98,29 @@ export class CartService {
 
           // Calculate available stock
           let maxAvailable = 99;
-          if (guestItem.format === CartItemFormat.PHYSICAL) {
+          const isPhysicalNeeded =
+            guestItem.format === CartItemFormat.PHYSICAL ||
+            guestItem.format === CartItemFormat.BOTH;
+          const isDigitalNeeded =
+            guestItem.format === CartItemFormat.DIGITAL ||
+            guestItem.format === CartItemFormat.BOTH;
+          if (isPhysicalNeeded) {
             if (!book.physicalDetails?.physicalEnabled) continue;
             const available = (book.physicalDetails.stock ?? 0) - (book.physicalDetails.reserved ?? 0);
             if (available <= 0) continue;
             maxAvailable = available;
-          } else {
+          }
+          if (isDigitalNeeded) {
             if (!book.digitalDetails?.digitalEnabled) continue;
-            maxAvailable = 1;
+            if (!isPhysicalNeeded) maxAvailable = 1;
           }
 
           const existing = await tx.cartItem.findFirst({
-            where: { cartId: cart.id, bookId: guestItem.bookId, format: guestItem.format },
+            where: { cartId: cart.id, bookId: guestItem.bookId },
           });
 
-          const currentPrice = await this.resolveBookPrice(book.id, Number(book.price));
+          const basePrice = this.resolveFormatBasePrice(book, guestItem.format);
+          const currentPrice = await this.resolveBookPrice(book.id, basePrice, guestItem.format);
 
           if (existing) {
             const targetQty = guestItem.format === CartItemFormat.DIGITAL
@@ -121,7 +129,7 @@ export class CartService {
 
             await tx.cartItem.update({
               where: { id: existing.id },
-              data: { quantity: targetQty, unitPrice: currentPrice },
+              data: { format: guestItem.format, quantity: targetQty, unitPrice: currentPrice },
             });
           } else {
             const targetQty = Math.min(guestItem.quantity, maxAvailable);
@@ -175,28 +183,31 @@ export class CartService {
 
       this.validateAvailability(book, dto.format, dto.quantity);
 
-      // Check existing item
+      // Check existing item (unique per cartId + bookId)
       const existing = await tx.cartItem.findFirst({
-        where: { cartId: cart!.id, bookId: dto.bookId, format: dto.format },
+        where: { cartId: cart!.id, bookId: dto.bookId },
       });
 
-      if (existing?.format === CartItemFormat.DIGITAL) {
+      if (existing?.format === CartItemFormat.DIGITAL && dto.format === CartItemFormat.DIGITAL) {
         throwConflict(ErrorCode.CART_DIGITAL_ALREADY_OWNED);
       }
 
       const quantity =
         dto.format === CartItemFormat.DIGITAL
           ? 1
-          : (existing?.quantity ?? 0) + dto.quantity;
+          : existing?.format === dto.format
+            ? (existing?.quantity ?? 0) + dto.quantity
+            : dto.quantity;
 
       this.validateAvailability(book!, dto.format, quantity);
 
-      const unitPrice = await this.resolveBookPrice(book!.id, Number(book!.price));
+      const basePrice = this.resolveFormatBasePrice(book!, dto.format);
+      const unitPrice = await this.resolveBookPrice(book!.id, basePrice, dto.format);
 
       if (existing) {
         await tx.cartItem.update({
           where: { id: existing.id },
-          data: { quantity, unitPrice },
+          data: { format: dto.format, quantity, unitPrice },
         });
       } else {
         await tx.cartItem.create({
@@ -303,7 +314,10 @@ export class CartService {
     format: string,
     quantity: number,
   ) {
-    if (format === CartItemFormat.PHYSICAL) {
+    const needsPhysical = format === CartItemFormat.PHYSICAL || format === CartItemFormat.BOTH;
+    const needsDigital = format === CartItemFormat.DIGITAL || format === CartItemFormat.BOTH;
+
+    if (needsPhysical) {
       if (
         ![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format) ||
         !book.physicalDetails?.physicalEnabled
@@ -315,7 +329,8 @@ export class CartService {
       if (available < quantity) {
         throwConflict(ErrorCode.INVENTORY_INSUFFICIENT);
       }
-    } else {
+    }
+    if (needsDigital) {
       if (
         ![BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format) ||
         !book.digitalDetails?.digitalEnabled
@@ -506,13 +521,55 @@ export class CartService {
     return resolved.storeName;
   }
 
-  private async resolveBookPrice(bookId: string, basePrice: number): Promise<number> {
+  private resolveFormatBasePrice(book: any, format?: string | null): number {
+    const comboPrice = Number(book?.priceCombo ?? book?.price ?? 0);
+    const bookFormat = String(book?.format || 'PHYSICAL').toUpperCase();
+    let pricePaper = Number(book?.pricePaper ?? book?.physicalPrice ?? 0);
+    let priceEbook = Number(book?.priceEbook ?? book?.ebookPrice ?? 0);
+
+    if (book?.physicalDetails?.dimensions) {
+      try {
+        const dim =
+          typeof book.physicalDetails.dimensions === 'string'
+            ? JSON.parse(book.physicalDetails.dimensions)
+            : book.physicalDetails.dimensions;
+        if (dim && typeof dim === 'object') {
+          if (!pricePaper && dim.pricePaper !== undefined) pricePaper = Number(dim.pricePaper);
+          if (!priceEbook && dim.priceEbook !== undefined) priceEbook = Number(dim.priceEbook);
+        }
+      } catch {}
+    }
+
+    const fmt = String(format || bookFormat).toUpperCase();
+    if (fmt === CartItemFormat.PHYSICAL) {
+      return pricePaper > 0
+        ? pricePaper
+        : bookFormat === 'BOTH' && comboPrice > 0
+          ? Math.round(comboPrice * 0.75)
+          : comboPrice;
+    }
+    if (fmt === CartItemFormat.DIGITAL) {
+      return priceEbook > 0
+        ? priceEbook
+        : bookFormat === 'BOTH' && comboPrice > 0
+          ? Math.round(comboPrice * 0.45)
+          : comboPrice;
+    }
+    return comboPrice;
+  }
+
+  private async resolveBookPrice(
+    bookId: string,
+    basePrice: number,
+    format?: string,
+  ): Promise<number> {
     const promotionPort = process.env.PROMOTION_SERVICE_PORT || 3007;
     const promotionBaseUrl = process.env.PROMOTION_SERVICE_URL || `http://localhost:${promotionPort}`;
 
     try {
-      // 1. Check active flash sale
-      const res = await fetch(`${promotionBaseUrl}/api/v1/flash-sales/price/${bookId}`);
+      // 1. Check active flash sale matching purchased format
+      const formatQuery = format ? `?format=${encodeURIComponent(format)}` : '';
+      const res = await fetch(`${promotionBaseUrl}/api/v1/flash-sales/price/${bookId}${formatQuery}`);
       if (res.ok) {
         const json = await res.json() as any;
         const data = json.data || json;
@@ -553,7 +610,7 @@ export class CartService {
 
     for (const item of cart.items) {
       const book = item.book;
-      const isPhysical = item.format === CartItemFormat.PHYSICAL;
+      const isPhysical = item.format === CartItemFormat.PHYSICAL || item.format === CartItemFormat.BOTH;
       const isPublished = book.status === BookStatus.PUBLISHED;
 
       let isAvailable = true;
@@ -603,9 +660,10 @@ export class CartService {
       }
 
       // Price Mutation Detection
+      const formatBasePrice = this.resolveFormatBasePrice(book, item.format);
       const currentLivePrice = isAvailable
-        ? await this.resolveBookPrice(book.id, Number(book.price))
-        : Number(book.price);
+        ? await this.resolveBookPrice(book.id, formatBasePrice, item.format)
+        : formatBasePrice;
 
       const addedPrice = Number(item.unitPrice);
       let priceChange: 'INCREASED' | 'DECREASED' | null = null;
@@ -656,8 +714,8 @@ export class CartService {
         quantity: item.quantity,
         unitPrice,
         addedPrice,
-        originalPrice: Number(book.price),
-        discountAmount: Math.max(0, Number(book.price) - unitPrice),
+        originalPrice: formatBasePrice,
+        discountAmount: Math.max(0, formatBasePrice - unitPrice),
         currentPrice: currentLivePrice,
         subtotal,
         isAvailable,

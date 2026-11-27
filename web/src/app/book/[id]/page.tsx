@@ -9,6 +9,11 @@ import { useAuth } from '@/ui/context/AuthContext';
 import { catalogApi } from '@/ui/api/catalogApi';
 import { businessApi } from '@/ui/api/businessApi';
 import { flashSaleApi } from '@/ui/api/flashSaleApi';
+import {
+  doesFlashSaleMatchPurchaseFormat,
+  formatTargetFormatLabel,
+  normalizeFlashSaleTargetFormat,
+} from '@/ui/utils/flashSaleFormat';
 import { discountApi, BookDiscount } from '@/ui/api/discountApi';
 import { reviewApi, ReviewItemData, ReviewSummaryData } from '@/ui/api/reviewApi';
 import ReviewCard from '@/ui/components/review/ReviewCard';
@@ -90,6 +95,7 @@ export default function BookDetailPage() {
   const { user, isLoggedIn, activeBusinessId } = useAuth();
 
   const [selectedFormat, setSelectedFormat] = useState<'ebook' | 'physical' | 'hybrid' | string>('ebook');
+  const hasManualFormatChoiceRef = useRef(false);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('intro');
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
@@ -1126,6 +1132,21 @@ export default function BookDetailPage() {
     }
   }, [formatPricing, selectedFormat]);
 
+  // Auto-focus the exact format participating in Flash Sale on initial load (never overrides manual clicks)
+  useEffect(() => {
+    if (!flashSaleInfo || hasManualFormatChoiceRef.current) return;
+    const targetFmt =
+      normalizeFlashSaleTargetFormat(flashSaleInfo.targetFormat || flashSaleInfo.format) ||
+      normalizeFlashSaleTargetFormat(realBook?.format || book.format) ||
+      'PHYSICAL';
+    const preferredKey =
+      targetFmt === 'DIGITAL' ? 'ebook' : targetFmt === 'BOTH' ? 'hybrid' : 'physical';
+    const availableKeys = Object.keys(formatPricing);
+    if (availableKeys.includes(preferredKey) && selectedFormat !== preferredKey) {
+      setSelectedFormat(preferredKey);
+    }
+  }, [flashSaleInfo, formatPricing, realBook?.format, book.format, selectedFormat]);
+
   const currentPrice =
     (formatPricing as any)[selectedFormat] || Object.values(formatPricing)[0] || {
       type: 'physical',
@@ -1133,8 +1154,29 @@ export default function BookDetailPage() {
       price: book.price || 0,
       originalPrice: book.originalPrice || book.price || 0,
     };
+
+  const isSelectedFormatFlashSale = useMemo(
+    () =>
+      doesFlashSaleMatchPurchaseFormat(
+        flashSaleInfo,
+        selectedFormat,
+        realBook?.format || book.format,
+      ),
+    [flashSaleInfo, selectedFormat, realBook?.format, book.format],
+  );
+  const activeFlashSale = isSelectedFormatFlashSale ? flashSaleInfo : null;
+
+  const flashSaleTargetKey = useMemo(() => {
+    if (!flashSaleInfo?.salePrice) return null;
+    const fmt =
+      normalizeFlashSaleTargetFormat(flashSaleInfo.targetFormat || flashSaleInfo.format) ||
+      normalizeFlashSaleTargetFormat(realBook?.format || book.format) ||
+      'PHYSICAL';
+    return fmt === 'DIGITAL' ? 'ebook' : fmt === 'BOTH' ? 'hybrid' : 'physical';
+  }, [flashSaleInfo, realBook?.format, book.format]);
+
   const discountPercent =
-    flashSaleInfo?.discountPercent ||
+    activeFlashSale?.discountPercent ||
     (bookDiscount && bookDiscount.type === 'PERCENTAGE'
       ? Number(bookDiscount.value)
       : currentPrice && currentPrice.originalPrice > currentPrice.price
@@ -1168,8 +1210,8 @@ export default function BookDetailPage() {
       showToast('Sách giấy hiện đang tạm hết hàng!', 'error');
       return;
     }
-    if (flashSaleInfo && quantity > (flashSaleInfo.maxPerUser || 1)) {
-      showToast(`Flash Sale giới hạn tối đa ${flashSaleInfo.maxPerUser || 1} cuốn/khách`, 'warning');
+    if (activeFlashSale && quantity > (activeFlashSale.maxPerUser || 1)) {
+      showToast(`Flash Sale giới hạn tối đa ${activeFlashSale.maxPerUser || 1} cuốn/khách`, 'warning');
       return;
     }
 
@@ -1192,9 +1234,10 @@ export default function BookDetailPage() {
       publisher: book.publisher,
       storeName: resolvedStoreName,
       storeId: realBook?.storeId || realBook?.businessId || storeInfo?.id || publisherProfile?.id,
-      price: flashSaleInfo ? flashSaleInfo.salePrice : currentPrice.price,
-      originalPrice: flashSaleInfo ? flashSaleInfo.originalPrice : currentPrice.originalPrice,
+      price: activeFlashSale ? activeFlashSale.salePrice : currentPrice.price,
+      originalPrice: activeFlashSale ? activeFlashSale.originalPrice : currentPrice.originalPrice,
       format: currentPrice.title,
+      type: selectedFormat === 'ebook' ? 'ebook' : selectedFormat === 'hybrid' ? 'hybrid' : 'physical',
       cover: book.cover,
       quantity: quantity,
     });
@@ -1210,14 +1253,19 @@ export default function BookDetailPage() {
       showToast('Sách giấy hiện đang tạm hết hàng!', 'error');
       return;
     }
-    if (flashSaleInfo && quantity > (flashSaleInfo.maxPerUser || 1)) {
-      showToast(`Flash Sale giới hạn tối đa ${flashSaleInfo.maxPerUser || 1} cuốn/khách`, 'warning');
+    if (activeFlashSale && quantity > (activeFlashSale.maxPerUser || 1)) {
+      showToast(`Flash Sale giới hạn tối đa ${activeFlashSale.maxPerUser || 1} cuốn/khách`, 'warning');
       return;
     }
 
-    const buyFormat = selectedFormat === 'ebook' ? 'DIGITAL' : 'PHYSICAL';
-    const buyPrice = flashSaleInfo ? flashSaleInfo.salePrice : currentPrice.price;
-    const buyOriginalPrice = flashSaleInfo ? flashSaleInfo.originalPrice : currentPrice.originalPrice;
+    const buyFormat =
+      selectedFormat === 'ebook'
+        ? 'DIGITAL'
+        : selectedFormat === 'hybrid'
+          ? 'BOTH'
+          : 'PHYSICAL';
+    const buyPrice = activeFlashSale ? activeFlashSale.salePrice : currentPrice.price;
+    const buyOriginalPrice = activeFlashSale ? activeFlashSale.originalPrice : currentPrice.originalPrice;
 
     const resolvedStoreName =
       storeInfo?.name ||
@@ -1237,12 +1285,12 @@ export default function BookDetailPage() {
       cover: book.cover || book.coverImage,
       quantity: quantity || 1,
       format: buyFormat,
-      type: buyFormat === 'DIGITAL' ? 'ebook' : 'physical',
+      type: selectedFormat === 'ebook' ? 'ebook' : selectedFormat === 'hybrid' ? 'hybrid' : 'physical',
       storeId: realBook?.storeId || realBook?.businessId || storeInfo?.id || publisherProfile?.id || 'huki-official',
       storeName: resolvedStoreName,
       publisher: book.publisher || resolvedStoreName,
-      flashSaleId: flashSaleInfo?.flashSaleId,
-      isFlashSale: Boolean(flashSaleInfo?.isFlashSale),
+      flashSaleId: activeFlashSale?.flashSaleId,
+      isFlashSale: Boolean(activeFlashSale?.isFlashSale),
     };
 
     if (typeof window !== 'undefined') {
@@ -1452,34 +1500,68 @@ export default function BookDetailPage() {
                 <div className="grid grid-cols-1 gap-2.5">
                   {Object.values(formatPricing).map((fmt) => {
                     const isSelected = selectedFormat === fmt.type;
-                    const isDiscounted = fmt.originalPrice > fmt.price;
+                    const isFormatFlashSale = doesFlashSaleMatchPurchaseFormat(
+                      flashSaleInfo,
+                      fmt.type,
+                      realBook?.format || book.format,
+                    );
+                    const displayPrice = isFormatFlashSale ? Number(flashSaleInfo.salePrice) : fmt.price;
+                    const displayOriginalPrice = isFormatFlashSale
+                      ? Number(flashSaleInfo.originalPrice || fmt.originalPrice)
+                      : fmt.originalPrice;
+                    const isDiscounted = displayOriginalPrice > displayPrice;
+                    const fsPct = isFormatFlashSale
+                      ? Number(
+                          flashSaleInfo.discountPercent ||
+                            (displayOriginalPrice > displayPrice
+                              ? Math.round(((displayOriginalPrice - displayPrice) / displayOriginalPrice) * 100)
+                              : 0),
+                        )
+                      : 0;
                     return (
                       <div
                         key={fmt.type}
-                        onClick={() => setSelectedFormat(fmt.type)}
+                        onClick={() => {
+                          hasManualFormatChoiceRef.current = true;
+                          setSelectedFormat(fmt.type);
+                        }}
                         className={`p-3 rounded-xl cursor-pointer transition-colors border-[1.5px] flex items-center justify-between gap-3 select-none ${isSelected
-                          ? 'border-[#006953] bg-[#006953]/5 shadow-2xs'
-                          : isDiscounted
-                            ? 'border-rose-200/80 bg-rose-50/10 hover:border-rose-300'
-                            : 'border-gray-200 bg-white hover:border-gray-300'
+                          ? isFormatFlashSale
+                            ? 'border-rose-500 bg-rose-50/40 shadow-2xs'
+                            : 'border-[#006953] bg-[#006953]/5 shadow-2xs'
+                          : isFormatFlashSale
+                            ? 'border-rose-300 bg-rose-50/20 hover:border-rose-400'
+                            : isDiscounted
+                              ? 'border-rose-200/80 bg-rose-50/10 hover:border-rose-300'
+                              : 'border-gray-200 bg-white hover:border-gray-300'
                           }`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                          <div className={`w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center transition-colors shrink-0 ${isSelected ? 'border-[#006953] bg-[#006953]' : 'border-gray-300 bg-white'
+                          <div className={`w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center transition-colors shrink-0 ${isSelected
+                            ? isFormatFlashSale
+                              ? 'border-rose-600 bg-rose-600'
+                              : 'border-[#006953] bg-[#006953]'
+                            : 'border-gray-300 bg-white'
                             }`}>
                             {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                           </div>
 
                           <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className={`text-xs font-bold truncate ${isSelected ? 'text-[#006953]' : 'text-[#17201f]'}`}>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`text-xs font-bold truncate ${isSelected ? (isFormatFlashSale ? 'text-rose-700' : 'text-[#006953]') : 'text-[#17201f]'}`}>
                                 {fmt.title}
                               </span>
+                              {isFormatFlashSale && (
+                                <span className="inline-flex items-center gap-0.5 bg-gradient-to-r from-rose-600 to-orange-500 text-white text-[8.5px] font-extrabold px-1.5 py-0.5 rounded-md shadow-2xs">
+                                  <span className="material-symbols-outlined text-[10px]">bolt</span>
+                                  <span>FLASH SALE{fsPct > 0 ? ` -${fsPct}%` : ''}</span>
+                                </span>
+                              )}
                               {isSelected ? (
                                 <span className="bg-[#006953] text-white text-[8.5px] font-bold px-1.5 py-0.2 rounded-md">
                                   ĐANG CHỌN
                                 </span>
-                              ) : isDiscounted ? (
+                              ) : !isFormatFlashSale && isDiscounted ? (
                                 <span className="bg-rose-500 text-white text-[8px] font-extrabold px-1.5 py-0.2 rounded-md">
                                   ƯU ĐÃI
                                 </span>
@@ -1492,12 +1574,12 @@ export default function BookDetailPage() {
                         </div>
 
                         <div className="flex flex-col items-end text-right shrink-0">
-                          <span className="text-xs sm:text-sm font-bold text-[#006953] leading-tight">
-                            {fmt.price.toLocaleString('vi-VN')}₫
+                          <span className={`text-xs sm:text-sm font-bold leading-tight ${isFormatFlashSale ? 'text-rose-600' : 'text-[#006953]'}`}>
+                            {displayPrice.toLocaleString('vi-VN')}₫
                           </span>
                           {isDiscounted && (
                             <span className="text-[10.5px] text-gray-400 line-through leading-tight mt-0.5">
-                              {fmt.originalPrice.toLocaleString('vi-VN')}₫
+                              {displayOriginalPrice.toLocaleString('vi-VN')}₫
                             </span>
                           )}
                         </div>
@@ -1513,24 +1595,44 @@ export default function BookDetailPage() {
           <div className="col-span-12 lg:col-span-3 xl:col-span-3 flex flex-col">
             <div className="w-full h-full bg-white border border-[#e8e5df] rounded-2xl p-4.5 sm:p-5 shadow-xs flex flex-col justify-between gap-3.5">
               <div className="space-y-3">
-                {flashSaleInfo && (
+                {activeFlashSale ? (
                   <div className="p-2.5 bg-gradient-to-r from-rose-50 to-red-50 border border-rose-200 rounded-xl space-y-0.5">
-                    <div className="flex items-center gap-1 text-rose-600 font-extrabold text-[11px]"><span className="material-symbols-outlined text-xs">bolt</span><span>FLASH SALE -{flashSaleInfo.discountPercent}%</span></div>
-                    <div className="text-[10.5px] text-rose-700 font-medium">Giá: <strong className="text-xs font-black text-rose-600">{Number(flashSaleInfo.salePrice).toLocaleString('vi-VN')}₫</strong></div>
+                    <div className="flex items-center gap-1 text-rose-600 font-extrabold text-[11px]"><span className="material-symbols-outlined text-xs">bolt</span><span>FLASH SALE -{activeFlashSale.discountPercent}%</span></div>
+                    <div className="text-[10.5px] text-rose-700 font-medium">Giá: <strong className="text-xs font-black text-rose-600">{Number(activeFlashSale.salePrice).toLocaleString('vi-VN')}₫</strong></div>
                     <div className="flex items-center gap-1 text-[10.5px] font-bold text-rose-700"><span className="material-symbols-outlined text-xs">timer</span>Hết sau {flashSaleCountdown}</div>
                   </div>
-                )}
+                ) : flashSaleInfo && flashSaleTargetKey ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hasManualFormatChoiceRef.current = true;
+                      setSelectedFormat(flashSaleTargetKey);
+                    }}
+                    className="w-full text-left p-2.5 bg-amber-50/90 hover:bg-rose-50 border border-amber-200 hover:border-rose-300 rounded-xl transition-colors cursor-pointer space-y-0.5"
+                  >
+                    <div className="flex items-center justify-between gap-1 text-rose-600 font-extrabold text-[10.5px]">
+                      <span className="inline-flex items-center gap-1">
+                        <span className="material-symbols-outlined text-xs">bolt</span>
+                        <span>FLASH SALE -{flashSaleInfo.discountPercent}% cho {formatTargetFormatLabel(flashSaleInfo.targetFormat || flashSaleInfo.format || realBook?.format)}</span>
+                      </span>
+                      <span className="underline shrink-0">Chọn</span>
+                    </div>
+                    <div className="text-[10px] text-gray-600">
+                      Hình thức bạn đang chọn áp dụng giá niêm yết thường.
+                    </div>
+                  </button>
+                ) : null}
 
                 <div className="border-b border-gray-100 pb-2.5">
                   <span className="text-[11px] text-gray-500 block mb-0.5">Tạm tính ({currentPrice.title}):</span>
                   <div className="flex items-baseline gap-2 flex-wrap">
-                    <span className={`text-2xl font-black ${flashSaleInfo || discountPercent > 0 ? 'text-rose-600' : 'text-[#006953]'}`}>
-                      {((flashSaleInfo ? flashSaleInfo.salePrice : currentPrice.price) * quantity).toLocaleString('vi-VN')}₫
+                    <span className={`text-2xl font-black ${activeFlashSale || discountPercent > 0 ? 'text-rose-600' : 'text-[#006953]'}`}>
+                      {((activeFlashSale ? activeFlashSale.salePrice : currentPrice.price) * quantity).toLocaleString('vi-VN')}₫
                     </span>
-                    {(flashSaleInfo || currentPrice.originalPrice > currentPrice.price) && (
+                    {(activeFlashSale || currentPrice.originalPrice > currentPrice.price) && (
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs text-gray-400 line-through">
-                          {((flashSaleInfo ? flashSaleInfo.originalPrice : currentPrice.originalPrice) * quantity).toLocaleString('vi-VN')}₫
+                          {((activeFlashSale ? activeFlashSale.originalPrice : currentPrice.originalPrice) * quantity).toLocaleString('vi-VN')}₫
                         </span>
                         <span className="bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-bold px-1.5 py-0.2 rounded-md">
                           -{discountPercent}%
@@ -1545,7 +1647,7 @@ export default function BookDetailPage() {
                   <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-white shadow-2xs">
                     <button onClick={() => setQuantity(Math.max(1, quantity - 1))} disabled={quantity <= 1} className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 disabled:opacity-30 cursor-pointer text-gray-700 transition-colors"><span className="material-symbols-outlined text-[14px]">remove</span></button>
                     <span className="w-8 text-center font-bold text-xs">{quantity}</span>
-                    <button onClick={() => setQuantity(quantity + 1)} disabled={Boolean(flashSaleInfo && quantity >= (flashSaleInfo.maxPerUser || 1))} className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 disabled:opacity-30 cursor-pointer text-gray-700 transition-colors"><span className="material-symbols-outlined text-[14px]">add</span></button>
+                    <button onClick={() => setQuantity(quantity + 1)} disabled={Boolean(activeFlashSale && quantity >= (activeFlashSale.maxPerUser || 1))} className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 disabled:opacity-30 cursor-pointer text-gray-700 transition-colors"><span className="material-symbols-outlined text-[14px]">add</span></button>
                   </div>
                 </div>
 

@@ -17,6 +17,7 @@ export interface FlashSaleQuote {
 export interface FlashSaleCheckoutItem {
   bookId: string;
   quantity: number;
+  format?: string;
   flashSaleId?: string;
   isFlashSale?: boolean;
 }
@@ -31,11 +32,17 @@ export class FlashSaleClientService {
     userId: string,
     bookId: string,
     quantity: number,
+    targetFormat?: string,
   ): Promise<FlashSaleQuote> {
     try {
       const data = await this.request<FlashSaleQuote>("/validate-quota", {
         method: "POST",
-        body: JSON.stringify({ userId, bookId, quantity }),
+        body: JSON.stringify({
+          userId,
+          bookId,
+          quantity,
+          ...(targetFormat ? { targetFormat } : {}),
+        }),
       });
       if (data.isFlashSale && !data.allowed) {
         throwBadRequest(
@@ -63,7 +70,7 @@ export class FlashSaleClientService {
   ) {
     const grouped = new Map<string, FlashSaleCheckoutItem>();
     for (const item of items.filter((entry) => entry.isFlashSale)) {
-      const key = `${item.flashSaleId}:${item.bookId}`;
+      const key = `${item.flashSaleId}:${item.bookId}:${item.format || ""}`;
       const current = grouped.get(key);
       grouped.set(key, {
         ...item,
@@ -82,6 +89,7 @@ export class FlashSaleClientService {
             bookId: item.bookId,
             flashSaleId: item.flashSaleId,
             quantity: item.quantity,
+            ...(item.format ? { targetFormat: item.format } : {}),
           }),
         });
         if (!result?.isFlashSale) {

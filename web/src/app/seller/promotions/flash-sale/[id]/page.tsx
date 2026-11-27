@@ -12,10 +12,16 @@ import { SellerActionButton, SellerStatusBadge } from '@/ui/components/seller/Se
 import { StandardPaginationBar } from '@/ui/components/common/GroupedDataTable';
 import CountdownConfirmModal from '@/ui/components/common/CountdownConfirmModal';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+import {
+  resolveBookOriginalPriceByFormat,
+  getDefaultFlashSaleTargetFormat,
+  type FlashSaleTargetFormat,
+} from '@/ui/utils/flashSaleFormat';
 
 interface AddableBookConfig {
   book: BookData;
   isSelected: boolean;
+  targetFormat: FlashSaleTargetFormat;
   salePrice: number;
   stock: number;
   maxPerUser: number;
@@ -227,11 +233,13 @@ export default function SellerFlashSaleDetailPage() {
     const nextMap: Record<string, AddableBookConfig> = {};
     sellerBooks.forEach((b) => {
       if (registeredBookIds.has(b.id)) return;
-      const orig = Number(b.price || 100000);
+      const defaultFmt = getDefaultFlashSaleTargetFormat(b);
+      const orig = resolveBookOriginalPriceByFormat(b, defaultFmt) || Number(b.price || 100000);
       const avail = Number((b as any).available ?? b.physicalDetails?.stock ?? (b as any).stock ?? 20);
       nextMap[b.id] = {
         book: b,
         isSelected: false,
+        targetFormat: defaultFmt,
         salePrice: Math.max(1000, Math.round(orig * (1 - disc / 100))),
         stock: Math.min(10, Math.max(1, avail)),
         maxPerUser: maxUser,
@@ -253,7 +261,7 @@ export default function SellerFlashSaleDetailPage() {
     }
 
     for (const cfg of selectedAddBooks) {
-      const orig = Number(cfg.book.price || 0);
+      const orig = resolveBookOriginalPriceByFormat(cfg.book, cfg.targetFormat);
       if (cfg.salePrice <= 0 || (orig > 0 && cfg.salePrice >= orig)) {
         showToast(`Giá Flash Sale của "${cfg.book.title}" phải nhỏ hơn giá gốc (${orig.toLocaleString('vi-VN')} đ)`, 'error');
         return;
@@ -273,6 +281,7 @@ export default function SellerFlashSaleDetailPage() {
           salePrice: c.salePrice,
           stock: c.stock,
           maxPerUser: c.maxPerUser,
+          targetFormat: c.targetFormat,
         })),
       });
 
@@ -545,7 +554,7 @@ export default function SellerFlashSaleDetailPage() {
                   {availableBooksToAdd.map((b) => {
                     const cfg = addBookMap[b.id];
                     if (!cfg) return null;
-                    const orig = Number(b.price || 0);
+                    const orig = resolveBookOriginalPriceByFormat(b, cfg.targetFormat);
                     return (
                       <div
                         key={b.id}
@@ -572,6 +581,30 @@ export default function SellerFlashSaleDetailPage() {
                             </p>
                           </div>
                         </label>
+
+                        {b.format === 'BOTH' && (
+                          <select
+                            value={cfg.targetFormat}
+                            onChange={(e) => {
+                              const nextFmt = e.target.value as FlashSaleTargetFormat;
+                              const nextOrig = resolveBookOriginalPriceByFormat(b, nextFmt);
+                              const discPct = Number(slot?.discountPercent ?? 30);
+                              setAddBookMap((prev) => ({
+                                ...prev,
+                                [b.id]: {
+                                  ...prev[b.id],
+                                  targetFormat: nextFmt,
+                                  salePrice: Math.max(1000, Math.round(nextOrig * (1 - discPct / 100))),
+                                },
+                              }));
+                            }}
+                            className="px-2 py-1 text-[11px] font-bold bg-purple-50 text-purple-900 border border-purple-200 rounded-lg outline-none shrink-0"
+                          >
+                            <option value="BOTH">Combo (Giấy + Ebook)</option>
+                            <option value="PHYSICAL">Chỉ Sách Giấy</option>
+                            <option value="DIGITAL">Chỉ Ebook DRM</option>
+                          </select>
+                        )}
 
                         {cfg.isSelected && (
                           <div className="flex flex-wrap items-center gap-2 shrink-0">

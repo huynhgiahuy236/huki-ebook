@@ -374,4 +374,76 @@ describe("FlashSalesService", () => {
     expect(groups[0].storeSlug).toBe("nha-sach-huki-official");
     expect(groups[0].storeAvatar).toBe("https://cdn.huki.vn/huki-logo.png");
   });
+
+  it("registers Flash Sale for a specific targetFormat on BOTH books and validates format-matched pricing (BUG-29, BUG-30)", async () => {
+    const hybridBook = {
+      id: "30000000-0000-4000-8000-000000000099",
+      title: "Sách Hybrid Test",
+      format: "BOTH",
+      status: "PUBLISHED",
+      price: 68_000,
+      pricePaper: 51_000,
+      priceEbook: 30_600,
+      available: 25,
+      storeId: "store-1",
+    };
+
+    prisma.flashSaleItem.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    prisma.flashSaleItem.create.mockImplementation(async ({ data }: any) => ({
+      id: "fs-item-hybrid-1",
+      ...data,
+      flashSale: {
+        ...campaign,
+        scope: "SHOP",
+        status: "SCHEDULED",
+      },
+    }));
+
+    const reg = await service.sellerRegisterItem(
+      "store-1",
+      {
+        flashSaleId: campaign.id,
+        bookId: hybridBook.id,
+        salePrice: 35_000,
+        stock: 5,
+        maxPerUser: 1,
+        targetFormat: "PHYSICAL" as any,
+      },
+      {
+        flashSale: { ...campaign, scope: "SHOP", status: "SCHEDULED" },
+        book: hybridBook,
+      },
+    );
+
+    expect(reg.targetFormat).toBe("PHYSICAL");
+    expect(reg.originalPrice).toBe(51_000);
+    expect(reg.salePrice).toBe(35_000);
+
+    // Format mismatch in validateUserQuota must NOT apply Flash Sale price
+    prisma.flashSaleItem.findFirst.mockResolvedValue({
+      ...item,
+      bookId: hybridBook.id,
+      targetFormat: "PHYSICAL",
+      originalPrice: 51_000,
+      salePrice: 35_000,
+    });
+    redis.mget.mockResolvedValue(["0", "5"]);
+
+    const mismatchQuote = await service.validateUserQuota({
+      userId: "buyer-1",
+      bookId: hybridBook.id,
+      quantity: 1,
+      targetFormat: "DIGITAL" as any,
+    });
+    expect(mismatchQuote.isFlashSale).toBe(false);
+
+    const matchQuote = await service.validateUserQuota({
+      userId: "buyer-1",
+      bookId: hybridBook.id,
+      quantity: 1,
+      targetFormat: "PHYSICAL" as any,
+    });
+    expect(matchQuote.isFlashSale).toBe(true);
+    expect(matchQuote.salePrice).toBe(35_000);
+  });
 });

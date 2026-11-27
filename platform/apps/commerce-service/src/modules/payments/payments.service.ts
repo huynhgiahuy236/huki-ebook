@@ -414,14 +414,14 @@ export class PaymentsService
       // COMMIT INVENTORY RESERVATION (Deduct physical stock and release temporary reservation lock)
       const physicalItemIds = orderData.sellerOrders
         .flatMap(({ items }: any) => items)
-        .filter(({ format }: any) => format === CartItemFormat.PHYSICAL)
+        .filter(({ format }: any) => format === CartItemFormat.PHYSICAL || format === CartItemFormat.BOTH)
         .map(({ id }: any) => id);
 
       await this.reservations.commit(tx, payment.orderId, physicalItemIds);
 
       const digitalItems = orderData.sellerOrders
         .flatMap(({ items }: any) => items)
-        .filter(({ format }: any) => format === CartItemFormat.DIGITAL);
+        .filter(({ format }: any) => format === CartItemFormat.DIGITAL || format === CartItemFormat.BOTH);
       if (digitalItems.length && this.affiliateLifecycle) {
         await this.affiliateLifecycle.handleDigitalOrderPaid(
           payment.orderId,
@@ -587,7 +587,7 @@ export class PaymentsService
       // COMMIT INVENTORY RESERVATION (Deduct physical stock and release temporary reservation lock)
       const physicalItemIds = payment.order.sellerOrders
         .flatMap(({ items }) => items)
-        .filter(({ format }) => format === CartItemFormat.PHYSICAL)
+        .filter(({ format }) => format === CartItemFormat.PHYSICAL || format === CartItemFormat.BOTH)
         .map(({ id }) => id);
 
       if (physicalItemIds.length > 0) {
@@ -638,7 +638,7 @@ export class PaymentsService
 
       const digitalItems = payment.order.sellerOrders
         .flatMap(({ items }) => items)
-        .filter(({ format }) => format === CartItemFormat.DIGITAL);
+        .filter(({ format }) => format === CartItemFormat.DIGITAL || format === CartItemFormat.BOTH);
       if (digitalItems.length && this.affiliateLifecycle) {
         await this.affiliateLifecycle.handleDigitalOrderPaid(
           payment.orderId,
@@ -692,7 +692,7 @@ export class PaymentsService
         ({ items }: any) => items,
       );
       const physicalItems = allItems.filter(
-        ({ format }: any) => format === CartItemFormat.PHYSICAL,
+        ({ format }: any) => format === CartItemFormat.PHYSICAL || format === CartItemFormat.BOTH,
       );
 
       const wasFlashSaleOrder = Boolean(
@@ -768,7 +768,7 @@ export class PaymentsService
         });
 
         const digitalItems = allItems.filter(
-          ({ format }: any) => format === CartItemFormat.DIGITAL,
+          ({ format }: any) => format === CartItemFormat.DIGITAL || format === CartItemFormat.BOTH,
         );
         for (const item of digitalItems) {
           await tx.bookAccess.upsert({

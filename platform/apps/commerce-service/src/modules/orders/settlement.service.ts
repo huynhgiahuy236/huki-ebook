@@ -291,8 +291,8 @@ export class SettlementService implements OnApplicationBootstrap {
     }
 
     // 5. Fulfillment Format & Holding Window Check (POL-14 ESC-001)
-    const hasDigital = items.some((i) => i.format === CartItemFormat.DIGITAL);
-    const hasPhysical = items.some((i) => i.format === CartItemFormat.PHYSICAL);
+    const hasDigital = items.some((i) => i.format === CartItemFormat.DIGITAL || i.format === CartItemFormat.BOTH);
+    const hasPhysical = items.some((i) => i.format === CartItemFormat.PHYSICAL || i.format === CartItemFormat.BOTH);
     const format: 'PHYSICAL' | 'DIGITAL' | 'BOTH' =
       hasDigital && hasPhysical ? 'BOTH' : hasDigital ? 'DIGITAL' : 'PHYSICAL';
 

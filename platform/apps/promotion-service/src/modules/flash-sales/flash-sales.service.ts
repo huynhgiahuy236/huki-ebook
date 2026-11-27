@@ -24,6 +24,7 @@ import {
   SellerBatchRegisterFlashSaleItemsDto,
   SellerUpdateFlashSaleItemDto,
   PauseMode,
+  FlashSaleTargetFormat,
 } from "./dto/flash-sale.dto";
 import { throwNotFound, throwBadRequest, throwForbidden } from "@huki/shared/errors";
 import { ErrorCode } from "@huki/shared/errors";
@@ -228,9 +229,85 @@ export class FlashSalesService
       (itemView as any).author =
         book.author?.name || book.author || book.authorName || "Nhiều tác giả";
       (itemView as any).storeId = item.storeId || book.storeId || book.businessId || fs.storeId;
-      (itemView as any).format = book.format || "PHYSICAL";
+      const resolvedTargetFormat = item.targetFormat || book.format || "PHYSICAL";
+      (itemView as any).bookFormat = book.format || "PHYSICAL";
+      (itemView as any).targetFormat = resolvedTargetFormat;
+      (itemView as any).format = resolvedTargetFormat;
     }
     return { itemView, book };
+  }
+
+  private normalizeTargetFormat(raw?: string | null): FlashSaleTargetFormat | undefined {
+    if (!raw) return undefined;
+    const upper = String(raw).trim().toUpperCase();
+    if (upper === "PHYSICAL" || upper === "PAPER") return FlashSaleTargetFormat.PHYSICAL;
+    if (upper === "DIGITAL" || upper === "EBOOK") return FlashSaleTargetFormat.DIGITAL;
+    if (upper === "BOTH" || upper === "HYBRID" || upper === "COMBO") return FlashSaleTargetFormat.BOTH;
+    return undefined;
+  }
+
+  private resolveBookTargetFormatAndPrice(
+    book: any,
+    requestedFormat?: string | null,
+  ): { targetFormat: FlashSaleTargetFormat; originalPrice: number } {
+    const rawBookFormat = String(book?.format || "PHYSICAL").toUpperCase();
+    const bookFormat =
+      rawBookFormat === "DIGITAL"
+        ? FlashSaleTargetFormat.DIGITAL
+        : rawBookFormat === "BOTH"
+          ? FlashSaleTargetFormat.BOTH
+          : FlashSaleTargetFormat.PHYSICAL;
+
+    const req = this.normalizeTargetFormat(requestedFormat);
+    if (requestedFormat && !req) {
+      throwBadRequest(
+        ErrorCode.BOOK_PRICE_INVALID,
+        `Định dạng Flash Sale không hợp lệ: ${requestedFormat}`,
+      );
+    }
+
+    let targetFormat: FlashSaleTargetFormat = bookFormat;
+    if (bookFormat === FlashSaleTargetFormat.PHYSICAL) {
+      if (req && req !== FlashSaleTargetFormat.PHYSICAL) {
+        throwBadRequest(
+          ErrorCode.BOOK_FORMAT_NOT_AVAILABLE,
+          `Sách "${book?.title || ""}" chỉ kinh doanh Sách Giấy, không thể chọn định dạng ${req}`,
+        );
+      }
+      targetFormat = FlashSaleTargetFormat.PHYSICAL;
+    } else if (bookFormat === FlashSaleTargetFormat.DIGITAL) {
+      if (req && req !== FlashSaleTargetFormat.DIGITAL) {
+        throwBadRequest(
+          ErrorCode.BOOK_FORMAT_NOT_AVAILABLE,
+          `Sách "${book?.title || ""}" chỉ kinh doanh Ebook DRM, không thể chọn định dạng ${req}`,
+        );
+      }
+      targetFormat = FlashSaleTargetFormat.DIGITAL;
+    } else {
+      targetFormat = req || FlashSaleTargetFormat.BOTH;
+    }
+
+    const comboPrice = Number(book?.priceCombo ?? book?.price ?? 0);
+    let originalPrice = comboPrice;
+    if (targetFormat === FlashSaleTargetFormat.PHYSICAL) {
+      const paperPrice = Number(book?.pricePaper ?? book?.physicalPrice ?? 0);
+      originalPrice =
+        paperPrice > 0
+          ? paperPrice
+          : bookFormat === FlashSaleTargetFormat.BOTH && comboPrice > 0
+            ? Math.round(comboPrice * 0.75)
+            : comboPrice;
+    } else if (targetFormat === FlashSaleTargetFormat.DIGITAL) {
+      const ebookPrice = Number(book?.priceEbook ?? book?.ebookPrice ?? 0);
+      originalPrice =
+        ebookPrice > 0
+          ? ebookPrice
+          : bookFormat === FlashSaleTargetFormat.BOTH && comboPrice > 0
+            ? Math.round(comboPrice * 0.45)
+            : comboPrice;
+    }
+
+    return { targetFormat, originalPrice };
   }
 
   async findAll(query: FlashSaleQueryDto) {
@@ -330,7 +407,8 @@ export class FlashSalesService
         "Không tìm thấy sách trong kho Commerce",
       );
     }
-    const commercePrice = Number(book.price);
+    const { targetFormat, originalPrice: commercePrice } =
+      this.resolveBookTargetFormatAndPrice(book, dto.targetFormat);
     if (dto.salePrice >= commercePrice) {
       throwBadRequest(
         ErrorCode.BOOK_PRICE_INVALID,
@@ -341,7 +419,7 @@ export class FlashSalesService
       book.available ??
         Math.max(0, Number(book.stock || 0) - Number(book.reserved || 0)),
     );
-    if (dto.stock > availableStock) {
+    if (targetFormat !== FlashSaleTargetFormat.DIGITAL && dto.stock > availableStock) {
       throwBadRequest(
         ErrorCode.INVENTORY_INSUFFICIENT,
         `Kho Flash Sale (${dto.stock}) không được vượt tồn khả dụng (${availableStock})`,
@@ -412,6 +490,7 @@ export class FlashSalesService
           salePrice: dto.salePrice,
           stock: dto.stock,
           maxPerUser: dto.maxPerUser ?? 1,
+          targetFormat,
         },
       });
       await this.syncItemStock(updated.id, updated.stock);
@@ -426,6 +505,7 @@ export class FlashSalesService
         salePrice: dto.salePrice,
         stock: dto.stock,
         maxPerUser: dto.maxPerUser ?? 1,
+        targetFormat,
         sold: 0,
       },
     });
@@ -854,18 +934,26 @@ export class FlashSalesService
     };
   }
 
-  async getBookFlashSalePrice(bookId: string) {
+  async getBookFlashSalePrice(bookId: string, targetFormat?: string) {
     await this.syncStatuses();
-    const item = await this.findActiveItem(bookId);
+    const item = await this.findActiveItem(bookId, undefined, targetFormat);
 
     if (!item) return null;
 
-    return this.mapItemView(item, item.flashSale);
+    const view = this.mapItemView(item, item.flashSale);
+    if (!view.targetFormat) {
+      const book = await this.getCommerceBookCached(bookId).catch(() => null);
+      if (book?.format) {
+        (view as any).targetFormat = book.format;
+        (view as any).format = book.format;
+      }
+    }
+    return view;
   }
 
   async validateUserQuota(dto: ValidateQuotaDto) {
     await this.syncStatuses();
-    const item = await this.findActiveItem(dto.bookId, dto.flashSaleId);
+    const item = await this.findActiveItem(dto.bookId, dto.flashSaleId, dto.targetFormat);
 
     if (!item) {
       return {
@@ -926,7 +1014,7 @@ export class FlashSalesService
 
   async reserveQuotaAndStock(dto: ReserveFlashSaleDto) {
     await this.syncStatuses();
-    const item = await this.findActiveItem(dto.bookId, dto.flashSaleId);
+    const item = await this.findActiveItem(dto.bookId, dto.flashSaleId, dto.targetFormat);
     if (!item) {
       throwBadRequest(
         ErrorCode.FLASH_SALE_NOT_ACTIVE,
@@ -1334,6 +1422,8 @@ export class FlashSalesService
       bookSlug: item.bookSlug ?? null,
       coverUrl: item.coverUrl ?? null,
       author: item.author ?? null,
+      targetFormat: item.targetFormat ?? null,
+      format: item.targetFormat ?? item.format ?? undefined,
       originalPrice: item.originalPrice,
       salePrice: item.salePrice,
       discount,
@@ -1446,9 +1536,13 @@ export class FlashSalesService
     return this.statusSyncPromise;
   }
 
-  private async findActiveItem(bookId: string, flashSaleId?: string) {
+  private async findActiveItem(
+    bookId: string,
+    flashSaleId?: string,
+    requestedFormat?: string,
+  ) {
     const now = new Date();
-    return this.prisma.flashSaleItem.findFirst({
+    const item = await this.prisma.flashSaleItem.findFirst({
       where: {
         bookId,
         ...(flashSaleId && { flashSaleId }),
@@ -1466,6 +1560,23 @@ export class FlashSalesService
       include: { flashSale: true },
       orderBy: [{ salePrice: "asc" }, { createdAt: "asc" }],
     });
+
+    if (!item) return null;
+
+    if (requestedFormat) {
+      const reqFmt = this.normalizeTargetFormat(requestedFormat);
+      if (reqFmt) {
+        if (item.targetFormat) {
+          if (item.targetFormat !== reqFmt) return null;
+        } else {
+          const book = await this.getCommerceBookCached(bookId).catch(() => null);
+          const legacyFmt = this.normalizeTargetFormat(book?.format);
+          if (legacyFmt && legacyFmt !== reqFmt) return null;
+        }
+      }
+    }
+
+    return item;
   }
 
   async getParticipatingStoreIds(flashSaleId: string, preloadedItems?: any[]): Promise<string[]> {
@@ -1924,7 +2035,8 @@ export class FlashSalesService
       );
     }
 
-    const commercePrice = Number(book.price);
+    const { targetFormat, originalPrice: commercePrice } =
+      this.resolveBookTargetFormatAndPrice(book, dto.targetFormat);
     let finalSalePrice = dto.salePrice;
     let finalMaxPerUser = dto.maxPerUser ?? 1;
 
@@ -1945,7 +2057,7 @@ export class FlashSalesService
       book.available ??
         Math.max(0, Number(book.stock || 0) - Number(book.reserved || 0)),
     );
-    if (dto.stock > availableStock) {
+    if (targetFormat !== FlashSaleTargetFormat.DIGITAL && dto.stock > availableStock) {
       throwBadRequest(
         ErrorCode.INVENTORY_INSUFFICIENT,
         `Số lượng đăng ký Flash Sale (${dto.stock}) vượt quá số lượng tồn kho khả dụng (${availableStock})`,
@@ -2040,6 +2152,7 @@ export class FlashSalesService
         where: { id: existing.id },
         data: {
           storeId: businessId,
+          targetFormat,
           originalPrice: commercePrice,
           salePrice: finalSalePrice,
           stock: dto.stock,
@@ -2053,6 +2166,7 @@ export class FlashSalesService
           flashSaleId: dto.flashSaleId,
           bookId: dto.bookId,
           storeId: businessId,
+          targetFormat,
           originalPrice: commercePrice,
           salePrice: finalSalePrice,
           stock: dto.stock,
@@ -2136,6 +2250,7 @@ export class FlashSalesService
               salePrice: itemDto.salePrice,
               stock: itemDto.stock,
               maxPerUser: itemDto.maxPerUser ?? 1,
+              targetFormat: itemDto.targetFormat,
             },
             {
               flashSale,
@@ -2242,6 +2357,10 @@ export class FlashSalesService
                 title: book.title,
                 coverImage: book.coverImage || book.cover || book.coverUrl,
                 price: Number(book.price),
+                format: book.format || "PHYSICAL",
+                pricePaper: book.pricePaper,
+                priceEbook: book.priceEbook,
+                priceCombo: book.priceCombo,
                 author:
                   book.author?.name ||
                   book.author ||
@@ -2385,7 +2504,18 @@ export class FlashSalesService
       );
     }
 
-    const originalPrice = Number(book?.price || item.originalPrice);
+    const resolved = book
+      ? this.resolveBookTargetFormatAndPrice(
+          book,
+          dto.targetFormat ?? item.targetFormat,
+        )
+      : {
+          targetFormat:
+            this.normalizeTargetFormat(dto.targetFormat ?? item.targetFormat) ||
+            FlashSaleTargetFormat.PHYSICAL,
+          originalPrice: Number(item.originalPrice),
+        };
+    const originalPrice = resolved.originalPrice;
     if (dto.salePrice !== undefined) {
       if (dto.salePrice >= originalPrice) {
         throwBadRequest(
@@ -2398,7 +2528,11 @@ export class FlashSalesService
     const availableStock = Number(
       book?.available ?? book?.physicalDetails?.stock ?? book?.stock ?? 20,
     );
-    if (dto.stock !== undefined && dto.stock > availableStock) {
+    if (
+      resolved.targetFormat !== FlashSaleTargetFormat.DIGITAL &&
+      dto.stock !== undefined &&
+      dto.stock > availableStock
+    ) {
       throwBadRequest(
         ErrorCode.FLASH_SALE_STOCK_EXHAUSTED,
         `Số lượng đăng ký (${dto.stock}) không được vượt quá số lượng kho còn lại (${availableStock})`,
@@ -2411,6 +2545,9 @@ export class FlashSalesService
         ...(dto.salePrice !== undefined ? { salePrice: dto.salePrice } : {}),
         ...(dto.stock !== undefined ? { stock: dto.stock } : {}),
         ...(dto.maxPerUser !== undefined ? { maxPerUser: dto.maxPerUser } : {}),
+        ...(dto.targetFormat !== undefined
+          ? { targetFormat: resolved.targetFormat, originalPrice }
+          : {}),
       },
       include: { flashSale: true },
     });

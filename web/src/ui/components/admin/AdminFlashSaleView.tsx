@@ -10,10 +10,16 @@ import CountdownConfirmModal from '../common/CountdownConfirmModal';
 import { AdminPenaltyArbitrationView } from './AdminPenaltyArbitrationView';
 import { sellerPenaltyService } from '../../services/sellerPenaltyService';
 import { realtimeSyncBus } from '../../services/realtimeSyncBus';
+import {
+  resolveBookOriginalPriceByFormat,
+  getDefaultFlashSaleTargetFormat,
+  type FlashSaleTargetFormat,
+} from '../../utils/flashSaleFormat';
 
 interface ConfiguredBookItem {
   book: BookData;
   isSelected: boolean;
+  targetFormat: FlashSaleTargetFormat;
   salePrice: number;
   stock: number;
   maxPerUser: number;
@@ -365,12 +371,14 @@ export function AdminFlashSaleView() {
     const existingBookIds = new Set((slot.items || []).map((it) => it.bookId));
 
     catalogBooks.forEach((b) => {
-      const origPrice = Number(b.price || (b as any).pricePaper || (b as any).priceEbook || 100000);
+      const defaultFmt = getDefaultFlashSaleTargetFormat(b);
+      const origPrice = resolveBookOriginalPriceByFormat(b, defaultFmt) || Number(b.price || 100000);
       const discountPct = Number(slot.discountPercent || 30);
       const sale = Math.round((origPrice * (100 - discountPct)) / 100);
       initialMap[b.id] = {
         book: b,
         isSelected: existingBookIds.has(b.id),
+        targetFormat: defaultFmt,
         salePrice: sale,
         stock: 20,
         maxPerUser: Number(slot.maxPerUser || 1),
@@ -395,9 +403,10 @@ export function AdminFlashSaleView() {
         return false;
       }
       if (bookFormatFilter !== 'ALL') {
-        const isDigital = b.format === 'DIGITAL' || (b as any).hasEbook;
-        if (bookFormatFilter === 'DIGITAL' && !isDigital) return false;
-        if (bookFormatFilter === 'PHYSICAL' && isDigital) return false;
+        const fmt = String(b.format || 'PHYSICAL').toUpperCase();
+        if (bookFormatFilter === 'DIGITAL' && fmt !== 'DIGITAL') return false;
+        if (bookFormatFilter === 'PHYSICAL' && fmt !== 'PHYSICAL') return false;
+        if (bookFormatFilter === 'BOTH' && fmt !== 'BOTH') return false;
       }
       return true;
     });
@@ -417,7 +426,7 @@ export function AdminFlashSaleView() {
       const next = { ...prev };
       Object.keys(next).forEach((id) => {
         if (next[id].isSelected) {
-          const orig = Number(next[id].book.price || (next[id].book as any).pricePaper || 100000);
+          const orig = resolveBookOriginalPriceByFormat(next[id].book, next[id].targetFormat) || 100000;
           next[id] = {
             ...next[id],
             salePrice: Math.round((orig * (100 - discountPct)) / 100),
@@ -474,7 +483,7 @@ export function AdminFlashSaleView() {
         const chunk = selectedConfigs.slice(i, i + CHUNK_SIZE);
         const results = await Promise.allSettled(
           chunk.map((config) => {
-            const orig = Number(config.book.price || (config.book as any).pricePaper || 100000);
+            const orig = resolveBookOriginalPriceByFormat(config.book, config.targetFormat) || 100000;
             return flashSaleApi.addItem({
               flashSaleId: activeStudioSlot.id,
               bookId: config.book.id,
@@ -482,6 +491,7 @@ export function AdminFlashSaleView() {
               salePrice: config.salePrice,
               stock: config.stock,
               maxPerUser: config.maxPerUser,
+              targetFormat: config.targetFormat,
             });
           }),
         );
@@ -1592,6 +1602,7 @@ export function AdminFlashSaleView() {
                 <option value="ALL">Tất Cả Định Dạng</option>
                 <option value="PHYSICAL">Sách Giấy</option>
                 <option value="DIGITAL">Ebook DRM</option>
+                <option value="BOTH">Hybrid (Cả 2)</option>
               </select>
 
               <button
@@ -1610,6 +1621,7 @@ export function AdminFlashSaleView() {
                   <tr>
                     <th className="py-2.5 px-3 w-10 text-center">Chọn</th>
                     <th className="py-2.5 px-3">Tác Phẩm &amp; Danh Mục</th>
+                    <th className="py-2.5 px-3">Định Dạng</th>
                     <th className="py-2.5 px-3 text-right">Giá Gốc</th>
                     <th className="py-2.5 px-3 text-right">Giá Flash Sale</th>
                     <th className="py-2.5 px-3 text-center">Tồn Kho Phân Bổ</th>
@@ -1619,7 +1631,8 @@ export function AdminFlashSaleView() {
                 <tbody className="divide-y divide-gray-100">
                   {studioFilteredBooks.map((b) => {
                     const cfg = bookConfigMap[b.id];
-                    const origPrice = Number(b.price || (b as any).pricePaper || 100000);
+                    const targetFmt = cfg?.targetFormat || getDefaultFlashSaleTargetFormat(b);
+                    const origPrice = resolveBookOriginalPriceByFormat(b, targetFmt) || 100000;
                     const isSelected = Boolean(cfg?.isSelected);
 
                     return (
@@ -1643,6 +1656,35 @@ export function AdminFlashSaleView() {
                           <span className="text-[10px] text-gray-400">
                             {(typeof b.author === 'object' ? b.author?.name : b.author) || 'HUKI Author'} • {b.category?.name || 'Văn học'}
                           </span>
+                        </td>
+                        <td className="py-2.5 px-3" onClick={(e) => e.stopPropagation()}>
+                          {b.format === 'BOTH' ? (
+                            <select
+                              value={targetFmt}
+                              onChange={(e) => {
+                                const nextFmt = e.target.value as FlashSaleTargetFormat;
+                                const nextOrig = resolveBookOriginalPriceByFormat(b, nextFmt) || 100000;
+                                const pct = Number(activeStudioSlot?.discountPercent || 30);
+                                setBookConfigMap((prev) => ({
+                                  ...prev,
+                                  [b.id]: {
+                                    ...prev[b.id],
+                                    targetFormat: nextFmt,
+                                    salePrice: Math.round((nextOrig * (100 - pct)) / 100),
+                                  },
+                                }));
+                              }}
+                              className="px-2 py-1 rounded border border-purple-200 bg-purple-50 text-purple-900 font-bold text-[11px]"
+                            >
+                              <option value="BOTH">Combo (Cả 2)</option>
+                              <option value="PHYSICAL">Sách Giấy</option>
+                              <option value="DIGITAL">Ebook DRM</option>
+                            </select>
+                          ) : (
+                            <span className="text-[10.5px] font-bold text-gray-600">
+                              {b.format === 'DIGITAL' ? 'Ebook DRM' : 'Sách Giấy'}
+                            </span>
+                          )}
                         </td>
                         <td className="py-2.5 px-3 text-right font-mono text-gray-400 line-through">
                           {origPrice.toLocaleString('vi-VN')}₫

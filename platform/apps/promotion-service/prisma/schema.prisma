@@ -264,11 +264,18 @@ enum FlashSaleStatus {
   CANCELLED
 }
 
+enum FlashSaleFormat {
+  PHYSICAL
+  DIGITAL
+  BOTH
+}
+
 model FlashSaleItem {
-  id          String  @id @default(uuid())
-  flashSaleId String  @map("flash_sale_id")
-  bookId      String  @map("book_id")
-  storeId     String? @map("store_id")
+  id           String           @id @default(uuid())
+  flashSaleId  String           @map("flash_sale_id")
+  bookId       String           @map("book_id")
+  storeId      String?          @map("store_id")
+  targetFormat FlashSaleFormat? @map("target_format")
 
   originalPrice Float @map("original_price")
   salePrice     Float @map("sale_price")
