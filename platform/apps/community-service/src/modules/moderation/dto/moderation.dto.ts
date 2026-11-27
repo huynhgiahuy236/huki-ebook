@@ -36,6 +36,92 @@ export class CreateReportDto {
   description?: string;
 }
 
+export class CreateBookReportDto {
+  @ApiProperty({ enum: REPORT_REASONS })
+  @IsIn(REPORT_REASONS)
+  reason!: ReportReason;
+
+  @ApiProperty({ minLength: 10, maxLength: 2_000 })
+  @IsString()
+  @Length(10, 2_000)
+  description!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  evidenceUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bookTitle?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bookCover?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  author?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  publisher?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  sellerId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  sellerName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  isbn?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  format?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  price?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  reporterName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  reporterEmail?: string;
+}
+
+export class BookModerationActionDto {
+  @ApiProperty({ enum: ['BLOCK', 'DISMISS', 'UNBLOCK'] })
+  @IsIn(['BLOCK', 'DISMISS', 'UNBLOCK'])
+  action!: 'BLOCK' | 'DISMISS' | 'UNBLOCK';
+
+  @ApiPropertyOptional({ maxLength: 2_000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2_000)
+  note?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  notifySeller?: boolean;
+}
+
 export class ModerationIdParamDto {
   @IsMongoId()
   id!: string;

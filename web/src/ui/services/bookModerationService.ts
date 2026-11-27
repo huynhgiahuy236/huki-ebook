@@ -10,6 +10,7 @@
 import { realtimeSyncBus } from './realtimeSyncBus';
 import { adminNotificationService } from './adminNotificationService';
 import { catalogApi } from '../api/catalogApi';
+import { moderationApi } from '../api/moderationApi';
 
 export type BookReportReason =
   | 'COPYRIGHT'       // Vi phạm bản quyền / Sách lậu / Chưa cấp phép
@@ -149,6 +150,17 @@ class BookModerationService {
     items: ReportedBook[];
     stats: { total: number; pending: number; blocked: number; dismissed: number };
   }> {
+    // 1. Thử gọi API Backend thật
+    try {
+      const apiRes = await moderationApi.listBookReports(query);
+      if (apiRes.success && apiRes.data && Array.isArray(apiRes.data.items)) {
+        this.saveStorage(apiRes.data.items);
+        return apiRes.data;
+      }
+    } catch (e) {
+      // Backend offline hoặc fallback
+    }
+
     const all = this.loadStorage();
 
     // Thống kê nhanh
@@ -222,6 +234,28 @@ class BookModerationService {
     description: string;
     evidenceUrl?: string;
   }): Promise<{ success: boolean; reportId: string; totalReports: number }> {
+    // 1. Gửi lên Backend API thật
+    try {
+      await moderationApi.reportBook(payload.bookId, {
+        reason: payload.reason,
+        description: payload.description,
+        evidenceUrl: payload.evidenceUrl,
+        bookTitle: payload.bookTitle,
+        bookCover: payload.bookCover,
+        author: payload.author,
+        publisher: payload.publisher,
+        sellerId: payload.sellerId,
+        sellerName: payload.sellerName,
+        isbn: payload.isbn,
+        format: payload.format,
+        price: payload.price,
+        reporterName: payload.reporterName,
+        reporterEmail: payload.reporterEmail,
+      });
+    } catch (e) {
+      // Backend offline hoặc fallback
+    }
+
     this.invalidateCache();
     const all = this.loadStorage();
     const nowIso = new Date().toISOString();
@@ -347,6 +381,17 @@ class BookModerationService {
     adminName?: string;
     notifySeller?: boolean;
   }): Promise<{ success: boolean; book: ReportedBook }> {
+    // 1. Gửi lên Backend API thật
+    try {
+      await moderationApi.moderateBook(payload.bookId, {
+        action: payload.action,
+        note: payload.note,
+        notifySeller: payload.notifySeller,
+      });
+    } catch (e) {
+      // Backend offline hoặc fallback
+    }
+
     const all = this.loadStorage();
     const idx = all.findIndex((b) => b.bookId === payload.bookId);
 

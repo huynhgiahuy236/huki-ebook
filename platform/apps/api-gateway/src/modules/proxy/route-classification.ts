@@ -159,7 +159,7 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
     normPath.includes('/admin/') ||
     normPath.endsWith('/admin') ||
     normPath === '/moderation' ||
-    normPath.startsWith('/moderation/') ||
+    (normPath.startsWith('/moderation/') && !normPath.endsWith('/report')) ||
     normPath.startsWith('/businesses/admin') ||
     normPath.startsWith('/stores/admin') ||
     normPath.startsWith('/users/admin') ||
@@ -200,11 +200,14 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
     return 'AUTHENTICATED';
   }
 
-  // Mutations to books catalog require SELLER role
+  // Mutations to books catalog require SELLER role (user book reports are allowed publicly)
   if (
     (normPath === '/books' || normPath.startsWith('/books/')) &&
     ['POST', 'PUT', 'PATCH', 'DELETE'].includes(upperMethod)
   ) {
+    if (normPath.endsWith('/report')) {
+      return 'PUBLIC';
+    }
     return 'SELLER';
   }
 

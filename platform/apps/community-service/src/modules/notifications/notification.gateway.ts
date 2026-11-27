@@ -219,7 +219,7 @@ export class NotificationGateway implements OnGatewayConnection {
   }
 
   emitAdminModerationEvent(
-    eventName: "moderation:created" | "moderation:resolved",
+    eventName: "moderation:created" | "moderation:resolved" | "book:reported" | "book:moderated" | string,
     data: Record<string, unknown>,
   ) {
     if (!this.server) return;

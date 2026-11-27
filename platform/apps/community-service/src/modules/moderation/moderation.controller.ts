@@ -23,10 +23,13 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import {
   AuthenticatedCommunityGuard,
   CommunityActor,
+  OptionalCommunityAuthGuard,
   PlatformAdminCommunityGuard,
 } from '../../common/community-auth.guard';
 import { CurrentCommunityActor } from '../../common/current-community-actor.decorator';
 import {
+  BookModerationActionDto,
+  CreateBookReportDto,
   CreateReportDto,
   ModerateContentDto,
   ModerationIdParamDto,
@@ -58,6 +61,32 @@ export class ContentReportsController {
     @Body() dto: CreateReportDto,
   ) {
     return this.moderation.report(actor, 'REVIEW', id, dto);
+  }
+
+  @Post('books/:id/report')
+  @ApiOperation({ summary: 'Report a book violation' })
+  @ApiResponse({ status: 201, description: 'Book report created' })
+  @Throttle({ default: { limit: 20, ttl: 60 * 60_000 } })
+  @UseGuards(OptionalCommunityAuthGuard, ThrottlerGuard)
+  reportBook(
+    @CurrentCommunityActor() actor: CommunityActor | undefined,
+    @Param('id') id: string,
+    @Body() dto: CreateBookReportDto,
+  ) {
+    return this.moderation.reportBook(actor, id, dto);
+  }
+
+  @Post('moderation/books/:id/report')
+  @ApiOperation({ summary: 'Report a book violation (alias)' })
+  @ApiResponse({ status: 201, description: 'Book report created' })
+  @Throttle({ default: { limit: 20, ttl: 60 * 60_000 } })
+  @UseGuards(OptionalCommunityAuthGuard, ThrottlerGuard)
+  reportBookAlias(
+    @CurrentCommunityActor() actor: CommunityActor | undefined,
+    @Param('id') id: string,
+    @Body() dto: CreateBookReportDto,
+  ) {
+    return this.moderation.reportBook(actor, id, dto);
   }
 }
 
@@ -143,5 +172,27 @@ export class AdminModerationController {
       params.id,
       dto,
     );
+  }
+
+  @Get('books')
+  @ApiOperation({ summary: 'List book moderation reports (platform admin)' })
+  @ApiResponse({ status: 200, description: 'Book reports grouped with statistics' })
+  bookReports(
+    @Query('status') status?: string,
+    @Query('searchQuery') searchQuery?: string,
+    @Query('reason') reason?: string,
+  ) {
+    return this.moderation.listBookReports({ status, searchQuery, reason });
+  }
+
+  @Post('books/:id/action')
+  @ApiOperation({ summary: 'Moderate a book violation (platform admin)' })
+  @ApiResponse({ status: 200, description: 'Moderation action executed' })
+  moderateBook(
+    @CurrentCommunityActor() actor: CommunityActor,
+    @Param('id') id: string,
+    @Body() dto: BookModerationActionDto,
+  ) {
+    return this.moderation.moderateBook(actor, id, dto);
   }
 }

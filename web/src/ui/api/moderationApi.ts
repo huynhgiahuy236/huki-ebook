@@ -184,5 +184,67 @@ export const moderationApi = {
       }
     );
   },
+
+  /**
+   * Submit book violation report to backend
+   */
+  async reportBook(
+    bookId: string,
+    payload: {
+      reason: string;
+      description: string;
+      evidenceUrl?: string;
+      bookTitle?: string;
+      bookCover?: string;
+      author?: string;
+      publisher?: string;
+      sellerId?: string;
+      sellerName?: string;
+      isbn?: string;
+      format?: string;
+      price?: number;
+      reporterName?: string;
+      reporterEmail?: string;
+    }
+  ): Promise<ApiResponse<any>> {
+    return apiClient<any>(`/books/${encodeURIComponent(bookId)}/report`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * List book reports for admin
+   */
+  async listBookReports(query: {
+    status?: string;
+    searchQuery?: string;
+    reason?: string;
+  } = {}): Promise<ApiResponse<{ items: any[]; stats: { total: number; pending: number; blocked: number; dismissed: number } }>> {
+    const params = new URLSearchParams();
+    if (query.status && query.status !== 'all') params.set('status', query.status);
+    if (query.reason && query.reason !== 'all') params.set('reason', query.reason);
+    if (query.searchQuery) params.set('searchQuery', query.searchQuery);
+
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return apiClient<any>(`/admin/moderation/books${qs}`);
+  },
+
+  /**
+   * Moderate a book action (BLOCK / DISMISS / UNBLOCK)
+   */
+  async moderateBook(
+    bookId: string,
+    payload: {
+      action: 'BLOCK' | 'DISMISS' | 'UNBLOCK';
+      note?: string;
+      notifySeller?: boolean;
+    }
+  ): Promise<ApiResponse<any>> {
+    return apiClient<any>(`/admin/moderation/books/${encodeURIComponent(bookId)}/action`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
 };
 

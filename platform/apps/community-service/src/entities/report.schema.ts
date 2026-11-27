@@ -7,6 +7,7 @@ export const REPORT_TARGET_TYPES = [
   'REVIEW',
   'USER',
   'STORE',
+  'BOOK',
 ] as const;
 export const REPORT_REASONS = [
   'SPAM',
@@ -15,6 +16,9 @@ export const REPORT_REASONS = [
   'LANGUAGE_VIOLATION',
   'MISINFORMATION',
   'COPYRIGHT',
+  'FAKE_BOOK',
+  'INAPPROPRIATE',
+  'SCAM_PRICE',
   'OTHER',
 ] as const;
 export const REPORT_DETECTION_SOURCES = ['USER_REPORT', 'AUTO_MODERATION'] as const;
@@ -97,6 +101,9 @@ export class Report {
 
   @Prop({ type: String, trim: true, maxlength: 2_000 })
   resolutionNote?: string;
+
+  @Prop({ type: Object, default: {} })
+  metadata?: Record<string, any>;
 
   createdAt!: Date;
   updatedAt!: Date;

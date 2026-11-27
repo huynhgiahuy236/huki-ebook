@@ -382,6 +382,15 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
 
     socket.on('moderation:created', (evt: any) => {
       realtimeSyncBus.publish('MODERATION_UPDATED' as any, evt);
+      realtimeSyncBus.publish('BOOK_REPORTED' as any, evt);
+    });
+
+    socket.on('book:reported', (evt: any) => {
+      realtimeSyncBus.publish('BOOK_REPORTED' as any, evt);
+    });
+
+    socket.on('book:moderated', (evt: any) => {
+      realtimeSyncBus.publish('BOOK_MODERATED' as any, evt);
     });
 
     socket.on('moderation:resolved', (evt: any) => {

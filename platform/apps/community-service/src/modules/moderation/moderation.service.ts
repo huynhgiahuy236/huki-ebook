@@ -12,12 +12,15 @@ import {
   ModerationAction,
   Report,
   ReportDocument,
+  ReportStatus,
   ReportTargetType,
 } from '../../entities/report.schema';
 import { Review, ReviewDocument } from '../../entities/review.schema';
 import { NotificationGateway } from '../notifications/notification.gateway';
 import { NotificationDeliveryService } from '../notifications/notification-delivery.service';
 import {
+  BookModerationActionDto,
+  CreateBookReportDto,
   CreateReportDto,
   ModerateContentDto,
   ModerationQueueQueryDto,
@@ -143,6 +146,258 @@ export class ModerationService {
       }
       throw error;
     }
+  }
+
+  async reportBook(
+    actor: Partial<CommunityActor> | undefined,
+    bookId: string,
+    dto: CreateBookReportDto,
+  ) {
+    const reporterId = actor?.sub || `guest_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    try {
+      const report = await this.reports.create({
+        reporterId,
+        targetType: 'BOOK',
+        targetId: bookId,
+        targetAuthorId: dto.sellerId,
+        reason: dto.reason,
+        description: dto.description?.trim(),
+        detectionSource: 'USER_REPORT',
+        violationCategory: dto.reason,
+        matchedKeywords: [],
+        status: 'PENDING',
+        metadata: {
+          bookTitle: dto.bookTitle,
+          bookCover: dto.bookCover,
+          author: dto.author,
+          publisher: dto.publisher,
+          sellerId: dto.sellerId,
+          sellerName: dto.sellerName,
+          isbn: dto.isbn,
+          format: dto.format,
+          price: dto.price,
+          evidenceUrl: dto.evidenceUrl,
+          reporterName: dto.reporterName || actor?.fullName || actor?.email || 'Độc giả HuKi',
+          reporterEmail: dto.reporterEmail || actor?.email,
+        },
+      });
+
+      void this.publish('book.reported', report.id, {
+        reportId: report.id,
+        reporterId,
+        bookId,
+        bookTitle: dto.bookTitle,
+        sellerId: dto.sellerId,
+        reason: dto.reason,
+      });
+
+      if (this.notificationDelivery) {
+        void this.notificationDelivery.deliver({
+          sourceKey: `book.reported:${report.id}:admin_channel`,
+          recipientId: 'admin_channel',
+          recipientType: 'ADMIN',
+          type: 'WATCHDOG_ALERT' as any,
+          priority: 'HIGH',
+          title: 'Báo cáo vi phạm tác phẩm mới',
+          message: `Tác phẩm "${dto.bookTitle || bookId}" vừa bị báo cáo (${dto.reason}): ${dto.description}`,
+          actionUrl: '/admin/book-moderation',
+          payload: {
+            reportId: report.id,
+            targetType: 'BOOK',
+            targetId: bookId,
+            bookTitle: dto.bookTitle,
+            reason: dto.reason,
+            detectionSource: 'USER_REPORT',
+          },
+        }).catch(() => null);
+      }
+
+      this.gateway?.emitAdminModerationEvent?.('book:reported', {
+        report: this.reportView(report),
+      });
+      this.gateway?.emitAdminModerationEvent?.('moderation:created', {
+        report: this.reportView(report),
+      });
+
+      return {
+        message: 'Báo cáo tác phẩm thành công',
+        data: this.reportView(report),
+      };
+    } catch (error) {
+      if ((error as { code?: number }).code === 11000) {
+        throwConflict(ErrorCode.MODERATION_REPORT_ALREADY_EXISTS, 'Bạn đã gửi báo cáo cho tác phẩm này trước đó');
+      }
+      throw error;
+    }
+  }
+
+  async listBookReports(query: {
+    status?: string;
+    searchQuery?: string;
+    reason?: string;
+  }) {
+    const filter: Record<string, any> = { targetType: 'BOOK' };
+    if (query.status && query.status !== 'all') {
+      filter.status = query.status;
+    }
+    if (query.reason && query.reason !== 'all') {
+      filter.reason = query.reason;
+    }
+
+    const reports = await this.reports.find(filter).sort({ createdAt: -1 }).lean();
+
+    // Group by targetId (bookId)
+    const grouped = new Map<string, any>();
+    for (const r of reports) {
+      const bId = r.targetId;
+      const meta = (r as any).metadata || {};
+      const singleReport = {
+        id: (r as any)._id?.toString() || r.id,
+        reporterId: r.reporterId,
+        reporterName: meta.reporterName || 'Độc giả HuKi',
+        reporterEmail: meta.reporterEmail,
+        reason: r.reason,
+        description: r.description,
+        evidenceUrl: meta.evidenceUrl,
+        createdAt: (r as any).createdAt ? new Date((r as any).createdAt).toISOString() : new Date().toISOString(),
+      };
+
+      if (!grouped.has(bId)) {
+        grouped.set(bId, {
+          bookId: bId,
+          title: meta.bookTitle || 'Tác phẩm sách',
+          author: meta.author || 'Tác giả',
+          publisher: meta.publisher || 'Nhà xuất bản',
+          cover: meta.bookCover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&auto=format&fit=crop&q=80',
+          isbn: meta.isbn || 'Chưa cập nhật',
+          format: meta.format || 'hybrid',
+          formatLabel: meta.format === 'physical' ? 'Sách Giấy' : meta.format === 'ebook' ? 'Ebook DRM' : 'Combo Sách + Ebook',
+          price: meta.price || 0,
+          sellerId: meta.sellerId || r.targetAuthorId || 'unknown-seller',
+          sellerName: meta.sellerName || 'Gian hàng sách',
+          sellerEmail: 'shop@huki.vn',
+          totalReports: 0,
+          reasons: [] as { reason: string; count: number }[],
+          reports: [] as typeof singleReport[],
+          status: r.status === 'RESOLVED' ? (r.action === 'NONE' ? 'DISMISSED' : 'BLOCKED') : r.status === 'DISMISSED' ? 'DISMISSED' : 'PENDING_REVIEW',
+          actionTaken: r.action || 'NONE',
+          actionNote: r.resolutionNote,
+          moderatedBy: r.resolvedBy,
+          moderatedAt: r.resolvedAt ? new Date(r.resolvedAt).toISOString() : undefined,
+          lastReportedAt: singleReport.createdAt,
+          createdAt: singleReport.createdAt,
+        });
+      }
+
+      const bookEntry = grouped.get(bId)!;
+      bookEntry.reports.push(singleReport);
+      bookEntry.totalReports = bookEntry.reports.length;
+      if (new Date(singleReport.createdAt).getTime() > new Date(bookEntry.lastReportedAt).getTime()) {
+        bookEntry.lastReportedAt = singleReport.createdAt;
+      }
+    }
+
+    // Compute reasons breakdown for each book
+    const items = Array.from(grouped.values()).map((book) => {
+      const reasonCountMap: Record<string, number> = {};
+      book.reports.forEach((rep: any) => {
+        reasonCountMap[rep.reason] = (reasonCountMap[rep.reason] || 0) + 1;
+      });
+      book.reasons = Object.entries(reasonCountMap).map(([reason, count]) => ({ reason, count }));
+      return book;
+    });
+
+    let filtered = items;
+    if (query.searchQuery?.trim()) {
+      const q = query.searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(
+        (b) =>
+          b.title.toLowerCase().includes(q) ||
+          b.author.toLowerCase().includes(q) ||
+          b.sellerName.toLowerCase().includes(q) ||
+          b.isbn.toLowerCase().includes(q)
+      );
+    }
+
+    const allReportsCount = await this.reports.countDocuments({ targetType: 'BOOK' });
+    const pendingCount = await this.reports.countDocuments({ targetType: 'BOOK', status: 'PENDING' });
+    const resolvedCount = await this.reports.countDocuments({ targetType: 'BOOK', status: 'RESOLVED' });
+    const dismissedCount = await this.reports.countDocuments({ targetType: 'BOOK', status: 'DISMISSED' });
+
+    return {
+      items: filtered,
+      stats: {
+        total: allReportsCount,
+        pending: pendingCount,
+        blocked: resolvedCount,
+        dismissed: dismissedCount,
+      },
+    };
+  }
+
+  async moderateBook(
+    actor: CommunityActor,
+    bookId: string,
+    dto: BookModerationActionDto,
+  ) {
+    const terminalStatus: ReportStatus = dto.action === 'DISMISS' ? 'DISMISSED' : 'RESOLVED';
+    const action: ModerationAction = dto.action === 'BLOCK' ? 'DELETE' : dto.action === 'DISMISS' ? 'NONE' : 'NONE';
+    const resolvedAt = new Date();
+
+    const updateRes = await this.reports.updateMany(
+      { targetType: 'BOOK', targetId: bookId },
+      {
+        $set: {
+          status: dto.action === 'UNBLOCK' ? 'PENDING' : terminalStatus,
+          action,
+          resolutionNote: dto.note || `Moderated to ${dto.action}`,
+          reviewedBy: actor.sub,
+          reviewedAt: resolvedAt,
+          resolvedBy: actor.sub,
+          resolvedAt,
+        },
+      },
+    );
+
+    // Deliver notification to Seller if requested
+    if (dto.notifySeller && dto.action === 'BLOCK') {
+      const firstReport = await this.reports.findOne({ targetType: 'BOOK', targetId: bookId }).lean();
+      const sellerId = firstReport?.targetAuthorId || (firstReport as any)?.metadata?.sellerId;
+      const bookTitle = (firstReport as any)?.metadata?.bookTitle || 'Tác phẩm sách';
+
+      if (sellerId && this.notificationDelivery) {
+        void this.notificationDelivery.deliver({
+          sourceKey: `book.blocked:${bookId}:${Date.now()}`,
+          recipientId: sellerId,
+          recipientType: 'BUSINESS',
+          type: 'WATCHDOG_ALERT' as any,
+          priority: 'CRITICAL',
+          title: 'Tác phẩm đã bị tạm khóa lưu hành',
+          message: `Tác phẩm "${bookTitle}" đã bị Ban Quản Trị khóa do vi phạm tiêu chuẩn: ${dto.note || 'Vi phạm chính sách sàn'}. Vui lòng liên hệ hỗ trợ hoặc gửi giải trình.`,
+          actionUrl: '/seller/books',
+          payload: {
+            bookId,
+            bookTitle,
+            action: 'BLOCK',
+            note: dto.note,
+          },
+        }).catch(() => null);
+      }
+    }
+
+    this.gateway?.emitAdminModerationEvent?.('book:moderated', {
+      bookId,
+      action: dto.action,
+      resolvedBy: actor.sub,
+      timestamp: resolvedAt.toISOString(),
+    });
+
+    return {
+      success: true,
+      bookId,
+      action: dto.action,
+      updatedCount: updateRes.modifiedCount,
+    };
   }
 
   async createAutoFlagReport(params: {
@@ -597,6 +852,7 @@ export class ModerationService {
       resolvedAt: report.resolvedAt,
       action: report.action,
       resolutionNote: report.resolutionNote,
+      metadata: report.metadata || {},
       createdAt: report.createdAt,
       updatedAt: report.updatedAt,
     };
