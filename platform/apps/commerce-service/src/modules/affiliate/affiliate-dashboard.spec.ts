@@ -144,6 +144,31 @@ describe('AffiliateDashboardService (Phase 9 Reporting & Dashboards)', () => {
       expect(res.metrics.netAvailableCommission).toBe(0);
       expect(res.metrics.debtCommission).toBe(80000);
     });
+
+    it('BUG-34: caps click conversionRate at <= 100% even when 1 click yields 8 repeat cookie orders', async () => {
+      mockPrisma.affiliateProfile.findUnique.mockResolvedValue(mockProfile);
+      mockPrisma.affiliateLink.aggregate.mockResolvedValue({
+        _sum: {
+          clickCount: 1,
+          conversionCount: 8,
+        },
+      });
+      (mockPrisma as any).affiliateAttribution = {
+        count: jest.fn().mockResolvedValue(1),
+      };
+      mockPrisma.affiliateCommission.aggregate
+        .mockResolvedValueOnce({ _sum: { commissionAmount: new Decimal(10835) } })
+        .mockResolvedValueOnce({ _sum: { commissionAmount: new Decimal(55300) } })
+        .mockResolvedValueOnce({ _sum: { commissionAmount: new Decimal(0) } });
+      mockPrisma.affiliateCommission.findMany.mockResolvedValue([]);
+
+      const res = await service.getCtvDashboardStats('user-ctv-1');
+
+      expect(res.metrics.clicksCount).toBe(1);
+      expect(res.metrics.conversionsCount).toBe(8);
+      expect(res.metrics.conversionRate).toBe(100);
+      expect(res.metrics.conversionRate).toBeLessThanOrEqual(100);
+    });
   });
 
   describe('getSellerDashboardStats', () => {

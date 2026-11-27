@@ -119,6 +119,12 @@ export class AffiliateCheckoutService {
               profile: true,
             },
           });
+          if (client.affiliateLink?.update) {
+            await client.affiliateLink.update({
+              where: { id: linkByShortCode.id },
+              data: { clickCount: { increment: 1 } },
+            });
+          }
         }
       } else if (client.affiliateProfile?.findFirst) {
         // 2. Fallback: match by affiliateCode
@@ -155,6 +161,12 @@ export class AffiliateCheckoutService {
                 profile: true,
               },
             });
+            if (client.affiliateLink?.update) {
+              await client.affiliateLink.update({
+                where: { id: anyLink.id },
+                data: { clickCount: { increment: 1 } },
+              });
+            }
           }
         }
       }
@@ -338,6 +350,7 @@ export class AffiliateCheckoutService {
             orderId: params.orderId,
             orderCode: params.orderCode,
             profileId: attribution.profileId,
+            userId: attribution.profile?.userId,
             attributionId: attribution.id,
             commissionsCount: createdCommissions.length,
             totalCommissionAmount: createdCommissions.reduce(

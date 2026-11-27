@@ -10,7 +10,11 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { WalletService } from '../wallet/wallet.service';
-import { PolicyConfigService } from '@huki/shared';
+import {
+  getConfiguredEscrowHoldSeconds,
+  PolicyConfigService,
+  resolveEscrowHoldMs,
+} from '@huki/shared';
 import {
   CartItemFormat,
   LedgerAccountType,
@@ -77,7 +81,7 @@ export class SettlementService implements OnApplicationBootstrap {
     private readonly ledgerService: LedgerService,
     private readonly walletService: WalletService,
     private readonly policyConfig: PolicyConfigService,
-  ) {}
+  ) { }
 
   onApplicationBootstrap() {
     this.logger.log('Starting automated escrow settlement worker (interval 15s)...');
@@ -299,10 +303,11 @@ export class SettlementService implements OnApplicationBootstrap {
     const now = Date.now();
     const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
     const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-    const configuredHoldSec = Number(process.env.ESCROW_HOLD_DURATION_SECONDS);
-    const hasConfiguredHold = Number.isFinite(configuredHoldSec) && configuredHoldSec > 0;
-    const digitalWindowMs = hasConfiguredHold ? configuredHoldSec * 1000 : TWENTY_FOUR_HOURS_MS;
-    const physicalWindowMs = hasConfiguredHold ? configuredHoldSec * 1000 : SEVEN_DAYS_MS;
+    // Honors process.env.ESCROW_HOLD_DURATION_SECONDS (180s in UAT) via shared helper
+    const configuredHoldSec = getConfiguredEscrowHoldSeconds();
+    const hasConfiguredHold = configuredHoldSec !== null;
+    const digitalWindowMs = resolveEscrowHoldMs(TWENTY_FOUR_HOURS_MS);
+    const physicalWindowMs = resolveEscrowHoldMs(SEVEN_DAYS_MS);
 
     // Check early buyer confirmation in status history
     const isBuyerConfirmed = histories.some(
@@ -373,10 +378,10 @@ export class SettlementService implements OnApplicationBootstrap {
       const deliveredTimestamp = sellerOrder.completedAt
         ? new Date(sellerOrder.completedAt).getTime()
         : deliveryHistory
-        ? new Date(deliveryHistory.createdAt).getTime()
-        : sellerOrder.updatedAt
-        ? new Date(sellerOrder.updatedAt).getTime()
-        : now;
+          ? new Date(deliveryHistory.createdAt).getTime()
+          : sellerOrder.updatedAt
+            ? new Date(sellerOrder.updatedAt).getTime()
+            : now;
 
       const isHoldPassed = now >= deliveredTimestamp + physicalWindowMs;
 
@@ -538,27 +543,27 @@ export class SettlementService implements OnApplicationBootstrap {
       storeId?: string;
       description?: string;
     }> = [
-      {
-        accountType: LedgerAccountType.SELLER_PENDING,
-        direction: LedgerEntryDirection.DEBIT,
-        amount: merchandisePendingAmount,
-        storeId: sellerOrder.storeId || undefined,
-        description: `Clear pending seller proceeds for sub-order ${sellerOrder.code}`,
-      },
-      {
-        accountType: LedgerAccountType.SELLER_AVAILABLE,
-        direction: LedgerEntryDirection.CREDIT,
-        amount: calculation.sellerNet,
-        storeId: sellerOrder.storeId || undefined,
-        description: `Credit cleared net revenue to seller available account`,
-      },
-      {
-        accountType: LedgerAccountType.PLATFORM_REVENUE,
-        direction: LedgerEntryDirection.CREDIT,
-        amount: calculation.platformCommission,
-        description: `Platform commission earned (${calculation.commissionPercent}% on ${calculation.commissionBasis})`,
-      },
-    ];
+        {
+          accountType: LedgerAccountType.SELLER_PENDING,
+          direction: LedgerEntryDirection.DEBIT,
+          amount: merchandisePendingAmount,
+          storeId: sellerOrder.storeId || undefined,
+          description: `Clear pending seller proceeds for sub-order ${sellerOrder.code}`,
+        },
+        {
+          accountType: LedgerAccountType.SELLER_AVAILABLE,
+          direction: LedgerEntryDirection.CREDIT,
+          amount: calculation.sellerNet,
+          storeId: sellerOrder.storeId || undefined,
+          description: `Credit cleared net revenue to seller available account`,
+        },
+        {
+          accountType: LedgerAccountType.PLATFORM_REVENUE,
+          direction: LedgerEntryDirection.CREDIT,
+          amount: calculation.platformCommission,
+          description: `Platform commission earned (${calculation.commissionPercent}% on ${calculation.commissionBasis})`,
+        },
+      ];
 
     // If platform subsidized discount (POL-14 FEE-001 / DEC-004), debit PLATFORM_MARKETING_EXPENSE
     if (calculation.platformSubsidy > 0) {

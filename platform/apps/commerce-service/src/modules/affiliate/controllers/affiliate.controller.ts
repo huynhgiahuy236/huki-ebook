@@ -24,6 +24,7 @@ import {
 } from '../dto/affiliate-application.dto';
 import { SubmitKycDto, CreatePayoutRequestDto } from '../dto/affiliate-payout.dto';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { getConfiguredEscrowHoldSeconds } from '@huki/shared';
 
 @Controller('affiliate')
 export class AffiliateController {
@@ -46,6 +47,7 @@ export class AffiliateController {
       orderBy: { effectiveFrom: 'desc' },
     });
 
+    const configuredHoldSeconds = getConfiguredEscrowHoldSeconds();
     return {
       name: activePolicy?.name || 'Chương Trình Tiếp Thị Liên Kết HuKi',
       termsVersion: '1.4.1',
@@ -59,6 +61,7 @@ export class AffiliateController {
         physical: activePolicy?.physicalHoldingDays || 7,
         digitalHours: activePolicy?.digitalHoldingHours || 24,
       },
+      holdingDurationSeconds: configuredHoldSeconds,
       minPayoutAmount: activePolicy ? Number(activePolicy.minPayoutAmount) : 100000,
       cookieDurationDays: activePolicy?.cookieDurationDays || 30,
     };

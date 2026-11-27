@@ -133,7 +133,17 @@ export class AffiliateDashboardService {
 
     const clicksCount = linkAgg._sum.clickCount || 0;
     const conversionsCount = linkAgg._sum.conversionCount || 0;
-    const conversionRate = clicksCount > 0 ? Number(((conversionsCount / clicksCount) * 100).toFixed(2)) : 0;
+    const rawConvertedClicks = this.prisma?.affiliateAttribution?.count
+      ? await this.prisma.affiliateAttribution.count({
+          where: { profileId, isConverted: true },
+        })
+      : null;
+    const uniqueConvertedClicks =
+      typeof rawConvertedClicks === 'number' && rawConvertedClicks > 0
+        ? Math.min(clicksCount, rawConvertedClicks)
+        : Math.min(clicksCount, conversionsCount);
+    const conversionRate =
+      clicksCount > 0 ? Number(((uniqueConvertedClicks / clicksCount) * 100).toFixed(2)) : 0;
 
     // Aggregate commissions
     const [pendingAgg, holdingAgg, reversedAgg] = await Promise.all([

@@ -17,11 +17,20 @@ import {
 import { Decimal } from '@prisma/client/runtime/library';
 
 describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
+  const originalHoldEnv = process.env.ESCROW_HOLD_DURATION_SECONDS;
   let service: SettlementService;
   let prisma: any;
   let ledgerService: any;
   let walletService: any;
   let policyConfig: PolicyConfigService;
+
+  afterAll(() => {
+    if (originalHoldEnv === undefined) {
+      delete process.env.ESCROW_HOLD_DURATION_SECONDS;
+    } else {
+      process.env.ESCROW_HOLD_DURATION_SECONDS = originalHoldEnv;
+    }
+  });
 
   const mockStoreA = 'store-fahasa';
   const mockStoreB = 'store-kimdong';
@@ -72,6 +81,7 @@ describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
   });
 
   beforeEach(() => {
+    delete process.env.ESCROW_HOLD_DURATION_SECONDS;
     prisma = {
       sellerOrder: {
         findUnique: jest.fn(),

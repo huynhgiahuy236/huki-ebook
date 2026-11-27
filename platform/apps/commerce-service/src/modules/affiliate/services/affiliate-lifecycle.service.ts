@@ -1,5 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { resolveEscrowHoldHours } from '@huki/shared';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AffiliateCommissionStateMachineService } from '../state-machine/affiliate-commission-state-machine.service';
 import { AffiliateCommissionStatus } from '../../../../prisma/generated/client';
@@ -21,6 +23,7 @@ export class AffiliateLifecycleService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stateMachine: AffiliateCommissionStateMachineService,
+    @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
   /**
@@ -55,12 +58,13 @@ export class AffiliateLifecycleService {
         comm.bookFormat === 'DIGITAL' ||
         comm.bookFormat === 'EBOOK' ||
         comm.bookFormat === 'AUDIO';
-      const holdingDurationHours =
+      const fallbackHours =
         Number.isFinite(snapshotHoldingHours) && snapshotHoldingHours >= 0
           ? snapshotHoldingHours
           : isDigital
             ? 24
             : 168;
+      const holdingDurationHours = resolveEscrowHoldHours(fallbackHours);
 
       const updated = tx
         ? await this.stateMachine.transitionToHolding(
@@ -81,8 +85,22 @@ export class AffiliateLifecycleService {
       this.logger.log(
         `[Order Delivered] Moved ${results.length} commissions to HOLDING for order ${orderId}`,
       );
+      this.emitHoldingScheduled(results);
     }
     return results;
+  }
+
+  private emitHoldingScheduled(items: Array<{ holdingUntil?: Date | null }>) {
+    if (!this.eventEmitter || !items.length) return;
+    const dueDates = items
+      .map((item) => item?.holdingUntil)
+      .filter((d): d is Date => d instanceof Date && !isNaN(d.getTime()))
+      .sort((a, b) => a.getTime() - b.getTime());
+    if (dueDates.length > 0) {
+      this.eventEmitter.emit('affiliate.holding.scheduled', {
+        holdingUntil: dueDates[0],
+      });
+    }
   }
 
   /**
@@ -103,18 +121,19 @@ export class AffiliateLifecycleService {
       },
     });
 
+    const holdingDurationHours = resolveEscrowHoldHours(24);
     const results: any[] = [];
     for (const comm of digitalCommissions) {
       const updated = tx
         ? await this.stateMachine.transitionToHolding(
             comm.id,
-            24,
+            holdingDurationHours,
             paidAt,
             tx,
           )
         : await this.stateMachine.transitionToHolding(
             comm.id,
-            24,
+            holdingDurationHours,
             paidAt,
           );
       results.push(updated);
@@ -124,13 +143,14 @@ export class AffiliateLifecycleService {
       this.logger.log(
         `[Digital Paid] Moved ${results.length} digital commissions to HOLDING for order ${orderId}`,
       );
+      this.emitHoldingScheduled(results);
     }
     return results;
   }
 
   /**
    * 3. Buyer-Confirm Shortcut (Quyết định 2)
-   * Khi Buyer bấm xác nhận hài lòng sớm, rút ngắn thời hạn giữ xuống còn 24 giờ.
+   * Khi Buyer bấm xác nhận hài lòng sớm, rút ngắn thời hạn giữ xuống còn 24 giờ (hoặc ESCROW_HOLD_DURATION_SECONDS).
    */
   async handleBuyerConfirmReceipt(
     orderId: string,
@@ -146,12 +166,13 @@ export class AffiliateLifecycleService {
     });
 
     const updatedCommissions: any[] = [];
+    const targetHours = resolveEscrowHoldHours(24);
     const targetHoldingUntil = new Date(
-      confirmedAt.getTime() + 24 * 3600 * 1000,
+      confirmedAt.getTime() + targetHours * 3600 * 1000,
     );
 
     for (const comm of holdingCommissions) {
-      // If current holdingUntil is further in future than 24h from now, shorten it to 24h
+      // If current holdingUntil is further in future than target window from now, shorten it
       if (comm.holdingUntil && comm.holdingUntil > targetHoldingUntil) {
         const updated = await client.affiliateCommission.update({
           where: { id: comm.id },
@@ -162,9 +183,13 @@ export class AffiliateLifecycleService {
         });
         updatedCommissions.push(updated);
         this.logger.log(
-          `[Buyer Shortcut] Commission ${comm.id} holding period reduced to 24h (ending at ${targetHoldingUntil.toISOString()})`,
+          `[Buyer Shortcut] Commission ${comm.id} holding period reduced (ending at ${targetHoldingUntil.toISOString()})`,
         );
       }
+    }
+
+    if (updatedCommissions.length > 0) {
+      this.emitHoldingScheduled(updatedCommissions);
     }
 
     return updatedCommissions;
@@ -346,6 +371,9 @@ export class AffiliateLifecycleService {
         disputeBlocked: false,
         holdingUntil: { lte: now },
       },
+      include: {
+        profile: { select: { userId: true } },
+      },
       take: batchSize,
       orderBy: { holdingUntil: 'asc' },
     });
@@ -367,7 +395,7 @@ export class AffiliateLifecycleService {
           ledgerTxId: settled.ledgerTransactionId,
         });
 
-        // Fire outbox event for real-time notification & reporting
+        // Fire outbox event for real-time Socket.IO notification & reporting
         await this.prisma.outboxEvent.create({
           data: {
             eventId: crypto.randomBytes(16).toString('hex'),
@@ -376,8 +404,10 @@ export class AffiliateLifecycleService {
             payload: {
               commissionId: comm.id,
               profileId: comm.profileId,
+              userId: (comm as any).profile?.userId,
               orderId: comm.orderId,
               orderItemId: comm.orderItemId,
+              bookTitle: comm.bookTitle,
               amount: settled.amount,
               settledAt: settled.settledAt,
               ledgerTxId: settled.ledgerTransactionId,
@@ -415,6 +445,9 @@ export class AffiliateLifecycleService {
         status: AffiliateCommissionStatus.HOLDING,
         disputeBlocked: false,
       },
+      include: {
+        profile: { select: { userId: true } },
+      },
     });
 
     const settled: Array<
@@ -428,6 +461,25 @@ export class AffiliateLifecycleService {
         releasedAt,
       );
       settled.push(result);
+
+      await this.prisma.outboxEvent.create({
+        data: {
+          eventId: crypto.randomBytes(16).toString('hex'),
+          type: 'AFFILIATE_COMMISSION_AVAILABLE',
+          aggregateId: commission.id,
+          payload: {
+            commissionId: commission.id,
+            profileId: commission.profileId,
+            userId: (commission as any).profile?.userId,
+            orderId: commission.orderId,
+            orderItemId: commission.orderItemId,
+            bookTitle: commission.bookTitle,
+            amount: result.amount,
+            settledAt: result.settledAt,
+            ledgerTxId: result.ledgerTransactionId,
+          },
+        },
+      });
     }
 
     if (settled.length > 0) {
