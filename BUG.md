@@ -1873,6 +1873,49 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
   - Frontend `tsc --noEmit` + `eslint` + Vitest (**12/12 files, 76/76 tests PASS**, gồm [`apiClient.spec.ts`](file:///e:/HuKi/web/src/ui/api/apiClient.spec.ts#L165-L180)) + `next build` (142 routes): PASS.
 - **Trạng thái Git:** Đã commit & merge `--no-ff` vào nhánh `develop` local.
 
+---
+
+## 16. ĐỢT XỬ LÝ BUG-29, BUG-30, BUG-31, BUG-32 — NHÁNH `fix/flash-sale-format-and-seller-finance`
+
+> **Nhánh làm việc:** `fix/flash-sale-format-and-seller-finance` (khởi tạo từ `develop` `fc0ed59`)  
+> **Quy trình áp dụng:** [`readme-bug.md`](file:///e:/HuKi/readme-bug.md) (Bước 1 → Bước 12, phân chặng tối đa 3 bug / giai đoạn: **GĐ1: `BUG-29, BUG-30, BUG-31`** | **GĐ2: `BUG-32`**).
+
+### Bước 1: Thu thập & Chuẩn hóa Hồ sơ Lỗi (27/11/2026)
+
+| Mã Bug | Who / Where | Mô tả Expected vs Actual | Thực trạng kiểm chứng trong mã nguồn | Mức độ |
+| :--- | :--- | :--- | :--- | :--- |
+| **`BUG-29`** | `SELLER` / `PLATFORM_ADMIN`<br>[`SellerFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerFlashSaleView.tsx), [`seller/promotions/flash-sale/[id]/page.tsx`](file:///e:/HuKi/web/src/app/seller/promotions/flash-sale/%5Bid%5D/page.tsx), [`AdminFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminFlashSaleView.tsx) | **Expected:** Cột **ĐỊNH DẠNG** trong Studio đăng ký Flash Sale cho phép chọn (`<select>`) đúng định dạng áp dụng cho sách (đặc biệt sách `BOTH` gồm Sách giấy / Ebook / Combo), tính `Giá Gốc`, `Giá Flash Sale`, `Chống Giá Ảo` theo đúng định dạng đó; filter có đủ lựa chọn.<br>**Actual:** Cột **ĐỊNH DẠNG** gắn cứng badge tĩnh (`Hybrid (Cả 2)`, `Sách Giấy`, `Ebook DRM`), luôn lấy cứng `book.price`, payload không truyền `format`. Filter thiếu tùy chọn `BOTH`. | - [`StudioBookRow`](file:///e:/HuKi/web/src/ui/components/seller/SellerFlashSaleView.tsx#L283-L393)<br>- [`handleSubmitBatch`](file:///e:/HuKi/web/src/ui/components/seller/SellerFlashSaleView.tsx#L1426-L1434)<br>- [`bookFormatFilter`](file:///e:/HuKi/web/src/ui/components/seller/SellerFlashSaleView.tsx#L2677-L2685) | **High** |
+| **`BUG-30`** | `BUYER`<br>[`web/src/app/book/[id]/page.tsx`](file:///e:/HuKi/web/src/app/book/%5Bid%5D/page.tsx), Cart & Checkout | **Expected:** Trong mục **CHỌN HÌNH THỨC MUA**, chỉ hình thức nào được áp dụng Flash Sale mới hiện nhãn **`FLASH SALE`** và tính theo giá Flash Sale; bấm sang các hình thức khác giá phải quay về đúng giá của hình thức đó.<br>**Actual:** Danh sách hình thức mua không hiện nhãn `FLASH SALE`, còn Buy Box (`Tạm tính`), `handleAddToCart` và `handleBuyNow` lại gắn cứng `flashSaleInfo.salePrice` cho mọi `selectedFormat`. Backend `FlashSaleItem` chưa lưu `format` áp dụng nên Cart/Checkout cũng tính giá Flash Sale theo `bookId` bất kể định dạng. | - [`book/[id]/page.tsx`](file:///e:/HuKi/web/src/app/book/%5Bid%5D/page.tsx#L1195-L1220)<br>- [`book/[id]/page.tsx`](file:///e:/HuKi/web/src/app/book/%5Bid%5D/page.tsx#L1453-L1540)<br>- [`FlashSaleItem`](file:///e:/HuKi/platform/apps/promotion-service/prisma/schema.prisma#L267-L289)<br>- [`CartService.resolveBookPrice`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/cart/cart.service.ts#L509-L548)<br>- [`CheckoutService`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/checkout.service.ts#L170-L304) | **High** |
+| **`BUG-31`** | `SELLER`<br>[`web/src/app/seller/reports/page.tsx`](file:///e:/HuKi/web/src/app/seller/reports/page.tsx) | **Expected:** Trang `/seller/reports` giữ giao diện gọn 5 thẻ KPI + bộ lọc kỳ báo cáo, đẩy bảng kê đối soát lên ngay tầm mắt.<br>**Actual:** Cụm 2 biểu đồ (`Biểu Đồ Vòng Đời Dòng Tiền` & `Cơ Cấu Phương Thức Thanh Toán`) phía dưới lặp lại 100% số liệu của 5 thẻ KPI và hiển thị gây rối khi số dư bằng `0đ` (`Giải ngân 100%`). | - [`web/src/app/seller/reports/page.tsx`](file:///e:/HuKi/web/src/app/seller/reports/page.tsx#L602-L793) | **Medium** |
+| **`BUG-32`** | `SELLER`<br>[`web/src/app/seller/reports/page.tsx`](file:///e:/HuKi/web/src/app/seller/reports/page.tsx), [`web/src/app/seller/finance/page.tsx`](file:///e:/HuKi/web/src/app/seller/finance/page.tsx), [`WalletService`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/wallet/wallet.service.ts), [`SettlementService`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/settlement.service.ts) | **Expected:** Tách rạch ròi vai trò (hoặc hợp nhất hợp lý) giữa `/seller/reports` và `/seller/finance` tránh trùng lặp bảng; nhật ký `Sổ Cái Biến Động Ví` ghi log tiếng Việt đồng nhất, không trùng dòng, đúng nhãn loại biến động và đúng số dư `Trước / Sau`.<br>**Actual:** Hai trang lặp lại gần như nguyên vẹn 3 tab bảng; Sổ cái ví bị ghi kép log tiếng Anh theo sub-order (`Pending revenue credited...` / `Escrow released...`) + log backfill tiếng Việt theo từng item (`Chờ hạn đổi trả 2 phút`); UI gom cả `MOVE_PENDING_TO_AVAILABLE` & `CREDIT_PENDING` vào nhãn `Chuyển Quỹ Ký Quỹ`; số `Khả Dụng Trước/Sau` nhảy giữa nhiều `walletIds`. | - [`SettlementService`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/settlement.service.ts#L487-L768)<br>- [`WalletService.getStoreTransactions`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/wallet/wallet.service.ts#L342-L485)<br>- [`reports/page.tsx`](file:///e:/HuKi/web/src/app/seller/reports/page.tsx#L886-L937) | **High** |
+
+---
+
+### Bước 2: Phân tích Nguyên nhân Gốc rễ (4 Tầng) & Ma trận Rủi ro Domino
+
+#### Giai đoạn 1 (`BUG-29`, `BUG-30`, `BUG-31`)
+1. **Tầng 1 – Database (`promotion_db` & `commerce_db`):**
+   - `FlashSaleItem` ([`schema.prisma`](file:///e:/HuKi/platform/apps/promotion-service/prisma/schema.prisma#L267-L289)) thiếu cột lưu định dạng áp dụng Flash Sale (`format` / `targetFormat`: `PHYSICAL` | `DIGITAL` | `BOTH`).
+   - Giá theo từng định dạng của sách `BOTH` (`pricePaper`, `priceEbook`, `priceCombo`) hiện lưu trong JSON `physicalDetails.dimensions` ở `commerce_db` ([`books.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/books.service.ts#L416-L418)).
+2. **Tầng 2 – Backend Services:**
+   - [`FlashSalesService.sellerRegisterItem`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/flash-sales/flash-sales.service.ts#L1927-L1942) luôn lấy `Number(book.price)` thay vì phân giải giá gốc theo định dạng được chọn (`pricePaper` / `priceEbook` / `price`).
+   - [`getBookFlashSalePrice`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/flash-sales/flash-sales.service.ts#L857-L864), [`validateUserQuota`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/flash-sales/flash-sales.service.ts#L866-L925), [`CartService.resolveBookPrice`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/cart/cart.service.ts#L509-L548) và [`CheckoutService`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/checkout.service.ts#L170-L304) đều đối chiếu Flash Sale theo `bookId` thuần túy, không kiểm tra định dạng mua.
+3. **Tầng 3 – Gateway & API Contract:**
+   - DTO đăng ký Flash Sale ([`flash-sale.dto.ts`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/flash-sales/dto/flash-sale.dto.ts#L257-L299)) và `validate-quota` / `price/:bookId` thiếu trường `format` (`targetFormat`).
+4. **Tầng 4 – Frontend Client:**
+   - [`SellerFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerFlashSaleView.tsx#L376-L393) render cột `ĐỊNH DẠNG` tĩnh; [`book/[id]/page.tsx`](file:///e:/HuKi/web/src/app/book/%5Bid%5D/page.tsx#L1453-L1540) gắn cứng `flashSaleInfo.salePrice` cho mọi `selectedFormat` và không gắn badge `FLASH SALE` riêng lên lựa chọn tương ứng; [`seller/reports/page.tsx`](file:///e:/HuKi/web/src/app/seller/reports/page.tsx#L602-L793) render 2 khối biểu đồ trùng lặp với 5 thẻ KPI.
+5. **Ma trận Rủi ro Domino (GĐ1):**
+   - Sửa `FlashSaleItem` cần đồng bộ: Schema/Migration `promotion-service` → `SellerFlashSaleView` / `seller/promotions/flash-sale/[id]` / `AdminFlashSaleView` → `book/[id]` → `/flash-sale` & `BookCard` → `CartService` & `CheckoutService` (tránh lệch giá giữa Detail và Checkout).
+
+#### Giai đoạn 2 (`BUG-32`)
+1. **Nguyên nhân gốc rễ:**
+   - **Trùng route & bảng UI:** `/seller/reports` và `/seller/finance` cùng render `SellerGroupedOrderTable`, `SellerPayoutGroupedTable` và bảng `WalletTransaction`.
+   - **Ghi log kép & lệch ví:** `SettlementService` ghi `WalletTransaction` tiếng Anh theo `referenceId = sellerOrder.id` (`ORDER_PAYMENT`, `SETTLEMENT`), trong khi `WalletService.getStoreTransactions` backfill theo `referenceId = item.id` (`ORDER_ITEM`) trên tập `walletIds` nhiều ví (khiến số dư `availableBefore` / `availableAfter` nhảy qua lại giữa các ví và lặp log).
+   - **Sai nhãn UI:** `reports/page.tsx` chưa tách nhãn riêng cho `CREDIT_PENDING` (*Tạm giữ ký quỹ*) và `MOVE_PENDING_TO_AVAILABLE` (*+ Giải ngân vào ví*).
+2. **Ma trận Rủi ro Domino (GĐ2):**
+   - Chuẩn hóa log ví cần rà soát kỹ luồng idempotency của `SettlementService` (`referenceType: 'ORDER_PAYMENT' / 'SETTLEMENT'`) để không làm hỏng đối soát Escrow/Payout hay gây ghi trùng lịch sử cũ trên DB UAT.
+
+
 
 
 
