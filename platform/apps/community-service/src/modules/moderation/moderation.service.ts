@@ -20,6 +20,7 @@ import { NotificationGateway } from '../notifications/notification.gateway';
 import { NotificationDeliveryService } from '../notifications/notification-delivery.service';
 import {
   BookModerationActionDto,
+  BookUnlockAppealDto,
   CreateBookReportDto,
   CreateReportDto,
   ModerateContentDto,
@@ -177,6 +178,7 @@ export class ModerationService {
           format: dto.format,
           price: dto.price,
           evidenceUrl: dto.evidenceUrl,
+          evidenceImages: Array.isArray(dto.evidenceImages) ? dto.evidenceImages : [],
           reporterName: dto.reporterName || actor?.fullName || actor?.email || 'Độc giả HuKi',
           reporterEmail: dto.reporterEmail || actor?.email,
         },
@@ -259,6 +261,7 @@ export class ModerationService {
         reason: r.reason,
         description: r.description,
         evidenceUrl: meta.evidenceUrl,
+        evidenceImages: Array.isArray(meta.evidenceImages) ? meta.evidenceImages : [],
         createdAt: (r as any).createdAt ? new Date((r as any).createdAt).toISOString() : new Date().toISOString(),
       };
 
@@ -279,6 +282,7 @@ export class ModerationService {
           totalReports: 0,
           reasons: [] as { reason: string; count: number }[],
           reports: [] as typeof singleReport[],
+          sellerAppeal: meta.sellerAppeal || undefined,
           status: r.status === 'RESOLVED' ? (r.action === 'NONE' ? 'DISMISSED' : 'BLOCKED') : r.status === 'DISMISSED' ? 'DISMISSED' : 'PENDING_REVIEW',
           actionTaken: r.action || 'NONE',
           actionNote: r.resolutionNote,
@@ -290,6 +294,9 @@ export class ModerationService {
       }
 
       const bookEntry = grouped.get(bId)!;
+      if (meta.sellerAppeal && (!bookEntry.sellerAppeal || new Date(meta.sellerAppeal.submittedAt || 0).getTime() > new Date(bookEntry.sellerAppeal.submittedAt || 0).getTime())) {
+        bookEntry.sellerAppeal = meta.sellerAppeal;
+      }
       bookEntry.reports.push(singleReport);
       bookEntry.totalReports = bookEntry.reports.length;
       if (new Date(singleReport.createdAt).getTime() > new Date(bookEntry.lastReportedAt).getTime()) {
@@ -344,44 +351,68 @@ export class ModerationService {
     const action: ModerationAction = dto.action === 'BLOCK' ? 'DELETE' : dto.action === 'DISMISS' ? 'NONE' : 'NONE';
     const resolvedAt = new Date();
 
+    const updateSet: Record<string, any> = {
+      status: dto.action === 'UNBLOCK' ? 'DISMISSED' : terminalStatus,
+      action,
+      resolutionNote: dto.note || `Moderated to ${dto.action}`,
+      reviewedBy: actor.sub,
+      reviewedAt: resolvedAt,
+      resolvedBy: actor.sub,
+      resolvedAt,
+    };
+
+    if (dto.action === 'UNBLOCK') {
+      updateSet['metadata.sellerAppeal.status'] = 'APPROVED';
+      updateSet['metadata.sellerAppeal.reviewedAt'] = resolvedAt.toISOString();
+    }
+
     const updateRes = await this.reports.updateMany(
       { targetType: 'BOOK', targetId: bookId },
-      {
-        $set: {
-          status: dto.action === 'UNBLOCK' ? 'PENDING' : terminalStatus,
-          action,
-          resolutionNote: dto.note || `Moderated to ${dto.action}`,
-          reviewedBy: actor.sub,
-          reviewedAt: resolvedAt,
-          resolvedBy: actor.sub,
-          resolvedAt,
-        },
-      },
+      { $set: updateSet },
     );
 
-    // Deliver notification to Seller if requested
-    if (dto.notifySeller && dto.action === 'BLOCK') {
+    // Deliver notification to Seller if requested (single authoritative notification)
+    if (dto.notifySeller !== false && (dto.action === 'BLOCK' || dto.action === 'UNBLOCK')) {
       const firstReport = await this.reports.findOne({ targetType: 'BOOK', targetId: bookId }).lean();
       const sellerId = firstReport?.targetAuthorId || (firstReport as any)?.metadata?.sellerId;
       const bookTitle = (firstReport as any)?.metadata?.bookTitle || 'Tác phẩm sách';
 
       if (sellerId && this.notificationDelivery) {
-        void this.notificationDelivery.deliver({
-          sourceKey: `book.blocked:${bookId}:${Date.now()}`,
-          recipientId: sellerId,
-          recipientType: 'BUSINESS',
-          type: 'WATCHDOG_ALERT' as any,
-          priority: 'CRITICAL',
-          title: 'Tác phẩm đã bị tạm khóa lưu hành',
-          message: `Tác phẩm "${bookTitle}" đã bị Ban Quản Trị khóa do vi phạm tiêu chuẩn: ${dto.note || 'Vi phạm chính sách sàn'}. Vui lòng liên hệ hỗ trợ hoặc gửi giải trình.`,
-          actionUrl: `/seller/products?tab=SUSPENDED&search=${encodeURIComponent(bookTitle)}`,
-          payload: {
-            bookId,
-            bookTitle,
-            action: 'BLOCK',
-            note: dto.note,
-          },
-        }).catch(() => null);
+        if (dto.action === 'BLOCK') {
+          void this.notificationDelivery.deliver({
+            sourceKey: `book.blocked:${bookId}:${Date.now()}`,
+            recipientId: sellerId,
+            recipientType: 'BUSINESS',
+            type: 'WATCHDOG_ALERT' as any,
+            priority: 'CRITICAL',
+            title: `[CẢNH BÁO VI PHẠM] Sách "${bookTitle}" đã bị tạm khóa`,
+            message: `Tác phẩm "${bookTitle}" đã bị Ban Quản Trị tạm khóa lưu hành do: ${dto.note || 'Vi phạm chính sách sàn'}. Vui lòng chỉnh sửa thông tin và gửi yêu cầu mở khóa.`,
+            actionUrl: '/seller/products?tab=SUSPENDED',
+            payload: {
+              bookId,
+              bookTitle,
+              action: 'BLOCK',
+              note: dto.note,
+            },
+          }).catch(() => null);
+        } else {
+          void this.notificationDelivery.deliver({
+            sourceKey: `book.unblocked:${bookId}:${Date.now()}`,
+            recipientId: sellerId,
+            recipientType: 'BUSINESS',
+            type: 'WATCHDOG_ALERT' as any,
+            priority: 'NORMAL',
+            title: `[ĐÃ MỞ KHÓA] Sách "${bookTitle}" đã được khôi phục lưu hành`,
+            message: `Ban Quản Trị đã duyệt mở khóa cho tác phẩm "${bookTitle}". Gian hàng có thể tiếp tục kinh doanh bình thường.`,
+            actionUrl: '/seller/products?tab=PUBLISHED',
+            payload: {
+              bookId,
+              bookTitle,
+              action: 'UNBLOCK',
+              note: dto.note,
+            },
+          }).catch(() => null);
+        }
       }
     }
 
@@ -397,6 +428,84 @@ export class ModerationService {
       bookId,
       action: dto.action,
       updatedCount: updateRes.modifiedCount,
+    };
+  }
+
+  async appealBookUnlock(
+    actor: CommunityActor,
+    bookId: string,
+    dto: BookUnlockAppealDto,
+  ) {
+    const nowIso = new Date().toISOString();
+    const appealPayload = {
+      message: dto.message.trim(),
+      evidenceImages: Array.isArray(dto.evidenceImages) ? dto.evidenceImages : [],
+      sellerId: actor.sub,
+      sellerName: dto.sellerName || actor.fullName || actor.email || 'Gian hàng đối tác',
+      submittedAt: nowIso,
+      status: 'PENDING_UNLOCK',
+    };
+
+    const existing = await this.reports.findOne({ targetType: 'BOOK', targetId: bookId }).lean();
+    if (existing) {
+      await this.reports.updateMany(
+        { targetType: 'BOOK', targetId: bookId },
+        { $set: { 'metadata.sellerAppeal': appealPayload } },
+      );
+    } else {
+      await this.reports.create({
+        reporterId: `appeal_${actor.sub}_${Date.now()}`,
+        targetType: 'BOOK',
+        targetId: bookId,
+        targetAuthorId: actor.sub,
+        reason: 'OTHER',
+        description: dto.message.trim(),
+        detectionSource: 'USER_REPORT',
+        violationCategory: 'OTHER',
+        matchedKeywords: [],
+        status: 'RESOLVED',
+        action: 'DELETE',
+        metadata: {
+          bookTitle: dto.bookTitle || 'Tác phẩm sách',
+          sellerId: actor.sub,
+          sellerName: appealPayload.sellerName,
+          sellerAppeal: appealPayload,
+        },
+      });
+    }
+
+    const bookTitle = dto.bookTitle || (existing as any)?.metadata?.bookTitle || 'Tác phẩm sách';
+
+    if (this.notificationDelivery) {
+      void this.notificationDelivery.deliver({
+        sourceKey: `book.appeal:${bookId}:${Date.now()}`,
+        recipientId: 'admin_channel',
+        recipientType: 'ADMIN',
+        type: 'WATCHDOG_ALERT' as any,
+        priority: 'HIGH',
+        title: 'Shop gửi giải trình & yêu cầu mở khóa sách',
+        message: `Gian hàng "${appealPayload.sellerName}" đã chỉnh sửa và gửi yêu cầu mở khóa cho sách "${bookTitle}": ${dto.message.trim()}`,
+        actionUrl: '/admin/book-moderation',
+        payload: {
+          bookId,
+          bookTitle,
+          sellerName: appealPayload.sellerName,
+          appealMessage: dto.message.trim(),
+        },
+      }).catch(() => null);
+    }
+
+    this.gateway?.emitAdminModerationEvent?.('book:appealed', {
+      bookId,
+      bookTitle,
+      sellerAppeal: appealPayload,
+      timestamp: nowIso,
+    });
+
+    return {
+      success: true,
+      bookId,
+      sellerAppeal: appealPayload,
     };
   }
 

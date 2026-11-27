@@ -8,7 +8,6 @@
  */
 
 import { realtimeSyncBus } from './realtimeSyncBus';
-import { adminNotificationService } from './adminNotificationService';
 import { catalogApi } from '../api/catalogApi';
 import { moderationApi } from '../api/moderationApi';
 
@@ -63,7 +62,18 @@ export interface SingleBookReport {
   reason: BookReportReason;
   description: string;
   evidenceUrl?: string;
+  evidenceImages?: string[];
   createdAt: string;
+}
+
+export interface SellerBookAppeal {
+  message: string;
+  evidenceImages?: string[];
+  sellerId?: string;
+  sellerName?: string;
+  submittedAt: string;
+  status: 'PENDING_UNLOCK' | 'APPROVED' | 'REJECTED';
+  reviewedAt?: string;
 }
 
 export interface ReportedBook {
@@ -83,6 +93,7 @@ export interface ReportedBook {
   totalReports: number;
   reasons: { reason: BookReportReason; count: number }[];
   reports: SingleBookReport[];
+  sellerAppeal?: SellerBookAppeal;
   status: BookModerationStatus;
   actionTaken?: 'BLOCK' | 'DISMISS' | 'UNBLOCK' | 'NONE';
   actionNote?: string;
@@ -233,6 +244,7 @@ class BookModerationService {
     reason: BookReportReason;
     description: string;
     evidenceUrl?: string;
+    evidenceImages: string[];
   }): Promise<{ success: boolean; reportId: string; totalReports: number }> {
     // 1. Gửi lên Backend API thật
     try {
@@ -240,6 +252,7 @@ class BookModerationService {
         reason: payload.reason,
         description: payload.description,
         evidenceUrl: payload.evidenceUrl,
+        evidenceImages: payload.evidenceImages,
         bookTitle: payload.bookTitle,
         bookCover: payload.bookCover,
         author: payload.author,
@@ -269,6 +282,7 @@ class BookModerationService {
       reason: payload.reason,
       description: payload.description.trim(),
       evidenceUrl: payload.evidenceUrl,
+      evidenceImages: payload.evidenceImages,
       createdAt: nowIso,
     };
 
@@ -407,37 +421,11 @@ class BookModerationService {
     if (payload.action === 'BLOCK') {
       updatedStatus = 'BLOCKED';
 
-      // 1. Đồng bộ trạng thái sách sang SUSPENDED trên Catalog
+      // Đồng bộ trạng thái sách sang SUSPENDED trên Catalog (Thông báo do Backend moderation.service.ts phát 1 bản duy nhất)
       try {
         await catalogApi.updateBook(current.bookId, { status: 'SUSPENDED' });
       } catch (err) {
         console.warn('[BookModerationService] Không thể gọi catalogApi để khóa sách:', err);
-      }
-
-      // 2. Tự động bắn thông báo vi phạm về cho Shop (Seller)
-      if (payload.notifySeller !== false) {
-        try {
-          const reasonTitle = payload.reasonText || 'Vi phạm tiêu chuẩn cộng đồng & bản quyền sách';
-          await adminNotificationService.createNotification({
-            title: `[CẢNH BÁO VI PHẠM] Sách "${current.title}" đã bị khóa trên sàn`,
-            summary: `Sách "${current.title}" nhận được phản ánh từ độc giả và đã bị Ban Quản Trị tạm khóa do: ${reasonTitle}.`,
-            content: `Kính gửi gian hàng ${current.sellerName},\n\nTác phẩm "${current.title}" (ISBN: ${current.isbn}) của quý đối tác đã bị tạm khóa phát hành và ẩn khỏi sàn HuKi kể từ ${new Date().toLocaleString('vi-VN')}.\n\nLý do xử lý: ${reasonTitle}\nGhi chú từ Ban Quản Trị: ${payload.note || 'Không có ghi chú thêm.'}\n\nĐể khiếu nại hoặc bổ sung giấy phép bản quyền hợp lệ, vui lòng truy cập mục Hỗ trợ & Khiếu nại hoặc phản hồi lại thông báo này.`,
-            category: 'POLICY',
-            severity: 'CRITICAL',
-            targetRole: 'SELLER',
-            targetType: 'DIRECT',
-            targetBusinessIds: [current.sellerId],
-            targetBusinessNames: [current.sellerName],
-            channels: ['TOP_BAR', 'BELL', 'MODAL'],
-            scheduleType: 'INSTANT',
-            status: 'ACTIVE',
-            authorName: 'Ban Quản Trị HUKI',
-            actionUrl: `/seller/products?tab=SUSPENDED&search=${encodeURIComponent(current.title || current.isbn || '')}`,
-            actionLabel: 'Kiểm Tra Gian Hàng',
-          });
-        } catch (err) {
-          console.warn('[BookModerationService] Lỗi khi bắn thông báo cho Seller:', err);
-        }
       }
     } else if (payload.action === 'DISMISS') {
       updatedStatus = 'DISMISSED';
@@ -446,36 +434,11 @@ class BookModerationService {
       updatedStatus = 'DISMISSED';
       actionTaken = 'UNBLOCK';
 
-      // Khôi phục trạng thái PUBLISHED cho sách
+      // Khôi phục trạng thái PUBLISHED cho sách (Thông báo do Backend moderation.service.ts phát 1 bản duy nhất)
       try {
         await catalogApi.updateBook(current.bookId, { status: 'PUBLISHED' });
       } catch (err) {
         console.warn('[BookModerationService] Lỗi khi khôi phục sách:', err);
-      }
-
-      // Bắn thông báo khôi phục cho Shop
-      if (payload.notifySeller !== false) {
-        try {
-          await adminNotificationService.createNotification({
-            title: `[THÔNG BÁO] Sách "${current.title}" đã được mở khóa hoạt động lại`,
-            summary: `Ban Quản Trị đã rà soát và kích hoạt lại sách "${current.title}" của gian hàng.`,
-            content: `Kính gửi gian hàng ${current.sellerName},\n\nTác phẩm "${current.title}" đã được xác minh hồ sơ và mở khóa lưu hành bình thường trên sàn HuKi. Quý đối tác có thể tiếp tục kinh doanh.`,
-            category: 'POLICY',
-            severity: 'INFO',
-            targetRole: 'SELLER',
-            targetType: 'DIRECT',
-            targetBusinessIds: [current.sellerId],
-            targetBusinessNames: [current.sellerName],
-            channels: ['BELL'],
-            scheduleType: 'INSTANT',
-            status: 'ACTIVE',
-            authorName: 'Ban Quản Trị HUKI',
-            actionUrl: `/book/${current.bookId}`,
-            actionLabel: 'Xem Sách Trên Sàn',
-          });
-        } catch (err) {
-          console.warn('[BookModerationService] Lỗi khi gửi thông báo mở khóa:', err);
-        }
       }
     }
 
@@ -508,6 +471,45 @@ class BookModerationService {
     }
 
     return { success: true, book: updatedBook };
+  }
+
+  /**
+   * Gian hàng gửi giải trình & yêu cầu mở khóa sách bị tạm khóa
+   */
+  async appealBookUnlock(payload: {
+    bookId: string;
+    message: string;
+    evidenceImages?: string[];
+    bookTitle?: string;
+    sellerName?: string;
+  }): Promise<{ success: boolean; sellerAppeal: SellerBookAppeal }> {
+    const res = await moderationApi.appealBookUnlock(payload.bookId, {
+      message: payload.message,
+      evidenceImages: payload.evidenceImages,
+      bookTitle: payload.bookTitle,
+      sellerName: payload.sellerName,
+    });
+
+    const sellerAppeal: SellerBookAppeal = res?.data?.sellerAppeal || {
+      message: payload.message.trim(),
+      evidenceImages: payload.evidenceImages || [],
+      sellerName: payload.sellerName,
+      submittedAt: new Date().toISOString(),
+      status: 'PENDING_UNLOCK',
+    };
+
+    this.invalidateCache();
+    realtimeSyncBus.publish(
+      'BOOK_APPEALED',
+      {
+        bookId: payload.bookId,
+        bookTitle: payload.bookTitle,
+        sellerAppeal,
+      },
+      { roles: ['ADMIN', 'ADMIN_CON', 'ALL'] }
+    );
+
+    return { success: true, sellerAppeal };
   }
 
   /**

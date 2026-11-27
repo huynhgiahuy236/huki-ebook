@@ -122,6 +122,20 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           });
         }
       }
+      if (event.type === 'BOOK_APPEALED') {
+        fetchNavStats();
+        if (pathname !== '/admin/book-moderation') {
+          playRoleNotificationChime('ADMIN');
+          const p = event.payload as any;
+          showToast({
+            title: 'Shop yêu cầu mở khóa sách',
+            message: `Gian hàng vừa gửi giải trình mở khóa cho sách: ${p?.bookTitle || 'Tác phẩm'}`,
+            type: 'info',
+            actionUrl: '/admin/book-moderation',
+            actionLabel: 'Xem & Duyệt',
+          });
+        }
+      }
       if (event.type === 'BOOK_REVIEWED') {
         playRoleNotificationChime('ADMIN');
         const p = event.payload as any;

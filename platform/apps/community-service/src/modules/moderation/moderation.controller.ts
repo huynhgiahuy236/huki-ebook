@@ -29,6 +29,7 @@ import {
 import { CurrentCommunityActor } from '../../common/current-community-actor.decorator';
 import {
   BookModerationActionDto,
+  BookUnlockAppealDto,
   CreateBookReportDto,
   CreateReportDto,
   ModerateContentDto,
@@ -87,6 +88,19 @@ export class ContentReportsController {
     @Body() dto: CreateBookReportDto,
   ) {
     return this.moderation.reportBook(actor, id, dto);
+  }
+
+  @Post('books/:id/appeal')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedCommunityGuard)
+  @ApiOperation({ summary: 'Seller submits explanation / unlock request for a suspended book' })
+  @ApiResponse({ status: 201, description: 'Book unlock appeal submitted' })
+  appealBookUnlock(
+    @CurrentCommunityActor() actor: CommunityActor,
+    @Param('id') id: string,
+    @Body() dto: BookUnlockAppealDto,
+  ) {
+    return this.moderation.appealBookUnlock(actor, id, dto);
   }
 }
 

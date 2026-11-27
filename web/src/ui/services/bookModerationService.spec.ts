@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { bookModerationService } from './bookModerationService';
 import { realtimeSyncBus } from './realtimeSyncBus';
-import { adminNotificationService } from './adminNotificationService';
+import { moderationApi } from '../api/moderationApi';
 
 describe('BookModerationService - Post-moderation Flow', () => {
   beforeEach(() => {
@@ -27,6 +27,7 @@ describe('BookModerationService - Post-moderation Flow', () => {
       reporterName: 'Độc Giả Test',
       reason: 'COPYRIGHT',
       description: 'Phát hiện tác phẩm scan lậu và vi phạm bản quyền phát hành.',
+      evidenceImages: ['data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='],
     });
 
     expect(res.success).toBe(true);
@@ -48,7 +49,7 @@ describe('BookModerationService - Post-moderation Flow', () => {
   });
 
   it('3. should allow Admin to BLOCK a reported book and dispatch notification to Seller', async () => {
-    const notifSpy = vi.spyOn(adminNotificationService, 'createNotification');
+    const modApiSpy = vi.spyOn(moderationApi, 'moderateBook').mockResolvedValue({ success: true, data: {} } as any);
     const publishSpy = vi.spyOn(realtimeSyncBus, 'publish');
 
     const res = await bookModerationService.moderateBook({
@@ -61,13 +62,11 @@ describe('BookModerationService - Post-moderation Flow', () => {
 
     expect(res.success).toBe(true);
     expect(res.book.status).toBe('BLOCKED');
-    expect(notifSpy).toHaveBeenCalledWith(
+    expect(modApiSpy).toHaveBeenCalledWith(
+      'test-book-999',
       expect.objectContaining({
-        category: 'POLICY',
-        severity: 'CRITICAL',
-        targetRole: 'SELLER',
-        targetType: 'DIRECT',
-        targetBusinessIds: ['biz-seller-999'],
+        action: 'BLOCK',
+        notifySeller: true,
       })
     );
     expect(publishSpy).toHaveBeenCalledWith(
@@ -93,7 +92,7 @@ describe('BookModerationService - Post-moderation Flow', () => {
   });
 
   it('5. should allow Admin to UNBLOCK a book and notify seller upon resolution', async () => {
-    const notifSpy = vi.spyOn(adminNotificationService, 'createNotification');
+    const modApiSpy = vi.spyOn(moderationApi, 'moderateBook').mockResolvedValue({ success: true, data: {} } as any);
 
     const res = await bookModerationService.moderateBook({
       bookId: 'test-book-999',
@@ -104,11 +103,11 @@ describe('BookModerationService - Post-moderation Flow', () => {
 
     expect(res.success).toBe(true);
     expect(res.book.actionTaken).toBe('UNBLOCK');
-    expect(notifSpy).toHaveBeenCalledWith(
+    expect(modApiSpy).toHaveBeenCalledWith(
+      'test-book-999',
       expect.objectContaining({
-        category: 'POLICY',
-        severity: 'INFO',
-        targetRole: 'SELLER',
+        action: 'UNBLOCK',
+        notifySeller: true,
       })
     );
   });

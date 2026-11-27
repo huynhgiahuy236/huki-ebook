@@ -361,8 +361,8 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     const nestedMatch = path.match(/^\/(?:api\/v1\/)?[^/]+\/[^/?]+\/([^/?]+)/);
     const secondNestedSegment = nestedMatch ? nestedMatch[1] : null;
 
-    // Route /books/:id/reviews or /books/:id/report → community
-    if (secondNestedSegment === 'reviews' || secondNestedSegment === 'report') {
+    // Route /books/:id/reviews, /books/:id/report, or /books/:id/appeal → community
+    if (secondNestedSegment === 'reviews' || secondNestedSegment === 'report' || secondNestedSegment === 'appeal') {
       return 'community';
     }
 

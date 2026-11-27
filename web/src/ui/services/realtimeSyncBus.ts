@@ -42,6 +42,7 @@ export type SyncEventType =
   | 'NOTIFICATIONS_UPDATED'
   | 'BOOK_REPORTED'
   | 'BOOK_MODERATED'
+  | 'BOOK_APPEALED'
   | 'BOOK_REVIEWED'
   | 'NOTIFICATION_READ'
   | 'NOTIFICATION_DISMISSED'
@@ -257,6 +258,7 @@ export function getDefaultRolesForEventType(type: SyncEventType): NotificationRo
       return ['BUYER', 'SELLER', 'SHIPPER'];
 
     case 'BOOK_REPORTED':
+    case 'BOOK_APPEALED':
       return ['ADMIN', 'ADMIN_CON', 'ALL'];
 
     case 'BOOK_MODERATED':

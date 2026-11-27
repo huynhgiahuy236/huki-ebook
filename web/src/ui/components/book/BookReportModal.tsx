@@ -34,15 +34,56 @@ export default function BookReportModal({ isOpen, onClose, book }: BookReportMod
   const [selectedReason, setSelectedReason] = useState<BookReportReason>('COPYRIGHT');
   const [description, setDescription] = useState('');
   const [evidenceUrl, setEvidenceUrl] = useState('');
+  const [evidenceImages, setEvidenceImages] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   if (!isOpen) return null;
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (evidenceImages.length + files.length > 5) {
+      setErrorMsg('Chỉ được tải lên tối đa 5 ảnh minh chứng.');
+      return;
+    }
+
+    setErrorMsg('');
+    for (const file of Array.from(files)) {
+      if (file.size > 5 * 1024 * 1024) {
+        setErrorMsg(`Ảnh "${file.name}" vượt quá dung lượng tối đa 5MB.`);
+        continue;
+      }
+      if (!file.type.startsWith('image/')) {
+        setErrorMsg(`Tập tin "${file.name}" không phải định dạng ảnh hợp lệ.`);
+        continue;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        const result = uploadEvent.target?.result as string;
+        if (result) {
+          setEvidenceImages((prev) => (prev.length < 5 ? [...prev, result] : prev));
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+    e.target.value = '';
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setEvidenceImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!description.trim() || description.trim().length < 10) {
       setErrorMsg('Vui lòng nhập mô tả chi tiết vi phạm ít nhất 10 ký tự để BQT có căn cứ xác minh.');
+      return;
+    }
+    if (evidenceImages.length === 0) {
+      setErrorMsg('Vui lòng tải lên ít nhất 1 hình ảnh minh chứng rõ ràng để Ban Quản Trị có căn cứ xử lý.');
       return;
     }
 
@@ -67,6 +108,7 @@ export default function BookReportModal({ isOpen, onClose, book }: BookReportMod
         reason: selectedReason,
         description: description.trim(),
         evidenceUrl: evidenceUrl.trim() || undefined,
+        evidenceImages,
       });
 
       showToast({
@@ -77,6 +119,7 @@ export default function BookReportModal({ isOpen, onClose, book }: BookReportMod
 
       setDescription('');
       setEvidenceUrl('');
+      setEvidenceImages([]);
       onClose();
     } catch (err: any) {
       setErrorMsg(err.message || 'Không thể gửi báo cáo lúc này, vui lòng thử lại sau.');
@@ -219,6 +262,51 @@ export default function BookReportModal({ isOpen, onClose, book }: BookReportMod
             </div>
           </div>
 
+          {/* Required Evidence Images (matching return-request UX) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block font-semibold text-slate-800 text-xs">
+                Hình Ảnh Minh Chứng Rõ Ràng <span className="text-rose-500">*</span>
+              </label>
+              <span className={`text-[11px] font-semibold ${evidenceImages.length > 0 ? 'text-[#00875A]' : 'text-rose-600'}`}>
+                {evidenceImages.length}/5 ảnh (bắt buộc tối thiểu 1 ảnh)
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              {evidenceImages.map((img, idx) => (
+                <div key={idx} className="relative w-20 h-20 rounded-xl overflow-hidden border border-slate-200 shadow-2xs group">
+                  <img src={img} alt={`Minh chứng ${idx + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveImage(idx)}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 hover:bg-rose-600 text-white flex items-center justify-center text-[12px] cursor-pointer transition-colors"
+                    title="Xóa ảnh"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">close</span>
+                  </button>
+                </div>
+              ))}
+
+              {evidenceImages.length < 5 && (
+                <label className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 hover:border-[#00875A] bg-slate-50 hover:bg-emerald-50/40 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors text-slate-500 hover:text-[#00875A]">
+                  <span className="material-symbols-outlined text-[22px]">add_photo_alternate</span>
+                  <span className="text-[10px] font-semibold">Tải ảnh lên</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                </label>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Chụp ảnh trang sách lỗi, trang in lậu, nội dung vi phạm hoặc bằng chứng đối chiếu (PNG, JPG, WEBP tối đa 5MB/ảnh).
+            </p>
+          </div>
+
           {/* Optional Evidence URL */}
           <div className="space-y-1.5">
             <label className="block font-semibold text-slate-700 text-xs">
@@ -253,7 +341,7 @@ export default function BookReportModal({ isOpen, onClose, book }: BookReportMod
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || description.trim().length < 10}
+              disabled={isSubmitting || description.trim().length < 10 || evidenceImages.length === 0}
               className="bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-xl font-bold text-xs transition-all shadow-sm hover:shadow active:scale-98 inline-flex items-center gap-2 cursor-pointer"
             >
               {isSubmitting ? (

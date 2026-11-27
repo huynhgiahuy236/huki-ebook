@@ -393,6 +393,10 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
       realtimeSyncBus.publish('BOOK_MODERATED' as any, evt);
     });
 
+    socket.on('book:appealed', (evt: any) => {
+      realtimeSyncBus.publish('BOOK_APPEALED' as any, evt);
+    });
+
     socket.on('moderation:resolved', (evt: any) => {
       realtimeSyncBus.publish('MODERATION_UPDATED' as any, evt);
     });

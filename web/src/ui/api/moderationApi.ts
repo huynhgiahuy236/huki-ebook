@@ -194,6 +194,7 @@ export const moderationApi = {
       reason: string;
       description: string;
       evidenceUrl?: string;
+      evidenceImages: string[];
       bookTitle?: string;
       bookCover?: string;
       author?: string;
@@ -208,6 +209,24 @@ export const moderationApi = {
     }
   ): Promise<ApiResponse<any>> {
     return apiClient<any>(`/books/${encodeURIComponent(bookId)}/report`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Seller submits explanation / unlock request for a suspended book
+   */
+  async appealBookUnlock(
+    bookId: string,
+    payload: {
+      message: string;
+      evidenceImages?: string[];
+      bookTitle?: string;
+      sellerName?: string;
+    }
+  ): Promise<ApiResponse<any>> {
+    return apiClient<any>(`/books/${encodeURIComponent(bookId)}/appeal`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });

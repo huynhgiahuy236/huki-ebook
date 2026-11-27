@@ -1,6 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsIn,
   IsInt,
   IsMongoId,
@@ -50,6 +53,13 @@ export class CreateBookReportDto {
   @IsOptional()
   @IsString()
   evidenceUrl?: string;
+
+  @ApiProperty({ type: [String], description: 'Hình ảnh minh chứng vi phạm (bắt buộc ít nhất 1 ảnh)' })
+  @IsArray()
+  @ArrayMinSize(1, { message: 'Vui lòng đính kèm ít nhất 1 hình ảnh minh chứng rõ ràng.' })
+  @ArrayMaxSize(5)
+  @IsString({ each: true })
+  evidenceImages!: string[];
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -120,6 +130,30 @@ export class BookModerationActionDto {
   @ApiPropertyOptional()
   @IsOptional()
   notifySeller?: boolean;
+}
+
+export class BookUnlockAppealDto {
+  @ApiProperty({ minLength: 10, maxLength: 2_000 })
+  @IsString()
+  @Length(10, 2_000)
+  message!: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @IsString({ each: true })
+  evidenceImages?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bookTitle?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  sellerName?: string;
 }
 
 export class ModerationIdParamDto {

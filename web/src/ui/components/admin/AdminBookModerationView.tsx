@@ -35,6 +35,7 @@ export function AdminBookModerationView() {
   const [adminNote, setAdminNote] = useState('');
   const [notifySeller, setNotifySeller] = useState(true);
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
   // Load Data
   const loadData = useCallback(async (silent = false) => {
@@ -79,6 +80,7 @@ export function AdminBookModerationView() {
       if (
         event.type === 'BOOK_REPORTED' ||
         event.type === 'BOOK_MODERATED' ||
+        event.type === 'BOOK_APPEALED' ||
         event.type === 'BOOK_REVIEWED' ||
         event.type === 'ADMIN_NOTIFICATIONS_UPDATED'
       ) {
@@ -90,6 +92,14 @@ export function AdminBookModerationView() {
             title: 'Báo cáo vi phạm mới',
             message: `Độc giả vừa báo cáo tác phẩm: ${(event.payload as any)?.bookTitle || 'Sách'}`,
             type: 'warning',
+          });
+        }
+        if (event.type === 'BOOK_APPEALED') {
+          playRoleNotificationChime('ADMIN');
+          showToast({
+            title: 'Shop gửi giải trình mở khóa',
+            message: `Gian hàng vừa gửi yêu cầu mở khóa cho sách: ${(event.payload as any)?.bookTitle || 'Tác phẩm'}`,
+            type: 'info',
           });
         }
         if (event.type === 'BOOK_REVIEWED') {
@@ -313,7 +323,7 @@ export function AdminBookModerationView() {
         align: 'center',
         width: 140,
         render: (_, row) => (
-          <div className="flex justify-center">
+          <div className="flex flex-col items-center gap-1">
             {row.status === 'BLOCKED' ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-rose-50 text-rose-800 border border-rose-200">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
@@ -328,6 +338,12 @@ export function AdminBookModerationView() {
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                 <span>Chờ xử lý</span>
+              </span>
+            )}
+            {row.sellerAppeal?.status === 'PENDING_UNLOCK' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap">
+                <span className="material-symbols-outlined text-[12px]">mark_email_unread</span>
+                <span>Shop xin mở khóa</span>
               </span>
             )}
           </div>
@@ -564,6 +580,32 @@ export function AdminBookModerationView() {
                           {r.description}
                         </p>
 
+                        {Array.isArray(r.evidenceImages) && r.evidenceImages.length > 0 && (
+                          <div className="space-y-1.5 pt-1">
+                            <span className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[14px] text-[#00875A]">photo_library</span>
+                              <span>Hình ảnh minh chứng ({r.evidenceImages.length} ảnh — bấm để phóng to):</span>
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              {r.evidenceImages.map((imgUrl, imgIdx) => (
+                                <button
+                                  key={imgIdx}
+                                  type="button"
+                                  onClick={() => setPreviewImageUrl(imgUrl)}
+                                  className="w-20 h-20 rounded-xl overflow-hidden border border-slate-200 hover:border-[#00875A] shadow-2xs cursor-zoom-in transition-all hover:scale-105"
+                                  title="Bấm để xem ảnh rõ hơn"
+                                >
+                                  <img
+                                    src={imgUrl}
+                                    alt={`Minh chứng ${imgIdx + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {r.evidenceUrl && (
                           <div className="flex items-center gap-1 text-[11px] text-blue-600 hover:underline">
                             <span className="material-symbols-outlined text-[13px]">link</span>
@@ -577,6 +619,62 @@ export function AdminBookModerationView() {
                   })}
                 </div>
               </div>
+
+              {/* Phản hồi & Yêu cầu mở khóa từ Gian hàng */}
+              {activeBook.sellerAppeal && (
+                <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <h4 className="font-bold text-indigo-950 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-indigo-600 text-[18px]">storefront</span>
+                      <span>Phản Hồi &amp; Yêu Cầu Mở Khóa Từ Gian Hàng</span>
+                    </h4>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        activeBook.sellerAppeal.status === 'APPROVED'
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                          : 'bg-indigo-100 text-indigo-800 border-indigo-300'
+                      }`}>
+                        {activeBook.sellerAppeal.status === 'APPROVED' ? 'Đã duyệt mở khóa' : 'Chờ BQT duyệt mở khóa'}
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        {new Date(activeBook.sellerAppeal.submittedAt || Date.now()).toLocaleString('vi-VN')}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-800 bg-white p-3 rounded-xl border border-indigo-100 leading-relaxed">
+                    {activeBook.sellerAppeal.message}
+                  </p>
+
+                  {Array.isArray(activeBook.sellerAppeal.evidenceImages) && activeBook.sellerAppeal.evidenceImages.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {activeBook.sellerAppeal.evidenceImages.map((imgUrl, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setPreviewImageUrl(imgUrl)}
+                          className="w-16 h-16 rounded-xl overflow-hidden border border-indigo-200 hover:border-indigo-500 cursor-zoom-in"
+                        >
+                          <img src={imgUrl} alt={`Chứng từ shop ${idx + 1}`} className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {activeBook.sellerAppeal.status === 'PENDING_UNLOCK' && actionTab !== 'UNBLOCK' && (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setActionTab('UNBLOCK')}
+                        className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold cursor-pointer inline-flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">lock_open</span>
+                        <span>Chuyển sang duyệt mở khóa sách</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Form Hành Động Của Admin */}
               <form onSubmit={handleExecuteAction} className="pt-4 border-t border-slate-200 space-y-4">
@@ -773,6 +871,28 @@ export function AdminBookModerationView() {
               </form>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Lightbox xem ảnh minh chứng rõ nét */}
+      {previewImageUrl && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/85 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setPreviewImageUrl(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setPreviewImageUrl(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[22px]">close</span>
+          </button>
+          <img
+            src={previewImageUrl}
+            alt="Ảnh minh chứng chi tiết"
+            className="max-w-full max-h-[88vh] rounded-2xl shadow-2xl object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>
