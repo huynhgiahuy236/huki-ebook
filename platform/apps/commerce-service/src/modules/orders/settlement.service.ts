@@ -490,9 +490,12 @@ export class SettlementService implements OnApplicationBootstrap {
           {
             referenceType: 'SETTLEMENT',
             referenceId: sellerOrderId,
-            description: `Escrow released net proceeds for sub-order ${sellerOrder.code}`,
+            description: `Giải ngân doanh thu thực nhận đơn #${sellerOrder.code} vào ví khả dụng`,
             metadata: {
               ledgerTransactionId: existingLedgerTx.id,
+              orderCode: sellerOrder.code,
+              orderId: sellerOrder.orderId,
+              sellerOrderId,
               platformCommission: calculation.platformCommission,
               affiliateCommission: calculation.affiliateCommission,
             },
@@ -608,9 +611,12 @@ export class SettlementService implements OnApplicationBootstrap {
       {
         referenceType: 'SETTLEMENT',
         referenceId: sellerOrderId,
-        description: `Escrow released net proceeds for sub-order ${sellerOrder.code}`,
+        description: `Giải ngân doanh thu thực nhận đơn #${sellerOrder.code} vào ví khả dụng`,
         metadata: {
           ledgerTransactionId: ledgerTx.id,
+          orderCode: sellerOrder.code,
+          orderId: sellerOrder.orderId,
+          sellerOrderId,
           platformCommission: calculation.platformCommission,
           affiliateCommission: calculation.affiliateCommission,
         },
@@ -764,7 +770,12 @@ export class SettlementService implements OnApplicationBootstrap {
       await this.walletService.creditPending(sellerOrder.storeId, calculation.sellerNet, {
         referenceType: 'ORDER_PAYMENT',
         referenceId: sellerOrder.id,
-        description: `Pending revenue credited from sub-order ${sellerOrder.code}`,
+        description: `Tạm giữ doanh thu đơn #${sellerOrder.code} vào ký quỹ Escrow`,
+        metadata: {
+          orderCode: sellerOrder.code,
+          orderId: sellerOrder.orderId,
+          sellerOrderId: sellerOrder.id,
+        },
       });
     }
   }

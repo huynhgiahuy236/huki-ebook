@@ -205,7 +205,10 @@ export class WalletService {
 
         if (isFrozen) return;
 
-        const hasPhysical = so.items?.some((it) => it.format === 'PHYSICAL') ?? so.requiresShipping;
+        const hasPhysical =
+          so.items?.some(
+            (it) => it.format === 'PHYSICAL' || it.format === 'BOTH',
+          ) ?? so.requiresShipping;
 
         if (!hasPhysical) {
           // Digital book: released upon successful payment
@@ -359,137 +362,11 @@ export class WalletService {
       }
     }
 
-    // Ensure all orders have transaction audit records in DB
-    if (this.prisma.sellerOrder) {
-      const sellerOrders = (await this.prisma.sellerOrder.findMany({
-        where: {
-          storeId: { in: storeIdList },
-          status: { notIn: ['CANCELLED'] },
-        },
-        include: {
-          items: {
-            include: {
-              book: {
-                select: {
-                  coverUrl: true,
-                },
-              },
-            },
-          },
-          order: {
-            include: {
-              statusHistory: { orderBy: { createdAt: 'desc' } },
-            },
-          },
-        },
-        orderBy: { createdAt: 'asc' },
-      })) || [];
-
-      const existingTxs = await this.prisma.walletTransaction.findMany({
-        where: { walletId: { in: walletIds } },
-      });
-      const loggedItemIds = new Set(existingTxs.map((t) => t.referenceId).filter(Boolean));
-
-      let currentRunning = existingTxs.reduce((sum, t) => {
-        return t.type === 'CREDIT_AVAILABLE' || t.type === 'MOVE_PENDING_TO_AVAILABLE'
-          ? sum + t.amount.toNumber()
-          : t.type === 'DEBIT_AVAILABLE'
-          ? sum - t.amount.toNumber()
-          : sum;
-      }, 0);
-
-      const now = Date.now();
-
-      for (const so of sellerOrders) {
-        const order = so.order;
-        const histories = order?.statusHistory || [];
-        const deliveredHistory = histories.find(
-          (h) => (h.toStatus === 'DELIVERED' || h.toStatus === 'COMPLETED') && (!h.sellerOrderId || h.sellerOrderId === so.id),
-        );
-        const deliveredTimestamp = so.completedAt
-          ? new Date(so.completedAt).getTime()
-          : deliveredHistory
-          ? new Date(deliveredHistory.createdAt).getTime()
-          : 0;
-
-        const isPhysicalDelivered = so.status === 'DELIVERED' || so.status === 'COMPLETED' || !!so.completedAt;
-        const isReturnWindowPassed = deliveredTimestamp > 0 && (now - deliveredTimestamp) >= 2 * 60 * 1000;
-        const isBuyerConfirmed = histories.some(
-          (h) => (h.toStatus === 'BUYER_CONFIRMED' || h.toStatus === 'ORDER_CONFIRMED' || (h.toStatus === 'COMPLETED' && h.actorType === 'USER')) && (!h.sellerOrderId || h.sellerOrderId === so.id),
-        );
-        const isCodOrder = order?.paymentMethod === 'COD';
-        const isCodRemitted = histories.some((h) => h.orderId === order?.id && h.toStatus === 'COD_REMITTANCE');
-        const canReleaseMoney = !isCodOrder || isCodRemitted;
-        const isReleased = !so.requiresShipping || (isPhysicalDelivered && canReleaseMoney && (isBuyerConfirmed || isReturnWindowPassed));
-
-        for (const item of so.items) {
-          if (!loggedItemIds.has(item.id)) {
-            const subtotal = Number(item.subtotal) || 0;
-            const fee = Math.round(subtotal * 0.05);
-            const net = subtotal - fee;
-
-            if (isReleased) {
-              const prev = currentRunning;
-              currentRunning += net;
-
-              await this.prisma.walletTransaction.create({
-                data: {
-                  walletId: wallet.id,
-                  type: 'CREDIT_AVAILABLE',
-                  amount: new Decimal(net),
-                  availableBefore: new Decimal(prev),
-                  availableAfter: new Decimal(currentRunning),
-                  pendingBefore: new Decimal(0),
-                  pendingAfter: new Decimal(0),
-                  frozenBefore: new Decimal(0),
-                  frozenAfter: new Decimal(0),
-                  referenceType: 'ORDER_ITEM',
-                  referenceId: item.id,
-                  description: `Giải ngân doanh thu bán sách [${item.bookTitle}] (SL: ${item.quantity}) - Đơn hàng #${order?.code || so.code || 'N/A'} (95% thực nhận sau phí sàn 5%)`,
-                  metadata: {
-                    coverUrl: (item as any).book?.coverUrl || null,
-                    bookTitle: item.bookTitle,
-                    orderCode: order?.code || so.code,
-                  },
-                  createdAt: so.completedAt || so.createdAt || new Date(),
-                },
-              });
-              loggedItemIds.add(item.id);
-            } else {
-              await this.prisma.walletTransaction.create({
-                data: {
-                  walletId: wallet.id,
-                  type: 'CREDIT_PENDING',
-                  amount: new Decimal(net),
-                  availableBefore: new Decimal(currentRunning),
-                  availableAfter: new Decimal(currentRunning),
-                  pendingBefore: new Decimal(0),
-                  pendingAfter: new Decimal(net),
-                  frozenBefore: new Decimal(0),
-                  frozenAfter: new Decimal(0),
-                  referenceType: 'ORDER_ITEM',
-                  referenceId: item.id,
-                  description: `Tạm giữ doanh thu bán sách [${item.bookTitle}] (SL: ${item.quantity}) - Đơn hàng #${order?.code || so.code || 'N/A'} vào ký quỹ Escrow (Chờ hạn đổi trả 2 phút)`,
-                  metadata: {
-                    coverUrl: (item as any).book?.coverUrl || null,
-                    bookTitle: item.bookTitle,
-                    orderCode: order?.code || so.code,
-                  },
-                  createdAt: so.createdAt || new Date(),
-                },
-              });
-              loggedItemIds.add(item.id);
-            }
-          }
-        }
-      }
-    }
-
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
     const skip = (page - 1) * limit;
 
-    const [items, total] = await Promise.all([
+    const [rawItems, total] = await Promise.all([
       this.prisma.walletTransaction.findMany({
         where: { walletId: { in: walletIds } },
         orderBy: { createdAt: 'desc' },
@@ -500,6 +377,39 @@ export class WalletService {
         where: { walletId: { in: walletIds } },
       }),
     ]);
+
+    // Deduplicate legacy auto-backfilled ORDER_ITEM rows when canonical ORDER_PAYMENT/SETTLEMENT rows exist
+    // Note: canonical sub-order descriptions often end with '-S1' while ORDER_ITEM metadata carries parent orderCode without '-S1'.
+    const stripSubSuffix = (code: string) => code.toUpperCase().replace(/-S\d+$/i, '');
+    const extractOrderCodes = (tx: { description?: string | null; metadata?: any }): string[] => {
+      const codes: string[] = [];
+      const metaCode = (tx.metadata as any)?.orderCode;
+      if (metaCode) {
+        const upper = String(metaCode).trim().toUpperCase();
+        codes.push(upper, stripSubSuffix(upper));
+      }
+      const descMatches = String(tx.description || '').match(/ORD-[A-Z0-9-]+/gi) || [];
+      for (const m of descMatches) {
+        const upper = m.toUpperCase();
+        codes.push(upper, stripSubSuffix(upper));
+      }
+      return codes;
+    };
+
+    const canonicalOrderCodes = new Set<string>();
+    for (const tx of rawItems) {
+      if (tx.referenceType === 'ORDER_PAYMENT' || tx.referenceType === 'SETTLEMENT') {
+        for (const c of extractOrderCodes(tx)) {
+          canonicalOrderCodes.add(c);
+        }
+      }
+    }
+
+    const items = rawItems.filter((tx) => {
+      if (tx.referenceType !== 'ORDER_ITEM') return true;
+      const itemCodes = extractOrderCodes(tx);
+      return !itemCodes.some((c) => canonicalOrderCodes.has(c));
+    });
 
     return {
       items: items.map((tx) => ({
@@ -515,7 +425,7 @@ export class WalletService {
         frozenAfter: tx.frozenAfter.toNumber(),
         referenceType: tx.referenceType,
         referenceId: tx.referenceId,
-        description: tx.description,
+        description: this.normalizeTransactionDescription(tx.description, tx.metadata),
         metadata: tx.metadata,
         createdAt: tx.createdAt,
       })),
@@ -523,6 +433,33 @@ export class WalletService {
       page,
       limit,
     };
+  }
+
+  private normalizeTransactionDescription(
+    description?: string | null,
+    metadata?: any,
+  ): string {
+    const raw = String(description || '').trim();
+    if (!raw) return 'Biến động số dư ví';
+
+    const pendingMatch = raw.match(/^Pending revenue credited from sub-order\s+(.+)$/i);
+    if (pendingMatch) {
+      return `Tạm giữ doanh thu đơn #${pendingMatch[1].trim()} vào ký quỹ Escrow (Chờ hạn đổi trả 3 phút)`;
+    }
+
+    const releasedMatch = raw.match(/^Escrow released net proceeds for sub-order\s+(.+)$/i);
+    if (releasedMatch) {
+      return `Giải ngân doanh thu thực nhận đơn #${releasedMatch[1].trim()} vào ví khả dụng`;
+    }
+
+    if (raw.includes('Chờ hạn đổi trả 2 phút')) {
+      return raw.replace('Chờ hạn đổi trả 2 phút', 'Chờ hạn đổi trả 3 phút');
+    }
+
+    if (metadata?.orderCode && !raw.includes(String(metadata.orderCode))) {
+      return `${raw} (#${metadata.orderCode})`;
+    }
+    return raw;
   }
 
   /**

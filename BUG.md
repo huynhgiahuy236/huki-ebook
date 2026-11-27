@@ -1963,3 +1963,21 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
   - `test:commerce`: **37/38 suites PASS** trong lượt chạy song song (riêng `books.service.spec.ts` timeout do chạy song song; chạy lại `--runInBand` đạt **11/11 tests PASS**).
   - `web run typecheck` (0 errors) + `npm --prefix web test` (Vitest): **13/13 files, 79/79 tests PASS** (gồm [`flashSaleFormat.test.ts`](file:///e:/HuKi/web/src/ui/utils/__tests__/flashSaleFormat.test.ts)).
   - E2E script [`test_e2e_bug29_30_31_flash_sale_format_reports.js`](file:///e:/HuKi/scripts/test_e2e_bug29_30_31_flash_sale_format_reports.js): **PASS toàn bộ**.
+
+---
+
+### Bước 4 — Giai đoạn 2 (`BUG-32`): Triển khai & E2E Độc Lập (27/11/2026)
+
+- **Backend ([`commerce-service`](file:///e:/HuKi/platform/apps/commerce-service)):**
+  - [`wallet.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/wallet/wallet.service.ts): Cập nhật `hasPhysical` hỗ trợ thêm `BOTH` (`L208`); gỡ bỏ vòng lặp tự sinh backfill `ORDER_ITEM` gây ghi trùng & nhảy số dư ví trong `getTransactions`; bổ sung deduplication loại bỏ bản ghi `ORDER_ITEM` cũ khi đã có bản ghi gốc `ORDER_PAYMENT` / `SETTLEMENT` cùng mã đơn (kể cả hậu tố sub-order `-S1`) và chuẩn hóa mô tả tiếng Anh cũ / `"2 phút"` thành tiếng Việt / `"3 phút"`.
+  - [`settlement.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/settlement.service.ts): Chuẩn hóa 100% mô tả `WalletTransaction` sang tiếng Việt rõ ràng (`Tạm giữ doanh thu đơn #... vào ký quỹ Escrow (Chờ hạn đổi trả 3 phút)`, `Giải ngân doanh thu thực nhận đơn #... vào ví khả dụng`) và đính kèm đầy đủ `orderCode`, `orderId`, `sellerOrderId` trong `metadata`.
+- **Frontend ([`web/src`](file:///e:/HuKi/web/src)):**
+  - [`walletTransactionFormat.ts`](file:///e:/HuKi/web/src/ui/utils/walletTransactionFormat.ts): Helper dùng chung chuẩn hóa 4 nhóm nhãn (`+ Cộng doanh thu`, `+ Giải ngân vào ví`, `Tạm giữ ký quỹ`, `- Rút tiền về STK`) + `affectsAvailable` và hàm `formatWalletTransactionDescription` chuẩn hóa mô tả cũ/tiếng Anh sang tiếng Việt.
+  - [`seller/finance/page.tsx`](file:///e:/HuKi/web/src/app/seller/finance/page.tsx): Gỡ bỏ tab `ESCROW` trùng lặp, giữ tập trung 2 tab **Sổ Cái Biến Động Ví** & **Lịch Sử Rút Tiền Về STK**, ẩn `Khả Dụng Trước/Sau` thành `Chờ ký quỹ` đối với giao dịch `CREDIT_PENDING`, bổ sung điều hướng nhanh sang `/seller/escrow` và `/seller/reports`.
+  - [`seller/reports/page.tsx`](file:///e:/HuKi/web/src/app/seller/reports/page.tsx): Gỡ bỏ 2 tab trùng lặp (`Sổ Cái Biến Động Ví`, `Lệnh Rút Tiền Về STK`), chỉ giữ phần **Chi Tiết Từng Món Hàng & Dòng Tiền** (`SellerGroupedOrderTable`) + Xuất CSV + liên kết nhanh sang `/seller/finance` và `/seller/escrow`.
+  - [`seller/transactions/page.tsx`](file:///e:/HuKi/web/src/app/seller/transactions/page.tsx): Dùng chung [`walletTransactionFormat.ts`](file:///e:/HuKi/web/src/ui/utils/walletTransactionFormat.ts) cho nhãn bảng và xuất CSV.
+- **Kiểm thử Giai đoạn 2:**
+  - `build:shared` + `build:commerce`: PASS (0 errors).
+  - `test:commerce` (`wallet.service.spec.ts` & `settlement.service.spec.ts` chạy `--runInBand`): **2/2 suites, 41/41 tests PASS** (gồm test mới deduplication `ORDER_ITEM` và chuẩn hóa mô tả tiếng Anh trong [`wallet.service.spec.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/wallet/wallet.service.spec.ts#L489-L567)).
+  - `web run typecheck` (0 errors) + `npm --prefix web test` (Vitest): **14/14 files, 81/81 tests PASS** (gồm [`walletTransactionFormat.test.ts`](file:///e:/HuKi/web/src/ui/utils/__tests__/walletTransactionFormat.test.ts)).
+  - E2E script [`test_e2e_bug32_seller_finance_reports_ledger.js`](file:///e:/HuKi/scripts/test_e2e_bug32_seller_finance_reports_ledger.js): **PASS toàn bộ**.

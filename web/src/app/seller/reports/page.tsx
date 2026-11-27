@@ -8,13 +8,9 @@ import {
   payoutApi,
   type SellerEscrowItem,
   type WalletData,
-  type WalletTransactionItem,
   type PayoutRequestItem,
 } from '@/ui/api/walletApi';
-import EscrowTableBadge from '@/ui/components/seller/EscrowTableBadge';
-import { SellerPagination } from '@/ui/components/seller/SellerUI';
 import { SellerGroupedOrderTable } from '@/ui/components/seller/SellerGroupedOrderTable';
-import { SellerPayoutGroupedTable } from '@/ui/components/seller/SellerPayoutGroupedTable';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { useToast } from '@/ui/context/ToastContext';
 import { calculateSellerFinancials, formatVND, ESCROW_CONFIG } from '@/ui/utils/sellerFinanceEngine';
@@ -48,7 +44,6 @@ export default function SellerFinancialReportsPage() {
 
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [escrowItems, setEscrowItems] = useState<SellerEscrowItem[]>([]);
-  const [transactions, setTransactions] = useState<WalletTransactionItem[]>([]);
   const [payouts, setPayouts] = useState<PayoutRequestItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -56,16 +51,14 @@ export default function SellerFinancialReportsPage() {
   const [dateRange, setDateRange] = useState<'ALL' | 'TODAY' | '7DAYS' | '30DAYS' | 'THIS_MONTH'>('ALL');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
-  const [activeTab, setActiveTab] = useState<'ITEMS' | 'TRANSACTIONS' | 'PAYOUTS'>('ITEMS');
   const [showFormulaModal, setShowFormulaModal] = useState(false);
 
   const fetchData = useCallback(async (isSilent?: boolean) => {
     if (!isSilent) setIsLoading(true);
     try {
-      const [wRes, escRes, txRes, pRes] = await Promise.all([
+      const [wRes, escRes, pRes] = await Promise.all([
         walletApi.getStoreWallet(storeId),
         walletApi.getSellerEscrowItems(),
-        walletApi.getStoreWalletTransactions(storeId, { page: 1, limit: 100 }),
         payoutApi.getStorePayoutRequests(storeId, { page: 1, limit: 50 }),
       ]);
 
@@ -74,9 +67,6 @@ export default function SellerFinancialReportsPage() {
       }
       if (escRes.success && Array.isArray(escRes.data)) {
         setEscrowItems(escRes.data);
-      }
-      if (txRes.success && txRes.data?.items) {
-        setTransactions(txRes.data.items);
       }
       if (pRes.success && pRes.data?.items) {
         setPayouts(pRes.data.items);
@@ -158,10 +148,10 @@ export default function SellerFinancialReportsPage() {
     setWallet((prev) =>
       prev
         ? {
-            ...prev,
-            availableBalance: Number(prev.availableBalance) + Number(item.sellerNet),
-            pendingBalance: Math.max(0, Number(prev.pendingBalance) - Number(item.sellerNet)),
-          }
+          ...prev,
+          availableBalance: Number(prev.availableBalance) + Number(item.sellerNet),
+          pendingBalance: Math.max(0, Number(prev.pendingBalance) - Number(item.sellerNet)),
+        }
         : prev
     );
 
@@ -210,46 +200,14 @@ export default function SellerFinancialReportsPage() {
     });
   }, [escrowItems, dateRange, customStartDate, customEndDate]);
 
-  // Financial Computations & Unified Data
   // Financial Computations & Unified Data via Centralized Engine
   const stats = useMemo(() => {
     return calculateSellerFinancials({
       escrowItems: filteredItems,
       wallet,
       payouts,
-      transactions,
     });
-  }, [filteredItems, wallet, payouts, transactions]);
-
-  // Pagination States for all 3 Tabs (Chuẩn Shopee)
-  const [itemsPage, setItemsPage] = useState(1);
-  const itemsPageSize = 10;
-  const itemsTotalPages = Math.max(1, Math.ceil(filteredItems.length / itemsPageSize));
-  const paginatedItems = useMemo(() => {
-    const start = (itemsPage - 1) * itemsPageSize;
-    return filteredItems.slice(start, start + itemsPageSize);
-  }, [filteredItems, itemsPage, itemsPageSize]);
-
-  const [txPage, setTxPage] = useState(1);
-  const txPageSize = 10;
-  const txTotalPages = Math.max(1, Math.ceil(transactions.length / txPageSize));
-  const paginatedTransactions = useMemo(() => {
-    const start = (txPage - 1) * txPageSize;
-    return transactions.slice(start, start + txPageSize);
-  }, [transactions, txPage, txPageSize]);
-
-  const [payoutPage, setPayoutPage] = useState(1);
-  const payoutPageSize = 10;
-  const payoutTotalPages = Math.max(1, Math.ceil(payouts.length / payoutPageSize));
-  const paginatedPayouts = useMemo(() => {
-    const start = (payoutPage - 1) * payoutPageSize;
-    return payouts.slice(start, start + payoutPageSize);
-  }, [payouts, payoutPage, payoutPageSize]);
-
-  // Reset itemsPage khi bộ lọc thời gian thay đổi
-  useEffect(() => {
-    setItemsPage(1);
-  }, [dateRange, customStartDate, customEndDate]);
+  }, [filteredItems, wallet, payouts]);
 
   // Tỷ trọng phương thức thanh toán cho thẻ KPI 4 & 5
   const totalPaymentGMV = stats.codGMV + stats.payosGMV || 1;
@@ -283,10 +241,10 @@ export default function SellerFinancialReportsPage() {
         it.escrowStatus === 'RELEASED'
           ? 'Đã Giải Ngân Khả Dụng'
           : it.escrowStatus === 'HOLDING'
-          ? `Đang Ký Quỹ Đổi Trả (${ESCROW_CONFIG.DURATION_LABEL})`
-          : it.escrowStatus === 'PENDING_PAYMENT'
-          ? 'Đang Giao Hàng (Dự Kiến)'
-          : 'Đang Phong Tỏa Khiếu Nại';
+            ? `Đang Ký Quỹ Đổi Trả (${ESCROW_CONFIG.DURATION_LABEL})`
+            : it.escrowStatus === 'PENDING_PAYMENT'
+              ? 'Đang Giao Hàng (Dự Kiến)'
+              : 'Đang Phong Tỏa Khiếu Nại';
 
       return [
         `"${it.orderCode || it.orderId}"`,
@@ -431,11 +389,10 @@ export default function SellerFinancialReportsPage() {
                 setCustomStartDate('');
                 setCustomEndDate('');
               }}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
-                dateRange === btn.key && !customStartDate
-                  ? 'bg-[#00875A] text-white shadow-xs'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer ${dateRange === btn.key && !customStartDate
+                ? 'bg-[#00875A] text-white shadow-xs'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
             >
               {btn.label}
             </button>
@@ -592,181 +549,46 @@ export default function SellerFinancialReportsPage() {
         </div>
       </div>
 
-      {/* 5. BẢNG DỮ LIỆU ĐỐI SOÁT CHI TIẾT & NHẬT KÝ BIẾN ĐỘNG */}
+      {/* 5. BẢNG ĐỐI SOÁT DOANH THU TỪNG MÓN HÀNG & DÒNG TIỀN */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-        {/* Navigation Tabs for Tables */}
         <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-50/50">
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveTab('ITEMS')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'ITEMS'
-                  ? 'bg-[#00875A] text-white shadow-xs'
-                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
-              }`}
-            >
+            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#00875A] text-white shadow-xs">
               <span className="material-symbols-outlined text-[16px]">receipt_long</span>
               <span>Chi Tiết Từng Món Hàng &amp; Dòng Tiền ({filteredItems.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('TRANSACTIONS')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'TRANSACTIONS'
-                  ? 'bg-[#00875A] text-white shadow-xs'
-                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">sync_alt</span>
-              <span>Sổ Cái Biến Động Ví ({transactions.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('PAYOUTS')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'PAYOUTS'
-                  ? 'bg-[#00875A] text-white shadow-xs'
-                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">account_balance</span>
-              <span>Lệnh Rút Tiền Về STK ({payouts.length})</span>
-            </button>
+            </span>
           </div>
 
-          <Link
-            href="/seller/escrow"
-            className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors inline-flex items-center gap-1 self-start sm:self-auto cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-sm">hourglass_top</span>
-            <span>Xem Tiền Chờ Quyết Toán</span>
-            <span className="material-symbols-outlined text-sm">arrow_forward</span>
-          </Link>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link
+              href="/seller/finance"
+              className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors inline-flex items-center gap-1 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-sm">account_balance_wallet</span>
+              <span>Ví &amp; Sổ Cái Biến Động</span>
+              <span className="material-symbols-outlined text-sm">arrow_forward</span>
+            </Link>
+
+            <Link
+              href="/seller/escrow"
+              className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors inline-flex items-center gap-1 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-sm">hourglass_top</span>
+              <span>Xem Tiền Chờ Quyết Toán</span>
+              <span className="material-symbols-outlined text-sm">arrow_forward</span>
+            </Link>
+          </div>
         </div>
 
-        {/* TAB 1: BẢNG KÊ CHI TIẾT TỪNG MÓN HÀNG (GROUPED DATA TABLE) */}
-        {activeTab === 'ITEMS' && (
-          <div className="p-4 sm:p-6">
-            <SellerGroupedOrderTable
-              items={filteredItems}
-              loading={isLoading}
-              onAutoReleaseItem={handleAutoReleaseItem}
-              title="Bảng Kê Chi Tiết Đơn Hàng & Dòng Tiền"
-              subtitle="Báo cáo sao kê đơn hàng thực nhận 95% theo thời gian thực"
-            />
-          </div>
-        )}
-
-        {/* TAB 2: NHẬT KÝ DÒNG TIỀN VÀO - RA */}
-        {activeTab === 'TRANSACTIONS' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-gray-700">
-              <thead className="bg-[#F8FAFC] text-[11px] font-bold text-gray-500 uppercase border-b border-gray-200">
-                <tr>
-                  <th className="p-3.5">Thời Gian</th>
-                  <th className="p-3.5">Loại Biến Động</th>
-                  <th className="p-3.5">Nội Dung Chi Tiết</th>
-                  <th className="p-3.5 text-right">Số Tiền Phát Sinh</th>
-                  <th className="p-3.5 text-right">Khả Dụng Trước</th>
-                  <th className="p-3.5 text-right">Khả Dụng Sau</th>
-                  <th className="p-3.5 text-center">Trạng Thái</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {transactions.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="p-8 text-center text-gray-500">
-                      Chưa có giao dịch biến động số dư nào được ghi nhận.
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedTransactions.map((tx) => {
-                    const isCredit = tx.type === 'CREDIT_AVAILABLE';
-                    const isDebit = tx.type === 'DEBIT_AVAILABLE';
-                    return (
-                      <tr key={tx.id} className="hover:bg-gray-50/70 transition-colors">
-                        <td className="p-3.5 font-mono text-gray-500 whitespace-nowrap">
-                          {formatVietnamDateTime(tx.createdAt)}
-                        </td>
-                        <td className="p-3.5 whitespace-nowrap">
-                          {isCredit ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <span className="material-symbols-outlined text-[13px]">arrow_downward</span>
-                              <span>+ Cộng Doanh Thu</span>
-                            </span>
-                          ) : isDebit ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                              <span className="material-symbols-outlined text-[13px]">arrow_upward</span>
-                              <span>- Rút Tiền Về STK</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                              <span className="material-symbols-outlined text-[13px]">sync</span>
-                              <span>Chuyển Quỹ Ký Quỹ</span>
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-3.5 max-w-sm">
-                          <div className="font-semibold text-gray-900">{tx.description || 'Giao dịch hệ thống'}</div>
-                          {tx.metadata?.orderCode && (
-                            <div className="text-[11px] text-gray-500 font-mono mt-0.5">
-                              Đơn hàng: #{tx.metadata.orderCode}
-                            </div>
-                          )}
-                        </td>
-                        <td className={`p-3.5 text-right font-black font-mono text-sm ${isCredit ? 'text-emerald-700' : isDebit ? 'text-rose-600' : 'text-gray-900'}`}>
-                          {isCredit ? '+' : isDebit ? '-' : ''}
-                          {formatVND(tx.amount)}
-                        </td>
-                        <td className="p-3.5 text-right font-mono text-gray-500">
-                          {formatVND(tx.availableBefore)}
-                        </td>
-                        <td className="p-3.5 text-right font-mono font-bold text-gray-900">
-                          {formatVND(tx.availableAfter)}
-                        </td>
-                        <td className="p-3.5 text-center">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <span className="material-symbols-outlined text-[12px]">check</span>
-                            <span>Thành công</span>
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-
-            {/* Phân trang Tab 2 */}
-            {transactions.length > 0 && (
-              <div className="p-3.5 border-t border-gray-100 bg-white">
-                <SellerPagination
-                  currentPage={txPage}
-                  totalPages={txTotalPages}
-                  totalItems={transactions.length}
-                  pageSize={txPageSize}
-                  onPageChange={(p) => setTxPage(p)}
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* TAB 3: LỆNH RÚT TIỀN VỀ NGÂN HÀNG (GROUPED DATA TABLE) */}
-        {activeTab === 'PAYOUTS' && (
-          <div className="p-4 sm:p-6">
-            <SellerPayoutGroupedTable
-              items={payouts}
-              loading={isLoading}
-              totalItems={payouts.length}
-              currentPage={payoutPage}
-              onPageChange={(p) => setPayoutPage(p)}
-            />
-          </div>
-        )}
+        <div className="p-4 sm:p-6">
+          <SellerGroupedOrderTable
+            items={filteredItems}
+            loading={isLoading}
+            onAutoReleaseItem={handleAutoReleaseItem}
+            title="Bảng Kê Chi Tiết Đơn Hàng & Dòng Tiền"
+            subtitle="Báo cáo sao kê đơn hàng thực nhận 95% theo thời gian thực"
+          />
+        </div>
       </div>
 
       {/* 7. MODAL DIỄN GIẢI CÔNG THỨC DÒNG TIỀN */}
