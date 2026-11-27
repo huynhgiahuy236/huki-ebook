@@ -592,14 +592,14 @@ export function AdminAffiliatesView() {
 
           <div className="w-full max-w-full overflow-x-auto min-w-0 rounded-2xl border border-slate-200 bg-white shadow-2xs">
             <table className="w-full text-left text-xs text-slate-700">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10.5px]">
+              <thead className="bg-[#003B2B] border-b border-[#00281D] text-white font-bold uppercase text-[10.5px] select-none">
                 <tr>
-                  <th className="px-4 py-3">Mã Giao Dịch</th>
-                  <th className="px-4 py-3">Số Tiền Rút</th>
-                  <th className="px-4 py-3">Tài Khoản Thụ Hưởng</th>
-                  <th className="px-4 py-3">Ngày Yêu Cầu</th>
-                  <th className="px-4 py-3">Trạng Thái</th>
-                  <th className="px-4 py-3 text-right">Thao Tác</th>
+                  <th className="px-4 py-3 text-white">Mã Giao Dịch</th>
+                  <th className="px-4 py-3 text-white">Số Tiền Rút</th>
+                  <th className="px-4 py-3 text-white">Tài Khoản Thụ Hưởng</th>
+                  <th className="px-4 py-3 text-white">Ngày Yêu Cầu</th>
+                  <th className="px-4 py-3 text-white">Trạng Thái</th>
+                  <th className="px-4 py-3 text-right text-white">Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -708,14 +708,14 @@ export function AdminAffiliatesView() {
 
           <div className="w-full max-w-full overflow-x-auto min-w-0 rounded-2xl border border-slate-200 bg-white shadow-2xs">
             <table className="w-full text-left text-xs text-slate-700">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10.5px]">
+              <thead className="bg-[#003B2B] border-b border-[#00281D] text-white font-bold uppercase text-[10.5px] select-none">
                 <tr>
-                  <th className="px-4 py-3">Mã Vụ Việc</th>
-                  <th className="px-4 py-3">Đối Tác Nghi Vấn</th>
-                  <th className="px-4 py-3">Hành Vi Bất Thường</th>
-                  <th className="px-4 py-3">Điểm Rủi Ro</th>
-                  <th className="px-4 py-3">Trạng Thái</th>
-                  <th className="px-4 py-3 text-right">Biện Pháp Xử Lý</th>
+                  <th className="px-4 py-3 text-white">Mã Vụ Việc</th>
+                  <th className="px-4 py-3 text-white">Đối Tác Nghi Vấn</th>
+                  <th className="px-4 py-3 text-white">Hành Vi Bất Thường</th>
+                  <th className="px-4 py-3 text-white">Điểm Rủi Ro</th>
+                  <th className="px-4 py-3 text-white">Trạng Thái</th>
+                  <th className="px-4 py-3 text-right text-white">Biện Pháp Xử Lý</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

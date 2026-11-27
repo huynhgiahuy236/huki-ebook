@@ -335,15 +335,15 @@ export default function AdminNotificationsView() {
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50/80 border-b border-slate-200/90 text-slate-500 font-bold uppercase tracking-wider text-[10.5px]">
+            <thead className="bg-[#003B2B] text-[10.5px] uppercase font-bold text-white tracking-wider select-none border-b border-[#00281D]">
               <tr>
-                <th className="py-3 px-4">Bản Tin &amp; Tiêu Đề</th>
-                <th className="py-3 px-4">Chuyên Mục</th>
-                <th className="py-3 px-4">Đối Tượng Nhận</th>
-                <th className="py-3 px-4">Kênh Hiển Thị</th>
-                <th className="py-3 px-4">Lịch Trình</th>
-                <th className="py-3 px-4 text-center">Lượt Đọc</th>
-                <th className="py-3 px-4 text-right">Thao Tác</th>
+                <th className="py-3 px-4 text-white">Bản Tin &amp; Tiêu Đề</th>
+                <th className="py-3 px-4 text-white">Chuyên Mục</th>
+                <th className="py-3 px-4 text-white">Đối Tượng Nhận</th>
+                <th className="py-3 px-4 text-white">Kênh Hiển Thị</th>
+                <th className="py-3 px-4 text-white">Lịch Trình</th>
+                <th className="py-3 px-4 text-center text-white">Lượt Đọc</th>
+                <th className="py-3 px-4 text-right text-white">Thao Tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
