@@ -577,41 +577,33 @@ export function SellerReviewsView() {
         title: 'Sản Phẩm & Phân Loại',
         minWidth: 240,
         render: (_val, rev) => (
-          <div className="flex items-start gap-2.5 py-1">
+          <div className="flex items-center gap-2.5 py-1">
             {rev.bookCover ? (
-              <div className="w-9 h-12 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 shrink-0 shadow-2xs">
+              <div className="w-8 h-11 rounded-md overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
                 <img src={rev.bookCover} alt={rev.bookTitle || 'Book'} className="w-full h-full object-cover" />
               </div>
             ) : (
-              <div className="w-9 h-12 rounded-lg bg-emerald-50 text-[#00875A] border border-emerald-100 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-lg">storefront</span>
+              <div className="w-8 h-11 rounded-md bg-slate-50 text-slate-500 border border-slate-200 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-base">storefront</span>
               </div>
             )}
             <div className="min-w-0">
               <span
-                className="font-bold text-slate-900 block break-words line-clamp-2 leading-snug text-xs hover:text-[#00875A] transition-colors"
+                className="font-semibold text-slate-900 block break-words line-clamp-2 leading-snug text-xs hover:text-[#00875A] transition-colors"
                 title={rev.bookTitle || rev.storeName || 'Đánh giá gian hàng'}
               >
                 {rev.bookTitle || rev.storeName || 'Đánh giá gian hàng'}
               </span>
-              {rev.bookAuthor && (
-                <span className="text-[11px] text-slate-400 block truncate mt-0.5" title={rev.bookAuthor}>
-                  {rev.bookAuthor}
+              {(rev.bookAuthor || rev.format === 'DIGITAL' || rev.format === 'PHYSICAL') && (
+                <span className="text-[11px] text-slate-400 block truncate mt-0.5" title={rev.bookAuthor || ''}>
+                  {[
+                    rev.bookAuthor,
+                    rev.format === 'DIGITAL' ? 'Ebook' : rev.format === 'PHYSICAL' ? 'Sách In' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </span>
               )}
-              <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                {rev.format === 'DIGITAL' ? (
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/60 text-[10px] font-bold">
-                    <span className="material-symbols-outlined text-[11px]">bolt</span>
-                    Ebook
-                  </span>
-                ) : rev.format === 'PHYSICAL' ? (
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200/60 text-[10px] font-bold">
-                    <span className="material-symbols-outlined text-[11px]">menu_book</span>
-                    Sách In
-                  </span>
-                ) : null}
-              </div>
             </div>
           </div>
         ),
@@ -619,29 +611,22 @@ export function SellerReviewsView() {
       {
         key: 'author',
         title: 'Khách Hàng & Đánh Giá',
-        width: 190,
+        width: 175,
         render: (_val, rev) => (
           <div className="py-1 text-xs">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full overflow-hidden bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center font-bold text-slate-600 text-xs">
+              <div className="w-6 h-6 rounded-full overflow-hidden bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center font-semibold text-slate-600 text-[11px]">
                 {rev.author?.avatar ? (
                   <img src={rev.author.avatar} alt={rev.author.fullName} className="w-full h-full object-cover" />
                 ) : (
                   <span>{rev.author?.fullName?.charAt(0)?.toUpperCase() || 'U'}</span>
                 )}
               </div>
-              <div className="min-w-0">
-                <span className="font-bold text-slate-900 block truncate text-xs" title={rev.author?.fullName}>
-                  {rev.author?.fullName || 'Khách hàng ẩn danh'}
-                </span>
-                {rev.verifiedPurchase && (
-                  <div className="mt-0.5">
-                    <VerifiedPurchaseBadge variant="compact" />
-                  </div>
-                )}
-              </div>
+              <span className="font-semibold text-slate-900 truncate text-xs" title={rev.author?.fullName}>
+                {rev.author?.fullName || 'Khách hàng ẩn danh'}
+              </span>
             </div>
-            <div className="flex items-center gap-1 mt-1 text-[#fea619]">
+            <div className="flex items-center gap-0.5 mt-1 text-[#fea619]">
               {[1, 2, 3, 4, 5].map((i) => (
                 <span
                   key={i}
@@ -652,7 +637,7 @@ export function SellerReviewsView() {
                   star
                 </span>
               ))}
-              <span className="font-bold text-slate-800 text-[11px] ml-1">{rev.rating} sao</span>
+              <span className="font-medium text-slate-500 text-[11px] ml-1">{rev.rating}/5</span>
             </div>
           </div>
         ),
@@ -751,7 +736,7 @@ export function SellerReviewsView() {
     const latestReply = hasReplies ? rev.replies[rev.replies.length - 1] : null;
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-slate-200">
         {/* Card 1: Khách hàng & Đơn mua */}
         <div className="space-y-2 text-xs">
           <div className="flex items-center gap-1.5 font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
@@ -805,14 +790,14 @@ export function SellerReviewsView() {
                 : 'Gian hàng chưa phản hồi nhận xét này. Phản hồi nhanh sẽ gia tăng độ uy tín của shop!'}
             </p>
           </div>
-          <div className="pt-2">
+          <div className="pt-2 flex justify-end">
             <button
               type="button"
               onClick={() => setSelectedReview(rev)}
-              className="w-full py-2 px-3 bg-[#00875A] hover:bg-[#003B2B] text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+              className="px-3.5 py-1.5 bg-[#00875A] hover:bg-[#00704A] text-white rounded-lg font-semibold text-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[15px]">rate_review</span>
-              <span>{hasReplies ? 'Chỉnh Sửa Phản Hồi' : 'Phản Hồi Độc Giả Ngay'}</span>
+              <span className="material-symbols-outlined text-[14px]">rate_review</span>
+              <span>{hasReplies ? 'Chỉnh Sửa Phản Hồi' : 'Phản Hồi Độc Giả'}</span>
             </button>
           </div>
         </div>

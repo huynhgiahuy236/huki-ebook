@@ -388,13 +388,13 @@ export default function AdminNotificationsView() {
 
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         {n.targetRole === 'ALL' || (!n.targetRole && n.targetType === 'ALL') ? (
-                          <span className="font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[13px]">hub</span>
+                          <span className="font-medium text-slate-700 inline-flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[14px] text-slate-400">hub</span>
                             <span>Toàn Sàn (100%)</span>
                           </span>
                         ) : n.targetRole === 'CUSTOMER' ? (
-                          <span className="font-semibold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[13px]">menu_book</span>
+                          <span className="font-medium text-slate-700 inline-flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[14px] text-slate-400">menu_book</span>
                             <span>
                               {n.targetSegment === 'VIP_CUSTOMERS'
                                 ? 'Độc Giả VIP'
@@ -404,8 +404,8 @@ export default function AdminNotificationsView() {
                             </span>
                           </span>
                         ) : n.targetRole === 'SHIPPER' ? (
-                          <span className="font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[13px]">local_shipping</span>
+                          <span className="font-medium text-slate-700 inline-flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[14px] text-slate-400">local_shipping</span>
                             <span>
                               {n.targetSegment === 'ONLINE_SHIPPERS'
                                 ? 'Bưu Tá Online'
@@ -417,8 +417,8 @@ export default function AdminNotificationsView() {
                             </span>
                           </span>
                         ) : n.targetType === 'SEGMENT' ? (
-                          <span className="font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[13px]">storefront</span>
+                          <span className="font-medium text-slate-700 inline-flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[14px] text-slate-400">storefront</span>
                             <span>
                               {n.targetSegment === 'DIGITAL_SELLERS'
                                 ? 'NXB Sách Số'
@@ -430,36 +430,28 @@ export default function AdminNotificationsView() {
                             </span>
                           </span>
                         ) : n.targetType === 'DIRECT' ? (
-                          <span className="font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[13px]">storefront</span>
+                          <span className="font-medium text-slate-700 inline-flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[14px] text-slate-400">storefront</span>
                             <span>Riêng: {n.targetBusinessNames?.[0] || '1 Gian Hàng'}</span>
                           </span>
                         ) : (
-                          <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[13px]">storefront</span>
+                          <span className="font-medium text-slate-700 inline-flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[14px] text-slate-400">storefront</span>
                             <span>100% Shop</span>
                           </span>
                         )}
                       </td>
 
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="flex items-center gap-1 text-[11px] text-slate-600">
-                          {n.channels.includes('TOP_BAR') && (
-                            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded border border-amber-200 font-bold">
-                              Top Bar
-                            </span>
-                          )}
-                          {n.channels.includes('BELL') && (
-                            <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded border border-slate-200 font-bold">
-                              Chuông
-                            </span>
-                          )}
-                          {n.channels.includes('MODAL') && (
-                            <span className="px-1.5 py-0.5 bg-rose-50 text-rose-700 rounded border border-rose-200 font-bold">
-                              Popup
-                            </span>
-                          )}
-                        </div>
+                        <span className="text-xs text-slate-600 font-medium">
+                          {[
+                            n.channels.includes('TOP_BAR') ? 'Top Bar' : '',
+                            n.channels.includes('BELL') ? 'Chuông' : '',
+                            n.channels.includes('MODAL') ? 'Popup' : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' · ') || '—'}
+                        </span>
                       </td>
 
                       <td className="py-3.5 px-4 whitespace-nowrap">
