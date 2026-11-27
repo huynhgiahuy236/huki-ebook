@@ -132,7 +132,16 @@ export class CheckoutService {
           include: { physicalDetails: true, digitalDetails: true },
         });
       }
-      if (!book || book.status !== BookStatus.PUBLISHED) {
+      if (!book) {
+        throwConflict(ErrorCode.BOOK_NOT_FOUND);
+      }
+      if (book.status === BookStatus.SUSPENDED) {
+        throwConflict(
+          ErrorCode.BOOK_SUSPENDED,
+          `Tác phẩm "${book.title}" vừa bị tạm khóa lưu hành để kiểm duyệt, không thể đặt mua.`,
+        );
+      }
+      if (book.status !== BookStatus.PUBLISHED) {
         throwConflict(ErrorCode.BOOK_NOT_FOUND);
       }
 
@@ -235,6 +244,12 @@ export class CheckoutService {
       items = await Promise.all(
         rawCartItems.map(async (item) => {
           const book = item.book as any;
+          if (book.status === BookStatus.SUSPENDED) {
+            throwConflict(
+              ErrorCode.BOOK_SUSPENDED,
+              `Tác phẩm "${book.title}" vừa bị tạm khóa lưu hành để kiểm duyệt, vui lòng bỏ chọn khỏi giỏ hàng trước khi thanh toán.`,
+            );
+          }
           if (book.status !== BookStatus.PUBLISHED) {
             throwConflict(ErrorCode.BOOK_NOT_FOUND);
           }

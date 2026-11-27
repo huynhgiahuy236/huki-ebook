@@ -219,11 +219,14 @@ export class NotificationGateway implements OnGatewayConnection {
   }
 
   emitAdminModerationEvent(
-    eventName: "moderation:created" | "moderation:resolved" | "book:reported" | "book:moderated" | string,
+    eventName: "moderation:created" | "moderation:resolved" | "book:reported" | "book:moderated" | "book:appealed" | string,
     data: Record<string, unknown>,
   ) {
     if (!this.server) return;
     this.server.to("admin_channel").emit(eventName, data);
+    if (eventName === "book:moderated") {
+      this.server.to("broadcast_channel").emit(eventName, data);
+    }
   }
 
   emitFlashSaleUpdate(data: Record<string, unknown>) {

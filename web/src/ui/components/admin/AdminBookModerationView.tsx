@@ -321,9 +321,9 @@ export function AdminBookModerationView() {
         key: 'status',
         title: 'Trạng Thái',
         align: 'center',
-        width: 140,
+        width: 170,
         render: (_, row) => (
-          <div className="flex flex-col items-center gap-1">
+          <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
             {row.status === 'BLOCKED' ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-rose-50 text-rose-800 border border-rose-200">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
@@ -341,9 +341,11 @@ export function AdminBookModerationView() {
               </span>
             )}
             {row.sellerAppeal?.status === 'PENDING_UNLOCK' && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap">
-                <span className="material-symbols-outlined text-[12px]">mark_email_unread</span>
-                <span>Shop xin mở khóa</span>
+              <span
+                title="Shop đã gửi giải trình yêu cầu mở khóa"
+                className="w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 inline-flex items-center justify-center shrink-0"
+              >
+                <span className="material-symbols-outlined text-[14px]">mark_email_unread</span>
               </span>
             )}
           </div>

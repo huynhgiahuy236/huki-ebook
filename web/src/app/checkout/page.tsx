@@ -28,6 +28,7 @@ import PaymentCountdownModal from "@/ui/components/checkout/PaymentCountdownModa
 export default function CheckoutPage() {
   const router = useRouter();
   const { user, isLoggedIn, isLoading: authLoading } = (useAuth() || {}) as any;
+  const [suspendedBookIds, setSuspendedBookIds] = useState<string[]>([]);
   const {
     cartItems = [],
     checkedSubtotal = 0,
@@ -133,6 +134,39 @@ export default function CheckoutPage() {
     }
     return (cartItems || []).filter((i: any) => i.checked);
   }, [isDirectMode, directItem, cartItems]);
+
+  const hasSuspendedItem = useMemo(
+    () =>
+      checkedItems.some((item: any) =>
+        suspendedBookIds.includes(String(item.bookId || item.id))
+      ),
+    [checkedItems, suspendedBookIds]
+  );
+
+  useEffect(() => {
+    const unsub = realtimeSyncBus.subscribe((event: any) => {
+      if (event?.type === "BOOK_MODERATED") {
+        const bId = String((event.payload as any)?.bookId || "");
+        const action = (event.payload as any)?.action;
+        if (!bId) return;
+        if (action === "BLOCK") {
+          setSuspendedBookIds((prev) => (prev.includes(bId) ? prev : [...prev, bId]));
+          if (checkedItems.some((item: any) => String(item.bookId || item.id) === bId)) {
+            showToast(
+              {
+                title: "Tác phẩm vừa bị tạm khóa",
+                message: "Một sản phẩm bạn đang thanh toán vừa bị Ban Quản Trị tạm khóa lưu hành để kiểm duyệt.",
+              },
+              "warning"
+            );
+          }
+        } else if (action === "UNBLOCK") {
+          setSuspendedBookIds((prev) => prev.filter((id) => id !== bId));
+        }
+      }
+    });
+    return () => unsub();
+  }, [checkedItems, showToast]);
 
   const ebookItems = checkedItems.filter(
     (i: any) =>
@@ -1062,6 +1096,16 @@ export default function CheckoutPage() {
   };
 
   const handlePlaceOrder = async () => {
+    if (hasSuspendedItem) {
+      showToast(
+        {
+          title: "Sản phẩm vừa bị tạm khóa",
+          message: "Có tác phẩm trong đơn hàng vừa bị tạm khóa lưu hành để kiểm duyệt. Vui lòng quay lại giỏ hàng để bỏ chọn sản phẩm này.",
+        },
+        "error"
+      );
+      return;
+    }
     if (isDirectMode ? !directItem : checkedItemsCount === 0) {
       showToast(
         {
@@ -2891,9 +2935,22 @@ export default function CheckoutPage() {
                 </span>
               </div>
 
+              {hasSuspendedItem && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[18px] text-rose-600 shrink-0 mt-0.5">lock</span>
+                  <span>
+                    Có tác phẩm trong đơn hàng vừa bị Ban Quản Trị tạm khóa lưu hành. Vui lòng{" "}
+                    <Link href="/cart" className="font-bold underline text-rose-900">
+                      quay lại giỏ hàng
+                    </Link>{" "}
+                    để bỏ chọn trước khi đặt hàng.
+                  </span>
+                </div>
+              )}
+
               <button
                 onClick={handlePlaceOrder}
-                disabled={isSubmitting || checkedItems.length === 0}
+                disabled={isSubmitting || checkedItems.length === 0 || hasSuspendedItem}
                 className="w-full h-12 bg-[#006953] hover:bg-[#005241] text-white rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer active:scale-[0.99]"
               >
                 {isSubmitting ? (

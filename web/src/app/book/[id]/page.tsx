@@ -196,6 +196,25 @@ export default function BookDetailPage() {
   const followDropdownRef = useRef<HTMLDivElement>(null);
   const [realBook, setRealBook] = useState<any>(null);
   const [isLoadingBook, setIsLoadingBook] = useState(true);
+
+  useEffect(() => {
+    const unsub = realtimeSyncBus.subscribe((msg: any) => {
+      if (msg?.type === 'BOOK_MODERATED') {
+        const payload = msg.payload as any;
+        const targetId = payload?.bookId;
+        if (targetId && (targetId === id || targetId === realBook?.id)) {
+          if (payload?.action === 'BLOCK') {
+            setRealBook((prev: any) => (prev ? { ...prev, status: 'SUSPENDED' } : prev));
+            showToast('Tác phẩm này vừa bị Ban Quản Trị tạm khóa lưu hành.', 'warning');
+          } else if (payload?.action === 'UNBLOCK') {
+            setRealBook((prev: any) => (prev ? { ...prev, status: 'PUBLISHED' } : prev));
+            showToast('Tác phẩm đã được mở khóa lưu hành trở lại.', 'success');
+          }
+        }
+      }
+    });
+    return () => unsub();
+  }, [id, realBook?.id, showToast]);
   const [storeInfo, setStoreInfo] = useState<any>(null);
   const [flashSaleInfo, setFlashSaleInfo] = useState<any>(null);
   const [bookDiscount, setBookDiscount] = useState<BookDiscount | null>(null);

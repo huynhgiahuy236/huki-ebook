@@ -172,7 +172,16 @@ export class CartService {
         include: { physicalDetails: true, digitalDetails: true },
       });
 
-      if (!book || book.status !== BookStatus.PUBLISHED) {
+      if (!book) {
+        throwNotFound(ErrorCode.BOOK_NOT_FOUND);
+      }
+      if (book.status === BookStatus.SUSPENDED) {
+        throwBadRequest(
+          ErrorCode.BOOK_SUSPENDED,
+          `Tác phẩm "${book.title}" đang tạm khóa lưu hành để kiểm duyệt.`,
+        );
+      }
+      if (book.status !== BookStatus.PUBLISHED) {
         throwNotFound(ErrorCode.BOOK_NOT_FOUND);
       }
 
