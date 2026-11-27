@@ -1674,7 +1674,13 @@ export function AdminFlashSaleView() {
                                   },
                                 }));
                               }}
-                              className="px-2 py-1 rounded border border-purple-200 bg-purple-50 text-purple-900 font-bold text-[11px]"
+                              className={`px-2 py-1 rounded border font-bold text-[11px] ${
+                                targetFmt === 'PHYSICAL'
+                                  ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                  : targetFmt === 'DIGITAL'
+                                    ? 'bg-sky-50 text-sky-800 border-sky-300'
+                                    : 'bg-purple-50 text-purple-900 border-purple-300'
+                              }`}
                             >
                               <option value="BOTH">Combo (Cả 2)</option>
                               <option value="PHYSICAL">Sách Giấy</option>

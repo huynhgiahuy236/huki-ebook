@@ -598,7 +598,13 @@ export default function SellerFlashSaleDetailPage() {
                                 },
                               }));
                             }}
-                            className="px-2 py-1 text-[11px] font-bold bg-purple-50 text-purple-900 border border-purple-200 rounded-lg outline-none shrink-0"
+                            className={`px-2 py-1 text-[11px] font-bold rounded-lg outline-none shrink-0 border ${
+                              cfg.targetFormat === 'PHYSICAL'
+                                ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                : cfg.targetFormat === 'DIGITAL'
+                                  ? 'bg-sky-50 text-sky-800 border-sky-300'
+                                  : 'bg-purple-50 text-purple-900 border-purple-300'
+                            }`}
                           >
                             <option value="BOTH">Combo (Giấy + Ebook)</option>
                             <option value="PHYSICAL">Chỉ Sách Giấy</option>

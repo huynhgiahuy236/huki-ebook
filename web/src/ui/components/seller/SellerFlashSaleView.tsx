@@ -387,7 +387,7 @@ const StudioBookRow = React.memo(function StudioBookRow({
 
       <td className="py-2.5 px-3">
         {book.format === 'DIGITAL' ? (
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-200">
             <span className="material-symbols-outlined text-[12px]">bolt</span>
             <span>Ebook DRM</span>
           </span>
@@ -397,7 +397,13 @@ const StudioBookRow = React.memo(function StudioBookRow({
             disabled={isConflicted}
             onChange={(e) => onUpdateTargetFormat(book.id, e.target.value as FlashSaleTargetFormat)}
             title="Chọn định dạng áp dụng Flash Sale cho cuốn sách Hybrid này"
-            className="px-2 py-1 bg-purple-50 text-purple-900 border border-purple-200 rounded-lg text-[11px] font-bold outline-none focus:border-purple-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`px-2 py-1 rounded-lg text-[11px] font-bold outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border transition-colors ${
+              targetFormat === 'PHYSICAL'
+                ? 'bg-amber-50 text-amber-800 border-amber-300 focus:border-amber-500'
+                : targetFormat === 'DIGITAL'
+                  ? 'bg-sky-50 text-sky-800 border-sky-300 focus:border-sky-500'
+                  : 'bg-purple-50 text-purple-900 border-purple-300 focus:border-purple-500'
+            }`}
           >
             <option value="BOTH">Combo (Giấy + Ebook)</option>
             <option value="PHYSICAL">Chỉ Sách Giấy</option>
@@ -502,8 +508,8 @@ const StudioBookRow = React.memo(function StudioBookRow({
             Min 30d: <strong className="text-gray-800">{lowest30d.toLocaleString('vi-VN')} đ</strong>
           </div>
           {antiFakeValidation.isValid ? (
-            <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 w-fit">
-              <span className="material-symbols-outlined text-[10px]">verified</span>
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 w-fit">
+              <span className="material-symbols-outlined text-[12px] text-slate-500">check_circle</span>
               <span>Hợp lệ (-{orig > 0 ? Math.round(((orig - sale) / orig) * 100) : 0}%)</span>
             </span>
           ) : (
