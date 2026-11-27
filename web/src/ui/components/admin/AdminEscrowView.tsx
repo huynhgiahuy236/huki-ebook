@@ -818,42 +818,36 @@ export function AdminEscrowView() {
         key: 'paymentAndItems',
         title: 'Thanh toán',
         render: (_, row) => {
-          let paymentBadge = null;
+          let paymentLabel = 'Cổng PayOS';
+          let dotColor = 'bg-blue-600';
+
           if (row.paymentMethod === 'COD') {
             if (row.remittanceInfo?.isRemitted) {
-              paymentBadge = (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                  <span className="material-symbols-outlined text-[13px] text-emerald-600">verified</span>
-                  <span>COD Đã Nộp Quỹ</span>
-                </span>
-              );
+              paymentLabel = 'COD Đã Nộp';
+              dotColor = 'bg-emerald-600';
             } else {
-              paymentBadge = (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                  <span className="material-symbols-outlined text-[13px] text-amber-600">local_shipping</span>
-                  <span>COD Chờ Nộp</span>
-                </span>
-              );
+              paymentLabel = 'COD Chờ Nộp';
+              dotColor = 'bg-amber-600';
             }
           } else {
-            paymentBadge = (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
-                <span className="material-symbols-outlined text-[13px] text-blue-600">account_balance</span>
-                <span>Cổng Quỹ PayOS</span>
-              </span>
-            );
+            paymentLabel = 'Cổng PayOS';
+            dotColor = 'bg-blue-600';
           }
 
           return (
-            <div className="flex flex-col gap-1 py-1">
-              <div className="flex items-center gap-2">
-                {paymentBadge}
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-theme-surface-subtle border border-theme-border text-theme-text">
-                  {row.itemsCount} món
+            <div className="flex flex-col gap-0.5 py-1 text-xs">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 font-semibold text-slate-800">
+                  <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+                  <span>{paymentLabel}</span>
+                </span>
+                <span className="text-[11px] text-slate-400">·</span>
+                <span className="text-[11px] text-slate-500 font-medium">
+                  {row.itemsCount || 1} món
                 </span>
               </div>
               {row.remittanceInfo?.shipperName && (
-                <span className="text-[10px] text-slate-500 break-words line-clamp-1">
+                <span className="text-[10.5px] text-slate-400 truncate mt-0.5">
                   Bưu tá: {row.remittanceInfo.shipperName}
                 </span>
               )}

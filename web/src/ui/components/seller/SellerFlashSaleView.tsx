@@ -2224,75 +2224,44 @@ export function SellerFlashSaleView() {
       </div>
 
       {/* 2.5 DEDICATED PLATFORM FLASH SALE SECTION: THAM GIA HUKI FLASH SALE */}
-      <div className="bg-gradient-to-r from-red-50 via-amber-50/70 to-orange-50 rounded-3xl p-6 border-2 border-red-200/80 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-red-200/60 pb-3.5">
+      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-2xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#ac2c19] to-[#c73924] text-white flex items-center justify-center shadow-md shadow-red-500/20 shrink-0">
-              <span className="material-symbols-outlined text-2xl">campaign</span>
+            <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center shrink-0 border border-rose-200/60">
+              <span className="material-symbols-outlined text-xl">campaign</span>
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-base sm:text-lg font-black text-gray-900 tracking-tight">
+                <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
                   Tham Gia Huki Flash Sale
                 </h2>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#ac2c19] text-white text-[10.5px] font-bold uppercase tracking-wider shadow-2xs">
+                <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[10.5px] font-semibold border border-rose-200/70">
                   Sàn Tài Trợ
                 </span>
               </div>
-              <p className="text-xs text-gray-600 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5">
                 Chương trình Flash Sale tập trung toàn sàn do HuKi điều phối và đẩy traffic tối đa
               </p>
             </div>
           </div>
-
-          <span className="text-xs font-mono font-bold text-amber-800 bg-amber-100/70 px-3 py-1 rounded-xl border border-amber-200 self-start sm:self-auto flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-sm text-amber-600">verified</span>
-            <span>Chính Sách Giờ Vàng Toàn Sàn</span>
-          </span>
         </div>
 
         {/* Realtime Shop Health & Platform Flash Sale Eligibility Banner */}
-        <div
-          className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-3 ${
-            platformEligibility.eligible
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-950'
-              : 'bg-rose-500/10 border-rose-500/30 text-rose-950'
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                platformEligibility.eligible ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
-              }`}
-            >
-              <span className="material-symbols-outlined text-lg">
-                {platformEligibility.eligible ? 'verified' : 'gavel'}
-              </span>
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-bold text-xs sm:text-sm">
-                  {platformEligibility.eligible
-                    ? 'Gian Hàng Đủ Tiêu Chuẩn Tham Gia Flash Sale Sàn'
-                    : 'Gian Hàng Bị Giới Hạn Tham Gia Flash Sale Sàn'}
-                </span>
-                <span
-                  className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                    penaltyProfile.tier === 'TIER_0_GOOD'
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : penaltyProfile.tier === 'TIER_1_WARNING'
-                      ? 'bg-amber-100 text-amber-900'
-                      : 'bg-rose-100 text-rose-800'
-                  }`}
-                >
-                  Sao Quả Tạ: {penaltyProfile.penaltyPoints}/3 ★ ({PENALTY_TIER_CONFIG[penaltyProfile.tier].name})
-                </span>
-              </div>
-              <p className="text-[11px] text-gray-600 mt-0.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/70 text-xs">
+          <div className="flex items-center gap-2.5">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${platformEligibility.eligible ? 'bg-emerald-600' : 'bg-rose-600'}`} />
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-slate-800">
                 {platformEligibility.eligible
-                  ? `Hạn mức đăng ký: Tối đa ${penaltyProfile.maxBooksPerPlatformSlot} cuốn sách / slot Flash Sale toàn sàn.`
-                  : `${platformEligibility.reason}. Bạn có thể gửi đơn khiếu nại để được Ban Quản Trị thẩm định.`}
-              </p>
+                  ? 'Gian Hàng Đủ Tiêu Chuẩn Tham Gia'
+                  : 'Gian Hàng Bị Giới Hạn Tham Gia'}
+              </span>
+              <span className="text-slate-400">·</span>
+              <span className="text-slate-500">
+                {platformEligibility.eligible
+                  ? `Hạn mức tối đa ${penaltyProfile.maxBooksPerPlatformSlot} cuốn / đợt Flash Sale sàn`
+                  : platformEligibility.reason}
+              </span>
             </div>
           </div>
 
@@ -2302,12 +2271,9 @@ export function SellerFlashSaleView() {
               setPolicyActiveTab(platformEligibility.eligible ? 'CHECKLIST' : 'APPEALS');
               setIsPolicyModalOpen(true);
             }}
-            className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 font-bold text-xs shadow-2xs cursor-pointer self-start md:self-auto flex items-center gap-1.5 shrink-0"
+            className="text-[11.5px] font-semibold text-[#00875A] hover:text-[#00704A] hover:underline cursor-pointer self-start sm:self-auto shrink-0 transition-colors"
           >
-            <span className="material-symbols-outlined text-xs">
-              {platformEligibility.eligible ? 'policy' : 'rate_review'}
-            </span>
-            <span>{platformEligibility.eligible ? 'Xem 5 Tiêu Chuẩn Sàn' : 'Gửi Khiếu Nại / Xem Chi Tiết'}</span>
+            {platformEligibility.eligible ? 'Xem 5 Tiêu Chuẩn Sàn →' : 'Gửi Khiếu Nại / Xem Chi Tiết →'}
           </button>
         </div>
 
@@ -2324,13 +2290,13 @@ export function SellerFlashSaleView() {
             formatCountdown={formatCountdown}
           />
         ) : (
-          <div className="p-6 bg-white/80 rounded-2xl border border-amber-200/60 text-center space-y-1.5">
-            <span className="material-symbols-outlined text-3xl text-amber-500">notifications_active</span>
-            <h4 className="text-xs sm:text-sm font-bold text-gray-800">
+          <div className="py-8 px-4 text-center space-y-1.5">
+            <span className="material-symbols-outlined text-2xl text-slate-300">event_available</span>
+            <p className="text-xs font-semibold text-slate-700">
               Hiện tại chưa có đợt Flash Sale toàn sàn nào mở đăng ký
-            </h4>
-            <p className="text-[11px] text-gray-500 max-w-lg mx-auto">
-              Ban Quản Trị Sàn sẽ thông báo khi có đợt khuyến mãi giờ vàng mới. Bạn có thể tự tạo đợt Flash Sale riêng của Shop bằng nút " Tạo Flash Sale & Đăng Ký Sách" ở phía trên.
+            </p>
+            <p className="text-[11px] text-slate-400 max-w-md mx-auto leading-relaxed">
+              Ban Quản Trị Sàn sẽ thông báo khi có đợt mới. Bạn có thể tự tạo đợt Flash Sale riêng của Shop bằng nút &quot;Tạo Flash Sale &amp; Đăng Ký Sách&quot; ở trên.
             </p>
           </div>
         )}

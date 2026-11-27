@@ -462,8 +462,8 @@ export function SellerGroupedOrderTable({
           summaryRow={
             filteredItems.length > 0 ? (
               <tr className="bg-gray-100/90 font-black text-xs text-gray-900 border-t-2 border-gray-300">
-                <td className="py-3 px-3 text-center">Σ</td>
-                <td className="py-3 px-3" colSpan={2}>
+                <td className="py-3 px-3 text-center font-bold">Σ</td>
+                <td className="py-3 px-3" colSpan={3}>
                   <span className="font-bold uppercase tracking-wider text-gray-800">
                     Tổng Cộng ({filteredItems.length} Đơn Hàng)
                   </span>
