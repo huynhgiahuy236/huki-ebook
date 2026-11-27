@@ -797,8 +797,11 @@ export default function FlashSalePage() {
                       key={item.id}
                       className="group bg-white rounded-xl border border-slate-200/90 overflow-hidden shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col justify-between"
                     >
-                      {/* Top Image + Badges */}
-                      <div className="relative aspect-[3/4] bg-slate-100 overflow-hidden">
+                      {/* Top Image + Badges (Click to open book detail) */}
+                      <Link
+                        href={`/book/${item.slug || item.bookId}`}
+                        className="relative aspect-[3/4] bg-slate-100 overflow-hidden block"
+                      >
                         <img
                           src={item.coverUrl}
                           alt={item.title}
@@ -806,12 +809,12 @@ export default function FlashSalePage() {
                         />
 
                         {/* Discount Badge */}
-                        <div className="absolute top-1.5 left-1.5 bg-rose-600 text-white font-black text-[10px] px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
+                        <div className="absolute top-1.5 left-1.5 bg-rose-600 text-white font-bold text-[10px] px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
                           <span>-{item.discountPercent}%</span>
                         </div>
 
                         {/* Quota Badge */}
-                        <div className="absolute top-1.5 right-1.5 bg-slate-900/80 backdrop-blur-xs text-yellow-300 font-bold text-[9px] px-1.5 py-0.5 rounded border border-yellow-300/30">
+                        <div className="absolute top-1.5 right-1.5 bg-slate-900/75 backdrop-blur-xs text-white font-semibold text-[9.5px] px-1.5 py-0.5 rounded">
                           Tối đa {item.maxPerUser || 1}
                         </div>
 
@@ -826,7 +829,7 @@ export default function FlashSalePage() {
                             </span>
                           </div>
                         )}
-                      </div>
+                      </Link>
 
                       {/* Info Section */}
                       <div className="p-2.5 sm:p-3 flex flex-col flex-1 justify-between gap-2">
@@ -1225,28 +1228,30 @@ export default function FlashSalePage() {
                                   className="group bg-white rounded-xl border border-slate-200/90 p-3 flex flex-col justify-between hover:shadow-md hover:border-[#003b2b]/40 transition-all relative"
                                 >
                                   <div>
-                                    {/* Cover */}
-                                    <div className="relative aspect-[3/4] w-full rounded-lg overflow-hidden bg-slate-50 mb-2 flex items-center justify-center">
+                                    {/* Cover (Click to open book detail) */}
+                                    <Link
+                                      href={`/book/${item.slug || item.bookId}`}
+                                      className="relative aspect-[3/4] w-full rounded-lg overflow-hidden bg-slate-50 mb-2 flex items-center justify-center block"
+                                    >
                                       <img
                                         src={item.coverUrl}
                                         alt={item.title}
                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                       />
-                                      <div className="absolute top-1.5 left-1.5 z-20 bg-gradient-to-r from-[#003b2b] to-[#006953] text-white font-black text-[9px] px-1.5 py-0.5 rounded-md shadow-xs flex items-center gap-0.5">
-                                        <span className="material-symbols-outlined text-[11px]">
-                                          bolt
-                                        </span>
-                                        <span>FLASH SALE</span>
-                                      </div>
-                                    </div>
+                                    </Link>
 
-                                    {/* Title */}
-                                    <h3
-                                      className="text-xs font-semibold text-slate-800 line-clamp-2 leading-tight h-[30px] group-hover:text-[#003b2b] transition-colors mb-1.5"
-                                      title={item.title}
+                                    {/* Title (Click to open book detail) */}
+                                    <Link
+                                      href={`/book/${item.slug || item.bookId}`}
+                                      className="block"
                                     >
-                                      {item.title}
-                                    </h3>
+                                      <h3
+                                        className="text-xs font-semibold text-slate-800 line-clamp-2 leading-tight h-[30px] group-hover:text-[#003b2b] transition-colors mb-1.5"
+                                        title={item.title}
+                                      >
+                                        {item.title}
+                                      </h3>
+                                    </Link>
 
                                     {/* Price Row */}
                                     {isCampaignUpcoming ? (

@@ -621,9 +621,7 @@ function SellerProductsContent() {
                   {book.title}
                 </span>
                 <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px] text-slate-400 font-mono">
-                  <span className="bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-medium">
-                    #{book.id.substring(0, 6).toUpperCase()}
-                  </span>
+                  <span>#{book.id.substring(0, 6).toUpperCase()}</span>
                   {book.category?.name && (
                     <span className="text-slate-500 font-sans">
                       · {book.category.name}
@@ -660,43 +658,30 @@ function SellerProductsContent() {
           const isOutOfStock = book.format !== 'DIGITAL' && stock === 0;
 
           return (
-            <div className="py-1 flex flex-col gap-1 text-xs">
+            <div className="py-1 flex flex-col gap-0.5 text-xs">
               <div className="flex items-center gap-1.5 flex-wrap">
-                {book.format === 'PHYSICAL' && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10.5px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60">
-                    <span className="material-symbols-outlined text-xs">menu_book</span>
-                    <span>Sách Giấy</span>
-                  </span>
-                )}
-                {book.format === 'DIGITAL' && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10.5px] font-bold bg-purple-50 text-purple-700 border border-purple-200/60">
-                    <span className="material-symbols-outlined text-xs">devices</span>
-                    <span>Ebook DRM</span>
-                  </span>
-                )}
-                {book.format === 'BOTH' && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                    <span className="material-symbols-outlined text-xs">auto_stories</span>
-                    <span>Combo</span>
-                  </span>
-                )}
-
+                <span className="font-semibold text-slate-800">
+                  {book.format === 'PHYSICAL'
+                    ? 'Sách Giấy'
+                    : book.format === 'DIGITAL'
+                      ? 'Ebook DRM'
+                      : 'Combo'}
+                </span>
                 {Boolean(book.isAffiliateEligible || book.affiliateSetting?.isEligible) && (
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80">
-                    <span className="material-symbols-outlined text-[12px] text-amber-600">campaign</span>
-                    <span>Affiliate</span>
+                  <span className="text-[10.5px] text-amber-700 font-medium">
+                    · Affiliate
                   </span>
                 )}
               </div>
               <div className="text-[11px]">
                 {book.format === 'DIGITAL' ? (
-                  <span className="text-purple-600 font-semibold text-[10.5px]">DRM Vô hạn</span>
+                  <span className="text-slate-500 text-[10.5px]">DRM Vô hạn</span>
                 ) : isOutOfStock ? (
-                  <span className="text-rose-600 font-bold text-[10.5px]">Hết hàng (0)</span>
+                  <span className="text-rose-600 font-semibold text-[10.5px]">Hết hàng (0)</span>
                 ) : isLowStock ? (
-                  <span className="text-amber-700 font-bold text-[10.5px]">Còn {stock} cuốn</span>
+                  <span className="text-amber-700 font-semibold text-[10.5px]">Còn {stock} cuốn</span>
                 ) : (
-                  <span className="text-slate-600 font-medium text-[10.5px]">{stock.toLocaleString('vi-VN')} cuốn</span>
+                  <span className="text-slate-500 text-[10.5px]">{stock.toLocaleString('vi-VN')} cuốn</span>
                 )}
               </div>
             </div>
@@ -723,7 +708,7 @@ function SellerProductsContent() {
       {
         key: 'actions',
         title: 'Trạng Thái & Thao Tác',
-        width: 250,
+        width: 260,
         align: 'right',
         render: (_val, book) => {
           const isBusy = actionLoadingId === book.id;
@@ -734,7 +719,7 @@ function SellerProductsContent() {
               {canUpdateProduct && (
                 <>
                   <SellerActionButton
-                    variant="primary"
+                    variant="neutral"
                     size="sm"
                     label="Sửa"
                     icon="edit"
@@ -756,10 +741,10 @@ function SellerProductsContent() {
                       type="button"
                       onClick={() => handleVisibility(book)}
                       disabled={isBusy}
-                      className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                      className="px-2 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-semibold text-xs flex items-center gap-1 transition-colors cursor-pointer"
                       title={book.status === 'PUBLISHED' ? 'Tạm ẩn sách' : 'Mở bán sách'}
                     >
-                      <span className="material-symbols-outlined text-[13px]">
+                      <span className="material-symbols-outlined text-[13px] text-slate-500">
                         {book.status === 'PUBLISHED' ? 'visibility_off' : 'visibility'}
                       </span>
                       <span>{book.status === 'PUBLISHED' ? 'Ẩn' : 'Hiện'}</span>
