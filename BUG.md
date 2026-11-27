@@ -2003,3 +2003,42 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
      - `npm --prefix web test`: **14/14 files, 81/81 tests PASS**.
      - `npm --prefix web run build` (Next.js 16.3.3 Turbopack): **142/142 routes compiled cleanly**.
    - **Kết luận Quality Gate Bước 6:** **ĐẠT 4/4 CỔNG — SẴN SÀNG MERGE VÀO `develop` & KÍCH HOẠT BƯỚC 7 (CI/CD).**
+   - **Bước 7 (Local Merge):** Đã merge `--no-ff` vào `develop` (`4025c01`) trước khi mở nhánh mới cho đợt `BUG-33, BUG-34`.
+
+---
+
+## 17. ĐỢT XỬ LÝ BUG-33, BUG-34 — NHÁNH `fix/affiliate-escrow-socket-and-conversion`
+
+> **Nhánh làm việc:** `fix/affiliate-escrow-socket-and-conversion` (khởi tạo từ `develop` `4025c01`)
+> **Quy trình áp dụng:** [`readme-bug.md`](file:///e:/HuKi/readme-bug.md) (1 chặng duy nhất vì tổng số bug là 2 $\le$ 3: `BUG-33`, `BUG-34`).
+
+### Bước 1: Thu thập & Chuẩn hóa Hồ sơ Lỗi (27/11/2026)
+
+| Mã Bug | Who / Where | Mô tả Expected vs Actual | Thực trạng kiểm chứng trong mã nguồn | Mức độ |
+| :--- | :--- | :--- | :--- | :--- |
+| **`BUG-33`** | CTV / `/account/affiliate/dashboard` & Backend `commerce-service` + `community-service` | **Expected:** Thời hạn tạm giữ đối soát Affiliate dùng chung cấu hình với Ví Seller (`ESCROW_HOLD_DURATION_SECONDS` / `ESCROW_CONFIG`: 3 phút trên UAT, 7 ngày / 24h trên Production); hết hạn tự động chuyển `HOLDING → AVAILABLE` và đẩy real-time qua Socket.IO lên Dashboard CTV mà không cần polling hay quét DB mỗi 15–30s.<br>**Actual:** Affiliate đang giữ cứng 7 ngày (`physical_holding_days = 7`, `2810d140...` tạo `07/11` hẹn `14/11`), `AffiliateSettlementWorker` chỉ chạy `@Cron('0 17 * * *')` (00:00 đêm) nên đơn quá hạn 13 ngày tới `27/11` vẫn kẹt ở `HOLDING`; sự kiện `AFFILIATE_COMMISSION_AVAILABLE` chưa được `NotificationEventConsumer` nghe để đẩy Socket.IO. | [`affiliate-lifecycle.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/affiliate/services/affiliate-lifecycle.service.ts#L54-L160), [`affiliate-settlement-worker.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/affiliate/services/affiliate-settlement-worker.service.ts#L32-L33), [`notification-event.consumer.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/notifications/notification-event.consumer.ts#L19-L50) | **Critical (High)** |
+| **`BUG-34`** | CTV / `/account/affiliate/dashboard` & `AffiliateDashboardService` + `AffiliateCheckoutService` | **Expected:** Tỷ lệ chuyển đổi tính hợp lệ theo lượt click ($\le 100\%$), đồng bộ click khi tạo attribution từ `?ref=`, và câu chữ 7 KPI rõ ràng tiếng Việt (`7 Chỉ Số Hiệu Suất Cốt Lõi`, `Đã giải ngân (Tổng chi trả)`).<br>**Actual:** Với 1 lượt click nhưng đặt 8 đơn trong cookie 30 ngày (hoặc checkout trực tiếp `?ref=` không cộng `clickCount`), công thức `conversionsCount / clicksCount * 100` hiển thị **`Tỷ lệ chuyển đổi: 800%`**; tiêu đề dư chữ `DỰ KIẾN` và nhãn `Đã thanh toán (Gross)` pha tiếng Anh. | [`affiliate-dashboard.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/affiliate/services/affiliate-dashboard.service.ts#L134-L136), [`affiliate-checkout.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/affiliate/services/affiliate-checkout.service.ts#L103-L160), [`dashboard/page.tsx`](file:///e:/HuKi/web/src/app/account/affiliate/dashboard/page.tsx#L331-L380) | **High** |
+
+### Bước 2: Phân tích Chẩn đoán & Ma trận Rủi ro Domino (27/11/2026)
+
+1. **Tác động dây chuyền & Quyết định kiến trúc:**
+   - **Không lưu job 7 ngày trên Redis (`Bull Delayed Job`):** Ở Production giữ 7 ngày, đơn có thể bị hoàn/tranh chấp hoặc Buyer xác nhận sớm; lưu timer 7 ngày trên Redis vừa tốn RAM vừa dễ phát sinh stale job. Trong khi bảng `affiliate_commissions` trong [`schema.prisma`](file:///e:/HuKi/platform/apps/commerce-service/prisma/schema.prisma#L1671) đã có sẵn composite index `@@index([status, holdingUntil])`.
+   - **Khả năng tương thích Test:** Các unit test hiện có (`affiliate-lifecycle.spec.ts`, `affiliate-foundation.spec.ts`, `affiliate-dashboard.spec.ts`) chạy khi `ESCROW_HOLD_DURATION_SECONDS` chưa set trong env test (kỳ vọng mặc định Production `168h` / `24h` và `mockPrisma` không có `affiliateAttribution`), nên helper cấu hình và logic đếm click chuyển đổi phải fallback an toàn 100% khi không có env override hoặc mock.
+
+### Bước 3: Phương án Kiến trúc Đã Phê Duyệt & Tiêu chuẩn Nghiệm thu (27/11/2026)
+
+> **Trạng thái:** Người dùng đã thảo luận chi tiết và phê duyệt chốt triển khai (`oke chốt`).
+
+1. **Giải pháp `BUG-33` (Cấu hình 1 nguồn + Smart Next-Due Timer + Socket.IO Realtime):**
+   - **Single Source of Truth:** Tạo helper `resolveEscrowHoldSeconds` / `resolveEscrowHoldHours` / `resolveEscrowHoldMs` trong [`@huki/shared`](file:///e:/HuKi/platform/libs/shared) đọc `process.env.ESCROW_HOLD_DURATION_SECONDS` (dùng chung cho Seller `SettlementService` / `OrdersService` và Affiliate `AffiliatePolicyResolverService` / `AffiliateLifecycleService` / `AffiliateController` / `SellerAffiliateService`). Thiết lập `ESCROW_HOLD_DURATION_SECONDS=180` (3 phút) ở `.env` local/UAT; Frontend Affiliate dùng chung [`ESCROW_CONFIG`](file:///e:/HuKi/web/src/ui/constants/escrowConfig.ts).
+   - **Smart Next-Due Timer (0 polling DB 15–30s, 0 giữ job 7 ngày trên Redis):** `AffiliateSettlementWorker` chạy sweep 1 lần khi khởi động (giải phóng ngay tồn đọng quá hạn trong DB), sau đó truy vấn `findFirst` lấy đúng mốc `MIN(holdingUntil)` gần nhất qua index `@@index([status, holdingUntil])` để đặt **duy nhất 1 `setTimeout`** (giới hạn max check lại mỗi 6 giờ). Lắng nghe event nội bộ `affiliate.holding.scheduled` để cập nhật timer khi có đơn mới vào `HOLDING` hoặc bị rút ngắn hạn; vẫn giữ `@Cron('0 17 * * *')` dự phòng ban đêm.
+   - **Realtime Socket Push:** `AffiliateLifecycleService` bổ sung `userId`, `bookTitle` vào payload Outbox `'AFFILIATE_COMMISSION_AVAILABLE'` (ở cả `processMaturedHoldings` & `handleEscrowReleased`); `NotificationEventConsumer` nhận event và đẩy Socket.IO qua `NotificationDeliveryService` tới đúng `userId`; `useRealtimeNotifications.ts` phát `WALLET_BALANCE_UPDATED` lên `realtimeSyncBus` để Dashboard CTV tự cập nhật ngay lập tức.
+
+2. **Giải pháp `BUG-34` (Sửa Tỷ lệ chuyển đổi 800% & Chuẩn hóa KPI UI):**
+   - Trong `AffiliateDashboardService.getCtvDashboardStats`, tính `conversionRate` dựa trên số lượt nhấp đã chuyển đổi duy nhất giới hạn tối đa theo `clicksCount` (`conversionRate <= 100%`).
+   - Trong `AffiliateCheckoutService.resolveAttribution`, đồng bộ tăng `clickCount` (+1) khi tạo attribution fallback từ `?ref=`/`shortCode` lần đầu.
+   - Trên `/account/affiliate/dashboard` & `/affiliate`: bỏ `"DỰ KIẾN"`, đổi `"Đã thanh toán (Gross)"` → `"Đã giải ngân (Tổng chi trả)"`, hiển thị thời hạn đối soát động từ `ESCROW_CONFIG.DURATION_LABEL`.
+
+3. **Tiêu chuẩn Nghiệm thu (Acceptance Criteria):**
+   - **AC-1 (`BUG-33`):** Khi `ESCROW_HOLD_DURATION_SECONDS=180`, đơn Affiliate chuyển sang `HOLDING` hẹn `holdingUntil = +3 phút`; quá hạn `AffiliateSettlementWorker` tự giải ngân bằng Smart Next-Due Timer (0 interval 15–30s, 0 job 7 ngày trên Redis) và bắn Outbox `'AFFILIATE_COMMISSION_AVAILABLE'` kèm `userId` qua RabbitMQ → Socket.IO `/notifications`.
+   - **AC-2 (`BUG-34`):** Với `clicksCount = 1, conversionsCount = 8`, `conversionRate` không bao giờ vượt `100%`; UI hiển thị `7 Chỉ Số Hiệu Suất Cốt Lõi`, `Đã giải ngân (Tổng chi trả)`, thời hạn đối soát đồng bộ `3 phút` từ `ESCROW_CONFIG`.
