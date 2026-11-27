@@ -90,6 +90,15 @@ export class ContentReportsController {
     return this.moderation.reportBook(actor, id, dto);
   }
 
+  @Get('books/:id/moderation-status')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedCommunityGuard)
+  @ApiOperation({ summary: 'Get book moderation / lock reason & seller appeal status for Seller' })
+  @ApiResponse({ status: 200, description: 'Book moderation detail for seller' })
+  getBookModerationStatus(@Param('id') id: string) {
+    return this.moderation.getBookModerationDetailForSeller(id);
+  }
+
   @Post('books/:id/appeal')
   @ApiBearerAuth()
   @UseGuards(AuthenticatedCommunityGuard)

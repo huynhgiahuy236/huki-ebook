@@ -130,13 +130,8 @@ export function AdminBookModerationView() {
     window.addEventListener('huki_book_reported', handleCustomReport);
     window.addEventListener('huki_book_moderated', handleCustomReport);
 
-    // 4. Polling fallback (2.5s) to guarantee instant update even across isolated browsing contexts
-    const pollInterval = setInterval(() => {
-      void loadData(true);
-    }, 2500);
-
+    // 4. Không poll 2.5s gây spam request (dữ liệu đã đồng bộ realtime qua Socket.IO + realtimeSyncBus)
     return () => {
-      clearInterval(pollInterval);
       unsubscribe();
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('huki_book_reported', handleCustomReport);

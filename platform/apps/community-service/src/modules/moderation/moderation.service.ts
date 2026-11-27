@@ -386,8 +386,8 @@ export class ModerationService {
             type: 'WATCHDOG_ALERT' as any,
             priority: 'CRITICAL',
             title: `[CẢNH BÁO VI PHẠM] Sách "${bookTitle}" đã bị tạm khóa`,
-            message: `Tác phẩm "${bookTitle}" đã bị Ban Quản Trị tạm khóa lưu hành do: ${dto.note || 'Vi phạm chính sách sàn'}. Vui lòng chỉnh sửa thông tin và gửi yêu cầu mở khóa.`,
-            actionUrl: '/seller/products?tab=SUSPENDED',
+            message: `Tác phẩm "${bookTitle}" đã bị Ban Quản Trị tạm khóa lưu hành. Lý do: ${dto.note || 'Vi phạm chính sách sàn'}. Bấm để xem chi tiết lý do và gửi phản biện mở khóa.`,
+            actionUrl: `/seller/product/${bookId}/moderation`,
             payload: {
               bookId,
               bookTitle,
@@ -506,6 +506,65 @@ export class ModerationService {
       success: true,
       bookId,
       sellerAppeal: appealPayload,
+    };
+  }
+
+  async getBookModerationDetailForSeller(bookId: string) {
+    const reports = await this.reports
+      .find({ targetType: 'BOOK', targetId: bookId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!reports.length) {
+      return {
+        bookId,
+        status: 'NONE',
+        resolutionNote: null,
+        moderatedAt: null,
+        sellerAppeal: null,
+        reports: [],
+      };
+    }
+
+    let latestAppeal: any = null;
+    const mappedReports = reports.map((r: any) => {
+      const meta = r.metadata || {};
+      if (
+        meta.sellerAppeal &&
+        (!latestAppeal ||
+          new Date(meta.sellerAppeal.submittedAt || 0).getTime() >
+            new Date(latestAppeal.submittedAt || 0).getTime())
+      ) {
+        latestAppeal = meta.sellerAppeal;
+      }
+      return {
+        id: r._id?.toString() || r.id,
+        reason: r.reason,
+        description: r.description,
+        evidenceUrl: meta.evidenceUrl,
+        evidenceImages: Array.isArray(meta.evidenceImages) ? meta.evidenceImages : [],
+        createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+      };
+    });
+
+    const primary = reports[0] as any;
+    const derivedStatus =
+      primary.status === 'RESOLVED'
+        ? primary.action === 'NONE'
+          ? 'DISMISSED'
+          : 'BLOCKED'
+        : primary.status === 'DISMISSED'
+        ? 'DISMISSED'
+        : 'PENDING_REVIEW';
+
+    return {
+      bookId,
+      status: derivedStatus,
+      reason: primary.reason,
+      resolutionNote: primary.resolutionNote || null,
+      moderatedAt: primary.resolvedAt ? new Date(primary.resolvedAt).toISOString() : null,
+      sellerAppeal: latestAppeal,
+      reports: mappedReports,
     };
   }
 

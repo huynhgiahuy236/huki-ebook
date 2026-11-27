@@ -513,6 +513,48 @@ class BookModerationService {
   }
 
   /**
+   * Lấy chi tiết lý do tạm khóa & trạng thái phản biện cho Seller từ Backend thật
+   */
+  async getSellerBookModerationDetail(bookId: string): Promise<{
+    bookId: string;
+    status: string;
+    reason?: string;
+    resolutionNote?: string | null;
+    moderatedAt?: string | null;
+    sellerAppeal?: SellerBookAppeal | null;
+    reports: {
+      id: string;
+      reason: BookReportReason;
+      description: string;
+      evidenceUrl?: string;
+      evidenceImages?: string[];
+      createdAt: string;
+    }[];
+  }> {
+    const res = await moderationApi.getSellerBookModerationStatus(bookId);
+    const data = res?.data;
+    if (data && typeof data === 'object') {
+      return {
+        bookId: data.bookId || bookId,
+        status: data.status || 'NONE',
+        reason: data.reason,
+        resolutionNote: data.resolutionNote || null,
+        moderatedAt: data.moderatedAt || null,
+        sellerAppeal: data.sellerAppeal || null,
+        reports: Array.isArray(data.reports) ? data.reports : [],
+      };
+    }
+    return {
+      bookId,
+      status: 'NONE',
+      resolutionNote: null,
+      moderatedAt: null,
+      sellerAppeal: null,
+      reports: [],
+    };
+  }
+
+  /**
    * Thao tác xử lý hàng loạt nhiều sách bị báo cáo
    */
   async moderateBooksBulk(

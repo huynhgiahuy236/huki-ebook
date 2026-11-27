@@ -233,6 +233,15 @@ export const moderationApi = {
   },
 
   /**
+   * Seller fetches lock reason, anonymized reader reports, and appeal status for a book
+   */
+  async getSellerBookModerationStatus(bookId: string): Promise<ApiResponse<any>> {
+    return apiClient<any>(`/books/${encodeURIComponent(bookId)}/moderation-status`, {
+      method: 'GET',
+    });
+  },
+
+  /**
    * List book reports for admin
    */
   async listBookReports(query: {

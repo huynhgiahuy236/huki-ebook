@@ -112,12 +112,10 @@ function SellerProductsContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
-  // Unlock Appeal State for SUSPENDED books
-  const [appealingBook, setAppealingBook] = useState<SellerBookItem | null>(null);
-  const [appealMessage, setAppealMessage] = useState('');
-  const [appealImages, setAppealImages] = useState<string[]>([]);
-  const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
-  const [appealedBookIds, setAppealedBookIds] = useState<Set<string>>(new Set());
+  // Moderation lock reason & appeal details map for SUSPENDED books
+  const [moderationDetailsMap, setModerationDetailsMap] = useState<
+    Record<string, { resolutionNote?: string | null; reason?: string; sellerAppeal?: any }>
+  >({});
 
   const currentBizId = user?.business?.id || activeBusinessId || undefined;
   const canViewProduct = can(PERMISSIONS.PRODUCT_VIEW, currentBizId, user);
@@ -235,6 +233,22 @@ function SellerProductsContent() {
         }
       }
       setBooks(items);
+
+      // Tải lý do tạm khóa & trạng thái phản biện cho các sách bị SUSPENDED
+      const suspendedItems = items.filter((b) => b.status === 'SUSPENDED');
+      if (suspendedItems.length > 0) {
+        void Promise.allSettled(
+          suspendedItems.map((b) => bookModerationService.getSellerBookModerationDetail(b.id))
+        ).then((results) => {
+          const nextMap: Record<string, { resolutionNote?: string | null; reason?: string; sellerAppeal?: any }> = {};
+          results.forEach((r, idx) => {
+            if (r.status === 'fulfilled' && r.value) {
+              nextMap[suspendedItems[idx].id] = r.value;
+            }
+          });
+          setModerationDetailsMap(nextMap);
+        });
+      }
 
       // Build map of active subscriptions
       const map: Record<string, BookAiSubscription> = {};
@@ -796,17 +810,13 @@ function SellerProductsContent() {
 
                   {book.status === 'SUSPENDED' && (
                     <SellerActionButton
-                      variant={appealedBookIds.has(book.id) ? 'neutral' : 'primary'}
+                      variant={moderationDetailsMap[book.id]?.sellerAppeal?.status === 'PENDING_UNLOCK' ? 'neutral' : 'primary'}
                       size="sm"
-                      label={appealedBookIds.has(book.id) ? 'Đã gửi mở khóa' : 'Gửi mở khóa'}
-                      icon="lock_open"
-                      title="Gửi giải trình & yêu cầu Ban Quản Trị mở khóa sách"
+                      label={moderationDetailsMap[book.id]?.sellerAppeal?.status === 'PENDING_UNLOCK' ? 'Đã gửi phản biện' : 'Xem lý do & Phản biện'}
+                      icon="gavel"
+                      title="Xem lý do tạm khóa & gửi phản biện mở khóa"
                       disabled={isBusy}
-                      onClick={() => {
-                        setAppealingBook(book);
-                        setAppealMessage('');
-                        setAppealImages([]);
-                      }}
+                      onClick={() => router.push(`/seller/product/${book.id}/moderation`)}
                     />
                   )}
 
@@ -833,8 +843,34 @@ function SellerProductsContent() {
 
   const renderExpandedBookDetail = (book: SellerBookItem) => {
     const isPhysical = book.format === 'PHYSICAL' || book.format === 'BOTH';
+    const modInfo = moderationDetailsMap[book.id];
     return (
       <div className="flex flex-col gap-4 text-xs">
+        {book.status === 'SUSPENDED' && (
+          <div className="p-3.5 rounded-xl bg-rose-50/80 border border-rose-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1 min-w-0">
+              <div className="flex items-center gap-1.5 font-bold text-rose-900 text-xs">
+                <span className="material-symbols-outlined text-[17px] text-rose-600">report_problem</span>
+                <span>Lý Do Tạm Khóa Từ Ban Quản Trị:</span>
+                {modInfo?.sellerAppeal?.status === 'PENDING_UNLOCK' && (
+                  <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                    Đã gửi phản biện • Chờ duyệt
+                  </span>
+                )}
+              </div>
+              <p className="text-[11.5px] text-rose-800 leading-relaxed">
+                {modInfo?.resolutionNote || 'Tác phẩm đang tạm ngưng lưu hành để kiểm duyệt theo phản ánh từ bạn đọc.'}
+              </p>
+            </div>
+            <Link
+              href={`/seller/product/${book.id}/moderation`}
+              className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs inline-flex items-center gap-1.5 shrink-0 transition-colors shadow-2xs"
+            >
+              <span className="material-symbols-outlined text-[15px]">gavel</span>
+              <span>Xem Chi Tiết &amp; Phản Biện</span>
+            </Link>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
           {/* Card 1: Kho & Kích thước */}
           <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
@@ -1428,174 +1464,6 @@ function SellerProductsContent() {
         }}
         tableClassName="min-w-[900px] w-full"
       />
-
-      {/* MODAL GIẢI TRÌNH & YÊU CẦU MỞ KHÓA SÁCH BỊ TẠM KHÓA */}
-      {appealingBook && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
-          onClick={() => !isSubmittingAppeal && setAppealingBook(null)}
-        >
-          <div
-            className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 space-y-5 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between pb-3 border-b border-slate-100">
-              <div className="space-y-1">
-                <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[#00875A] text-[22px]">lock_open</span>
-                  <span>Giải Trình &amp; Yêu Cầu Mở Khóa Sách</span>
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Sau khi đã chỉnh sửa thông tin sách hoặc bổ sung giấy phép hợp lệ, gửi giải trình để Ban Quản Trị kiểm tra và mở khóa lưu hành.
-                </p>
-              </div>
-              <button
-                type="button"
-                disabled={isSubmittingAppeal}
-                onClick={() => setAppealingBook(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer shrink-0"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200">
-              <div className="min-w-0">
-                <h4 className="font-bold text-xs text-slate-900 truncate">{appealingBook.title}</h4>
-                <span className="text-[11px] text-rose-600 font-semibold">Trạng thái: Đang tạm khóa</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => router.push(`/seller/product/${appealingBook.id}/edit`)}
-                className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-[#00875A] text-slate-700 hover:text-[#00875A] text-[11px] font-bold shrink-0 cursor-pointer transition-colors"
-              >
-                Chỉnh sửa sách trước
-              </button>
-            </div>
-
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!appealMessage.trim() || appealMessage.trim().length < 10) {
-                  showToast?.('Vui lòng nhập nội dung giải trình ít nhất 10 ký tự.', 'warning');
-                  return;
-                }
-                setIsSubmittingAppeal(true);
-                try {
-                  await bookModerationService.appealBookUnlock({
-                    bookId: appealingBook.id,
-                    message: appealMessage.trim(),
-                    evidenceImages: appealImages,
-                    bookTitle: appealingBook.title,
-                    sellerName: user?.business?.name || user?.fullName || 'Gian hàng HuKi',
-                  });
-                  setAppealedBookIds((prev) => new Set(prev).add(appealingBook.id));
-                  showToast?.(
-                    `Đã gửi yêu cầu mở khóa cho "${appealingBook.title}" tới Ban Quản Trị!`,
-                    'success'
-                  );
-                  setAppealingBook(null);
-                  setAppealMessage('');
-                  setAppealImages([]);
-                } catch (err: any) {
-                  showToast?.(err?.message || 'Không thể gửi yêu cầu mở khóa lúc này.', 'error');
-                } finally {
-                  setIsSubmittingAppeal(false);
-                }
-              }}
-              className="space-y-4 overflow-y-auto pr-1 text-xs"
-            >
-              <div className="space-y-1.5">
-                <label className="block font-bold text-slate-800">
-                  Nội Dung Giải Trình &amp; Các Điểm Đã Khắc Phục <span className="text-rose-500">*</span>
-                </label>
-                <textarea
-                  value={appealMessage}
-                  onChange={(e) => setAppealMessage(e.target.value)}
-                  rows={4}
-                  placeholder="Ví dụ: Shop đã cập nhật lại ISBN chính xác, bổ sung giấy phép xuất bản số... và thay đổi mô tả đúng chuẩn..."
-                  className="w-full p-3 rounded-xl border border-slate-300 focus:outline-none focus:border-[#00875A] focus:ring-1 focus:ring-[#00875A] text-xs resize-none"
-                  required
-                />
-                <div className="flex justify-between text-[11px] text-slate-400">
-                  <span>Tối thiểu 10 ký tự</span>
-                  <span className={appealMessage.trim().length >= 10 ? 'text-[#00875A] font-semibold' : ''}>
-                    {appealMessage.trim().length} ký tự
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block font-bold text-slate-800">
-                    Ảnh Chứng Từ / Giấy Phép / Ảnh Đã Chỉnh Sửa (Tùy chọn, tối đa 5 ảnh)
-                  </label>
-                  <span className="text-[11px] text-slate-500">{appealImages.length}/5 ảnh</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2.5">
-                  {appealImages.map((img, idx) => (
-                    <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border border-slate-200">
-                      <img src={img} alt={`Chứng từ ${idx + 1}`} className="w-full h-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => setAppealImages((prev) => prev.filter((_, i) => i !== idx))}
-                        className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 text-white flex items-center justify-center cursor-pointer"
-                      >
-                        <span className="material-symbols-outlined text-[11px]">close</span>
-                      </button>
-                    </div>
-                  ))}
-                  {appealImages.length < 5 && (
-                    <label className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-300 hover:border-[#00875A] bg-slate-50 flex flex-col items-center justify-center gap-0.5 cursor-pointer text-slate-500 hover:text-[#00875A]">
-                      <span className="material-symbols-outlined text-[18px]">add_photo_alternate</span>
-                      <span className="text-[9.5px] font-semibold">Thêm ảnh</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={(e) => {
-                          const files = e.target.files;
-                          if (!files) return;
-                          for (const file of Array.from(files)) {
-                            if (file.size > 5 * 1024 * 1024 || !file.type.startsWith('image/')) continue;
-                            const reader = new FileReader();
-                            reader.onload = (ev) => {
-                              const url = ev.target?.result as string;
-                              if (url) setAppealImages((prev) => (prev.length < 5 ? [...prev, url] : prev));
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                          e.target.value = '';
-                        }}
-                        className="hidden"
-                      />
-                    </label>
-                  )}
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  disabled={isSubmittingAppeal}
-                  onClick={() => setAppealingBook(null)}
-                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold text-xs cursor-pointer"
-                >
-                  Hủy Bỏ
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingAppeal || appealMessage.trim().length < 10}
-                  className="px-5 py-2 rounded-xl bg-[#00875A] hover:bg-[#00704A] disabled:opacity-50 text-white font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[16px]">send</span>
-                  <span>{isSubmittingAppeal ? 'Đang gửi...' : 'Gửi Yêu Cầu Mở Khóa'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
