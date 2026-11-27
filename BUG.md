@@ -1915,6 +1915,34 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 2. **Ma trận Rủi ro Domino (GĐ2):**
    - Chuẩn hóa log ví cần rà soát kỹ luồng idempotency của `SettlementService` (`referenceType: 'ORDER_PAYMENT' / 'SETTLEMENT'`) để không làm hỏng đối soát Escrow/Payout hay gây ghi trùng lịch sử cũ trên DB UAT.
 
+---
+
+### Bước 3: Phương án Kiến trúc Chuẩn Shopee Đã Phê Duyệt & Tiêu chuẩn Nghiệm thu (27/11/2026)
+
+> **Trạng thái:** Người dùng đã phê duyệt **100% phương án (Khuyến nghị) [Chuẩn Shopee]** qua bộ câu hỏi trắc nghiệm tương tác cho cả Giai đoạn 1 (`BUG-29, BUG-30, BUG-31`) và Giai đoạn 2 (`BUG-32`).
+
+1. **Giải pháp `BUG-29` (Chọn Định Dạng Flash Sale trong Studio Seller/Admin):**
+   - **Backend (`promotion-service`):** Thêm trường `targetFormat` (`FlashSaleFormat`: `PHYSICAL` | `DIGITAL` | `BOTH`, nullable cho tương thích ngược bản ghi cũ) vào `FlashSaleItem`; cập nhật DTO + `sellerRegisterItem` / `addItem` / `sellerUpdateItem` để kiểm tra tính tương thích với `book.format` và tính giá gốc/chống giá ảo đúng theo định dạng đã chọn (`pricePaper` cho `PHYSICAL`, `priceEbook` cho `DIGITAL`, `price` cho `BOTH`).
+   - **Frontend (`SellerFlashSaleView.tsx`, `seller/promotions/flash-sale/[id]/page.tsx`, `AdminFlashSaleView.tsx`):** Sách 1 định dạng giữ nhãn khóa; sách `BOTH` hiển thị `<select>` chọn `Combo (Giấy + Ebook)` | `Chỉ Sách Giấy` | `Chỉ Ebook`, tự cập nhật lại Giá Gốc, Giá Flash Sale mặc định và Chống Giá Ảo 30 ngày ngay khi đổi lựa chọn. Bổ sung lọc `BOTH` vào `bookFormatFilter`.
+
+2. **Giải pháp `BUG-30` (Nhãn & Giá Flash Sale Đúng Hình Thức tại `/book/[id]` và Cart/Checkout):**
+   - **Frontend (`/book/[id]`):** Trong mục `CHỌN HÌNH THỨC MUA`, chỉ hình thức khớp với `targetFormat` của Flash Sale mới hiển thị badge `[⚡ FLASH SALE -X%]` và giá Flash Sale; các hình thức còn lại hiển thị giá riêng của hình thức đó (hoặc `BookDiscount` nếu có). Khi bấm chuyển qua các hình thức khác nhau, Buy Box (`Tạm tính`), `Thêm vào giỏ` và `Mua ngay` cập nhật đúng giá của hình thức đang chọn — tuyệt đối không gắn cứng `flashSaleInfo.salePrice` cho mọi định dạng.
+   - **Backend (`promotion-service`, `commerce-service`):** `FlashSale` quote/price/validate-quota/reserve đối chiếu theo `targetFormat`; `CartService` & `CheckoutService` phân biệt `PHYSICAL` / `DIGITAL` / `BOTH` (Combo) để áp đúng giá gốc và giá Flash Sale khớp với định dạng mua.
+
+3. **Giải pháp `BUG-31` (Tinh gọn UI `/seller/reports`):**
+   - Xóa cụm 2 biểu đồ dư thừa (`Biểu Đồ Vòng Đời Dòng Tiền` và `Cơ Cấu Phương Thức Thanh Toán` tại [`reports/page.tsx`](file:///e:/HuKi/web/src/app/seller/reports/page.tsx#L602-L793)), giữ giao diện gọn 5 thẻ KPI + bộ lọc kỳ báo cáo chuẩn Shopee.
+
+4. **Giải pháp `BUG-32` (Tách rạch ròi `/seller/finance` vs `/seller/reports` & Chuẩn hóa Sổ Cái Biến Động Ví):**
+   - **Frontend:** `/seller/finance` giữ Ví rút tiền (3 thẻ đầu + KYC/PIN) + 2 tab (`Lịch Sử Rút Tiền Về STK`, `Nhật Ký Biến Động Ví`); `/seller/reports` giữ Bộ lọc ngày + 5 thẻ KPI + bảng `Chi Tiết Từng Món Hàng & Dòng Tiền` + Xuất CSV (bỏ 2 tab trùng lặp).
+   - **Backend & UI Sổ Cái Ví:** Gỡ bỏ cơ chế backfill tự sinh log theo `ORDER_ITEM` trong [`WalletService.getStoreTransactions`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/wallet/wallet.service.ts#L363-L485), chuẩn hóa 100% log tiếng Việt tại nguồn ghi thật (`SettlementService` & `WalletService`), tính `availableBefore`/`availableAfter` theo ví chính nhất quán, và tách đúng 4 nhãn loại biến động (`Tạm giữ ký quỹ` / `+ Giải ngân vào ví` / `+ Cộng doanh thu` / `- Rút tiền về STK`).
+
+5. **Tiêu chuẩn Nghiệm thu (Acceptance Criteria):**
+   - **AC-1 (`BUG-29`):** Given sách `BOTH`, When Seller mở Studio Flash Sale và chọn `Chỉ Sách Giấy` / `Chỉ Ebook` / `Combo`, Then Giá gốc & Giá Flash Sale cập nhật tương ứng và lưu đúng `targetFormat` xuống `flash_sale_items` (HTTP 200, `< 500ms`).
+   - **AC-2 (`BUG-30`):** Given sách `BOTH` đang Flash Sale ở định dạng `PHYSICAL` (hoặc `DIGITAL`/`BOTH`), When Buyer mở `/book/[id]` và bấm chuyển qua lại giữa 3 hình thức mua, Then chỉ hình thức có Flash Sale hiện nhãn `FLASH SALE` & giá giảm, các hình thức khác hiển thị đúng giá riêng; thêm giỏ / mua ngay / checkout khớp 100% giá DB (0 lỗi console).
+   - **AC-3 (`BUG-31`):** Trang `/seller/reports` không còn 2 biểu đồ dư thừa, 0 lỗi TypeScript/JSX.
+   - **AC-4 (`BUG-32`):** `/seller/finance` và `/seller/reports` không trùng tab; Sổ cái ví chỉ ghi 1 dòng tiếng Việt sạch cho mỗi sự kiện biến động thật, nhãn và số dư Trước/Sau nhất quán 100%.
+
+
 
 
 
