@@ -603,17 +603,28 @@ function SellerProductsContent() {
         title: 'Sản Phẩm & Bìa Sách',
         minWidth: 260,
         render: (_val, book) => {
-          const cover = book.coverUrl || book.coverImage || book.cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&auto=format&fit=crop&q=80';
+          const cover = book.coverUrl || book.coverImage || book.cover;
           return (
             <div className="flex items-center gap-3 py-1">
-              <img
-                src={cover}
-                alt={book.title}
-                className="w-9 h-12 object-cover rounded-lg border border-slate-200 shadow-2xs shrink-0 bg-slate-100"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&auto=format&fit=crop&q=80';
-                }}
-              />
+              <div className="w-9 h-12 rounded-lg border border-slate-200 shadow-2xs shrink-0 bg-slate-100 flex items-center justify-center overflow-hidden">
+                {cover ? (
+                  <img
+                    src={cover}
+                    alt={book.title}
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.display = 'none';
+                      if (el.parentElement) {
+                        el.parentElement.innerHTML = '<span class="material-symbols-outlined text-[#00875A] text-lg">menu_book</span>';
+                      }
+                    }}
+                  />
+                ) : (
+                  <span className="material-symbols-outlined text-[#00875A] text-lg">menu_book</span>
+                )}
+              </div>
               <div className="min-w-0">
                 <span
                   title={book.title}
@@ -1360,7 +1371,7 @@ function SellerProductsContent() {
           onPageChange: setCurrentPage,
           itemLabel: 'đầu sách',
         }}
-        className="w-full"
+        tableClassName="min-w-[900px] w-full"
       />
     </div>
   );

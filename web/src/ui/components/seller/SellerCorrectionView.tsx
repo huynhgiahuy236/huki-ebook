@@ -203,22 +203,28 @@ export default function SellerCorrectionView() {
         minWidth: 260,
         render: (_val, book) => {
           const rawCover = book.coverUrl || (book as any).coverImage || (book as any).coverImageUrl || (book as any).cover;
-          const cover = rawCover && !rawCover.includes('unsplash') ? rawCover : '/images/book-placeholder.png';
+          const cover = rawCover && !rawCover.includes('unsplash') ? rawCover : null;
           return (
             <div className="flex items-center gap-3 py-1">
-              <img
-                src={cover}
-                alt={book.title}
-                referrerPolicy="no-referrer"
-                className="w-10 h-14 object-cover rounded-lg border border-slate-200 shadow-2xs shrink-0 bg-slate-100"
-                onError={(e) => {
-                  const target = e.currentTarget;
-                  if (!target.dataset.fallbackApplied) {
-                    target.dataset.fallbackApplied = '1';
-                    target.src = '/images/book-placeholder.png';
-                  }
-                }}
-              />
+              <div className="w-10 h-14 rounded-lg border border-slate-200 shadow-2xs shrink-0 bg-slate-100 flex items-center justify-center overflow-hidden">
+                {cover ? (
+                  <img
+                    src={cover}
+                    alt={book.title}
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.display = 'none';
+                      if (el.parentElement) {
+                        el.parentElement.innerHTML = '<span class="material-symbols-outlined text-[#00875A] text-xl">menu_book</span>';
+                      }
+                    }}
+                  />
+                ) : (
+                  <span className="material-symbols-outlined text-[#00875A] text-xl">menu_book</span>
+                )}
+              </div>
               <div className="min-w-0">
                 <span className="font-bold text-slate-900 block break-words line-clamp-2 leading-snug text-xs" title={book.title}>
                   {book.title}
@@ -406,7 +412,7 @@ export default function SellerCorrectionView() {
     );
   };
 
-    return (
+  return (
     <div className="w-full max-w-[1600px] mx-auto space-y-5 antialiased font-sans text-slate-800">
       {/* 1. TOP HEADER & PRIMARY ACTIONS */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-200">

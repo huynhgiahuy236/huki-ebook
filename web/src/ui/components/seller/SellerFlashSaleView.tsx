@@ -125,7 +125,7 @@ function PlatformSlotCountdownCard({
             {isSaleLive && (
               <span className="px-2.5 py-0.5 rounded-full bg-rose-600 text-white text-[10.5px] font-bold flex items-center gap-1 shadow-xs animate-pulse">
                 <span className="material-symbols-outlined text-xs">local_fire_department</span>
-                ĐANG MỞ BÁN 
+                ĐANG MỞ BÁN
               </span>
             )}
             {isRegUpcoming && (
@@ -187,13 +187,12 @@ function PlatformSlotCountdownCard({
                   }
                   handleOpenRegisterForSlot(platformSlot.id);
                 }}
-                className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs ${
-                  !platformEligibility.eligible
-                    ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 cursor-pointer animate-pulse'
-                    : !isRegOpen || isStoreFull
+                className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs ${!platformEligibility.eligible
+                  ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 cursor-pointer animate-pulse'
+                  : !isRegOpen || isStoreFull
                     ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
                     : 'bg-[#ac2c19] hover:bg-[#8f2415] text-white cursor-pointer hover:scale-[1.02]'
-                }`}
+                  }`}
               >
                 <span className="material-symbols-outlined text-sm">
                   {!platformEligibility.eligible ? 'gavel' : !isRegOpen || isStoreFull ? 'lock' : 'bolt'}
@@ -202,12 +201,12 @@ function PlatformSlotCountdownCard({
                   {!platformEligibility.eligible
                     ? ' Tạm Khóa (Sao Quả Tạ >= 3)'
                     : isStoreFull
-                    ? `Đã Đủ Số Lượng Shop (${maxStores}/${maxStores})`
-                    : isTeaser
-                    ? 'Đã Đóng Cổng Đăng Ký'
-                    : isSaleLive
-                    ? 'Đã Hết Hạn Đăng Ký'
-                    : ' Đăng Ký Tham Gia Sàn Ngay'}
+                      ? `Đã Đủ Số Lượng Shop (${maxStores}/${maxStores})`
+                      : isTeaser
+                        ? 'Đã Đóng Cổng Đăng Ký'
+                        : isSaleLive
+                          ? 'Đã Hết Hạn Đăng Ký'
+                          : ' Đăng Ký Tham Gia Sàn Ngay'}
                 </span>
               </button>
             )}
@@ -230,9 +229,8 @@ function PlatformSlotCountdownCard({
           </div>
           <div className="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
             <div
-              className={`h-full transition-all duration-500 rounded-full ${
-                isStoreFull ? 'bg-rose-500' : progressPct >= 70 ? 'bg-amber-500' : 'bg-emerald-500'
-              }`}
+              className={`h-full transition-all duration-500 rounded-full ${isStoreFull ? 'bg-rose-500' : progressPct >= 70 ? 'bg-amber-500' : 'bg-emerald-500'
+                }`}
               style={{ width: `${progressPct}%` }}
             ></div>
           </div>
@@ -327,13 +325,12 @@ const StudioBookRow = React.memo(function StudioBookRow({
 
   return (
     <tr
-      className={`transition-colors ${
-        isConflicted
-          ? 'bg-gray-100/60 opacity-60'
-          : isSelected
-            ? 'bg-orange-50/50 hover:bg-orange-50/80 font-medium'
-            : 'hover:bg-gray-50/60'
-      }`}
+      className={`transition-colors ${isConflicted
+        ? 'bg-gray-100/60 opacity-60'
+        : isSelected
+          ? 'bg-orange-50/50 hover:bg-orange-50/80 font-medium'
+          : 'hover:bg-gray-50/60'
+        }`}
     >
       <td className="py-2.5 px-3 text-center">
         <input
@@ -368,11 +365,10 @@ const StudioBookRow = React.memo(function StudioBookRow({
             {isConflicted && (
               <span
                 title={`Đang tham gia "${conflictInfo?.conflictSessionName}"`}
-                className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-md mt-1 border ${
-                  conflictInfo?.conflictScope === 'PLATFORM'
-                    ? 'bg-rose-50/70 text-rose-700 border-rose-200/70'
-                    : 'bg-emerald-50/70 text-emerald-700 border-emerald-200/70'
-                }`}
+                className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-md mt-1 border ${conflictInfo?.conflictScope === 'PLATFORM'
+                  ? 'bg-rose-50/70 text-rose-700 border-rose-200/70'
+                  : 'bg-emerald-50/70 text-emerald-700 border-emerald-200/70'
+                  }`}
               >
                 {conflictInfo?.conflictScope === 'PLATFORM'
                   ? 'Đang tham gia Flash Sale Sàn'
@@ -448,15 +444,14 @@ const StudioBookRow = React.memo(function StudioBookRow({
           </span>
         ) : (
           <span
-            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
-              disc >= 50
-                ? 'bg-red-100 text-red-700'
-                : disc >= 30
-                  ? 'bg-orange-100 text-orange-700'
-                  : disc > 0
-                    ? 'bg-amber-100 text-amber-700'
-                    : 'bg-gray-100 text-gray-500'
-            }`}
+            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${disc >= 50
+              ? 'bg-red-100 text-red-700'
+              : disc >= 30
+                ? 'bg-orange-100 text-orange-700'
+                : disc > 0
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-gray-100 text-gray-500'
+              }`}
           >
             -{disc}%
           </span>
@@ -908,10 +903,10 @@ export function SellerFlashSaleView() {
         const slotsData = Array.isArray(raw)
           ? raw
           : Array.isArray(raw.slots)
-          ? raw.slots
-          : Array.isArray(raw.items)
-          ? raw.items
-          : [];
+            ? raw.slots
+            : Array.isArray(raw.items)
+              ? raw.items
+              : [];
         setSlots(slotsData);
         if (slotsData.length > 0) {
           setSelectedSlotId((prev) => prev || slotsData[0].id);
@@ -921,8 +916,8 @@ export function SellerFlashSaleView() {
         const itemsData = Array.isArray(itemsRes.data)
           ? itemsRes.data
           : Array.isArray((itemsRes.data as any)?.items)
-          ? (itemsRes.data as any).items
-          : [];
+            ? (itemsRes.data as any).items
+            : [];
         setMyItems(itemsData);
       }
 
@@ -931,8 +926,8 @@ export function SellerFlashSaleView() {
         books = Array.isArray(booksSellerRes.data)
           ? booksSellerRes.data
           : Array.isArray((booksSellerRes.data as any)?.items)
-          ? (booksSellerRes.data as any).items
-          : [];
+            ? (booksSellerRes.data as any).items
+            : [];
       }
 
       // Only publicly published books can join public Flash Sale campaigns
@@ -1504,7 +1499,7 @@ export function SellerFlashSaleView() {
         if (slotMode === 'CUSTOM' && targetSlotId) {
           try {
             await flashSaleApi.sellerDeleteSlot(targetSlotId);
-          } catch {}
+          } catch { }
         }
         const errorMsg =
           errorsList[0]?.error ||
@@ -1518,7 +1513,7 @@ export function SellerFlashSaleView() {
       if (slotMode === 'CUSTOM' && targetSlotId) {
         try {
           await flashSaleApi.sellerDeleteSlot(targetSlotId);
-        } catch {}
+        } catch { }
       }
       showToast(err?.message || (err as any)?.error?.message || 'Có lỗi xảy ra khi đăng ký hàng loạt', 'error');
     } finally {
@@ -1621,7 +1616,7 @@ export function SellerFlashSaleView() {
   const handleStartInlineEdit = (item: any) => {
     const orig = Number(
       item.originalPrice ||
-        resolveBookOriginalPriceByFormat(item.book, item.targetFormat || item.format),
+      resolveBookOriginalPriceByFormat(item.book, item.targetFormat || item.format),
     );
     const targetFmt = item.targetFormat || item.format || item.book?.format || 'PHYSICAL';
     const avail =
@@ -1673,11 +1668,11 @@ export function SellerFlashSaleView() {
           prev.map((it) =>
             it.id === itemId
               ? {
-                  ...it,
-                  salePrice: editingRowData.salePrice,
-                  stock: editingRowData.stock,
-                  maxPerUser: editingRowData.maxPerUser,
-                }
+                ...it,
+                salePrice: editingRowData.salePrice,
+                stock: editingRowData.stock,
+                maxPerUser: editingRowData.maxPerUser,
+              }
               : it,
           ),
         );
@@ -1782,7 +1777,7 @@ export function SellerFlashSaleView() {
       } else if (slotStatus === 'ACTIVE' && endsAt < now) {
         slotStatus = 'ENDED';
       }
-      
+
       // Tab filter
       if (activeTab === 'ACTIVE' && slotStatus !== 'ACTIVE' && slotStatus !== 'SCHEDULED') return;
       if (activeTab === 'ENDED' && slotStatus !== 'ENDED') return;
@@ -2042,108 +2037,46 @@ export function SellerFlashSaleView() {
           </div>
         </div>
 
-        <div className="flex flex-col lg:items-end gap-2 shrink-0 max-w-full">
-          <div className="flex items-center gap-2 flex-wrap sm:justify-start lg:justify-end max-w-full">
-            {/* Shop Health & Sao Quả Tạ Badge */}
-            <button
-              type="button"
-              onClick={() => {
-                setPolicyActiveTab('CHECKLIST');
-                setIsPolicyModalOpen(true);
-              }}
-              title="Nhấn để xem chi tiết 5 tiêu chuẩn vận hành và điểm Sao Quả Tạ của Shop"
-              className={`px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer ${
-                penaltyProfile.penaltyPoints === 0
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100/70'
-                  : penaltyProfile.penaltyPoints <= 2
-                  ? 'bg-amber-50 border-amber-200 text-amber-900 hover:bg-amber-100/70'
-                  : 'bg-rose-50 border-rose-200 text-rose-900 hover:bg-rose-100/70'
+        <div className="flex items-center gap-2 flex-wrap justify-end shrink-0 max-w-full">
+          {/* Shop Health & Sao Quả Tạ Badge */}
+          <button
+            type="button"
+            onClick={() => {
+              setPolicyActiveTab('CHECKLIST');
+              setIsPolicyModalOpen(true);
+            }}
+            title="Nhấn để xem chi tiết 5 tiêu chuẩn vận hành và điểm Sao Quả Tạ của Shop"
+            className={`px-3 py-1.5 rounded-xl border text-xs font-semibold inline-flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${penaltyProfile.penaltyPoints === 0
+              ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800 hover:bg-emerald-100/70'
+              : penaltyProfile.penaltyPoints <= 2
+                ? 'bg-amber-50/80 border-amber-200 text-amber-900 hover:bg-amber-100/70'
+                : 'bg-rose-50/80 border-rose-200 text-rose-900 hover:bg-rose-100/70'
               }`}
-            >
-              <div
-                className={`w-6 h-6 rounded-lg flex items-center justify-center text-white ${
-                  penaltyProfile.penaltyPoints === 0
-                    ? 'bg-emerald-600'
-                    : penaltyProfile.penaltyPoints <= 2
-                    ? 'bg-amber-600'
-                    : 'bg-rose-600'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[15px]">
-                  {penaltyProfile.penaltyPoints === 0 ? 'verified' : 'warning'}
-                </span>
-              </div>
-              <div className="text-left">
-                <div className="text-[9.5px] uppercase tracking-wider text-gray-500 font-extrabold leading-none">
-                  Sao Quả Tạ
-                </div>
-                <div className="text-xs font-black">
-                  {penaltyProfile.penaltyPoints} / 3 ★{' '}
-                  <span className="font-semibold text-[10.5px] opacity-80">
-                    ({penaltyProfile.tier === 'TIER_0_GOOD' ? 'Tốt' : penaltyProfile.tier === 'TIER_1_WARNING' ? 'Cảnh Báo' : 'Khóa FS Sàn'})
-                  </span>
-                </div>
-              </div>
-            </button>
+          >
+            <span className={`w-2 h-2 rounded-full shrink-0 ${penaltyProfile.penaltyPoints === 0 ? 'bg-emerald-500' : penaltyProfile.penaltyPoints <= 2 ? 'bg-amber-500' : 'bg-rose-500'}`} />
+            <span>Sao Quả Tạ: {penaltyProfile.penaltyPoints}/3 ★</span>
+          </button>
 
-            {/* Platform Flash Sale Criteria Policy Button */}
-            <button
-              type="button"
-              onClick={() => {
-                setPolicyActiveTab('CHECKLIST');
-                setIsPolicyModalOpen(true);
-              }}
-              className="px-3.5 py-2.5 rounded-2xl bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-bold text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer hover:border-gray-400 transition-all"
-            >
-              <span className="material-symbols-outlined text-sm text-amber-600">policy</span>
-              <span>Tiêu Chuẩn Tham Gia Sàn</span>
-            </button>
+          {/* Platform Flash Sale Criteria Policy Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setPolicyActiveTab('CHECKLIST');
+              setIsPolicyModalOpen(true);
+            }}
+            className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-semibold text-xs inline-flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors whitespace-nowrap"
+          >
+            <span className="material-symbols-outlined text-[15px] text-slate-500">verified_user</span>
+            <span>Tiêu chuẩn sàn</span>
+          </button>
 
-            {/* Primary Action Button */}
-            <button
-              type="button"
-              disabled={Boolean(existingShopSlot) && !isFormOpen}
-              onClick={() => {
-                if (existingShopSlot && !isFormOpen) {
-                  showToast(
-                    `Shop hiện đã có 1 đợt Flash Sale "${existingShopSlot.name}". Mỗi shop chỉ được tạo tối đa 1 đợt cùng lúc!`,
-                    'warning'
-                  );
-                  return;
-                }
-                const nextState = !isFormOpen;
-                React.startTransition(() => {
-                  setIsFormOpen(nextState);
-                  if (nextState) {
-                    const freshTimes = getInitialTimes();
-                    setCustomStartsAt(freshTimes.startsAt);
-                    setCustomEndsAt(freshTimes.endsAt);
-                    if (slots.length > 0 && !selectedSlotId) {
-                      setSelectedSlotId(slots[0].id);
-                    }
-                  }
-                });
-              }}
-              className={`px-5 py-3 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
-                existingShopSlot && !isFormOpen
-                  ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed shadow-none'
-                  : isFormOpen
-                  ? 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 cursor-pointer shadow-md'
-                  : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-md shadow-orange-500/25 hover:scale-[1.02] cursor-pointer'
-              }`}
-            >
-              <span className="material-symbols-outlined text-lg">
-                {isFormOpen ? 'close' : existingShopSlot ? 'lock' : 'bolt'}
-              </span>
-              <span>{isFormOpen ? 'Đóng Công Cụ' : ' Tạo Flash Sale & Đăng Ký Sách'}</span>
-            </button>
-          </div>
+          {/* Inline Existing Slot Notification Pill */}
           {existingShopSlot && !isFormOpen && (
-            <div className="text-[11px] font-semibold text-rose-600 flex flex-col sm:flex-row items-start sm:items-center gap-1.5 sm:text-right max-w-md bg-rose-50/80 p-2 rounded-xl border border-rose-200/80">
-              <div className="flex items-center gap-1">
-                <span className="material-symbols-outlined text-xs shrink-0 text-rose-600">error</span>
-                <span>Shop đang có đợt ("{existingShopSlot.name}").</span>
-              </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50/90 border border-rose-200 text-rose-800 text-xs font-semibold whitespace-nowrap">
+              <span className="material-symbols-outlined text-sm text-rose-600 shrink-0">info</span>
+              <span className="max-w-[170px] truncate" title={`Shop đang có đợt ("${existingShopSlot.name}")`}>
+                Đang có: &ldquo;{existingShopSlot.name}&rdquo;
+              </span>
               <button
                 type="button"
                 onClick={() => {
@@ -2154,13 +2087,51 @@ export function SellerFlashSaleView() {
                     handleDeleteSlot(existingShopSlot.id);
                   }
                 }}
-                className="text-[10px] font-bold text-rose-700 bg-rose-100 hover:bg-rose-200 px-2 py-0.5 rounded-md cursor-pointer transition-colors inline-flex items-center gap-0.5"
+                className="text-xs font-bold text-rose-700 hover:text-rose-900 underline ml-0.5 cursor-pointer inline-flex items-center gap-0.5"
               >
-                <span>Xem & Xóa đợt cũ</span>
-                <span className="material-symbols-outlined text-[11px]">arrow_downward</span>
+                <span>Xem/Xóa</span>
+                <span className="material-symbols-outlined text-[12px]">arrow_downward</span>
               </button>
             </div>
           )}
+
+          {/* Primary Action Button */}
+          <button
+            type="button"
+            disabled={Boolean(existingShopSlot) && !isFormOpen}
+            onClick={() => {
+              if (existingShopSlot && !isFormOpen) {
+                showToast(
+                  `Shop hiện đã có 1 đợt Flash Sale "${existingShopSlot.name}". Mỗi shop chỉ được tạo tối đa 1 đợt cùng lúc!`,
+                  'warning'
+                );
+                return;
+              }
+              const nextState = !isFormOpen;
+              React.startTransition(() => {
+                setIsFormOpen(nextState);
+                if (nextState) {
+                  const freshTimes = getInitialTimes();
+                  setCustomStartsAt(freshTimes.startsAt);
+                  setCustomEndsAt(freshTimes.endsAt);
+                  if (slots.length > 0 && !selectedSlotId) {
+                    setSelectedSlotId(slots[0].id);
+                  }
+                }
+              });
+            }}
+            className={`px-3.5 py-1.5 rounded-xl font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-all whitespace-nowrap ${existingShopSlot && !isFormOpen
+              ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed shadow-none'
+              : isFormOpen
+                ? 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 cursor-pointer shadow-xs'
+                : 'bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs cursor-pointer'
+              }`}
+          >
+            <span className="material-symbols-outlined text-[16px]">
+              {isFormOpen ? 'close' : existingShopSlot ? 'lock' : 'bolt'}
+            </span>
+            <span>{isFormOpen ? 'Đóng' : 'Tạo Flash Sale'}</span>
+          </button>
         </div>
       </div>
 
@@ -2352,11 +2323,10 @@ export function SellerFlashSaleView() {
                   <button
                     type="button"
                     onClick={() => setSlotMode('CUSTOM')}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                      slotMode === 'CUSTOM'
-                        ? 'bg-white text-orange-600 shadow-xs ring-1 ring-orange-400/30'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${slotMode === 'CUSTOM'
+                      ? 'bg-white text-orange-600 shadow-xs ring-1 ring-orange-400/30'
+                      : 'text-gray-600 hover:text-gray-900'
+                      }`}
                   >
                     <span className="material-symbols-outlined text-sm">tune</span>
                     <span>Tự Tạo Giờ Riêng</span>
@@ -2364,11 +2334,10 @@ export function SellerFlashSaleView() {
                   <button
                     type="button"
                     onClick={() => setSlotMode('EXISTING')}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                      slotMode === 'EXISTING'
-                        ? 'bg-white text-orange-600 shadow-xs ring-1 ring-orange-400/30'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${slotMode === 'EXISTING'
+                      ? 'bg-white text-orange-600 shadow-xs ring-1 ring-orange-400/30'
+                      : 'text-gray-600 hover:text-gray-900'
+                      }`}
                   >
                     <span className="material-symbols-outlined text-sm">event_available</span>
                     <span>Chọn Khung Giờ Sàn ({slots.length})</span>
@@ -2663,25 +2632,23 @@ export function SellerFlashSaleView() {
                     <div className="flex gap-1 ml-auto">
                       {isPlatformScope ? (
                         <span className="text-[10px] px-2 py-1 rounded-md font-bold bg-blue-100 text-blue-800 border border-blue-200">
-                           Max {platformMaxPerUser}
+                          Max {platformMaxPerUser}
                         </span>
                       ) : (
                         <>
                           <button
                             type="button"
                             onClick={() => handleApplyBulkMaxPerUser(1)}
-                            className={`text-[10px] px-2 py-1 rounded-md font-bold transition-colors cursor-pointer ${
-                              bulkMaxPerUser === '1' ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-700'
-                            }`}
+                            className={`text-[10px] px-2 py-1 rounded-md font-bold transition-colors cursor-pointer ${bulkMaxPerUser === '1' ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-700'
+                              }`}
                           >
                             Max 1
                           </button>
                           <button
                             type="button"
                             onClick={() => handleApplyBulkMaxPerUser(2)}
-                            className={`text-[10px] px-2 py-1 rounded-md font-bold transition-colors cursor-pointer ${
-                              bulkMaxPerUser === '2' ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-700'
-                            }`}
+                            className={`text-[10px] px-2 py-1 rounded-md font-bold transition-colors cursor-pointer ${bulkMaxPerUser === '2' ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-700'
+                              }`}
                           >
                             Max 2
                           </button>
@@ -2840,12 +2807,12 @@ export function SellerFlashSaleView() {
                     {submitting
                       ? 'Đang Đăng Ký...'
                       : slotMode === 'CUSTOM' && existingShopSlot
-                      ? 'Đã Có 1 Đợt Đang Hoạt Động'
-                      : isPlatformScope && !platformEligibility.eligible
-                      ? 'Khóa Đăng Ký (Sao Quả Tạ >= 3)'
-                      : isPlatformScope && selectedBooksList.length > penaltyProfile.maxBooksPerPlatformSlot
-                      ? `Vượt Quá Hạn Mức (${selectedBooksList.length}/${penaltyProfile.maxBooksPerPlatformSlot})`
-                      : `Xác Nhận Đăng Ký (${selectedBooksList.length} Sách)`}
+                        ? 'Đã Có 1 Đợt Đang Hoạt Động'
+                        : isPlatformScope && !platformEligibility.eligible
+                          ? 'Khóa Đăng Ký (Sao Quả Tạ >= 3)'
+                          : isPlatformScope && selectedBooksList.length > penaltyProfile.maxBooksPerPlatformSlot
+                            ? `Vượt Quá Hạn Mức (${selectedBooksList.length}/${penaltyProfile.maxBooksPerPlatformSlot})`
+                            : `Xác Nhận Đăng Ký (${selectedBooksList.length} Sách)`}
                   </span>
                 </button>
               </div>
@@ -3197,13 +3164,12 @@ export function SellerFlashSaleView() {
                       Quy Chế Sao Quả Tạ & Tiêu Chuẩn Tham Gia Flash Sale Sàn
                     </h2>
                     <span
-                      className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
-                        penaltyProfile.tier === 'TIER_0_GOOD'
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                          : penaltyProfile.tier === 'TIER_1_WARNING'
+                      className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${penaltyProfile.tier === 'TIER_0_GOOD'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : penaltyProfile.tier === 'TIER_1_WARNING'
                           ? 'bg-amber-100 text-amber-900 border border-amber-300'
                           : 'bg-rose-100 text-rose-800 border border-rose-300'
-                      }`}
+                        }`}
                     >
                       Hiện tại: {penaltyProfile.penaltyPoints}/3 ★ ({PENALTY_TIER_CONFIG[penaltyProfile.tier].name})
                     </span>
@@ -3235,11 +3201,10 @@ export function SellerFlashSaleView() {
                   key={tab.id}
                   type="button"
                   onClick={() => setPolicyActiveTab(tab.id as any)}
-                  className={`px-4 py-2.5 rounded-t-xl text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                    policyActiveTab === tab.id
-                      ? 'border-orange-600 text-orange-600 bg-white shadow-2xs'
-                      : 'border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
+                  className={`px-4 py-2.5 rounded-t-xl text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${policyActiveTab === tab.id
+                    ? 'border-orange-600 text-orange-600 bg-white shadow-2xs'
+                    : 'border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
                 >
                   <span className="material-symbols-outlined text-base">{tab.icon}</span>
                   <span>{tab.label}</span>
@@ -3254,16 +3219,14 @@ export function SellerFlashSaleView() {
                 <div className="space-y-5">
                   {/* Overall Status Banner */}
                   <div
-                    className={`p-4 rounded-2xl border flex items-start gap-3.5 ${
-                      eligibilityChecklist.isEligible
-                        ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                        : 'bg-rose-50 border-rose-200 text-rose-900'
-                    }`}
+                    className={`p-4 rounded-2xl border flex items-start gap-3.5 ${eligibilityChecklist.isEligible
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                      : 'bg-rose-50 border-rose-200 text-rose-900'
+                      }`}
                   >
                     <span
-                      className={`material-symbols-outlined text-2xl mt-0.5 shrink-0 ${
-                        eligibilityChecklist.isEligible ? 'text-emerald-600' : 'text-rose-600'
-                      }`}
+                      className={`material-symbols-outlined text-2xl mt-0.5 shrink-0 ${eligibilityChecklist.isEligible ? 'text-emerald-600' : 'text-rose-600'
+                        }`}
                     >
                       {eligibilityChecklist.isEligible ? 'check_circle' : 'cancel'}
                     </span>
@@ -3290,18 +3253,16 @@ export function SellerFlashSaleView() {
                     {eligibilityChecklist.items.map((item, idx) => (
                       <div
                         key={item.id}
-                        className={`p-4 rounded-2xl border transition-all ${
-                          item.passed
-                            ? 'bg-white border-gray-200 shadow-2xs'
-                            : 'bg-rose-50/50 border-rose-200 shadow-xs'
-                        }`}
+                        className={`p-4 rounded-2xl border transition-all ${item.passed
+                          ? 'bg-white border-gray-200 shadow-2xs'
+                          : 'bg-rose-50/50 border-rose-200 shadow-xs'
+                          }`}
                       >
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div className="flex items-start gap-3">
                             <div
-                              className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 ${
-                                item.passed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                              }`}
+                              className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 ${item.passed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                                }`}
                             >
                               <span className="material-symbols-outlined text-base">
                                 {item.passed ? 'check' : 'close'}
@@ -3324,11 +3285,10 @@ export function SellerFlashSaleView() {
                               <span className="text-gray-400 font-normal">/ {item.benchmark}</span>
                             </div>
                             <span
-                              className={`text-[10.5px] font-black px-2.5 py-1 rounded-xl ${
-                                item.passed
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                  : 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
-                              }`}
+                              className={`text-[10.5px] font-black px-2.5 py-1 rounded-xl ${item.passed
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
+                                }`}
                             >
                               {item.passed ? 'ĐẠT CHUẨN ✅' : 'CHƯA ĐẠT ❌'}
                             </span>
@@ -3484,11 +3444,10 @@ export function SellerFlashSaleView() {
                           return (
                             <div
                               key={item.id}
-                              className={`p-4 rounded-2xl border space-y-3 ${
-                                item.status === 'RESOLVED'
-                                  ? 'bg-gray-50/70 border-gray-200 opacity-75'
-                                  : 'bg-white border-rose-200 shadow-2xs'
-                              }`}
+                              className={`p-4 rounded-2xl border space-y-3 ${item.status === 'RESOLVED'
+                                ? 'bg-gray-50/70 border-gray-200 opacity-75'
+                                : 'bg-white border-rose-200 shadow-2xs'
+                                }`}
                             >
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-2.5">
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -3566,7 +3525,7 @@ export function SellerFlashSaleView() {
                                         className="text-[10px] px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold cursor-pointer transition-colors"
                                         title="Mô phỏng thao tác Admin HuKi chấp thuận khiếu nại"
                                       >
-                                         Demo Admin Duyệt
+                                        Demo Admin Duyệt
                                       </button>
                                       <button
                                         type="button"
@@ -3574,7 +3533,7 @@ export function SellerFlashSaleView() {
                                         className="text-[10px] px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold cursor-pointer transition-colors"
                                         title="Mô phỏng thao tác Admin HuKi từ chối khiếu nại"
                                       >
-                                         Demo Admin Từ Chối
+                                        Demo Admin Từ Chối
                                       </button>
                                     </div>
                                   )}
@@ -3766,7 +3725,7 @@ export function SellerFlashSaleView() {
                           +6 Điểm: Gian Lận Giá Ảo
                         </span>
                         <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
-                          +6 Điểm 
+                          +6 Điểm
                         </span>
                       </div>
                       <p className="text-[11px] text-gray-500 mt-1">

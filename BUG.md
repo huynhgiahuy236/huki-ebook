@@ -2112,9 +2112,66 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
   - [`SellerCorrectionView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerCorrectionView.tsx): Sửa ảnh bìa có fallback an toàn `/images/book-placeholder.png` và `onError`; dùng `getFlashSaleFormatStyle` cho định dạng; chuẩn hóa 3 nút `Xuất Bản`, `Sửa`, `Xóa` 1 hàng duy nhất (`size="sm"`, đầy đủ icon và chữ).
   - [`AdminBooksView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminBooksView.tsx): Chuyển cột `Trạng Thái & Thao Tác` sang **1 hàng ngang duy nhất** (`flex items-center justify-end gap-2 whitespace-nowrap`); đồng bộ màu Combo sang emerald và Ebook sang blue; bổ sung `onError` cho ảnh bìa.
   - [`SellerVouchersView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerVouchersView.tsx): Cố định đúng 3 vị trí nút (`Thống kê`, `Sửa`, `Tắt`/`Bật`/`Xóa`) trên 100% dòng, triệt tiêu hiện tượng dòng 2 nút dòng 3 nút bị thụt thò; hiển thị `Xóa` dạng disabled mờ khi voucher đã phát sinh đơn hàng để bảo toàn sổ cái.
-  - [`AdminEscrowView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminEscrowView.tsx): Loại bỏ icon ngân hàng/xe tải và khung viền dày lòe loẹt ở cột `THANH TOÁN`, đưa về hiển thị tinh tế với chấm tròn nhỏ và chữ thanh thoát (`Cổng PayOS · 1 món`, `COD Chờ Nộp · 1 món`).
+  - [`AdminEscrowView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminEscrowView.tsx): Loại bỏ hoàn toàn cột `THANH TOÁN` bị trùng lặp (do cột `DÒNG TIỀN ĐƠN HÀNG` đã có sẵn tag phương thức thanh toán `PayOS (Vào quỹ sàn)` / `COD (Bưu tá thu)`), chuyển số lượng món (`· X món`) vào cột `Mã đơn` và bưu tá vào cột `Shop / Khách hàng`; đưa bảng về đúng 4 cột tinh gọn (`Mã đơn`, `Shop / Khách hàng`, `Dòng Tiền Đơn Hàng`, `Trạng Thái Dòng Tiền`), vừa khít 100% màn hình không bị tràn hay cắt chữ.
   - [`SellerGroupedOrderTable.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerGroupedOrderTable.tsx): Sửa lỗi lệch cột ở thanh tổng kết `summaryRow` (sửa `colSpan={2}` thành `colSpan={3}`), giúp Doanh thu gộp, Phí sàn 5% và Thực nhận 95% thẳng hàng tuyệt đối với các cột trong bảng.
-  - [`SellerFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerFlashSaleView.tsx): Tinh gọn khối Flash Sale toàn sàn, loại bỏ cấu trúc "hộp bọc hộp" và gradient lòe loẹt, đưa về thẻ card trắng phẳng tối giản, thoáng đãng, đồng bộ một nút xem tiêu chuẩn duy nhất.
+  - [`SellerFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerFlashSaleView.tsx): Tinh gọn khối Flash Sale toàn sàn, loại bỏ cấu trúc "hộp bọc hộp" và gradient lòe loẹt, đưa về thẻ card trắng phẳng tối giản, thoáng đãng, đồng bộ một nút xem tiêu chuẩn duy nhất; **gộp toàn bộ cụm điều khiển đầu trang (Sao Quả Tạ, Tiêu chuẩn sàn, Cảnh báo đợt đang có, Nút Tạo Flash Sale) vào đúng 1 hàng ngang duy nhất (`h-8`, `py-1.5 px-3 rounded-xl`), triệt tiêu hoàn toàn hiện tượng rớt hàng tạo thành 2 tầng cồng kềnh**.
+  - [`SellerCorrectionView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerCorrectionView.tsx), [`AdminBooksView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminBooksView.tsx), [`seller/products/page.tsx`](file:///e:/HuKi/web/src/app/seller/products/page.tsx): Khắc phục triệt để lỗi ảnh bìa bị vỡ icon alt text (`[img] Cây Cam`) bằng cơ chế bắt lỗi `onError` thông minh tự động thay thế bằng khung placeholder xanh ngọc thanh lịch với icon `menu_book`, loại bỏ triệt để các URL Unsplash không ổn định; cố định `tableClassName="min-w-[900px] w-full"` trên bảng sản phẩm người bán tránh co dúm thao tác.
+  - [`SellerFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerFlashSaleView.tsx) & [`[id]/page.tsx`](file:///e:/HuKi/web/src/app/seller/promotions/flash-sale/[id]/page.tsx): Thêm nhãn chữ cho nút `Xóa`/`Gỡ` (`variant="danger" icon="delete" label="Xóa"` / `label="Gỡ"`), sửa nút `Kết thúc sớm` và `Sửa` đồng bộ icon + text trên 1 hàng.
+  - [`SellerUI.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerUI.tsx): Cung cấp các variant chuẩn cho `SellerActionButton` (`primary`, `neutral`, `danger`, `warning`).
+- **Khắc phục Backend Promotion & Community:**
+  - [`flash-sales.service.ts`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/flash-sales/flash-sales.service.ts): Chặn xóa slot `ACTIVE` có item, ném `BadRequestException` yêu cầu kết thúc sớm; cho phép rollback slot trống; phát event `flash_sale.deleted`.
+  - [`notification.gateway.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/notifications/notification.gateway.ts) & [`notification-event.consumer.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/notifications/notification-event.consumer.ts): Định tuyến broadcast toàn sàn cho các sự kiện flash sale.
+- **Kiểm toán 4 Cổng Local CI/CD Quality Gates:**
+  - **Gate 1 (Git Hygiene):** Working tree sạch, không secret, không debug console log rác.
+  - **Gate 2 (Prisma Integrity):** 100% schema hợp lệ.
+  - **Gate 3 (Backend Unit Tests):**
+    - `test:promotion`: **3/3 suites PASS, 46/46 tests PASS**.
+    - `test:community`: **10/10 suites PASS, 67/67 tests PASS**.
+  - **Gate 4 (Frontend Checks):**
+    - `npm --prefix web run typecheck`: **0 errors**.
+    - `npm --prefix web run lint`: **0 errors**.
+    - `npm --prefix web test` (Vitest): **14/14 suites PASS, 82/82 tests PASS**.
+
+---
+
+## 18. ĐỢT XỬ LÝ BUG-38 — NHÁNH `fix/flash-sale-ui-polish`
+
+> **Nhánh làm việc:** `fix/flash-sale-ui-polish`
+> **Quy trình áp dụng:** [`readme-bug.md`](file:///e:/HuKi/readme-bug.md) (Chuẩn hóa giao diện & Xử lý Realtime Flash Sale, Bảng Sách Nháp, Voucher, Admin Books).
+
+### Bước 1: Thu thập & Chuẩn hóa Hồ sơ Lỗi (27/11/2026)
+
+| Mã Bug | Who / Where | Mô tả Expected vs Actual | Thực trạng kiểm chứng trong mã nguồn | Mức độ |
+| :--- | :--- | :--- | :--- | :--- |
+| **`BUG-38`** | Seller & Admin / `/seller/correction`, `/seller/vouchers`, `/seller/promotions/flash-sale`, `/seller/promotions/flash-sale/[id]`, `/admin/books`, `/seller/products`, `/seller/inventory` | **Expected:** Giao diện các bảng quản trị Seller và Admin phải hiển thị tinh tế, chuyên nghiệp: ảnh bìa sách không bị vỡ icon alt text; badge phân loại định dạng sách bám chuẩn Shopee không dùng màu gradient hay icon rườm rà (Combo: xanh lá đậm, Ebook DRM: xanh dương đậm, Sách Giấy: nâu vàng đậm); các nút thao tác `Tắt`/`Bật`/`Xóa`/`Sửa` thống nhất định dạng bo góc vuông nhẹ có icon + label đầy đủ, giữ trên đúng 1 hàng duy nhất (tránh xuống 2 hàng gây lệch bảng); logic backend bảo vệ chiến dịch Flash Sale không bị xóa khi đang diễn ra và đồng bộ Socket.IO realtime thông suốt. | **Actual trước khi sửa:** <br>1. Trong `SellerCorrectionView.tsx`, ảnh bìa sách nháp không có fallback an toàn và thiếu `onError`, hiển thị icon vỡ `[img] Cây Cam`. Badge định dạng lạm dụng icon `menu_book`, `devices`, `auto_awesome` và màu tím/xanh nhạt tùy tiện. Nút `Xóa` bị trơ icon trần không chữ. <br>2. Trong `AdminBooksView.tsx`, cột `Trạng Thái & Thao Tác` bị chia làm 2 hàng dọc (`flex-col`) làm tăng chiều cao cell. Định dạng `BOTH` dùng màu tím. <br>3. Trong `SellerVouchersView.tsx` và Flash Sale, các nút thao tác `Tắt`/`Bật`/`Xóa` không đồng nhất kiểu dáng, thiếu width cố định gây co dãn xuống 2 hàng. <br>4. Backend `FlashSalesService.delete` / `cancel` thiếu kiểm tra trạng thái `ACTIVE` kèm item gây đứt gãy trải nghiệm khách đang mua hàng. | Nghiêm trọng (UI/UX + Integrity) |
+
+### Bước 2 & Bước 3: Phân tích Nguyên nhân & Lập Phương Án Kiến Trúc Chuẩn Sàn (27/11/2026)
+
+1. **Nguyên nhân cốt lõi (Root Cause):**
+   - **Bìa sách nháp:** `DraftBookItem.coverUrl` nhận trực tiếp từ API hoặc local storage có thể là chuỗi rỗng hoặc link Unsplash bị chặn/lỗi mạng; thiếu fallback cục bộ `/images/book-placeholder.png` và thiếu `onError` guard + `referrerPolicy="no-referrer"`.
+   - **Badge định dạng phân tán:** Mỗi màn hình định nghĩa màu riêng (`AdminBooksView` dùng `bg-purple-50` cho combo, `SellerCorrectionView` dùng `bg-blue-50` cho sách giấy), chưa sử dụng bộ định dạng chuẩn `getFlashSaleFormatStyle`.
+   - **Nút thao tác lệch hàng & không đồng nhất:** Cột thao tác dùng `flex-wrap` mà không có `min-width`/`flex-nowrap`, nút `Xóa` lúc thì chỉ có icon trần, lúc thì chỉ có chữ không có icon; `AdminBooksView` cố tình dùng `flex-col` khiến cell bị phình thành 2 hàng.
+   - **Xóa Flash Sale khi đang bán:** `FlashSalesService.delete(id)` và `cancel(id)` chưa chặn trường hợp slot đang `ACTIVE` và đã có sách tham gia, không thông báo cho Seller dùng cơ chế kết thúc sớm (`endEarly`) 5 phút.
+
+2. **Giải pháp kiến trúc chuẩn Shopee (Architectural Solution):**
+   - **Chuẩn hóa ảnh bìa:** Sử dụng cascade `rawCover || '/images/book-placeholder.png'` kèm `onError` chuyển đổi sang ảnh placeholder cục bộ nếu link lỗi.
+   - **Chuẩn hóa nhãn định dạng sách (Single Source of Style):** Đồng bộ `getFlashSaleFormatStyle` không gradient, không icon thừa:
+     - Combo (BOTH): Emerald `#00875A` (`bg-emerald-50 text-emerald-800 border-emerald-300/80`).
+     - Ebook DRM (DIGITAL): Blue `#1D4ED8` (`bg-blue-50 text-blue-800 border-blue-300/80`).
+     - Sách Giấy (PHYSICAL): Amber `#92400E` (`bg-amber-50 text-amber-800 border-amber-300/80`).
+   - **Cụm thao tác 1 hàng duy nhất (Single-row Actions):** Đảm bảo `flex-nowrap whitespace-nowrap` trên tất cả các cột thao tác; chuyển `AdminBooksView` từ 2 hàng dọc thành 1 hàng ngang; đồng bộ các nút `Thống kê`, `Sửa`, `Tắt`/`Bật`, `Xóa`/`Gỡ` có đầy đủ icon + chữ, bo góc vuông nhẹ chuẩn `SellerActionButton` `size="sm"`.
+   - **Bảo vệ Flash Sale Backend & Đồng bộ Realtime:** Chặn xóa slot `ACTIVE` có sách (chỉ cho phép `endEarly(5p)` hoặc xóa slot trống rỗng), phát socket `flash_sale:updated` qua kênh broadcast toàn sàn `broadcast_channel`.
+
+### Bước 4, Bước 5 & Bước 6: Khắc phục, Kiểm toán Local & 4 Cổng CI/CD
+
+- **Khắc phục Source Code Frontend:**
+  - [`SellerCorrectionView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerCorrectionView.tsx): Sửa ảnh bìa có fallback an toàn `/images/book-placeholder.png` và `onError`; dùng `getFlashSaleFormatStyle` cho định dạng; chuẩn hóa 3 nút `Xuất Bản`, `Sửa`, `Xóa` 1 hàng duy nhất (`size="sm"`, đầy đủ icon và chữ).
+  - [`AdminBooksView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminBooksView.tsx): Chuyển cột `Trạng Thái & Thao Tác` sang **1 hàng ngang duy nhất** (`flex items-center justify-end gap-2 whitespace-nowrap`); đồng bộ màu Combo sang emerald và Ebook sang blue; bổ sung `onError` cho ảnh bìa.
+  - [`SellerVouchersView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerVouchersView.tsx): Cố định đúng 3 vị trí nút (`Thống kê`, `Sửa`, `Tắt`/`Bật`/`Xóa`) trên 100% dòng, triệt tiêu hiện tượng dòng 2 nút dòng 3 nút bị thụt thò; hiển thị `Xóa` dạng disabled mờ khi voucher đã phát sinh đơn hàng để bảo toàn sổ cái.
+  - [`AdminEscrowView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminEscrowView.tsx): Loại bỏ hoàn toàn cột `THANH TOÁN` bị trùng lặp (do cột `DÒNG TIỀN ĐƠN HÀNG` đã có sẵn tag phương thức thanh toán `PayOS (Vào quỹ sàn)` / `COD (Bưu tá thu)`), chuyển số lượng món (`· X món`) vào cột `Mã đơn` và bưu tá vào cột `Shop / Khách hàng`; đưa bảng về đúng 4 cột tinh gọn (`Mã đơn`, `Shop / Khách hàng`, `Dòng Tiền Đơn Hàng`, `Trạng Thái Dòng Tiền`), vừa khít 100% màn hình không bị tràn hay cắt chữ.
+  - [`SellerGroupedOrderTable.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerGroupedOrderTable.tsx): Sửa lỗi lệch cột ở thanh tổng kết `summaryRow` (sửa `colSpan={2}` thành `colSpan={3}`), giúp Doanh thu gộp, Phí sàn 5% và Thực nhận 95% thẳng hàng tuyệt đối với các cột trong bảng.
+  - [`SellerFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerFlashSaleView.tsx): Tinh gọn khối Flash Sale toàn sàn, loại bỏ cấu trúc "hộp bọc hộp" và gradient lòe loẹt, đưa về thẻ card trắng phẳng tối giản, thoáng đãng, đồng bộ một nút xem tiêu chuẩn duy nhất; **gộp toàn bộ cụm điều khiển đầu trang (Sao Quả Tạ, Tiêu chuẩn sàn, Cảnh báo đợt đang có, Nút Tạo Flash Sale) vào đúng 1 hàng ngang duy nhất (`h-8`, `py-1.5 px-3 rounded-xl`), triệt tiêu hoàn toàn hiện tượng rớt hàng tạo thành 2 tầng cồng kềnh**.
+  - [`SellerCorrectionView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerCorrectionView.tsx), [`AdminBooksView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminBooksView.tsx), [`seller/products/page.tsx`](file:///e:/HuKi/web/src/app/seller/products/page.tsx): Khắc phục triệt để lỗi ảnh bìa bị vỡ icon alt text (`[img] Cây Cam`) bằng cơ chế bắt lỗi `onError` thông minh tự động thay thế bằng khung placeholder xanh ngọc thanh lịch với icon `menu_book`, loại bỏ triệt để các URL Unsplash không ổn định; cố định `tableClassName="min-w-[900px] w-full"` trên bảng sản phẩm người bán tránh co dúm thao tác.
   - [`SellerFlashSaleView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerFlashSaleView.tsx) & [`[id]/page.tsx`](file:///e:/HuKi/web/src/app/seller/promotions/flash-sale/[id]/page.tsx): Thêm nhãn chữ cho nút `Xóa`/`Gỡ` (`variant="danger" icon="delete" label="Xóa"` / `label="Gỡ"`), sửa nút `Kết thúc sớm` và `Sửa` đồng bộ icon + text trên 1 hàng.
   - [`SellerUI.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerUI.tsx): Cung cấp các variant chuẩn cho `SellerActionButton` (`primary`, `neutral`, `danger`, `warning`).
 - **Khắc phục Backend Promotion & Community:**

@@ -524,7 +524,7 @@ export function AdminBooksView() {
                         {/* 3. Tác Phẩm & Bìa (Xếp chồng: Tiêu đề dòng 1 + ID dòng 2) */}
                         <td className="py-2 px-3">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-9 rounded bg-gray-100 bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center shadow-2xs">
+                            <div className="w-7 h-9 rounded bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center shadow-2xs">
                               {cover ? (
                                 <img
                                   src={cover}
@@ -532,11 +532,15 @@ export function AdminBooksView() {
                                   referrerPolicy="no-referrer"
                                   className="w-full h-full object-cover"
                                   onError={(e) => {
-                                    (e.target as HTMLImageElement).src = '/images/book-placeholder.png';
+                                    const el = e.currentTarget as HTMLElement;
+                                    el.style.display = 'none';
+                                    if (el.parentElement) {
+                                      el.parentElement.innerHTML = '<span class="material-symbols-outlined text-[#00875A] text-[16px]">menu_book</span>';
+                                    }
                                   }}
                                 />
                               ) : (
-                                <span className="material-symbols-outlined text-gray-400 text-[18px]">book</span>
+                                <span className="material-symbols-outlined text-[#00875A] text-[16px]">menu_book</span>
                               )}
                             </div>
                             <div className="min-w-0 max-w-[260px]">
