@@ -758,14 +758,13 @@ export function AdminEscrowView() {
     };
   }, [items]);
 
-  // Định nghĩa các cột hiển thị của bảng Đơn Hàng Chính (4 cột tinh gọn, bỏ cột Thanh Toán trùng lặp)
+  // Định nghĩa các cột hiển thị của bảng Đơn Hàng Chính (5 cột cân đối, bỏ cột Thanh Toán thừa, bổ sung Khách & Giao Vận)
   const orderColumns = useMemo<Column<EscrowOrderGroup>[]>(
     () => [
       {
         key: 'orderCode',
         title: 'Mã đơn',
-        width: 170,
-        minWidth: 150,
+        width: 190,
         render: (_, row) => (
           <div className="flex flex-col gap-1 py-1">
             <div className="flex items-center gap-1.5">
@@ -778,22 +777,22 @@ export function AdminEscrowView() {
             </div>
             <div
               suppressHydrationWarning
-              className="text-theme-text-muted font-normal text-[11px] flex items-center gap-1.5 flex-wrap"
+              className="text-theme-text-muted font-normal text-[11px] flex items-center gap-1.5 whitespace-nowrap"
             >
               <span className="material-symbols-outlined text-[13px]">schedule</span>
               <span>{formatVietnamDateTime(row.orderCreatedAt)}</span>
               <span>·</span>
               <span className="font-semibold text-slate-700 dark:text-slate-300">
-                {row.itemsCount || 1} món
+                {row.itemsCount || row.items.length || 1} món
               </span>
             </div>
           </div>
         ),
       },
       {
-        key: 'storeAndCustomer',
-        title: 'Shop / Khách hàng',
-        minWidth: 240,
+        key: 'store',
+        title: 'Gian hàng',
+        minWidth: 220,
         render: (_, row) => {
           const uniqueStores = Array.from(new Set(row.items.map((it) => it.storeName || it.storeId).filter(Boolean)));
           const isMultiStore = uniqueStores.length > 1;
@@ -801,38 +800,52 @@ export function AdminEscrowView() {
           return (
             <div className="flex flex-col gap-1 py-1">
               {isMultiStore ? (
-                <span className="font-semibold text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[14px]">storefront</span>
+                <div className="flex items-center gap-1.5 font-semibold text-emerald-800 dark:text-emerald-300 text-xs">
+                  <span className="material-symbols-outlined text-[15px] text-emerald-600 shrink-0">storefront</span>
                   <span>Đa gian hàng ({uniqueStores.length} Shop)</span>
-                </span>
+                </div>
               ) : (
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-theme-text min-w-0">
-                  <span className="material-symbols-outlined text-[14px] text-emerald-600 shrink-0">storefront</span>
+                  <span className="material-symbols-outlined text-[15px] text-emerald-600 shrink-0">storefront</span>
                   <span className="break-words line-clamp-1" title={row.storeName}>{row.storeName}</span>
                 </div>
               )}
-              <div className="flex items-center gap-1.5 text-[11px] text-theme-text-muted flex-wrap">
-                <span className="material-symbols-outlined text-[13px]">person</span>
-                <span className="font-medium text-slate-700 dark:text-slate-300">{row.customerName}</span>
-                <span>•</span>
-                <span className="font-mono">{row.customerPhone}</span>
-                {row.remittanceInfo?.shipperName && (
-                  <>
-                    <span>•</span>
-                    <span className="text-slate-500">Bưu tá: {row.remittanceInfo.shipperName}</span>
-                  </>
-                )}
-              </div>
+              <span className="text-[11px] text-theme-text-muted flex items-center gap-1">
+                <span className="material-symbols-outlined text-[13px]">inventory_2</span>
+                <span>{row.items.length} kiện hàng ký quỹ</span>
+              </span>
             </div>
           );
         },
       },
       {
+        key: 'customerAndShipping',
+        title: 'Khách hàng & Giao vận',
+        minWidth: 220,
+        render: (_, row) => (
+          <div className="flex flex-col gap-1 py-1 text-xs">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="material-symbols-outlined text-[14px] text-slate-400 shrink-0">person</span>
+              <span className="font-medium text-theme-text">{row.customerName}</span>
+              <span className="text-slate-400">·</span>
+              <span className="font-mono text-theme-text-muted text-[11px]">{row.customerPhone}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] text-theme-text-muted">
+              <span className="material-symbols-outlined text-[13px] text-amber-600 shrink-0">local_shipping</span>
+              {row.remittanceInfo?.shipperName ? (
+                <span>Bưu tá: <strong className="text-slate-700 dark:text-slate-300">{row.remittanceInfo.shipperName}</strong></span>
+              ) : (
+                <span className="text-slate-500">Giao hàng sàn HuKi</span>
+              )}
+            </div>
+          </div>
+        ),
+      },
+      {
         key: 'totalAmount',
         title: 'Dòng Tiền Đơn Hàng',
         align: 'right',
-        width: 190,
-        minWidth: 170,
+        width: 170,
         render: (_, row) => {
           const totalOrderItemsSubtotal = row.items.reduce((sum, it) => sum + (it.effectiveSubtotal !== undefined ? it.effectiveSubtotal : it.subtotal), 0);
           const totalStoreDiscount = row.items.reduce((sum, it) => sum + (it.storeVoucherDiscount || 0), 0);
@@ -841,23 +854,36 @@ export function AdminEscrowView() {
           const grandTotal = row.orderGrandTotal || Math.max(0, totalOrderItemsSubtotal + shippingFee - totalPlatformDiscount);
 
           return (
-            <div className="flex flex-col items-end gap-0.5 text-xs">
-              <div className="font-mono font-bold text-theme-text text-[13px]">
+            <div className="flex flex-col items-end gap-0.5">
+              <div className="text-[11px] font-mono">
+                <span className="text-slate-400 text-[10px]">Sách: </span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  {totalOrderItemsSubtotal.toLocaleString('vi-VN')} đ
+                </span>
+              </div>
+              <div className="text-[11px] font-mono">
+                <span className="text-slate-400 text-[10px]">Ship: </span>
+                <span className="text-slate-600 dark:text-slate-400 font-medium">
+                  +{shippingFee.toLocaleString('vi-VN')} đ
+                </span>
+              </div>
+              <div className="font-mono text-xs font-black text-theme-text border-t border-slate-200/60 dark:border-slate-700/60 pt-0.5 mt-0.5">
+                <span className="text-slate-400 text-[9px] font-sans font-normal">Tổng thu: </span>
                 {grandTotal.toLocaleString('vi-VN')} đ
               </div>
-              <div className="text-[10.5px] text-slate-500 font-mono flex items-center gap-1">
-                <span>Sách {Math.round(totalOrderItemsSubtotal / 1000)}k</span>
-                <span>·</span>
-                <span>Ship {Math.round(shippingFee / 1000)}k</span>
-              </div>
-              <div className="mt-0.5">
+              <div className="flex flex-col items-end text-[9.5px] font-medium leading-tight mt-0.5">
                 {row.paymentMethod === 'COD' ? (
-                  <span className="text-amber-700 font-semibold bg-amber-50 border border-amber-200/60 px-1.5 py-0.5 rounded text-[10px]">
+                  <span className="text-amber-700 dark:text-amber-300 font-bold bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/60 px-1.5 py-0.5 rounded text-[9.5px]">
                     COD (Bưu tá thu)
                   </span>
                 ) : (
-                  <span className="text-teal-700 font-semibold bg-teal-50 border border-teal-200/60 px-1.5 py-0.5 rounded text-[10px]">
+                  <span className="text-teal-700 dark:text-teal-300 font-bold bg-teal-50 dark:bg-teal-950/40 border border-teal-200/60 dark:border-teal-800/60 px-1.5 py-0.5 rounded text-[9.5px]">
                     PayOS (Vào quỹ sàn)
+                  </span>
+                )}
+                {totalStoreDiscount > 0 && (
+                  <span className="text-rose-600 text-[9px]">
+                    (-{totalStoreDiscount.toLocaleString('vi-VN')}đ Voucher Shop)
                   </span>
                 )}
               </div>
