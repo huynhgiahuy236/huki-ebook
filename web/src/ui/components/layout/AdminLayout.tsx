@@ -329,9 +329,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <div className="admin-portal h-screen w-full bg-white text-[#1E293B] flex flex-col font-sans antialiased overflow-hidden selection:bg-[#00875A] selection:text-white">
       {/* 1. TOP APP BAR / HEADER */}
-      <header className="h-[54px] min-h-[54px] border-b border-[#E2E8F0] pl-0 pr-3.5 sm:pr-5 lg:pr-6 flex items-center justify-between gap-3 shrink-0 bg-white z-30">
+      <header className="h-[54px] min-h-[54px] border-b border-[#E2E8F0] pl-0 pr-3.5 sm:pr-5 lg:pr-6 flex items-center justify-between gap-3 shrink-0 bg-white z-30 relative">
         {/* Left: Sidebar Toggle & Brand Identity */}
-        <div className="flex items-center">
+        <div className="flex items-center z-10">
           {/* Hamburger / Sidebar Toggle Container - exactly w-[60px] to align perfectly with collapsed sidebar */}
           <div className="w-[64px] flex items-center justify-center shrink-0">
             {/* Desktop Sidebar Collapse Toggle Button */}
@@ -372,9 +372,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           </Link>
         </div>
 
-        {/* Center: Global Search Bar */}
-        <div className="flex-1 max-w-lg mx-auto hidden md:flex justify-center px-6">
-          <form onSubmit={handleSearch} className="relative w-full max-w-md group">
+        {/* Center: Global Search Bar - Absolute centering to stay in the exact dead-center of the screen */}
+        <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-72 lg:w-96 z-10 pointer-events-none">
+          <form onSubmit={handleSearch} className="relative w-full pointer-events-auto group">
             <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#003B2B] text-[18px] transition-colors pointer-events-none">
               search
             </span>
@@ -383,7 +383,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               placeholder="Tìm sách, doanh nghiệp, ISBN..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-9.5 pl-11 pr-10 rounded-full bg-[#F8FAFC] hover:bg-[#F1F5F9] focus:bg-white border border-[#E2E8F0] focus:border-[#003B2B] text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none transition-all shadow-2xs focus:shadow-xs"
+              className="w-full h-9 pl-10.5 pr-12 rounded-full bg-[#F8FAFC] hover:bg-[#F1F5F9] focus:bg-white border border-[#E2E8F0] focus:border-[#003B2B] text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none transition-all shadow-2xs focus:shadow-xs"
             />
             {searchQuery ? (
               <button
@@ -403,7 +403,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         </div>
 
         {/* Right: Storefront link, Microservice Health, User info & Logout */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 z-10">
           {/* Back to Storefront Link */}
           <Link
             href="/"

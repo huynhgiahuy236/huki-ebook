@@ -318,7 +318,7 @@ export default function AdminNotificationsView() {
         </div>
 
         <div className="relative w-full sm:max-w-xs">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">
+          <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">
             search
           </span>
           <input
@@ -326,7 +326,7 @@ export default function AdminNotificationsView() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Tìm theo tiêu đề, nội dung..."
-            className="w-full h-9 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#00875A] transition-all"
+            className="w-full h-9.5 pl-10.5 pr-3 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
           />
         </div>
       </div>
@@ -550,7 +550,7 @@ export default function AdminNotificationsView() {
                       <select
                         value={category}
                         onChange={(e) => setCategory(e.target.value as any)}
-                        className="w-full h-10.5 px-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
+                        className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-lg font-semibold text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
                       >
                         <option value="MAINTENANCE">Bảo Trì Hệ Thống / Tính Năng</option>
                         <option value="FINANCE">Tài Chính &amp; Quyết Toán Escrow</option>
@@ -566,7 +566,7 @@ export default function AdminNotificationsView() {
                       <select
                         value={severity}
                         onChange={(e) => setSeverity(e.target.value as any)}
-                        className="w-full h-10.5 px-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
+                        className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-lg font-semibold text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
                       >
                         <option value="INFO">Thông Tin Bình Thường (Xanh)</option>
                         <option value="WARNING">Cảnh Báo / Cần Lưu Ý (Vàng Cam)</option>
@@ -583,7 +583,7 @@ export default function AdminNotificationsView() {
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       placeholder="Ví dụ: Kế hoạch bảo trì máy chủ mã hóa DRM từ 01:00 - 03:00 sáng mai"
-                      className="w-full h-10.5 px-4 bg-white border border-slate-200 hover:border-slate-300 rounded-xl font-bold text-slate-900 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
+                      className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-lg font-bold text-slate-900 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
                       required
                     />
                   </div>
@@ -598,7 +598,7 @@ export default function AdminNotificationsView() {
                       value={summary}
                       onChange={(e) => setSummary(e.target.value)}
                       placeholder="Ví dụ: Hệ thống tạm ngắt tính năng xuất bản Ebook để nâng cấp hạ tầng mã hóa"
-                      className="w-full h-10.5 px-4 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
+                      className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
                       required
                     />
                   </div>
@@ -611,7 +611,7 @@ export default function AdminNotificationsView() {
                       onChange={(e) => setContent(e.target.value)}
                       rows={5}
                       placeholder="Điền nội dung chi tiết thông báo gửi đến người bán..."
-                      className="w-full p-4 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 leading-relaxed shadow-2xs transition-all"
+                      className="w-full p-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 leading-relaxed shadow-2xs transition-all"
                       required
                     />
                   </div>
@@ -625,7 +625,7 @@ export default function AdminNotificationsView() {
                         value={actionUrl}
                         onChange={(e) => setActionUrl(e.target.value)}
                         placeholder="Ví dụ: /seller/finance hoặc /seller/returns"
-                        className="w-full h-10.5 px-4 bg-white border border-slate-200 hover:border-slate-300 rounded-xl font-medium text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
+                        className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-lg font-medium text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
                       />
                     </div>
                     <div>
@@ -635,7 +635,7 @@ export default function AdminNotificationsView() {
                         value={actionLabel}
                         onChange={(e) => setActionLabel(e.target.value)}
                         placeholder="Ví dụ: Kiểm Tra Ví Escrow"
-                        className="w-full h-10.5 px-4 bg-white border border-slate-200 hover:border-slate-300 rounded-xl font-medium text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
+                        className="w-full h-10 px-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-lg font-medium text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
                       />
                     </div>
                   </div>
@@ -771,7 +771,7 @@ export default function AdminNotificationsView() {
                             <select
                               value={targetSegment}
                               onChange={(e) => setTargetSegment(e.target.value as any)}
-                              className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                              className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-xs"
                             >
                               <option value="DIGITAL_SELLERS">Nhà Xuất Bản &amp; Đối Tác Sách Số (Ebook DRM)</option>
                               <option value="PHYSICAL_SELLERS">Gian Hàng Sách In &amp; Sách Cũ</option>
@@ -787,7 +787,7 @@ export default function AdminNotificationsView() {
                             <select
                               value={targetBusinessId}
                               onChange={(e) => setTargetBusinessId(e.target.value)}
-                              className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                              className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-xs"
                               required
                             >
                               <option value="">-- Chọn một Gian Hàng / Doanh Nghiệp --</option>
@@ -809,7 +809,7 @@ export default function AdminNotificationsView() {
                         <select
                           value={targetSegment}
                           onChange={(e) => setTargetSegment(e.target.value as any)}
-                          className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-xs"
                         >
                           <option value="ALL_CUSTOMERS">Toàn Bộ Bạn Đọc (100% Khách Hàng Đã Đăng Ký Tài Khoản)</option>
                           <option value="VIP_CUSTOMERS">Độc Giả Thân Thiết / Khách Mua Ebook Thường Xuyên (VIP)</option>
@@ -825,7 +825,7 @@ export default function AdminNotificationsView() {
                         <select
                           value={targetSegment}
                           onChange={(e) => setTargetSegment(e.target.value as any)}
-                          className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-xs"
                         >
                           <option value="ALL_SHIPPERS">Toàn Bộ Đội Ngũ Bưu Tá Trên Toàn Quốc</option>
                           <option value="ONLINE_SHIPPERS">Bưu Tá Đang Bật Trạng Thái Trực Tuyến (Sẵn Sàng Nhận Đơn)</option>
@@ -934,7 +934,7 @@ export default function AdminNotificationsView() {
                         <select
                           value={recurringRule}
                           onChange={(e) => setRecurringRule(e.target.value as any)}
-                          className="w-full h-10 px-3.5 bg-white border border-slate-200 rounded-xl font-semibold text-xs"
+                          className="w-full h-10 px-3.5 bg-white border border-slate-200 rounded-lg font-semibold text-xs"
                         >
                           <option value="BI_MONTHLY">Ngày 1 &amp; Ngày 15 hàng tháng (Kỳ đối soát Ví Escrow)</option>
                           <option value="WEEKLY_MONDAY">8:00 Sáng thứ Hai hàng tuần (Báo cáo kinh doanh tuần)</option>
