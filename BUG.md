@@ -1877,7 +1877,7 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 
 ## 16. ĐỢT XỬ LÝ BUG-29, BUG-30, BUG-31, BUG-32 — NHÁNH `fix/flash-sale-format-and-seller-finance`
 
-> **Nhánh làm việc:** `fix/flash-sale-format-and-seller-finance` (khởi tạo từ `develop` `fc0ed59`)  
+> **Nhánh làm việc:** `fix/flash-sale-format-and-seller-finance` (khởi tạo từ `develop` `fc0ed59`)
 > **Quy trình áp dụng:** [`readme-bug.md`](file:///e:/HuKi/readme-bug.md) (Bước 1 → Bước 12, phân chặng tối đa 3 bug / giai đoạn: **GĐ1: `BUG-29, BUG-30, BUG-31`** | **GĐ2: `BUG-32`**).
 
 ### Bước 1: Thu thập & Chuẩn hóa Hồ sơ Lỗi (27/11/2026)
@@ -1981,3 +1981,25 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
   - `test:commerce` (`wallet.service.spec.ts` & `settlement.service.spec.ts` chạy `--runInBand`): **2/2 suites, 41/41 tests PASS** (gồm test mới deduplication `ORDER_ITEM` và chuẩn hóa mô tả tiếng Anh trong [`wallet.service.spec.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/wallet/wallet.service.spec.ts#L489-L567)).
   - `web run typecheck` (0 errors) + `npm --prefix web test` (Vitest): **14/14 files, 81/81 tests PASS** (gồm [`walletTransactionFormat.test.ts`](file:///e:/HuKi/web/src/ui/utils/__tests__/walletTransactionFormat.test.ts)).
   - E2E script [`test_e2e_bug32_seller_finance_reports_ledger.js`](file:///e:/HuKi/scripts/test_e2e_bug32_seller_finance_reports_ledger.js): **PASS toàn bộ**.
+
+---
+
+### Bước 5 & Bước 6: Kiểm Toán Toàn Diện Local & 4 Cổng Chất Lượng CI/CD (27/11/2026)
+
+1. **Bước 5 — Local Deep Audit:**
+   - **Quét Secrets / Debug Logs / Request Spam (`git diff develop..HEAD`):** 0 key/secret/token bị lộ, 0 `console.log` thừa, 0 `setInterval` tốc độ cao mới (các `useEffect` tại `reports/page.tsx` và `finance/page.tsx` giữ visibility guard 45s + `RealtimeSyncBus`).
+   - **ESLint Frontend (`npm --prefix web run lint`):** Exit code 0, sạch cảnh báo/lỗi cú pháp.
+   - **Kiểm tra dịch vụ Local:** Gateway `http://localhost:3000/api/v1` phản hồi HTTP 200; Postgres Docker (`huki-postgres`) đã push schema `target_format` & `CartItemFormat.BOTH`.
+2. **Bước 6 — 4 Local CI/CD Quality Gates:**
+   - **Gate 1 (Git Hygiene):** Đã xử lý trailing whitespace ở dòng `1880` của `BUG.md`; `git diff --check` sạch hoàn toàn; không stage tệp `ToastContext.tsx` phát sinh ngoài phạm vi.
+   - **Gate 2 (Prisma Schema Validation):** `npx --prefix platform prisma validate` trên cả **6/6** service (`analytics`, `business`, `commerce`, `identity`, `promotion`, `shipping`) đều **VALID**.
+   - **Gate 3 (Backend Build & Full Contract/Unit Test Suite):**
+     - `npm --prefix platform run build`: **PASS** (shared + 8 microservices + `copy:prisma` + `link:shared`).
+     - `npm --prefix platform test -- --runInBand --forceExit`: **75/75 suites PASS, 816/816 tests PASS** (9 projects).
+     - Chạy lại E2E [`test_e2e_bug29_30_31_flash_sale_format_reports.js`](file:///e:/HuKi/scripts/test_e2e_bug29_30_31_flash_sale_format_reports.js) & [`test_e2e_bug32_seller_finance_reports_ledger.js`](file:///e:/HuKi/scripts/test_e2e_bug32_seller_finance_reports_ledger.js) trên bản build cuối: **100% PASS**.
+   - **Gate 4 (Frontend Typecheck, Lint, Unit Tests & Production Build):**
+     - `npm --prefix web run typecheck`: **0 errors**.
+     - `npm --prefix web run lint`: **0 errors**.
+     - `npm --prefix web test`: **14/14 files, 81/81 tests PASS**.
+     - `npm --prefix web run build` (Next.js 16.3.3 Turbopack): **142/142 routes compiled cleanly**.
+   - **Kết luận Quality Gate Bước 6:** **ĐẠT 4/4 CỔNG — SẴN SÀNG MERGE VÀO `develop` & KÍCH HOẠT BƯỚC 7 (CI/CD).**
