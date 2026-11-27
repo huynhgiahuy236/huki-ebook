@@ -515,12 +515,13 @@ export default function AdminNotificationsView() {
 
       {/* 5. Create Notification Composer Modal */}
       {isComposerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-5 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="space-y-0.5">
-                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[#00875A]">add_alert</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-5xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="space-y-1">
+                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2.5">
+                  <span className="material-symbols-outlined text-[#00875A] text-[22px]">add_alert</span>
                   <span>Soạn &amp; Phát Sóng Thông Báo Cho Seller</span>
                 </h2>
                 <p className="text-xs text-slate-500">
@@ -530,422 +531,433 @@ export default function AdminNotificationsView() {
               <button
                 type="button"
                 onClick={() => setIsComposerOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                aria-label="Đóng"
               >
-                <span className="material-symbols-outlined text-[18px]">close</span>
+                <span className="material-symbols-outlined text-[19px]">close</span>
               </button>
             </div>
 
-            <form onSubmit={handleCreateSubmit} className="flex-1 overflow-y-auto space-y-4 pr-1 text-xs">
-              {/* Category & Severity */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Chuyên Mục Thông Báo *</label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value as any)}
-                    className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-[#00875A]"
-                  >
-                    <option value="MAINTENANCE">Bảo Trì Hệ Thống / Tính Năng</option>
-                    <option value="FINANCE">Tài Chính &amp; Quyết Toán Escrow</option>
-                    <option value="POLICY">Chính Sách &amp; Bản Quyền</option>
-                    <option value="ORDER">Vận Hành &amp; Đơn Hàng</option>
-                    <option value="MARKETING">Marketing &amp; Flash Sale</option>
-                    <option value="SECURITY">Bảo Mật &amp; Hệ Thống</option>
-                  </select>
+            {/* Modal Body Form */}
+            <form onSubmit={handleCreateSubmit} className="flex-1 overflow-y-auto space-y-6 pr-1.5 text-xs">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-start">
+                {/* Left Column: Nội Dung & Thông Tin Bản Tin */}
+                <div className="space-y-4">
+                  {/* Category & Severity */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1.5">Chuyên Mục Thông Báo *</label>
+                      <select
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value as any)}
+                        className="w-full h-10.5 px-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
+                      >
+                        <option value="MAINTENANCE">Bảo Trì Hệ Thống / Tính Năng</option>
+                        <option value="FINANCE">Tài Chính &amp; Quyết Toán Escrow</option>
+                        <option value="POLICY">Chính Sách &amp; Bản Quyền</option>
+                        <option value="ORDER">Vận Hành &amp; Đơn Hàng</option>
+                        <option value="MARKETING">Marketing &amp; Flash Sale</option>
+                        <option value="SECURITY">Bảo Mật &amp; Hệ Thống</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1.5">Mức Độ Nghiêm Trọng *</label>
+                      <select
+                        value={severity}
+                        onChange={(e) => setSeverity(e.target.value as any)}
+                        className="w-full h-10.5 px-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
+                      >
+                        <option value="INFO">Thông Tin Bình Thường (Xanh)</option>
+                        <option value="WARNING">Cảnh Báo / Cần Lưu Ý (Vàng Cam)</option>
+                        <option value="CRITICAL">Khẩn Cấp / Bắt Buộc (Đỏ)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Title */}
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1.5">Tiêu Đề Thông Báo *</label>
+                    <input
+                      type="text"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="Ví dụ: Kế hoạch bảo trì máy chủ mã hóa DRM từ 01:00 - 03:00 sáng mai"
+                      className="w-full h-10.5 px-4 bg-white border border-slate-200 hover:border-slate-300 rounded-xl font-bold text-slate-900 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
+                      required
+                    />
+                  </div>
+
+                  {/* 1-line Summary */}
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1.5">
+                      Tóm Tắt Ngắn 1 Dòng (Hiện trên Top Notice Bar &amp; Chuông) *
+                    </label>
+                    <input
+                      type="text"
+                      value={summary}
+                      onChange={(e) => setSummary(e.target.value)}
+                      placeholder="Ví dụ: Hệ thống tạm ngắt tính năng xuất bản Ebook để nâng cấp hạ tầng mã hóa"
+                      className="w-full h-10.5 px-4 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
+                      required
+                    />
+                  </div>
+
+                  {/* Full Content */}
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1.5">Nội Dung Chi Tiết Bản Tin *</label>
+                    <textarea
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      rows={5}
+                      placeholder="Điền nội dung chi tiết thông báo gửi đến người bán..."
+                      className="w-full p-4 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 leading-relaxed shadow-2xs transition-all"
+                      required
+                    />
+                  </div>
+
+                  {/* Action Link (Optional) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1.5">Đường Dẫn Hành Động (CTA Link)</label>
+                      <input
+                        type="text"
+                        value={actionUrl}
+                        onChange={(e) => setActionUrl(e.target.value)}
+                        placeholder="Ví dụ: /seller/finance hoặc /seller/returns"
+                        className="w-full h-10.5 px-4 bg-white border border-slate-200 hover:border-slate-300 rounded-xl font-medium text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1.5">Nhãn Nút Bấm</label>
+                      <input
+                        type="text"
+                        value={actionLabel}
+                        onChange={(e) => setActionLabel(e.target.value)}
+                        placeholder="Ví dụ: Kiểm Tra Ví Escrow"
+                        className="w-full h-10.5 px-4 bg-white border border-slate-200 hover:border-slate-300 rounded-xl font-medium text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 shadow-2xs transition-all"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Mức Độ Nghiêm Trọng *</label>
-                  <select
-                    value={severity}
-                    onChange={(e) => setSeverity(e.target.value as any)}
-                    className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-[#00875A]"
-                  >
-                    <option value="INFO">Thông Tin Bình Thường (Xanh)</option>
-                    <option value="WARNING">Cảnh Báo / Cần Lưu Ý (Vàng Cam)</option>
-                    <option value="CRITICAL">Khẩn Cấp / Bắt Buộc (Đỏ)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Title & 1-line Summary */}
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Tiêu Đề Thông Báo *</label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Ví dụ: Kế hoạch bảo trì máy chủ mã hóa DRM từ 01:00 - 03:00 sáng mai"
-                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 focus:outline-none focus:border-[#00875A]"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Tóm Tắt Ngắn 1 Dòng (Hiện trên Top Notice Bar &amp; Chuông) *
-                </label>
-                <input
-                  type="text"
-                  value={summary}
-                  onChange={(e) => setSummary(e.target.value)}
-                  placeholder="Ví dụ: Hệ thống tạm ngắt tính năng xuất bản Ebook để nâng cấp hạ tầng mã hóa"
-                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-[#00875A]"
-                  required
-                />
-              </div>
-
-              {/* Full Content */}
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Nội Dung Chi Tiết Bản Tin *</label>
-                <textarea
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  rows={4}
-                  placeholder="Điền nội dung chi tiết thông báo gửi đến người bán..."
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-[#00875A] leading-relaxed"
-                  required
-                />
-              </div>
-
-              {/* Target Audience */}
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="block font-black text-slate-800">1. Đối Tượng &amp; Nhóm Nhận Thông Báo *</label>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                    Đa vai trò (Omnichannel)
-                  </span>
-                </div>
-
-                {/* 4 Role Selector Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTargetRole('ALL');
-                      setTargetType('ALL');
-                    }}
-                    className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
-                      targetRole === 'ALL'
-                        ? 'border-[#00875A] bg-emerald-50/80 text-[#00875A] shadow-xs ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 font-bold text-xs">
-                      <span className="material-symbols-outlined text-[16px]">hub</span>
-                      <span>Toàn Sàn</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400">Bạn đọc + Shop + Bưu tá</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setTargetRole('SELLER')}
-                    className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
-                      targetRole === 'SELLER'
-                        ? 'border-[#00875A] bg-emerald-50/80 text-[#00875A] shadow-xs ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 font-bold text-xs">
-                      <span className="material-symbols-outlined text-[16px]">storefront</span>
-                      <span>Người Bán</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400">Các NXB &amp; Gian hàng</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTargetRole('CUSTOMER');
-                      setTargetSegment('ALL_CUSTOMERS');
-                    }}
-                    className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
-                      targetRole === 'CUSTOMER'
-                        ? 'border-[#00875A] bg-emerald-50/80 text-[#00875A] shadow-xs ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 font-bold text-xs">
-                      <span className="material-symbols-outlined text-[16px]">menu_book</span>
-                      <span>Độc Giả</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400">Người mua &amp; Đọc Ebook</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTargetRole('SHIPPER');
-                      setTargetSegment('ALL_SHIPPERS');
-                    }}
-                    className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
-                      targetRole === 'SHIPPER'
-                        ? 'border-[#00875A] bg-emerald-50/80 text-[#00875A] shadow-xs ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 font-bold text-xs">
-                      <span className="material-symbols-outlined text-[16px]">local_shipping</span>
-                      <span>Bưu Tá</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400">Shipper toàn mạng lưới</span>
-                  </button>
-                </div>
-
-                {/* Sub Options for SELLER */}
-                {targetRole === 'SELLER' && (
-                  <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2.5">
-                    <span className="text-[11px] font-bold text-slate-600 block">Phạm vi gian hàng người bán:</span>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer text-xs font-semibold">
-                        <input
-                          type="radio"
-                          name="targetType"
-                          checked={targetType === 'ALL'}
-                          onChange={() => setTargetType('ALL')}
-                          className="text-[#00875A]"
-                        />
-                        <span>Toàn Sàn (100% Shop)</span>
-                      </label>
-                      <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer text-xs font-semibold">
-                        <input
-                          type="radio"
-                          name="targetType"
-                          checked={targetType === 'SEGMENT'}
-                          onChange={() => setTargetType('SEGMENT')}
-                          className="text-[#00875A]"
-                        />
-                        <span>Theo Nhóm Đối Tác</span>
-                      </label>
-                      <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer text-xs font-semibold">
-                        <input
-                          type="radio"
-                          name="targetType"
-                          checked={targetType === 'DIRECT'}
-                          onChange={() => setTargetType('DIRECT')}
-                          className="text-[#00875A]"
-                        />
-                        <span>Gửi Riêng 1 Shop</span>
-                      </label>
+                {/* Right Column: Đối Tượng, Kênh Phát Sóng & Lịch Trình */}
+                <div className="space-y-4">
+                  {/* Target Audience Section */}
+                  <div className="p-4 sm:p-5 bg-slate-50/70 rounded-2xl border border-slate-200/80 space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block font-black text-slate-800 text-xs">1. Đối Tượng &amp; Nhóm Nhận Thông Báo *</label>
+                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                        Đa vai trò
+                      </span>
                     </div>
 
-                    {targetType === 'SEGMENT' && (
-                      <div className="pt-1">
-                        <label className="block font-bold text-slate-600 mb-1">Chọn Phân Khúc Người Bán:</label>
+                    {/* 4 Role Selector Cards (2x2 Grid for optimal breathing room) */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTargetRole('ALL');
+                          setTargetType('ALL');
+                        }}
+                        className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
+                          targetRole === 'ALL'
+                            ? 'border-[#00875A] bg-emerald-50/90 text-[#00875A] shadow-xs ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 font-bold text-xs">
+                          <span className="material-symbols-outlined text-[17px]">hub</span>
+                          <span>Toàn Sàn</span>
+                        </div>
+                        <span className="text-[10.5px] text-slate-500">Bạn đọc + Shop + Bưu tá</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setTargetRole('SELLER')}
+                        className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
+                          targetRole === 'SELLER'
+                            ? 'border-[#00875A] bg-emerald-50/90 text-[#00875A] shadow-xs ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 font-bold text-xs">
+                          <span className="material-symbols-outlined text-[17px]">storefront</span>
+                          <span>Người Bán</span>
+                        </div>
+                        <span className="text-[10.5px] text-slate-500">Các NXB &amp; Gian hàng</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTargetRole('CUSTOMER');
+                          setTargetSegment('ALL_CUSTOMERS');
+                        }}
+                        className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
+                          targetRole === 'CUSTOMER'
+                            ? 'border-[#00875A] bg-emerald-50/90 text-[#00875A] shadow-xs ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 font-bold text-xs">
+                          <span className="material-symbols-outlined text-[17px]">menu_book</span>
+                          <span>Độc Giả</span>
+                        </div>
+                        <span className="text-[10.5px] text-slate-500">Người mua &amp; Đọc Ebook</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTargetRole('SHIPPER');
+                          setTargetSegment('ALL_SHIPPERS');
+                        }}
+                        className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
+                          targetRole === 'SHIPPER'
+                            ? 'border-[#00875A] bg-emerald-50/90 text-[#00875A] shadow-xs ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 font-bold text-xs">
+                          <span className="material-symbols-outlined text-[17px]">local_shipping</span>
+                          <span>Bưu Tá</span>
+                        </div>
+                        <span className="text-[10.5px] text-slate-500">Shipper toàn mạng lưới</span>
+                      </button>
+                    </div>
+
+                    {/* Sub Options for SELLER */}
+                    {targetRole === 'SELLER' && (
+                      <div className="p-3.5 bg-white rounded-xl border border-slate-200 space-y-3">
+                        <span className="text-[11.5px] font-bold text-slate-600 block">Phạm vi gian hàng người bán:</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <label className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50/70 border border-slate-200 cursor-pointer text-xs font-semibold hover:bg-slate-100/70 transition-colors">
+                            <input
+                              type="radio"
+                              name="targetType"
+                              checked={targetType === 'ALL'}
+                              onChange={() => setTargetType('ALL')}
+                              className="text-[#00875A]"
+                            />
+                            <span>Toàn Sàn (100%)</span>
+                          </label>
+                          <label className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50/70 border border-slate-200 cursor-pointer text-xs font-semibold hover:bg-slate-100/70 transition-colors">
+                            <input
+                              type="radio"
+                              name="targetType"
+                              checked={targetType === 'SEGMENT'}
+                              onChange={() => setTargetType('SEGMENT')}
+                              className="text-[#00875A]"
+                            />
+                            <span>Theo Nhóm</span>
+                          </label>
+                          <label className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50/70 border border-slate-200 cursor-pointer text-xs font-semibold hover:bg-slate-100/70 transition-colors">
+                            <input
+                              type="radio"
+                              name="targetType"
+                              checked={targetType === 'DIRECT'}
+                              onChange={() => setTargetType('DIRECT')}
+                              className="text-[#00875A]"
+                            />
+                            <span>Gửi Riêng 1 Shop</span>
+                          </label>
+                        </div>
+
+                        {targetType === 'SEGMENT' && (
+                          <div className="pt-1">
+                            <label className="block font-bold text-slate-600 mb-1">Chọn Phân Khúc Người Bán:</label>
+                            <select
+                              value={targetSegment}
+                              onChange={(e) => setTargetSegment(e.target.value as any)}
+                              className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                            >
+                              <option value="DIGITAL_SELLERS">Nhà Xuất Bản &amp; Đối Tác Sách Số (Ebook DRM)</option>
+                              <option value="PHYSICAL_SELLERS">Gian Hàng Sách In &amp; Sách Cũ</option>
+                              <option value="NEW_SELLERS">Shop Mới Gia Nhập (&lt; 30 Ngày)</option>
+                              <option value="AT_RISK_SELLERS">Shop Có Cảnh Báo Vi Phạm / Tỷ Lệ Hủy Cao</option>
+                            </select>
+                          </div>
+                        )}
+
+                        {targetType === 'DIRECT' && (
+                          <div className="pt-1">
+                            <label className="block font-bold text-slate-600 mb-1">Chọn Gian Hàng Đích Danh:</label>
+                            <select
+                              value={targetBusinessId}
+                              onChange={(e) => setTargetBusinessId(e.target.value)}
+                              className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                              required
+                            >
+                              <option value="">-- Chọn một Gian Hàng / Doanh Nghiệp --</option>
+                              {businesses.map((b) => (
+                                <option key={b.id} value={b.id}>
+                                  {b.name} ({b.email || b.phone || 'NXB Đối Tác'})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Sub Options for CUSTOMER */}
+                    {targetRole === 'CUSTOMER' && (
+                      <div className="p-3.5 bg-white rounded-xl border border-slate-200 space-y-2">
+                        <label className="block font-bold text-slate-600 text-xs">Phân khúc Độc Giả / Khách Hàng:</label>
                         <select
                           value={targetSegment}
                           onChange={(e) => setTargetSegment(e.target.value as any)}
-                          className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
                         >
-                          <option value="DIGITAL_SELLERS">Nhà Xuất Bản &amp; Đối Tác Sách Số (Ebook DRM)</option>
-                          <option value="PHYSICAL_SELLERS">Gian Hàng Sách In &amp; Sách Cũ</option>
-                          <option value="NEW_SELLERS">Shop Mới Gia Nhập (&lt; 30 Ngày)</option>
-                          <option value="AT_RISK_SELLERS">Shop Có Cảnh Báo Vi Phạm / Tỷ Lệ Hủy Cao</option>
+                          <option value="ALL_CUSTOMERS">Toàn Bộ Bạn Đọc (100% Khách Hàng Đã Đăng Ký Tài Khoản)</option>
+                          <option value="VIP_CUSTOMERS">Độc Giả Thân Thiết / Khách Mua Ebook Thường Xuyên (VIP)</option>
+                          <option value="CUSTOMERS_WITH_ACTIVE_ORDERS">Khách Hàng Đang Có Đơn Vận Chuyển Trong 48 Giờ Qua</option>
                         </select>
                       </div>
                     )}
 
-                    {targetType === 'DIRECT' && (
-                      <div className="pt-1">
-                        <label className="block font-bold text-slate-600 mb-1">Chọn Gian Hàng Đích Danh:</label>
+                    {/* Sub Options for SHIPPER */}
+                    {targetRole === 'SHIPPER' && (
+                      <div className="p-3.5 bg-white rounded-xl border border-slate-200 space-y-2">
+                        <label className="block font-bold text-slate-600 text-xs">Phân nhóm Đội Ngũ Bưu Tá / Shipper:</label>
                         <select
-                          value={targetBusinessId}
-                          onChange={(e) => setTargetBusinessId(e.target.value)}
-                          className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
-                          required
+                          value={targetSegment}
+                          onChange={(e) => setTargetSegment(e.target.value as any)}
+                          className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
                         >
-                          <option value="">-- Chọn một Gian Hàng / Doanh Nghiệp --</option>
-                          {businesses.map((b) => (
-                            <option key={b.id} value={b.id}>
-                              {b.name} ({b.email || b.phone || 'NXB Đối Tác'})
-                            </option>
-                          ))}
+                          <option value="ALL_SHIPPERS">Toàn Bộ Đội Ngũ Bưu Tá Trên Toàn Quốc</option>
+                          <option value="ONLINE_SHIPPERS">Bưu Tá Đang Bật Trạng Thái Trực Tuyến (Sẵn Sàng Nhận Đơn)</option>
+                          <option value="REGION_HANOI">Bưu Cục Khu Vực Hà Nội &amp; Các Tỉnh Miền Bắc</option>
+                          <option value="REGION_HCMC">Bưu Cục Khu Vực TP.HCM &amp; Các Tỉnh Miền Nam</option>
+                          <option value="REGION_OTHER">Bưu Cục Miền Trung &amp; Các Tỉnh Thành Khác</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Hint for ALL */}
+                    {targetRole === 'ALL' && (
+                      <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 text-[11.5px] flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[18px] text-emerald-700 shrink-0">info</span>
+                        <span>Bản tin sẽ được phát sóng đồng thời trên cả 3 giao diện: Cửa hàng Khách mua, Dashboard Shop và Ứng dụng Bưu tá.</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Channels & Placement Section */}
+                  <div className="p-4 sm:p-5 bg-slate-50/70 rounded-2xl border border-slate-200/80 space-y-2.5">
+                    <label className="block font-black text-slate-800 text-xs">2. Vị Trí &amp; Kênh Hiển Thị</label>
+                    <div className="space-y-2 text-xs font-semibold">
+                      <label className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50 transition-colors cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={channels.includes('TOP_BAR')}
+                          onChange={(e) => {
+                            if (e.target.checked) setChannels([...channels, 'TOP_BAR']);
+                            else setChannels(channels.filter((c) => c !== 'TOP_BAR'));
+                          }}
+                          className="w-4 h-4 rounded text-[#00875A]"
+                        />
+                        <span className="text-slate-700">Ghim Thanh Notice Trên Cùng (WordPress Style)</span>
+                      </label>
+
+                      <label className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50 transition-colors cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={channels.includes('BELL')}
+                          onChange={(e) => {
+                            if (e.target.checked) setChannels([...channels, 'BELL']);
+                            else setChannels(channels.filter((c) => c !== 'BELL'));
+                          }}
+                          className="w-4 h-4 rounded text-[#00875A]"
+                        />
+                        <span className="text-slate-700">Chuông &amp; Trung Tâm Thông Báo Riêng</span>
+                      </label>
+
+                      <label className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50 transition-colors cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={channels.includes('MODAL')}
+                          onChange={(e) => {
+                            if (e.target.checked) setChannels([...channels, 'MODAL']);
+                            else setChannels(channels.filter((c) => c !== 'MODAL'));
+                          }}
+                          className="w-4 h-4 rounded text-[#00875A]"
+                        />
+                        <span className="text-slate-700">Bật Modal Bắt Buộc Đọc Khi Đăng Nhập</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Scheduling & Recurring Section */}
+                  <div className="p-4 sm:p-5 bg-slate-50/70 rounded-2xl border border-slate-200/80 space-y-3">
+                    <label className="block font-black text-slate-800 text-xs">3. Thời Gian &amp; Lịch Phát Sóng</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <label className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-slate-200 hover:border-slate-300 cursor-pointer font-semibold text-xs transition-colors">
+                        <input
+                          type="radio"
+                          name="scheduleType"
+                          checked={scheduleType === 'INSTANT'}
+                          onChange={() => setScheduleType('INSTANT')}
+                          className="text-[#00875A]"
+                        />
+                        <span>Phát Sóng Ngay</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-slate-200 hover:border-slate-300 cursor-pointer font-semibold text-xs transition-colors">
+                        <input
+                          type="radio"
+                          name="scheduleType"
+                          checked={scheduleType === 'SCHEDULED'}
+                          onChange={() => setScheduleType('SCHEDULED')}
+                          className="text-[#00875A]"
+                        />
+                        <span>Hẹn Giờ Gửi</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-slate-200 hover:border-slate-300 cursor-pointer font-semibold text-xs transition-colors">
+                        <input
+                          type="radio"
+                          name="scheduleType"
+                          checked={scheduleType === 'RECURRING'}
+                          onChange={() => setScheduleType('RECURRING')}
+                          className="text-[#00875A]"
+                        />
+                        <span>Định Kỳ</span>
+                      </label>
+                    </div>
+
+                    {scheduleType === 'RECURRING' && (
+                      <div className="pt-1">
+                        <label className="block font-bold text-slate-600 mb-1">Quy Tắc Lặp Lại Định Kỳ:</label>
+                        <select
+                          value={recurringRule}
+                          onChange={(e) => setRecurringRule(e.target.value as any)}
+                          className="w-full h-10 px-3.5 bg-white border border-slate-200 rounded-xl font-semibold text-xs"
+                        >
+                          <option value="BI_MONTHLY">Ngày 1 &amp; Ngày 15 hàng tháng (Kỳ đối soát Ví Escrow)</option>
+                          <option value="WEEKLY_MONDAY">8:00 Sáng thứ Hai hàng tuần (Báo cáo kinh doanh tuần)</option>
+                          <option value="MONTHLY_FIRST">Ngày 1 đầu tháng (Tổng kết doanh số &amp; chiết khấu)</option>
                         </select>
                       </div>
                     )}
                   </div>
-                )}
-
-                {/* Sub Options for CUSTOMER */}
-                {targetRole === 'CUSTOMER' && (
-                  <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
-                    <label className="block font-bold text-slate-600 text-xs">Phân khúc Độc Giả / Khách Hàng:</label>
-                    <select
-                      value={targetSegment}
-                      onChange={(e) => setTargetSegment(e.target.value as any)}
-                      className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
-                    >
-                      <option value="ALL_CUSTOMERS">Toàn Bộ Bạn Đọc (100% Khách Hàng Đã Đăng Ký Tài Khoản)</option>
-                      <option value="VIP_CUSTOMERS">Độc Giả Thân Thiết / Khách Mua Ebook Thường Xuyên (VIP)</option>
-                      <option value="CUSTOMERS_WITH_ACTIVE_ORDERS">Khách Hàng Đang Có Đơn Vận Chuyển Trong 48 Giờ Qua</option>
-                    </select>
-                  </div>
-                )}
-
-                {/* Sub Options for SHIPPER */}
-                {targetRole === 'SHIPPER' && (
-                  <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
-                    <label className="block font-bold text-slate-600 text-xs">Phân nhóm Đội Ngũ Bưu Tá / Shipper:</label>
-                    <select
-                      value={targetSegment}
-                      onChange={(e) => setTargetSegment(e.target.value as any)}
-                      className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
-                    >
-                      <option value="ALL_SHIPPERS">Toàn Bộ Đội Ngũ Bưu Tá Trên Toàn Quốc</option>
-                      <option value="ONLINE_SHIPPERS">Bưu Tá Đang Bật Trạng Thái Trực Tuyến (Sẵn Sàng Nhận Đơn)</option>
-                      <option value="REGION_HANOI">Bưu Cục Khu Vực Hà Nội &amp; Các Tỉnh Miền Bắc</option>
-                      <option value="REGION_HCMC">Bưu Cục Khu Vực TP.HCM &amp; Các Tỉnh Miền Nam</option>
-                      <option value="REGION_OTHER">Bưu Cục Miền Trung &amp; Các Tỉnh Thành Khác</option>
-                    </select>
-                  </div>
-                )}
-
-                {/* Hint for ALL */}
-                {targetRole === 'ALL' && (
-                  <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 text-[11.5px] flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[18px] text-emerald-700">info</span>
-                    <span>Bản tin sẽ được phát sóng đồng thời trên cả 3 giao diện: Cửa hàng Khách mua, Dashboard Shop và Ứng dụng Bưu tá.</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Channels & Placement */}
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
-                <label className="block font-black text-slate-800">2. Vị Trí &amp; Kênh Hiển Thị</label>
-                <div className="flex flex-wrap gap-4 text-xs font-semibold">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={channels.includes('TOP_BAR')}
-                      onChange={(e) => {
-                        if (e.target.checked) setChannels([...channels, 'TOP_BAR']);
-                        else setChannels(channels.filter((c) => c !== 'TOP_BAR'));
-                      }}
-                      className="w-4 h-4 rounded text-[#00875A]"
-                    />
-                    <span>Ghim Thanh Notice Trên Cùng (WordPress Style)</span>
-                  </label>
-
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={channels.includes('BELL')}
-                      onChange={(e) => {
-                        if (e.target.checked) setChannels([...channels, 'BELL']);
-                        else setChannels(channels.filter((c) => c !== 'BELL'));
-                      }}
-                      className="w-4 h-4 rounded text-[#00875A]"
-                    />
-                    <span>Chuông &amp; Trung Tâm Thông Báo Riêng</span>
-                  </label>
-
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={channels.includes('MODAL')}
-                      onChange={(e) => {
-                        if (e.target.checked) setChannels([...channels, 'MODAL']);
-                        else setChannels(channels.filter((c) => c !== 'MODAL'));
-                      }}
-                      className="w-4 h-4 rounded text-[#00875A]"
-                    />
-                    <span>Bật Modal Bắt Buộc Đọc Khi Đăng Nhập</span>
-                  </label>
                 </div>
               </div>
 
-              {/* Scheduling & Recurring */}
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2.5">
-                <label className="block font-black text-slate-800">3. Thời Gian &amp; Lịch Phát Sóng</label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-white border border-slate-200 cursor-pointer font-semibold">
-                    <input
-                      type="radio"
-                      name="scheduleType"
-                      checked={scheduleType === 'INSTANT'}
-                      onChange={() => setScheduleType('INSTANT')}
-                      className="text-[#00875A]"
-                    />
-                    <span>Phát Sóng Ngay (Realtime)</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-white border border-slate-200 cursor-pointer font-semibold">
-                    <input
-                      type="radio"
-                      name="scheduleType"
-                      checked={scheduleType === 'SCHEDULED'}
-                      onChange={() => setScheduleType('SCHEDULED')}
-                      className="text-[#00875A]"
-                    />
-                    <span>Hẹn Giờ Gửi</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-white border border-slate-200 cursor-pointer font-semibold">
-                    <input
-                      type="radio"
-                      name="scheduleType"
-                      checked={scheduleType === 'RECURRING'}
-                      onChange={() => setScheduleType('RECURRING')}
-                      className="text-[#00875A]"
-                    />
-                    <span>Định Kỳ Tự Động</span>
-                  </label>
-                </div>
-
-                {scheduleType === 'RECURRING' && (
-                  <div className="pt-1">
-                    <label className="block font-bold text-slate-600 mb-1">Quy Tắc Lặp Lại Định Kỳ:</label>
-                    <select
-                      value={recurringRule}
-                      onChange={(e) => setRecurringRule(e.target.value as any)}
-                      className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl font-semibold"
-                    >
-                      <option value="BI_MONTHLY">Ngày 1 &amp; Ngày 15 hàng tháng (Kỳ đối soát Ví Escrow)</option>
-                      <option value="WEEKLY_MONDAY">8:00 Sáng thứ Hai hàng tuần (Báo cáo kinh doanh tuần)</option>
-                      <option value="MONTHLY_FIRST">Ngày 1 đầu tháng (Tổng kết doanh số &amp; chiết khấu)</option>
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              {/* Action Link (Optional) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Đường Dẫn Hành Động (CTA Link)</label>
-                  <input
-                    type="text"
-                    value={actionUrl}
-                    onChange={(e) => setActionUrl(e.target.value)}
-                    placeholder="Ví dụ: /seller/finance hoặc /seller/returns"
-                    className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Nhãn Nút Bấm</label>
-                  <input
-                    type="text"
-                    value={actionLabel}
-                    onChange={(e) => setActionLabel(e.target.value)}
-                    placeholder="Ví dụ: Kiểm Tra Ví Escrow"
-                    className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl font-medium"
-                  />
-                </div>
-              </div>
-
-              {/* Form Buttons */}
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+              {/* Form Buttons Footer */}
+              <div className="pt-5 border-t border-slate-100 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setIsComposerOpen(false)}
-                  className="px-4 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition-colors cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition-colors cursor-pointer text-xs"
                 >
                   Hủy Bỏ
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#00875A] hover:bg-[#00704A] text-white px-6 py-2.5 rounded-xl font-bold transition-all shadow-md inline-flex items-center gap-2 cursor-pointer"
+                  className="bg-[#00875A] hover:bg-[#00704A] text-white px-6 py-2.5 rounded-xl font-bold transition-all shadow-sm hover:shadow active:scale-98 inline-flex items-center gap-2 cursor-pointer text-xs"
                 >
                   <span className="material-symbols-outlined text-[17px]">send</span>
                   <span>Phát Sóng Thông Báo Ngay</span>

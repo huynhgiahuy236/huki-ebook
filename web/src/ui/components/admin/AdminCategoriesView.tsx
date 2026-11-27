@@ -2,15 +2,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { catalogApi } from '../../api/catalogApi';
 import { useToast } from '../../context/ToastContext';
+import { AdminPagination } from './AdminUI';
 
 export function AdminCategoriesView() {
   const { showToast } = useToast();
-  const [categories, setCategories] = useState<any[]>([]);;
-  const [authors, setAuthors] = useState<any[]>([]);;
-  const [publishers, setPublishers] = useState<any[]>([]);;
+  const [categories, setCategories] = useState<any[]>([]);
+  const [authors, setAuthors] = useState<any[]>([]);
+  const [publishers, setPublishers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('CATEGORIES');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 12; // 4 hàng x 3 cột hoàn hảo cho giao diện grid
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -69,6 +72,28 @@ export function AdminCategoriesView() {
     return p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.slug?.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
+  // Active list và pagination slices
+  const activeList = activeTab === 'CATEGORIES' 
+    ? filteredCategories 
+    : activeTab === 'AUTHORS' 
+      ? filteredAuthors 
+      : filteredPublishers;
+  const totalPages = Math.ceil(activeList.length / pageSize) || 1;
+
+  const paginatedCategories = filteredCategories.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const paginatedAuthors = filteredAuthors.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const paginatedPublishers = filteredPublishers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const handleTabChange = (key: string) => {
+    setActiveTab(key);
+    setCurrentPage(1);
+  };
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    setCurrentPage(1);
+  };
+
   return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200">
       {/* 1. TOP HEADER */}
@@ -101,7 +126,7 @@ export function AdminCategoriesView() {
           ].map((tab) => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => handleTabChange(tab.key)}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === tab.key
                   ? 'bg-[#00875A] text-white shadow-xs'
@@ -125,7 +150,7 @@ export function AdminCategoriesView() {
             type="text"
             placeholder="Tìm theo tên thể loại, tác giả, NXB..."
             value={searchQuery}
-            onChange={(e: any) => setSearchQuery(e.target.value)}
+            onChange={(e: any) => handleSearchChange(e.target.value)}
             className="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
           />
         </div>
@@ -149,7 +174,7 @@ export function AdminCategoriesView() {
               <div className="py-12 text-center text-gray-400 text-xs">Không tìm thấy danh mục nào.</div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {filteredCategories.map((cat) => (
+                {paginatedCategories.map((cat) => (
                   <div key={cat.id} className="p-4 rounded-xl bg-gray-50 border border-gray-200 hover:border-purple-300 transition-all flex flex-col justify-between">
                     <div>
                       <div className="flex items-center justify-between">
@@ -179,7 +204,7 @@ export function AdminCategoriesView() {
               <div className="py-12 text-center text-gray-400 text-xs">Không tìm thấy tác giả nào.</div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {filteredAuthors.map((auth) => (
+                {paginatedAuthors.map((auth) => (
                   <div key={auth.id} className="p-4 rounded-xl bg-gray-50 border border-gray-200 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center justify-center shrink-0">
                       {auth.name ? auth.name.charAt(0).toUpperCase() : 'A'}
@@ -204,7 +229,7 @@ export function AdminCategoriesView() {
               <div className="py-12 text-center text-gray-400 text-xs">Không tìm thấy nhà xuất bản nào.</div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {filteredPublishers.map((pub) => (
+                {paginatedPublishers.map((pub) => (
                   <div key={pub.id} className="p-4 rounded-xl bg-gray-50 border border-gray-200 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-800 font-extrabold text-xs flex items-center justify-center shrink-0">
                       {pub.name ? pub.name.charAt(0).toUpperCase() : 'P'}
@@ -218,6 +243,19 @@ export function AdminCategoriesView() {
               </div>
             )}
           </div>
+        )}
+
+        {/* 4. PAGINATION */}
+        {!loading && activeList.length > 0 && (
+          <AdminPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={activeList.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            itemLabel={activeTab === 'CATEGORIES' ? 'danh mục' : activeTab === 'AUTHORS' ? 'tác giả' : 'nhà xuất bản'}
+            className="mt-6 pt-4 border-t border-gray-100"
+          />
         )}
       </div>
     </div>

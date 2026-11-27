@@ -370,17 +370,35 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               Ban Quản Trị Hệ Thống
             </span>
           </Link>
+        </div>
 
-          {/* Global Search Bar */}
-          <form onSubmit={handleSearch} className="relative hidden md:block w-56 lg:w-72 ml-1">
-            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[16px]">search</span>
+        {/* Center: Global Search Bar */}
+        <div className="flex-1 max-w-lg mx-auto hidden md:flex justify-center px-6">
+          <form onSubmit={handleSearch} className="relative w-full max-w-md group">
+            <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#003B2B] text-[18px] transition-colors pointer-events-none">
+              search
+            </span>
             <input
               type="text"
               placeholder="Tìm sách, doanh nghiệp, ISBN..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#003B2B] focus:bg-white transition-all shadow-2xs"
+              className="w-full h-9.5 pl-11 pr-10 rounded-full bg-[#F8FAFC] hover:bg-[#F1F5F9] focus:bg-white border border-[#E2E8F0] focus:border-[#003B2B] text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none transition-all shadow-2xs focus:shadow-xs"
             />
+            {searchQuery ? (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200 transition-colors cursor-pointer"
+                aria-label="Xóa tìm kiếm"
+              >
+                <span className="material-symbols-outlined text-[14px] block">close</span>
+              </button>
+            ) : (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 hidden lg:inline-flex items-center px-1.5 py-0.5 text-[9.5px] font-semibold text-slate-400 bg-white border border-slate-200 rounded-md pointer-events-none shadow-2xs">
+                Ctrl K
+              </span>
+            )}
           </form>
         </div>
 
@@ -389,11 +407,14 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           {/* Back to Storefront Link */}
           <Link
             href="/"
-            className="flex items-center gap-1.5 px-3 py-1 rounded-xl border border-emerald-600/30 bg-emerald-50 hover:bg-emerald-100 text-xs font-bold text-emerald-900 transition-colors shadow-2xs"
-            title="Trở về Xem Cửa Hàng / Sàn HuKi"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 hover:text-slate-900 transition-colors shadow-2xs hover:border-slate-300"
+            title="Mở trang chủ Sàn HuKi trong tab mới"
           >
-            <span className="material-symbols-outlined text-[16px] text-emerald-700">storefront</span>
-            <span className="hidden sm:inline">Xem Sàn HuKi</span>
+            <span className="material-symbols-outlined text-[15px] text-slate-500">storefront</span>
+            <span className="hidden sm:inline">Xem Sàn</span>
+            <span className="material-symbols-outlined text-[13px] text-slate-400">arrow_outward</span>
           </Link>
 
           {/* Health quick status badge */}
