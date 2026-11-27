@@ -1552,20 +1552,16 @@ export default function BookDetailPage() {
                                 {fmt.title}
                               </span>
                               {isFormatFlashSale && (
-                                <span className="inline-flex items-center gap-0.5 bg-gradient-to-r from-rose-600 to-orange-500 text-white text-[8.5px] font-extrabold px-1.5 py-0.5 rounded-md shadow-2xs">
-                                  <span className="material-symbols-outlined text-[10px]">bolt</span>
-                                  <span>FLASH SALE{fsPct > 0 ? ` -${fsPct}%` : ''}</span>
+                                <span className="inline-flex items-center gap-0.5 bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-semibold px-1.5 py-0.5 rounded-md">
+                                  <span className="material-symbols-outlined text-[11px]">bolt</span>
+                                  <span>Flash Sale{fsPct > 0 ? ` -${fsPct}%` : ''}</span>
                                 </span>
                               )}
-                              {isSelected ? (
-                                <span className="bg-[#006953] text-white text-[8.5px] font-bold px-1.5 py-0.2 rounded-md">
-                                  ĐANG CHỌN
+                              {!isFormatFlashSale && isDiscounted && (
+                                <span className="bg-rose-50 text-rose-600 border border-rose-200 text-[9.5px] font-semibold px-1.5 py-0.2 rounded-md">
+                                  Ưu đãi
                                 </span>
-                              ) : !isFormatFlashSale && isDiscounted ? (
-                                <span className="bg-rose-500 text-white text-[8px] font-extrabold px-1.5 py-0.2 rounded-md">
-                                  ƯU ĐÃI
-                                </span>
-                              ) : null}
+                              )}
                             </div>
                             <span className="text-[10.5px] text-gray-500 block truncate mt-0.5">
                               {fmt.subtitle}
@@ -1596,10 +1592,20 @@ export default function BookDetailPage() {
             <div className="w-full h-full bg-white border border-[#e8e5df] rounded-2xl p-4.5 sm:p-5 shadow-xs flex flex-col justify-between gap-3.5">
               <div className="space-y-3">
                 {activeFlashSale ? (
-                  <div className="p-2.5 bg-gradient-to-r from-rose-50 to-red-50 border border-rose-200 rounded-xl space-y-0.5">
-                    <div className="flex items-center gap-1 text-rose-600 font-extrabold text-[11px]"><span className="material-symbols-outlined text-xs">bolt</span><span>FLASH SALE -{activeFlashSale.discountPercent}%</span></div>
-                    <div className="text-[10.5px] text-rose-700 font-medium">Giá: <strong className="text-xs font-black text-rose-600">{Number(activeFlashSale.salePrice).toLocaleString('vi-VN')}₫</strong></div>
-                    <div className="flex items-center gap-1 text-[10.5px] font-bold text-rose-700"><span className="material-symbols-outlined text-xs">timer</span>Hết sau {flashSaleCountdown}</div>
+                  <div className="px-3 py-2 bg-rose-50/70 border border-rose-200/80 rounded-xl space-y-1">
+                    <div className="flex items-center justify-between gap-2 text-rose-600">
+                      <span className="inline-flex items-center gap-1 font-bold text-[11px]">
+                        <span className="material-symbols-outlined text-[13px]">bolt</span>
+                        <span>Flash Sale -{activeFlashSale.discountPercent}%</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold text-rose-700">
+                        <span className="material-symbols-outlined text-[12px]">timer</span>
+                        <span>{flashSaleCountdown}</span>
+                      </span>
+                    </div>
+                    <div className="text-[10.5px] text-rose-700/80">
+                      Đang áp dụng cho <strong>{currentPrice.title}</strong>
+                    </div>
                   </div>
                 ) : flashSaleInfo && flashSaleTargetKey ? (
                   <button
@@ -1608,17 +1614,17 @@ export default function BookDetailPage() {
                       hasManualFormatChoiceRef.current = true;
                       setSelectedFormat(flashSaleTargetKey);
                     }}
-                    className="w-full text-left p-2.5 bg-amber-50/90 hover:bg-rose-50 border border-amber-200 hover:border-rose-300 rounded-xl transition-colors cursor-pointer space-y-0.5"
+                    className="w-full text-left px-3 py-2 bg-slate-50 hover:bg-rose-50/60 border border-slate-200 hover:border-rose-200 rounded-xl transition-colors cursor-pointer space-y-0.5"
                   >
-                    <div className="flex items-center justify-between gap-1 text-rose-600 font-extrabold text-[10.5px]">
+                    <div className="flex items-center justify-between gap-1 text-rose-600 font-semibold text-[11px]">
                       <span className="inline-flex items-center gap-1">
-                        <span className="material-symbols-outlined text-xs">bolt</span>
-                        <span>FLASH SALE -{flashSaleInfo.discountPercent}% cho {formatTargetFormatLabel(flashSaleInfo.targetFormat || flashSaleInfo.format || realBook?.format)}</span>
+                        <span className="material-symbols-outlined text-[13px]">bolt</span>
+                        <span>Flash Sale -{flashSaleInfo.discountPercent}% ({formatTargetFormatLabel(flashSaleInfo.targetFormat || flashSaleInfo.format || realBook?.format)})</span>
                       </span>
-                      <span className="underline shrink-0">Chọn</span>
+                      <span className="text-slate-700 underline shrink-0">Xem giá sale</span>
                     </div>
-                    <div className="text-[10px] text-gray-600">
-                      Hình thức bạn đang chọn áp dụng giá niêm yết thường.
+                    <div className="text-[10.5px] text-slate-500">
+                      Hình thức hiện tại đang dùng giá niêm yết thường.
                     </div>
                   </button>
                 ) : null}
