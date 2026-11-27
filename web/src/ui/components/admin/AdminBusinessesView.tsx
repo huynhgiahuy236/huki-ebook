@@ -610,62 +610,32 @@ export function AdminBusinessesView() {
         key: 'name',
         title: 'Đối tác & Gian hàng',
         sortable: true,
-        render: (_val, biz) => {
-          const store = Array.isArray(biz.stores) && biz.stores.length > 0 ? biz.stores[0] : null;
-          const storeSlug = store?.slug || biz.slug;
-          return (
-            <div className="flex items-center gap-2 py-0.5">
-              <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200/60 flex items-center justify-center text-emerald-800 font-bold text-[11px] shrink-0">
-                {biz.name ? biz.name.charAt(0).toUpperCase() : 'B'}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span
-                    className="font-bold text-gray-900 hover:text-[#00875A] cursor-pointer text-xs truncate max-w-[260px] leading-tight"
-                    onClick={() => {
-                      setSelectedBiz(biz);
-                      setDetailTab('profile');
-                    }}
-                    title={biz.name}
-                  >
-                    {biz.name}
-                  </span>
-                  <span className="text-[10px] font-mono font-medium text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200/60 shrink-0">
-                    MST: {biz.taxCode || 'Chưa cấp'}
-                  </span>
-                  {storeSlug && (
-                    <a
-                      href={`/shop/${storeSlug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[10px] font-mono text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-900 px-1.5 py-0.2 rounded border border-indigo-200/60 shrink-0 inline-flex items-center gap-0.5 transition-colors"
-                      title="Xem gian hàng mặt tiền trên sàn HuKi"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <span className="material-symbols-outlined text-[11px]">storefront</span>
-                      <span>/{storeSlug}</span>
-                      <span className="material-symbols-outlined text-[10px] opacity-60">open_in_new</span>
-                    </a>
-                  )}
-                </div>
-              </div>
+        render: (_val, biz) => (
+          <div className="flex items-center gap-2.5 py-0.5">
+            <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 font-bold text-[11px] shrink-0">
+              {biz.name ? biz.name.charAt(0).toUpperCase() : 'B'}
             </div>
-          );
-        },
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedBiz(biz);
+                setDetailTab('profile');
+              }}
+              className="font-semibold text-gray-900 hover:text-[#00875A] cursor-pointer text-xs truncate max-w-[320px] text-left transition-colors"
+              title={biz.name}
+            >
+              {biz.name}
+            </button>
+          </div>
+        ),
       },
       {
         key: 'contact',
         title: 'Người đại diện',
         render: (_val, biz) => (
-          <div className="flex items-center gap-2 py-0.5 text-xs">
-            <span className="font-medium text-gray-800 truncate max-w-[150px]" title={biz.email || ''}>
-              {biz.email || <span className="text-gray-400 italic">Chưa có email</span>}
-            </span>
-            <span className="text-gray-300">•</span>
-            <span className="font-mono text-[10.5px] text-gray-500 shrink-0">
-              {biz.phone || 'Chưa cập nhật SĐT'}
-            </span>
-          </div>
+          <span className="text-xs text-gray-700 truncate block max-w-[220px]" title={biz.email || ''}>
+            {biz.email || <span className="text-gray-400 italic">Chưa có email</span>}
+          </span>
         ),
       },
       {
@@ -674,16 +644,15 @@ export function AdminBusinessesView() {
         render: (_val, biz) => {
           const isPublisher = biz.name?.toUpperCase().includes('NXB') || biz.name?.toUpperCase().includes('XUẤT BẢN');
           return (
-            <div className="flex items-center gap-2 py-0.5">
-              <span className={`inline-block px-1.5 py-0.2 rounded text-[9.5px] font-bold border shrink-0 ${
-                isPublisher ? 'bg-indigo-50 text-indigo-800 border-indigo-200' : 'bg-amber-50 text-amber-800 border-amber-200'
-              }`}>
-                {isPublisher ? 'Nhà Xuất Bản' : 'Nhà Phát Hành / DN'}
-              </span>
-              <span className="text-gray-400 font-mono text-[10.5px] shrink-0">
-                {biz.createdAt ? new Date(biz.createdAt).toLocaleDateString('vi-VN') : '14/09/2026'}
-              </span>
-            </div>
+            <span
+              className={`inline-block px-2 py-0.5 rounded-md text-[10.5px] font-semibold border whitespace-nowrap ${
+                isPublisher
+                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                  : 'bg-amber-50 text-amber-800 border-amber-200'
+              }`}
+            >
+              {isPublisher ? 'Nhà Xuất Bản' : 'Nhà Phát Hành / DN'}
+            </span>
           );
         },
       },
@@ -722,28 +691,28 @@ export function AdminBusinessesView() {
           const isApproved = biz.status === 'APPROVED';
           const isBusy = actionLoadingId === biz.id;
           return (
-            <div className="flex items-center justify-end gap-1 shrink-0">
+            <div className="flex items-center justify-end gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={() => {
                   setSelectedBiz(biz);
                   setDetailTab('profile');
                 }}
-                className="px-2 py-0.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#003B2B] font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer border border-emerald-200/60"
+                className="px-2.5 py-1 rounded-lg bg-white hover:bg-gray-50 text-gray-700 font-semibold text-xs flex items-center gap-1 transition-colors cursor-pointer border border-gray-200"
                 title="Xem hồ sơ pháp lý chi tiết"
               >
-                <span className="material-symbols-outlined text-[13px]">visibility</span>
+                <span className="material-symbols-outlined text-[14px] text-gray-500">visibility</span>
                 <span>Hồ sơ</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setFeatureModalBiz(biz)}
-                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                className="px-2.5 py-1 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
                 title="Quản lý tính năng Seller của DN này"
               >
-                <span className="material-symbols-outlined text-[13px]">tune</span>
-                <span>Tính Năng</span>
+                <span className="material-symbols-outlined text-[14px] text-gray-500">tune</span>
+                <span>Tính năng</span>
               </button>
 
               {isPending && (
@@ -2115,6 +2084,8 @@ export function AdminBusinessesView() {
           const full = buildFullEnterpriseProfile(biz);
           const isPending = biz.status === 'PENDING_APPROVAL';
           const isBusy = actionLoadingId === biz.id;
+          const store = Array.isArray(biz.stores) && biz.stores.length > 0 ? biz.stores[0] : null;
+          const storeSlug = store?.slug || biz.slug;
 
           return (
             <div className="flex flex-col gap-4 text-xs">
@@ -2141,6 +2112,12 @@ export function AdminBusinessesView() {
                     <div className="flex justify-between items-start gap-2">
                       <span className="text-gray-500 shrink-0">Loại Hình DN:</span>
                       <span className="font-medium text-gray-700 text-right">{full?.business_type === 'CORPORATION' ? 'Công ty Cổ Phần' : 'Công ty TNHH'}</span>
+                    </div>
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-gray-500 shrink-0">Ngày Đăng Ký:</span>
+                      <span className="font-mono text-gray-700">
+                        {biz.createdAt ? new Date(biz.createdAt).toLocaleDateString('vi-VN') : '—'}
+                      </span>
                     </div>
                     <div className="pt-1 border-t border-gray-100 flex flex-col">
                       <span className="text-gray-500 text-[10.5px]">Địa chỉ trụ sở chính:</span>
@@ -2231,6 +2208,17 @@ export function AdminBusinessesView() {
                     <span className="material-symbols-outlined text-[15px]">storefront</span>
                     <span>Xem gian hàng ({biz.stores?.length || 0})</span>
                   </button>
+                  {storeSlug && (
+                    <a
+                      href={`/shop/${storeSlug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-100 text-indigo-700 border border-gray-300 font-semibold text-xs transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">open_in_new</span>
+                      <span>/{storeSlug}</span>
+                    </a>
+                  )}
                   <button
                     type="button"
                     onClick={() => setFeatureModalBiz(biz)}

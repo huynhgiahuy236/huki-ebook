@@ -2065,3 +2065,5 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
     - E2E [`test_e2e_bug33_34_affiliate_escrow_socket_conversion.js`](file:///e:/HuKi/scripts/test_e2e_bug33_34_affiliate_escrow_socket_conversion.js) & [`test_e2e_uat_escrow_flashsale.js`](file:///e:/HuKi/scripts/test_e2e_uat_escrow_flashsale.js): **ALL E2E CHECKS PASSED**.
   - **Gate 4 (Frontend Typecheck, Lint, Tests & Production Build):**
     - `npm --prefix web run typecheck` (0 errors) + `npm --prefix web run lint` (0 errors) + `npm --prefix web test`: **14/14 files, 81/81 tests PASS** + `npm --prefix web run build`: **142/142 routes compiled cleanly**.
+- **Tinh gọn bổ sung `BUG-35` (Bảng Quản Lý Doanh Nghiệp `/admin/businesses`):**
+  - [`AdminBusinessesView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminBusinessesView.tsx): Dọn bớt badge màu và thông tin thứ cấp bị nhồi lên hàng chính (`MST: ...`, link `/slug`, `SĐT`, ngày đăng ký) đưa vào trong khung mở rộng mũi tên `>`, giữ hàng chính thoáng với đúng Tên doanh nghiệp, Email đại diện, 1 badge Loại hình, 1 badge Trạng thái và nút thao tác tối giản.
