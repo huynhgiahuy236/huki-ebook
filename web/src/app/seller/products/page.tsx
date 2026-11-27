@@ -10,6 +10,7 @@ import { aiAudioService, AiAudioPlan, BookAiSubscription } from '@/ui/services/a
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { can, PERMISSIONS } from '@/ui/utils/permissions';
+import { getFlashSaleFormatStyle } from '@/ui/utils/flashSaleFormat';
 import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 import {
   SellerTableContainer,
@@ -656,19 +657,18 @@ function SellerProductsContent() {
           const stock = book.physicalDetails?.stock ?? 0;
           const isLowStock = book.format !== 'DIGITAL' && stock > 0 && stock < 10;
           const isOutOfStock = book.format !== 'DIGITAL' && stock === 0;
+          const fmtStyle = getFlashSaleFormatStyle(book.format);
+          const shortLabel = book.format === 'BOTH' ? 'Combo' : fmtStyle.label;
 
           return (
-            <div className="py-1 flex flex-col gap-0.5 text-xs">
+            <div className="py-1 flex flex-col gap-1 text-xs">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="font-semibold text-slate-800">
-                  {book.format === 'PHYSICAL'
-                    ? 'Sách Giấy'
-                    : book.format === 'DIGITAL'
-                      ? 'Ebook DRM'
-                      : 'Combo'}
+                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] font-semibold ${fmtStyle.badgeClass}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${fmtStyle.dotClass}`} />
+                  <span>{shortLabel}</span>
                 </span>
                 {Boolean(book.isAffiliateEligible || book.affiliateSetting?.isEligible) && (
-                  <span className="text-[10.5px] text-amber-700 font-medium">
+                  <span className="text-[10.5px] text-slate-500 font-medium">
                     · Affiliate
                   </span>
                 )}

@@ -53,6 +53,7 @@ export function formatTargetFormatLabel(targetFormat?: string | null): string {
 export interface FlashSaleFormatStyle {
   label: string;
   dotClass: string;
+  textClass: string;
   badgeClass: string;
   selectClass: string;
 }
@@ -60,21 +61,24 @@ export interface FlashSaleFormatStyle {
 const FLASH_SALE_FORMAT_STYLES: Record<FlashSaleTargetFormat, FlashSaleFormatStyle> = {
   PHYSICAL: {
     label: 'Sách Giấy',
-    dotClass: 'bg-amber-500',
-    badgeClass: 'bg-amber-50/70 text-amber-800 border-amber-200/70',
-    selectClass: 'bg-amber-50/50 text-amber-900 border-amber-200/80 focus:border-amber-400',
+    dotClass: 'bg-amber-700',
+    textClass: 'text-amber-800',
+    badgeClass: 'bg-amber-50 text-amber-800 border-amber-300/80',
+    selectClass: 'bg-amber-50 text-amber-900 border-amber-300 focus:border-amber-600',
   },
   DIGITAL: {
     label: 'Ebook DRM',
-    dotClass: 'bg-sky-500',
-    badgeClass: 'bg-sky-50/70 text-sky-800 border-sky-200/70',
-    selectClass: 'bg-sky-50/50 text-sky-900 border-sky-200/80 focus:border-sky-400',
+    dotClass: 'bg-blue-700',
+    textClass: 'text-blue-800',
+    badgeClass: 'bg-blue-50 text-blue-800 border-blue-300/80',
+    selectClass: 'bg-blue-50 text-blue-900 border-blue-300 focus:border-blue-600',
   },
   BOTH: {
     label: 'Combo (Giấy + Ebook)',
-    dotClass: 'bg-violet-500',
-    badgeClass: 'bg-violet-50/70 text-violet-800 border-violet-200/70',
-    selectClass: 'bg-violet-50/50 text-violet-900 border-violet-200/80 focus:border-violet-400',
+    dotClass: 'bg-emerald-700',
+    textClass: 'text-emerald-800',
+    badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300/80',
+    selectClass: 'bg-emerald-50 text-emerald-900 border-emerald-300 focus:border-emerald-600',
   },
 };
 

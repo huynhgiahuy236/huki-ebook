@@ -915,7 +915,7 @@ export default function FlashSalePage() {
                               <button
                                 type="button"
                                 onClick={(e) => handleBuyNow(item, e)}
-                                className="flex-1 h-8 rounded-lg bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white font-extrabold text-[11px] transition-all shadow-2xs hover:shadow-xs flex items-center justify-center gap-1 cursor-pointer uppercase tracking-wider active:scale-95"
+                                className="flex-1 h-8 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] transition-colors shadow-2xs flex items-center justify-center gap-1 cursor-pointer uppercase tracking-wider active:scale-95"
                               >
                                 <span className="material-symbols-outlined text-[14px]">
                                   shopping_bag
@@ -1309,7 +1309,7 @@ export default function FlashSalePage() {
                                         type="button"
                                         onClick={(e) => handleBuyNow(item, e)}
                                         disabled={isSoldOut}
-                                        className="flex-1 py-1.5 rounded-lg bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white font-extrabold text-[11px] transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer uppercase tracking-wider disabled:bg-slate-200 disabled:cursor-not-allowed"
+                                        className="flex-1 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] transition-colors shadow-2xs flex items-center justify-center gap-1 cursor-pointer uppercase tracking-wider disabled:bg-slate-200 disabled:cursor-not-allowed"
                                       >
                                         <span className="material-symbols-outlined text-[13px]">
                                           bolt

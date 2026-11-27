@@ -57,7 +57,7 @@ describe('flashSaleFormat helpers (BUG-29, BUG-30)', () => {
     expect(paper.dotClass).not.toBe(ebook.dotClass);
     expect(ebook.dotClass).not.toBe(combo.dotClass);
     expect(paper.badgeClass).toContain('amber');
-    expect(ebook.badgeClass).toContain('sky');
-    expect(combo.badgeClass).toContain('violet');
+    expect(ebook.badgeClass).toContain('blue');
+    expect(combo.badgeClass).toContain('emerald');
   });
 });
