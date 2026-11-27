@@ -412,8 +412,11 @@ class BookModerationService {
           totalReports: updatedReports.length,
           timestamp: nowIso,
         },
-        { roles: ['ADMIN', 'ADMIN_CON'] }
+        { roles: ['ADMIN', 'ADMIN_CON', 'ALL'] }
       );
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('huki_book_reported', { detail: { bookId: payload.bookId, reportId } }));
+      }
 
       return { success: true, reportId, totalReports: updatedReports.length };
     } else {
@@ -455,8 +458,11 @@ class BookModerationService {
           totalReports: 1,
           timestamp: nowIso,
         },
-        { roles: ['ADMIN', 'ADMIN_CON'] }
+        { roles: ['ADMIN', 'ADMIN_CON', 'ALL'] }
       );
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('huki_book_reported', { detail: { bookId: payload.bookId, reportId } }));
+      }
 
       return { success: true, reportId, totalReports: 1 };
     }
@@ -582,10 +588,39 @@ class BookModerationService {
         sellerId: current.sellerId,
         timestamp: nowIso,
       },
-      { roles: ['ADMIN', 'SELLER', 'BUYER'] }
+      { roles: ['ADMIN', 'SELLER', 'BUYER', 'ALL'] }
     );
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('huki_book_moderated', { detail: { bookId: payload.bookId, action: payload.action } }));
+    }
 
     return { success: true, book: updatedBook };
+  }
+
+  /**
+   * Thao tác xử lý hàng loạt nhiều sách bị báo cáo
+   */
+  async moderateBooksBulk(
+    bookIds: string[],
+    action: 'BLOCK' | 'DISMISS' | 'UNBLOCK',
+    note?: string
+  ): Promise<{ success: boolean; affectedCount: number }> {
+    let affectedCount = 0;
+    for (const id of bookIds) {
+      try {
+        await this.moderateBook({
+          bookId: id,
+          action,
+          note: note || `Thao tác hàng loạt: ${action}`,
+          adminName: 'Huki Super Admin',
+          notifySeller: true,
+        });
+        affectedCount++;
+      } catch (e) {
+        console.warn(`[BookModerationService] Lỗi khi xử lý hàng loạt sách ${id}:`, e);
+      }
+    }
+    return { success: true, affectedCount };
   }
 }
 

@@ -42,6 +42,7 @@ export type SyncEventType =
   | 'NOTIFICATIONS_UPDATED'
   | 'BOOK_REPORTED'
   | 'BOOK_MODERATED'
+  | 'BOOK_REVIEWED'
   | 'NOTIFICATION_READ'
   | 'NOTIFICATION_DISMISSED'
   | 'SELLER_FEATURE_TOGGLED'
@@ -255,6 +256,15 @@ export function getDefaultRolesForEventType(type: SyncEventType): NotificationRo
     case 'CHAT_UNREAD_COUNT_CHANGED':
       return ['BUYER', 'SELLER', 'SHIPPER'];
 
+    case 'BOOK_REPORTED':
+      return ['ADMIN', 'ADMIN_CON', 'ALL'];
+
+    case 'BOOK_MODERATED':
+      return ['ADMIN', 'SELLER', 'BUYER', 'ALL'];
+
+    case 'BOOK_REVIEWED':
+      return ['ADMIN', 'SELLER', 'ALL'];
+
     default:
       return ['ALL'];
   }
@@ -319,6 +329,13 @@ class RealtimeSyncBus {
             target: { roles: ['ALL'] },
           });
         }
+        if (e.key === 'huki_reported_books_v1') {
+          this.notifyListeners({
+            type: 'BOOK_REPORTED',
+            timestamp: Date.now(),
+            target: { roles: ['ADMIN', 'ADMIN_CON', 'ALL'] },
+          });
+        }
 
         const jsonKeys = [
           'huki_latest_order_event',
@@ -327,6 +344,7 @@ class RealtimeSyncBus {
           'huki_latest_payout_event',
           'huki_latest_wallet_event',
           'huki_latest_flash_sale_event',
+          'huki_latest_book_moderation_event',
         ];
 
         if (jsonKeys.includes(e.key || '') && e.newValue) {
@@ -481,6 +499,12 @@ class RealtimeSyncBus {
         try {
           localStorage.setItem('huki_latest_flash_sale_event', storagePayload);
           window.dispatchEvent(new CustomEvent('huki_flash_sale_updated', { detail: eventPayload }));
+        } catch {}
+      }
+      if (eventType.startsWith('BOOK_')) {
+        try {
+          localStorage.setItem('huki_latest_book_moderation_event', storagePayload);
+          window.dispatchEvent(new CustomEvent('huki_book_moderation_event', { detail: { type: eventType, payload: eventPayload } }));
         } catch {}
       }
     }

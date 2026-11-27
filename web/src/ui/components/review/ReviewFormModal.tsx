@@ -5,6 +5,7 @@ import { reviewApi, ReviewItemData } from '@/ui/api/reviewApi';
 import { orderApi } from '@/ui/api/orderApi';
 import { useToast } from '@/ui/context/ToastContext';
 import { useAuth } from '@/ui/context/AuthContext';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 export interface ReviewFormModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ export default function ReviewFormModal({
   onClose,
   onSuccess,
   bookId,
+  bookTitle,
   defaultFormat = 'PHYSICAL',
   orderId,
   initialReview,
@@ -141,6 +143,19 @@ export default function ReviewFormModal({
             window.dispatchEvent(new CustomEvent('huki_review_created', { detail: { bookId } }));
             localStorage.setItem('huki_review_sync', String(Date.now()));
           }
+          realtimeSyncBus.publish(
+            'BOOK_REVIEWED',
+            {
+              bookId,
+              bookTitle,
+              rating,
+              content: content.trim(),
+              reviewerName: user?.fullName || user?.name || user?.email || 'Độc giả',
+              timestamp: new Date().toISOString(),
+              action: 'UPDATE',
+            },
+            { roles: ['ADMIN', 'SELLER', 'ALL'] }
+          );
           onSuccess?.();
           onClose();
         } else if (res?.error?.statusCode === 401) {
@@ -164,6 +179,19 @@ export default function ReviewFormModal({
             window.dispatchEvent(new CustomEvent('huki_review_created', { detail: { bookId } }));
             localStorage.setItem('huki_review_sync', String(Date.now()));
           }
+          realtimeSyncBus.publish(
+            'BOOK_REVIEWED',
+            {
+              bookId,
+              bookTitle,
+              rating,
+              content: content.trim(),
+              reviewerName: user?.fullName || user?.name || user?.email || 'Độc giả',
+              timestamp: new Date().toISOString(),
+              action: 'CREATE',
+            },
+            { roles: ['ADMIN', 'SELLER', 'ALL'] }
+          );
           onSuccess?.();
           onClose();
         } else if (res?.error?.code === 'REVIEW_ALREADY_EXISTS') {

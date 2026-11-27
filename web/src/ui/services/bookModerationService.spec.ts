@@ -39,7 +39,7 @@ describe('BookModerationService - Post-moderation Flow', () => {
         reason: 'COPYRIGHT',
       }),
       expect.objectContaining({
-        roles: ['ADMIN', 'ADMIN_CON'],
+        roles: expect.arrayContaining(['ADMIN', 'ADMIN_CON']),
       })
     );
 

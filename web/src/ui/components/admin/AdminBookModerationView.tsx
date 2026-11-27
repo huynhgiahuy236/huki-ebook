@@ -11,20 +11,23 @@ import {
   BOOK_REPORT_REASON_LABELS,
   BookModerationStatus,
 } from '../../services/bookModerationService';
-import { AdminStatusBadge, AdminPagination } from './AdminUI';
+import GroupedDataTable, { Column } from '../common/GroupedDataTable';
+import DataTableFilterBar, { BulkActionGroup } from '../common/DataTableFilterBar';
 
 export function AdminBookModerationView() {
   const { showToast } = useToast();
 
-  const [activeTab, setActiveTab] = useState<'all' | BookModerationStatus>('all');
+  const [activeTab, setActiveTab] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedReason, setSelectedReason] = useState<string>('all');
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
   const [isLoading, setIsLoading] = useState(true);
 
   const [reportedBooks, setReportedBooks] = useState<ReportedBook[]>([]);
   const [stats, setStats] = useState({ total: 0, pending: 0, blocked: 0, dismissed: 0 });
+
+  // Expandable & Selectable State (Grouped Data Standard)
+  const [expandedKeys, setExpandedKeys] = useState<(string | number)[]>([]);
+  const [selectedBookIds, setSelectedBookIds] = useState<string[]>([]);
 
   // Detail & Action Modal State
   const [activeBook, setActiveBook] = useState<ReportedBook | null>(null);
@@ -34,22 +37,26 @@ export function AdminBookModerationView() {
   const [notifySeller, setNotifySeller] = useState(true);
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
 
+  // Load Data
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
     try {
+      const statusFilter =
+        activeTab === 'PENDING'
+          ? 'PENDING_REVIEW'
+          : activeTab === 'BLOCKED'
+          ? 'BLOCKED'
+          : activeTab === 'DISMISSED'
+          ? 'DISMISSED'
+          : 'all';
+
       const res = await bookModerationService.getReportedBooks({
-        status: activeTab,
+        status: statusFilter,
         reason: selectedReason,
         searchQuery,
       });
       setReportedBooks(res.items);
       setStats(res.stats);
-
-      // Nếu đang mở xem xét một cuốn sách, cập nhật lại dữ liệu mới nhất
-      if (activeBook) {
-        const latest = res.items.find((b) => b.bookId === activeBook.bookId);
-        if (latest) setActiveBook(latest);
-      }
     } catch (err) {
       if (!silent) {
         showToast({
@@ -61,54 +68,76 @@ export function AdminBookModerationView() {
     } finally {
       if (!silent) setIsLoading(false);
     }
-  }, [activeTab, selectedReason, searchQuery, activeBook, showToast]);
+  }, [activeTab, selectedReason, searchQuery, showToast]);
 
+  // Realtime Listeners (SyncBus + Cross-tab Storage Events)
   useEffect(() => {
-    loadData(false);
+    void loadData(false);
 
-    // Lắng nghe sự kiện Realtime khi có độc giả gửi báo cáo hoặc admin xử lý
+    // 1. RealtimeSyncBus subscription
     const unsubscribe = realtimeSyncBus.subscribe((event) => {
       if (
         event.type === 'BOOK_REPORTED' ||
         event.type === 'BOOK_MODERATED' ||
+        event.type === 'BOOK_REVIEWED' ||
         event.type === 'ADMIN_NOTIFICATIONS_UPDATED'
       ) {
         void loadData(true);
         if (event.type === 'BOOK_REPORTED') {
           showToast({
-            title: 'Báo cáo sách mới',
-            message: `Có độc giả vừa báo cáo vi phạm tác phẩm: ${(event.payload as any)?.bookTitle || 'Sách'}`,
+            title: 'Báo cáo vi phạm mới',
+            message: `Độc giả vừa báo cáo tác phẩm: ${(event.payload as any)?.bookTitle || 'Sách'}`,
             type: 'warning',
+          });
+        }
+        if (event.type === 'BOOK_REVIEWED') {
+          showToast({
+            title: 'Đánh giá tác phẩm mới',
+            message: `Độc giả vừa gửi đánh giá cho tác phẩm: ${(event.payload as any)?.bookTitle || 'Sách'}`,
+            type: 'info',
           });
         }
       }
     });
 
-    return () => unsubscribe();
+    // 2. Native window storage listener for cross-tab persistence
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'huki_reported_books_v1' || e.key === 'huki_latest_book_moderation_event') {
+        void loadData(true);
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    // 3. Custom DOM event listeners
+    const handleCustomReport = () => void loadData(true);
+    window.addEventListener('huki_book_reported', handleCustomReport);
+    window.addEventListener('huki_book_moderated', handleCustomReport);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('huki_book_reported', handleCustomReport);
+      window.removeEventListener('huki_book_moderated', handleCustomReport);
+    };
   }, [loadData, showToast]);
 
-  // Reset trang về 1 khi đổi bộ lọc
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [activeTab, selectedReason, searchQuery]);
+  // Expand / Collapse helper
+  const toggleExpand = useCallback((bookId: string) => {
+    setExpandedKeys((prev) =>
+      prev.includes(bookId) ? prev.filter((k) => k !== bookId) : [...prev, bookId]
+    );
+  }, []);
 
-  // Phân trang
-  const totalPages = Math.ceil(reportedBooks.length / pageSize) || 1;
-  const paginatedBooks = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return reportedBooks.slice(start, start + pageSize);
-  }, [reportedBooks, currentPage, pageSize]);
-
-  // Mở modal xem xét và chuẩn bị dữ liệu
-  const handleOpenActionCenter = (book: ReportedBook) => {
+  // Open modal
+  const handleOpenModal = useCallback((book: ReportedBook) => {
     setActiveBook(book);
     setActionTab(book.status === 'BLOCKED' ? 'UNBLOCK' : 'BLOCK');
     setBlockReason(book.reasons[0]?.reason || 'COPYRIGHT');
     setAdminNote('');
     setNotifySeller(true);
-  };
+  }, []);
 
-  // Thực thi hành động của Admin
+  // Execute Action (Fix Point 4: Close modal cleanly)
   const handleExecuteAction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeBook) return;
@@ -116,6 +145,9 @@ export function AdminBookModerationView() {
     setIsSubmittingAction(true);
     try {
       const reasonLabel = BOOK_REPORT_REASON_LABELS[blockReason]?.label || 'Vi phạm chính sách';
+      const bookTitle = activeBook.title;
+      const currentAction = actionTab;
+
       await bookModerationService.moderateBook({
         bookId: activeBook.bookId,
         action: actionTab,
@@ -125,18 +157,21 @@ export function AdminBookModerationView() {
         notifySeller,
       });
 
+      // Đóng modal ngay lập tức
+      setActiveBook(null);
+      setAdminNote('');
+
       showToast({
-        title: actionTab === 'BLOCK' ? 'Đã khóa sách vi phạm' : actionTab === 'DISMISS' ? 'Đã bác bỏ báo cáo' : 'Đã mở khóa sách',
-        message: actionTab === 'BLOCK'
-          ? `Tác phẩm "${activeBook.title}" đã bị khóa và gửi thông báo kỷ luật về Shop.`
-          : actionTab === 'DISMISS'
-          ? `Đã xác nhận tác phẩm "${activeBook.title}" hợp lệ, bác bỏ các phản ánh.`
-          : `Đã mở khóa và khôi phục phát hành tác phẩm "${activeBook.title}".`,
-        type: actionTab === 'BLOCK' ? 'warning' : 'success',
+        title: currentAction === 'BLOCK' ? 'Đã khóa sách vi phạm' : currentAction === 'DISMISS' ? 'Đã bác bỏ báo cáo' : 'Đã mở khóa sách',
+        message: currentAction === 'BLOCK'
+          ? `Tác phẩm "${bookTitle}" đã bị khóa và phát thông báo kỷ luật về Shop.`
+          : currentAction === 'DISMISS'
+          ? `Đã xác nhận tác phẩm "${bookTitle}" hợp lệ, bác bỏ các phản ánh.`
+          : `Đã mở khóa và khôi phục lưu hành tác phẩm "${bookTitle}".`,
+        type: currentAction === 'BLOCK' ? 'warning' : 'success',
       });
 
-      setActiveBook(null);
-      void loadData(false);
+      void loadData(true);
     } catch (err: any) {
       showToast({
         title: 'Thao tác thất bại',
@@ -148,332 +183,400 @@ export function AdminBookModerationView() {
     }
   };
 
+  // Bulk Actions Handler
+  const handleExecuteBulkAction = async (actionValue: string) => {
+    if (selectedBookIds.length === 0) return;
+
+    const action = actionValue as 'BLOCK' | 'DISMISS' | 'UNBLOCK';
+    try {
+      await bookModerationService.moderateBooksBulk(
+        selectedBookIds,
+        action,
+        `Thao tác hàng loạt bởi Quản Trị Viên`
+      );
+      showToast({
+        title: 'Thao tác hàng loạt thành công',
+        message: `Đã áp dụng hành động cho ${selectedBookIds.length} tác phẩm được chọn.`,
+        type: 'success',
+      });
+      setSelectedBookIds([]);
+      void loadData(true);
+    } catch (e: any) {
+      showToast({
+        title: 'Lỗi thực thi',
+        message: e?.message || 'Không thể thực thi thao tác hàng loạt.',
+        type: 'error',
+      });
+    }
+  };
+
+  const bulkActionGroups: BulkActionGroup[] = useMemo(() => {
+    if (selectedBookIds.length === 0) return [];
+    return [
+      {
+        label: 'Thao tác kiểm duyệt',
+        actions: [
+          {
+            label: `Khóa ${selectedBookIds.length} sách đã chọn`,
+            value: 'BLOCK',
+            icon: 'lock',
+            variant: 'danger',
+          },
+          {
+            label: `Bác bỏ báo cáo (${selectedBookIds.length})`,
+            value: 'DISMISS',
+            icon: 'verified',
+            variant: 'secondary',
+          },
+          {
+            label: `Mở khóa lại (${selectedBookIds.length})`,
+            value: 'UNBLOCK',
+            icon: 'lock_open',
+            variant: 'secondary',
+          },
+        ],
+      },
+    ];
+  }, [selectedBookIds.length]);
+
+  // Columns Definition matching Standard GroupedDataTable
+  const columns: Column<ReportedBook>[] = useMemo(
+    () => [
+      {
+        key: 'bookInfo',
+        title: 'Tác Phẩm Bị Báo Cáo',
+        minWidth: 300,
+        render: (_, row) => (
+          <div className="flex items-center gap-3 py-1">
+            <img
+              src={row.cover}
+              alt={row.title}
+              className="w-10 h-14 object-cover rounded-lg shadow-2xs shrink-0 border border-slate-200"
+            />
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <h4 className="font-bold text-xs text-theme-text line-clamp-1 leading-snug">
+                {row.title}
+              </h4>
+              <div className="flex items-center gap-1.5 text-[11px] text-theme-text-muted flex-wrap">
+                <span>{row.author}</span>
+                <span>•</span>
+                <span className="font-mono">{row.isbn}</span>
+              </div>
+              <div className="flex items-center gap-2 pt-0.5">
+                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  {row.formatLabel}
+                </span>
+                <span className="font-mono text-[11px] text-theme-text font-bold">
+                  {row.price.toLocaleString('vi-VN')} đ
+                </span>
+              </div>
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: 'sellerInfo',
+        title: 'Gian Hàng / Đối Tác',
+        width: 220,
+        render: (_, row) => (
+          <div className="flex flex-col gap-0.5 py-1 text-xs">
+            <div className="font-semibold text-theme-text flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-[15px] text-[#00875A]">storefront</span>
+              <span className="truncate">{row.sellerName}</span>
+            </div>
+            <span className="text-[11px] text-theme-text-muted truncate">
+              {row.sellerEmail || 'shop@huki.vn'}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'reportsCount',
+        title: 'Lượt Báo Cáo',
+        align: 'center',
+        width: 140,
+        render: (_, row) => (
+          <div className="flex justify-center">
+            {row.totalReports >= 2 ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+                <span>🔥</span>
+                <span>{row.totalReports} phản ánh</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                <span className="material-symbols-outlined text-[14px]">report</span>
+                <span>{row.totalReports} phản ánh</span>
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: 'prominentReason',
+        title: 'Phản Ánh Phổ Biến',
+        minWidth: 260,
+        render: (_, row) => {
+          const topReason = row.reasons[0]?.reason || 'OTHER';
+          const meta = BOOK_REPORT_REASON_LABELS[topReason] || BOOK_REPORT_REASON_LABELS.OTHER;
+          const latestSnippet = row.reports[0]?.description || 'Chưa có mô tả chi tiết';
+
+          return (
+            <div className="flex flex-col gap-1 py-1 text-xs max-w-sm">
+              <div>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${meta.color}`}>
+                  {meta.label}
+                </span>
+              </div>
+              <p className="text-[11px] text-theme-text-muted line-clamp-1 italic">
+                "{latestSnippet}"
+              </p>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'status',
+        title: 'Trạng Thái Sàn',
+        align: 'center',
+        width: 150,
+        render: (_, row) => (
+          <div className="flex justify-center">
+            {row.status === 'BLOCKED' ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-800 border border-rose-200/80">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                <span>Đã khóa / Chặn</span>
+              </span>
+            ) : row.status === 'DISMISSED' ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span>Đã bác bỏ (Hợp lệ)</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/80">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                <span>Chờ BQT xem xét</span>
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: 'actions',
+        title: 'Thao Tác',
+        align: 'center',
+        width: 130,
+        render: (_, row) => (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenModal(row);
+              }}
+              className="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-[#00875A] hover:text-white border border-slate-200 hover:border-[#00875A] text-slate-700 text-xs font-bold transition-all shadow-2xs inline-flex items-center gap-1.5 cursor-pointer active:scale-95"
+            >
+              <span>Xử Lý</span>
+              <span className="material-symbols-outlined text-[14px]">gavel</span>
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [handleOpenModal]
+  );
+
+  // Grouped Reports Detail (Accordion when row is expanded)
+  const renderReportsDetail = useCallback(
+    (book: ReportedBook) => (
+      <div className="space-y-3 p-1">
+        <div className="flex items-center justify-between border-b border-theme-border/70 pb-2.5 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-rose-600 text-[18px]">feedback</span>
+            <h4 className="text-xs font-bold text-theme-text uppercase tracking-wide">
+              Hồ Sơ Chi Tiết Các Phản Ánh Từ Bạn Đọc ({book.reports.length} phản ánh)
+            </h4>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleOpenModal(book)}
+            className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-95"
+          >
+            <span className="material-symbols-outlined text-[15px]">gavel</span>
+            <span>Xử Lý Vi Phạm Tác Phẩm</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+          {book.reports.map((r, idx) => {
+            const meta = BOOK_REPORT_REASON_LABELS[r.reason] || BOOK_REPORT_REASON_LABELS.OTHER;
+            return (
+              <div
+                key={r.id || idx}
+                className="p-3.5 rounded-2xl bg-theme-surface border border-theme-border/80 shadow-2xs space-y-2 text-xs"
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 font-bold text-[10px] flex items-center justify-center">
+                      {idx + 1}
+                    </span>
+                    <span className="font-bold text-theme-text">{r.reporterName}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold border ${meta.color}`}>
+                      {meta.label}
+                    </span>
+                  </div>
+                  <span className="text-[10.5px] text-theme-text-muted">
+                    {new Date(r.createdAt).toLocaleString('vi-VN')}
+                  </span>
+                </div>
+
+                <p className="text-theme-text/90 leading-relaxed bg-theme-surface-subtle/50 p-2.5 rounded-xl border border-theme-border/50 text-xs">
+                  {r.description}
+                </p>
+
+                {r.evidenceUrl && (
+                  <div className="flex items-center gap-1 text-[11px] text-blue-600 hover:underline">
+                    <span className="material-symbols-outlined text-[13px]">link</span>
+                    <a href={r.evidenceUrl} target="_blank" rel="noopener noreferrer">
+                      Bằng chứng đối chiếu: {r.evidenceUrl}
+                    </a>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    ),
+    [handleOpenModal]
+  );
+
   return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200">
-      {/* 1. TOP HEADER & TITLE */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-gray-200">
+      {/* 1. Tiêu Đề Trang */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-theme-border">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-700 text-xs font-bold border border-rose-200 mb-1.5">
-            <span className="material-symbols-outlined text-[15px]">report_problem</span>
-            <span>Hậu Kiểm &amp; Xử Lý Vi Phạm Tác Phẩm</span>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight font-editorial">
-            Kiểm Duyệt Sách Vi Phạm (Báo Cáo Độc Giả)
+          <h1 className="text-xl sm:text-2xl font-bold font-editorial text-theme-text tracking-tight flex items-center gap-2.5">
+            <span className="w-2.5 h-6 bg-rose-600 rounded-full inline-block"></span>
+            <span>Hậu Kiểm &amp; Xử Lý Sách Vi Phạm (Community Reports)</span>
           </h1>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Người bán đăng sách tự do. Ban Quản Trị tiếp nhận phản ánh vi phạm bản quyền, nội dung nhạy cảm và chất lượng từ cộng đồng để thẩm tra và xử lý.
+          <p className="text-xs text-theme-text-muted mt-1">
+            Mô hình xuất bản tự do: Người bán tự do phát hành, hệ thống thẩm định và xử phạt theo báo cáo vi phạm thực tế từ bạn đọc.
           </p>
         </div>
 
-        <button
-          onClick={() => loadData(false)}
-          disabled={isLoading}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shadow-2xs cursor-pointer self-start sm:self-auto disabled:opacity-60"
-        >
-          <span className={`material-symbols-outlined text-[16px] ${isLoading ? 'animate-spin text-emerald-600' : 'text-gray-500'}`}>
-            refresh
-          </span>
-          <span>Làm mới Realtime</span>
-        </button>
-      </div>
-
-      {/* 2. STATS CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-2xs flex items-center justify-between">
-          <div className="space-y-0.5">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Tổng Sách Bị Báo Cáo</span>
-            <div className="text-2xl font-black text-gray-900">{stats.total}</div>
-            <span className="text-[11px] text-gray-400">Toàn bộ tác phẩm có phản ánh</span>
-          </div>
-          <div className="w-11 h-11 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-700 shrink-0">
-            <span className="material-symbols-outlined text-[22px]">inventory_2</span>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-amber-200 shadow-2xs flex items-center justify-between">
-          <div className="space-y-0.5">
-            <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Chờ Admin Xem Xét</span>
-            <div className="text-2xl font-black text-amber-700">{stats.pending}</div>
-            <span className="text-[11px] text-amber-600">Cần BQT thẩm định &amp; xử lý</span>
-          </div>
-          <div className="w-11 h-11 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-700 shrink-0 border border-amber-200/60">
-            <span className="material-symbols-outlined text-[22px]">hourglass_top</span>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-rose-200 shadow-2xs flex items-center justify-between">
-          <div className="space-y-0.5">
-            <span className="text-xs font-bold text-rose-800 uppercase tracking-wider">Đã Khóa / Chặn Sàn</span>
-            <div className="text-2xl font-black text-rose-700">{stats.blocked}</div>
-            <span className="text-[11px] text-rose-600">Đã gỡ và thông báo kỷ luật Shop</span>
-          </div>
-          <div className="w-11 h-11 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-700 shrink-0 border border-rose-200/60">
-            <span className="material-symbols-outlined text-[22px]">lock</span>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-emerald-200 shadow-2xs flex items-center justify-between">
-          <div className="space-y-0.5">
-            <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Đã Bác Bỏ / Hợp Lệ</span>
-            <div className="text-2xl font-black text-emerald-700">{stats.dismissed}</div>
-            <span className="text-[11px] text-emerald-600">Sách an toàn, báo cáo sai lệch</span>
-          </div>
-          <div className="w-11 h-11 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-700 shrink-0 border border-emerald-200/60">
-            <span className="material-symbols-outlined text-[22px]">verified</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. TABS & FILTER BAR */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-3.5 rounded-2xl border border-gray-200 shadow-2xs">
-        {/* Status Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
-          {[
-            { key: 'all', label: 'Tất Cả', count: stats.total },
-            { key: 'PENDING_REVIEW', label: 'Chờ Xem Xét', count: stats.pending, alert: stats.pending > 0 },
-            { key: 'BLOCKED', label: 'Đã Khóa / Chặn', count: stats.blocked },
-            { key: 'DISMISSED', label: 'Bác Bỏ / Hợp Lệ', count: stats.dismissed },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as any)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                activeTab === tab.key
-                  ? 'bg-[#00875A] text-white shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              <span>{tab.label}</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                  activeTab === tab.key
-                    ? 'bg-white/20 text-white'
-                    : tab.alert
-                    ? 'bg-amber-100 text-amber-800 font-extrabold'
-                    : 'bg-gray-200 text-gray-700'
-                }`}
-              >
-                {tab.count}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {/* Reason Filter & Search Input */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <select
-            value={selectedReason}
-            onChange={(e) => setSelectedReason(e.target.value)}
-            className="h-9 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 cursor-pointer focus:outline-none focus:border-[#00875A]"
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin/notifications"
+            className="px-4 py-2 rounded-xl bg-theme-surface-subtle hover:bg-slate-100 border border-theme-border text-xs font-bold text-theme-text inline-flex items-center gap-1.5 transition-colors"
           >
-            <option value="all">Tất Cả Loại Vi Phạm</option>
-            {(Object.keys(BOOK_REPORT_REASON_LABELS) as BookReportReason[]).map((r) => (
-              <option key={r} value={r}>
-                {BOOK_REPORT_REASON_LABELS[r].label}
-              </option>
-            ))}
-          </select>
+            <span className="material-symbols-outlined text-[16px]">campaign</span>
+            <span>Phát Sóng Thông Báo</span>
+          </Link>
+        </div>
+      </div>
 
-          <div className="relative w-full sm:w-72">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">
-              search
-            </span>
-            <input
-              type="text"
-              placeholder="Tìm theo tên sách, shop, ISBN..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-9 pl-9 pr-3 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
-            />
+      {/* 2. Thẻ Thống Kê Tổng Quan */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-slate-200/90 dark:border-neutral-800 p-4 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-1">
+            <span>Tổng Báo Cáo</span>
+            <span className="material-symbols-outlined text-[17px] text-slate-400">inventory_2</span>
+          </div>
+          <div className="text-2xl font-black text-slate-900 dark:text-white font-mono">
+            {stats.total}
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-slate-200/90 dark:border-neutral-800 p-4 shadow-xs">
+          <div className="flex items-center justify-between text-amber-700 text-xs font-semibold mb-1">
+            <span>Chờ Thẩm Tra</span>
+            <span className="material-symbols-outlined text-[17px] text-amber-500">pending_actions</span>
+          </div>
+          <div className="text-2xl font-black text-amber-700 font-mono">
+            {stats.pending}
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-slate-200/90 dark:border-neutral-800 p-4 shadow-xs">
+          <div className="flex items-center justify-between text-rose-700 text-xs font-semibold mb-1">
+            <span>Đã Khóa / Chặn</span>
+            <span className="material-symbols-outlined text-[17px] text-rose-500">block</span>
+          </div>
+          <div className="text-2xl font-black text-rose-700 font-mono">
+            {stats.blocked}
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-slate-200/90 dark:border-neutral-800 p-4 shadow-xs">
+          <div className="flex items-center justify-between text-emerald-700 text-xs font-semibold mb-1">
+            <span>Đã Bác Bỏ (An Toàn)</span>
+            <span className="material-symbols-outlined text-[17px] text-emerald-500">verified</span>
+          </div>
+          <div className="text-2xl font-black text-emerald-700 font-mono">
+            {stats.dismissed}
           </div>
         </div>
       </div>
 
-      {/* 4. REPORTED BOOKS TABLE CONTAINER */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-[#003B2B] text-[10.5px] uppercase font-bold text-white tracking-wider select-none border-b border-[#00281D]">
-              <tr>
-                <th className="py-3 px-4 text-white">Tác Phẩm Bị Báo Cáo</th>
-                <th className="py-3 px-4 text-white">Gian Hàng / Đối Tác</th>
-                <th className="py-3 px-4 text-white text-center">Lượt Báo Cáo</th>
-                <th className="py-3 px-4 text-white">Phản Ánh Phổ Biến</th>
-                <th className="py-3 px-4 text-white text-center">Trạng Thái Sàn</th>
-                <th className="py-3 px-4 text-white text-right">Thao Tác Xử Lý</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={6} className="py-16 text-center text-gray-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <span className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
-                      <span className="text-xs font-semibold">Đang tải danh sách sách bị báo cáo...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : paginatedBooks.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-16 text-center text-gray-400">
-                    <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
-                      <span className="material-symbols-outlined text-[36px] text-emerald-600/70">verified</span>
-                      <h3 className="text-sm font-bold text-gray-700">Không có tác phẩm nào bị báo cáo</h3>
-                      <p className="text-xs text-gray-500 leading-relaxed">
-                        Hiện không có sách nào vi phạm tiêu chuẩn cộng đồng theo bộ lọc hiện tại. Toàn sàn đang hoạt động an toàn.
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                paginatedBooks.map((item) => {
-                  const mainReason = item.reasons[0]?.reason || 'OTHER';
-                  const reasonMeta = BOOK_REPORT_REASON_LABELS[mainReason] || BOOK_REPORT_REASON_LABELS.OTHER;
+      {/* 3. Thanh Bộ Lọc & Tìm Kiếm Chuẩn DataTableFilterBar */}
+      <DataTableFilterBar
+        className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+        searchPlaceholder="Tìm theo tên tác phẩm, tác giả, gian hàng, ISBN..."
+        searchQuery={searchQuery}
+        onSearchChange={(val) => setSearchQuery(val)}
+        tabs={[
+          { key: 'ALL', label: 'Tất Cả', count: stats.total },
+          { key: 'PENDING', label: 'Chờ Thẩm Tra', count: stats.pending },
+          { key: 'BLOCKED', label: 'Đã Khóa / Chặn', count: stats.blocked },
+          { key: 'DISMISSED', label: 'Đã Bác Bỏ', count: stats.dismissed },
+        ]}
+        activeTab={activeTab}
+        onTabChange={(tab) => setActiveTab(tab)}
+        bulkActionGroups={bulkActionGroups}
+        onExecuteBulkAction={handleExecuteBulkAction}
+      />
 
-                  return (
-                    <tr key={item.bookId} className="hover:bg-slate-50/70 transition-colors">
-                      {/* Tác phẩm */}
-                      <td className="py-3 px-4">
-                        <div className="flex items-start gap-3">
-                          <img
-                            src={item.cover}
-                            alt={item.title}
-                            className="w-10 h-14 object-cover rounded-lg shadow-2xs shrink-0 border border-slate-200"
-                            onError={(e) => {
-                              (e.target as any).src = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=100&auto=format&fit=crop&q=80';
-                            }}
-                          />
-                          <div className="space-y-0.5 min-w-0">
-                            <span className="font-bold text-slate-900 block truncate max-w-xs sm:max-w-md">
-                              {item.title}
-                            </span>
-                            <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                              <span>Tác giả: <strong className="text-slate-700 font-semibold">{item.author}</strong></span>
-                              <span>•</span>
-                              <span>ISBN: <strong className="text-slate-700 font-semibold">{item.isbn}</strong></span>
-                            </div>
-                            <span className="inline-block text-[10px] px-2 py-0.2 rounded-md bg-slate-100 text-slate-600 font-semibold">
-                              {item.formatLabel}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
+      {/* 4. Bảng Dữ Liệu GroupedDataTable Chuẩn HuKi */}
+      <GroupedDataTable
+        columns={columns}
+        data={reportedBooks}
+        keyField="bookId"
+        selectable={true}
+        selectedRowKeys={selectedBookIds}
+        onSelectionChange={(keys) => setSelectedBookIds(keys as string[])}
+        expandable={true}
+        expandedRowRender={renderReportsDetail}
+        expandedRowKeys={expandedKeys}
+        onExpandedRowsChange={setExpandedKeys}
+        onRowClick={(row) => toggleExpand(row.bookId)}
+        loading={isLoading}
+        onRetry={() => loadData(false)}
+        emptyTitle="Không có tác phẩm nào bị báo cáo"
+        emptyMessage={
+          searchQuery
+            ? `Không tìm thấy tác phẩm khớp với từ khóa "${searchQuery}"`
+            : 'Hiện tại cộng đồng bạn đọc chưa gửi phản ánh vi phạm nào.'
+        }
+        emptyIcon="verified"
+        pagination={true}
+        tableClassName="w-full min-w-[800px]"
+      />
 
-                      {/* Gian hàng */}
-                      <td className="py-3 px-4">
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-slate-800 block truncate max-w-[200px]">
-                            {item.sellerName}
-                          </span>
-                          <span className="text-[11px] text-slate-400 block truncate">
-                            {item.sellerEmail || item.publisher}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Lượt báo cáo */}
-                      <td className="py-3 px-4 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black border ${
-                            item.totalReports >= 3
-                              ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
-                              : 'bg-amber-100 text-amber-900 border-amber-300'
-                          }`}
-                        >
-                          <span className="material-symbols-outlined text-[13px]">
-                            {item.totalReports >= 3 ? 'local_fire_department' : 'warning'}
-                          </span>
-                          <span>{item.totalReports} phản ánh</span>
-                        </span>
-                      </td>
-
-                      {/* Phản ánh phổ biến */}
-                      <td className="py-3 px-4">
-                        <div className="space-y-1">
-                          <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-bold border ${reasonMeta.color}`}>
-                            {reasonMeta.label}
-                          </span>
-                          <p className="text-[11px] text-slate-500 line-clamp-1 italic">
-                            &ldquo;{item.reports[0]?.description || 'Độc giả phản ánh nội dung có vấn đề'}&rdquo;
-                          </p>
-                        </div>
-                      </td>
-
-                      {/* Trạng thái kiểm duyệt */}
-                      <td className="py-3 px-4 text-center">
-                        {item.status === 'BLOCKED' ? (
-                          <AdminStatusBadge
-                            variant="danger"
-                            label="Đã khóa / Chặn"
-                            icon="lock"
-                            dot
-                          />
-                        ) : item.status === 'DISMISSED' ? (
-                          <AdminStatusBadge
-                            variant="success"
-                            label="Đã bác bỏ / Hợp lệ"
-                            icon="verified"
-                            dot
-                          />
-                        ) : (
-                          <AdminStatusBadge
-                            variant="warning"
-                            label="Chờ BQT xem xét"
-                            icon="hourglass_top"
-                            dot
-                          />
-                        )}
-                      </td>
-
-                      {/* Nút hành động */}
-                      <td className="py-3 px-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenActionCenter(item)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 hover:border-[#00875A] text-xs font-bold text-slate-800 hover:text-[#00875A] transition-all shadow-2xs cursor-pointer active:scale-95"
-                          title="Mở hồ sơ bằng chứng &amp; Xử lý vi phạm"
-                        >
-                          <span className="material-symbols-outlined text-[16px] text-slate-500">gavel</span>
-                          <span>Xử Lý Vi Phạm</span>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* 5. PAGINATION */}
-        {!isLoading && reportedBooks.length > 0 && (
-          <AdminPagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={reportedBooks.length}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-            itemLabel="sách bị báo cáo"
-            className="p-4 border-t border-gray-100"
-          />
-        )}
-      </div>
-
-      {/* 6. MODERATION ACTION CENTER MODAL */}
+      {/* 5. Modal Hồ Sơ Thẩm Tra & Xử Lý Vi Phạm */}
       {activeBook && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-4xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col">
+          <div className="bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 space-y-5 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col">
             {/* Modal Header */}
-            <div className="flex items-start justify-between pb-4 border-b border-slate-100">
+            <div className="flex items-start justify-between pb-3.5 border-b border-slate-100">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-rose-600 text-[22px]">gavel</span>
+                  <span className="material-symbols-outlined text-rose-600 text-[24px]">gavel</span>
                   <h2 className="text-xl font-black text-slate-900 leading-tight">
-                    Hồ Sơ Thẩm Tra &amp; Xử Lý Vi Phạm Sách
+                    Hồ Sơ Thẩm Tra &amp; Xử Lý Vi Phạm Tác Phẩm
                   </h2>
                 </div>
                 <p className="text-xs text-slate-500">
-                  Xem xét bằng chứng từ độc giả và quyết định chặn lưu hành tác phẩm hoặc gửi cảnh cáo trực tiếp đến Shop.
+                  Xem xét phản ánh từ độc giả và đưa ra quyết định chế tài, khóa tác phẩm hoặc gửi cảnh cáo vi phạm tới Shop.
                 </p>
               </div>
               <button
@@ -485,85 +588,66 @@ export function AdminBookModerationView() {
               </button>
             </div>
 
-            {/* Modal Content */}
-            <div className="flex-1 overflow-y-auto space-y-6 pr-1 text-xs">
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto space-y-5 pr-1.5 text-xs">
               {/* Sách & Gian hàng card */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-start gap-3.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                <div className="flex items-center gap-3.5 min-w-0">
                   <img
                     src={activeBook.cover}
                     alt={activeBook.title}
-                    className="w-14 h-20 object-cover rounded-xl shadow-xs border border-slate-200 shrink-0"
+                    className="w-12 h-16 object-cover rounded-xl shadow-xs shrink-0 border border-slate-200"
                   />
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-slate-900 leading-snug">{activeBook.title}</h3>
-                    <div className="flex flex-wrap gap-2 text-slate-600 text-xs">
+                  <div className="min-w-0 space-y-0.5">
+                    <h3 className="font-bold text-sm text-slate-900 truncate">{activeBook.title}</h3>
+                    <div className="flex flex-wrap gap-2 text-slate-500 text-xs">
                       <span>Tác giả: <strong>{activeBook.author}</strong></span>
                       <span>•</span>
-                      <span>ISBN: <strong>{activeBook.isbn}</strong></span>
-                      <span>•</span>
-                      <span>Định dạng: <strong>{activeBook.formatLabel}</strong></span>
+                      <span>ISBN: <strong className="font-mono">{activeBook.isbn}</strong></span>
                     </div>
                     <div className="flex items-center gap-2 pt-0.5">
-                      <span className="text-[#006953] font-bold">Gian hàng: {activeBook.sellerName}</span>
+                      <span className="text-[#00875A] font-bold">Gian hàng: {activeBook.sellerName}</span>
                       <span className="text-slate-300">•</span>
-                      <span className="text-slate-500 font-semibold">{activeBook.price.toLocaleString('vi-VN')} đ</span>
+                      <span className="text-slate-700 font-semibold">{activeBook.price.toLocaleString('vi-VN')} đ</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:items-end gap-2 shrink-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-slate-500">Trạng thái sàn:</span>
-                    {activeBook.status === 'BLOCKED' ? (
-                      <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[11px] font-bold">
-                        Đang bị khóa
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
-                        Đang lưu hành
-                      </span>
-                    )}
-                  </div>
+                <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
                   <Link
                     href={`/book/${activeBook.bookId}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-semibold shadow-2xs hover:bg-slate-100 transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-semibold shadow-2xs hover:bg-slate-100 transition-colors"
                   >
-                    <span>Mở trang sách trên sàn</span>
+                    <span>Mở trang sách</span>
                     <span className="material-symbols-outlined text-[14px]">open_in_new</span>
                   </Link>
                 </div>
               </div>
 
               {/* Danh sách các báo cáo từ độc giả */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-rose-600 text-[18px]">feedback</span>
-                    <span>Danh Sách Phản Ánh Từ Độc Giả ({activeBook.reports.length})</span>
-                  </h4>
-                  <span className="text-[11px] text-slate-500">
-                    Báo cáo mới nhất: {new Date(activeBook.lastReportedAt).toLocaleString('vi-VN')}
-                  </span>
-                </div>
+              <div className="space-y-2.5">
+                <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-rose-600 text-[18px]">feedback</span>
+                  <span>Danh Sách Phản Ánh Từ Độc Giả ({activeBook.reports.length})</span>
+                </h4>
 
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   {activeBook.reports.map((r, idx) => {
                     const rMeta = BOOK_REPORT_REASON_LABELS[r.reason] || BOOK_REPORT_REASON_LABELS.OTHER;
                     return (
                       <div
                         key={r.id || idx}
-                        className="p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 shadow-2xs space-y-2"
+                        className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1.5"
                       >
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <div className="flex items-center gap-2">
-                            <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center">
+                            <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 font-bold text-[10px] flex items-center justify-center">
                               {idx + 1}
                             </span>
                             <span className="font-bold text-slate-900">{r.reporterName}</span>
-                            <span className={`text-[10px] px-2 py-0.2 rounded-md font-bold border ${rMeta.color}`}>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold border ${rMeta.color}`}>
                               {rMeta.label}
                             </span>
                           </div>
@@ -577,8 +661,8 @@ export function AdminBookModerationView() {
                         </p>
 
                         {r.evidenceUrl && (
-                          <div className="pt-1 flex items-center gap-1.5 text-xs text-blue-600 hover:underline">
-                            <span className="material-symbols-outlined text-[14px]">link</span>
+                          <div className="flex items-center gap-1 text-[11px] text-blue-600 hover:underline">
+                            <span className="material-symbols-outlined text-[13px]">link</span>
                             <a href={r.evidenceUrl} target="_blank" rel="noopener noreferrer">
                               Bằng chứng đối chiếu: {r.evidenceUrl}
                             </a>
@@ -593,7 +677,7 @@ export function AdminBookModerationView() {
               {/* Form Hành Động Của Admin */}
               <form onSubmit={handleExecuteAction} className="pt-4 border-t border-slate-200 space-y-4">
                 <div className="space-y-2">
-                  <label className="block font-black text-slate-900 text-xs uppercase tracking-wider">
+                  <label className="block font-bold text-slate-900 text-xs uppercase tracking-wider">
                     Quyết Định Xử Lý Của Ban Quản Trị *
                   </label>
 
@@ -601,7 +685,7 @@ export function AdminBookModerationView() {
                     <button
                       type="button"
                       onClick={() => setActionTab('BLOCK')}
-                      className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
+                      className={`p-3 rounded-2xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
                         actionTab === 'BLOCK'
                           ? 'border-rose-600 bg-rose-50 text-rose-800 shadow-2xs ring-2 ring-rose-500/20'
                           : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
@@ -609,15 +693,15 @@ export function AdminBookModerationView() {
                     >
                       <div className="flex items-center gap-1.5 font-bold text-xs">
                         <span className="material-symbols-outlined text-[17px]">lock</span>
-                        <span>Khóa Sách &amp; Xử Phạt Shop</span>
+                        <span>Khóa Sách &amp; Xử Phạt</span>
                       </div>
-                      <span className="text-[10.5px] text-slate-500">Gỡ sách khỏi sàn, bắn cảnh cáo về shop</span>
+                      <span className="text-[11px] text-slate-500 leading-snug">Gỡ sách khỏi sàn, gửi cảnh cáo Shop</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setActionTab('DISMISS')}
-                      className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
+                      className={`p-3 rounded-2xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
                         actionTab === 'DISMISS'
                           ? 'border-emerald-600 bg-emerald-50 text-emerald-800 shadow-2xs ring-2 ring-emerald-500/20'
                           : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
@@ -625,15 +709,15 @@ export function AdminBookModerationView() {
                     >
                       <div className="flex items-center gap-1.5 font-bold text-xs">
                         <span className="material-symbols-outlined text-[17px]">verified</span>
-                        <span>Bác Bỏ Báo Cáo (Hợp Lệ)</span>
+                        <span>Bác Bỏ (Sách Hợp Lệ)</span>
                       </div>
-                      <span className="text-[10.5px] text-slate-500">Xác minh sách hợp lệ, giữ lưu hành bình thường</span>
+                      <span className="text-[11px] text-slate-500 leading-snug">Xác minh an toàn, giữ lưu hành</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setActionTab('UNBLOCK')}
-                      className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
+                      className={`p-3 rounded-2xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
                         actionTab === 'UNBLOCK'
                           ? 'border-blue-600 bg-blue-50 text-blue-800 shadow-2xs ring-2 ring-blue-500/20'
                           : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
@@ -643,14 +727,14 @@ export function AdminBookModerationView() {
                         <span className="material-symbols-outlined text-[17px]">lock_open</span>
                         <span>Mở Khóa Lại Sách</span>
                       </div>
-                      <span className="text-[10.5px] text-slate-500">Khôi phục sau khi shop khiếu nại thành công</span>
+                      <span className="text-[11px] text-slate-500 leading-snug">Khôi phục sau khi Shop giải trình</span>
                     </button>
                   </div>
                 </div>
 
                 {/* Sub Options when BLOCK */}
                 {actionTab === 'BLOCK' && (
-                  <div className="p-4 rounded-2xl bg-rose-50/50 border border-rose-200/80 space-y-3">
+                  <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200/90 space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block font-bold text-slate-700 mb-1">
@@ -675,9 +759,9 @@ export function AdminBookModerationView() {
                             type="checkbox"
                             checked={notifySeller}
                             onChange={(e) => setNotifySeller(e.target.checked)}
-                            className="w-4 h-4 rounded text-rose-600"
+                            className="w-4 h-4 rounded text-rose-600 cursor-pointer"
                           />
-                          <span>Tự động bắn thông báo vi phạm đến Shop qua Top Bar &amp; Chuông</span>
+                          <span>Tự động gửi cảnh cáo vi phạm đến Shop qua Chuông &amp; Dashboard</span>
                         </label>
                       </div>
                     </div>
@@ -700,15 +784,15 @@ export function AdminBookModerationView() {
 
                 {/* Sub Options when DISMISS */}
                 {actionTab === 'DISMISS' && (
-                  <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-2">
+                  <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/90 space-y-2">
                     <label className="block font-bold text-slate-700">
-                      Ghi Chú Xác Minh Của Admin (Lưu hồ sơ nội bộ)
+                      Ghi Chú Xác Minh Nội Bộ (Không bắt buộc)
                     </label>
                     <textarea
                       value={adminNote}
                       onChange={(e) => setAdminNote(e.target.value)}
                       rows={2}
-                      placeholder="Ví dụ: Đã kiểm tra số ISBN và giấy phép NXB đối chiếu hợp lệ. Bác bỏ các phản ánh sai lệch..."
+                      placeholder="Ví dụ: Đã kiểm tra số ISBN và giấy phép đối chiếu hợp lệ. Bác bỏ các phản ánh sai lệch..."
                       className="w-full p-3 bg-white border border-slate-200 rounded-lg text-slate-800 text-xs focus:outline-none focus:border-emerald-600 leading-relaxed"
                     />
                   </div>
@@ -716,15 +800,15 @@ export function AdminBookModerationView() {
 
                 {/* Sub Options when UNBLOCK */}
                 {actionTab === 'UNBLOCK' && (
-                  <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-200/80 space-y-3">
+                  <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-200/90 space-y-3">
                     <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800">
                       <input
                         type="checkbox"
                         checked={notifySeller}
                         onChange={(e) => setNotifySeller(e.target.checked)}
-                        className="w-4 h-4 rounded text-blue-600"
+                        className="w-4 h-4 rounded text-blue-600 cursor-pointer"
                       />
-                      <span>Gửi thông báo xác nhận mở khóa hoạt động lại cho gian hàng</span>
+                      <span>Gửi thông báo mở khóa thành công cho gian hàng</span>
                     </label>
                     <textarea
                       value={adminNote}
@@ -737,12 +821,15 @@ export function AdminBookModerationView() {
                 )}
 
                 {/* Action Buttons */}
-                <div className="pt-3 flex items-center justify-end gap-3">
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
                   <button
                     type="button"
-                    onClick={() => setActiveBook(null)}
+                    onClick={() => {
+                      setActiveBook(null);
+                      setAdminNote('');
+                    }}
                     disabled={isSubmittingAction}
-                    className="px-4 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition-colors cursor-pointer text-xs"
+                    className="px-5 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition-colors cursor-pointer text-xs"
                   >
                     Hủy Bỏ
                   </button>
@@ -787,5 +874,3 @@ export function AdminBookModerationView() {
     </div>
   );
 }
-
-export default AdminBookModerationView;
