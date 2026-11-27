@@ -5,11 +5,13 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AffiliateCommissionStatus } from '../../../prisma/generated/client';
 
 describe('AffiliateLifecycleService (Phase 7 Lifecycle, Dispute, Cancel & Reversal)', () => {
+  const originalHoldEnv = process.env.ESCROW_HOLD_DURATION_SECONDS;
   let service: AffiliateLifecycleService;
   let stateMachine: AffiliateCommissionStateMachineService;
   let prisma: any;
 
   beforeEach(async () => {
+    delete process.env.ESCROW_HOLD_DURATION_SECONDS;
     prisma = {
       affiliateCommission: {
         findMany: jest.fn(),
@@ -84,6 +86,14 @@ describe('AffiliateLifecycleService (Phase 7 Lifecycle, Dispute, Cancel & Revers
     stateMachine = module.get<AffiliateCommissionStateMachineService>(
       AffiliateCommissionStateMachineService,
     );
+  });
+
+  afterAll(() => {
+    if (originalHoldEnv === undefined) {
+      delete process.env.ESCROW_HOLD_DURATION_SECONDS;
+    } else {
+      process.env.ESCROW_HOLD_DURATION_SECONDS = originalHoldEnv;
+    }
   });
 
   describe('handleOrderDelivered (Decision 1)', () => {
@@ -309,6 +319,65 @@ describe('AffiliateLifecycleService (Phase 7 Lifecycle, Dispute, Cancel & Revers
           }),
         }),
       );
+    });
+
+    it('BUG-33: honors shared ESCROW_HOLD_DURATION_SECONDS (180s = 0.05h) and includes userId in AVAILABLE outbox payload', async () => {
+      const prevEnv = process.env.ESCROW_HOLD_DURATION_SECONDS;
+      process.env.ESCROW_HOLD_DURATION_SECONDS = '180';
+      try {
+        prisma.affiliateCommission.findMany.mockResolvedValueOnce([
+          {
+            id: 'comm-3min-1',
+            orderId: 'ord-3min',
+            bookFormat: 'PHYSICAL',
+            status: AffiliateCommissionStatus.PENDING,
+          },
+        ]);
+
+        const deliveryDate = new Date('2026-11-27T14:00:00Z');
+        await service.handleOrderDelivered('ord-3min', undefined, deliveryDate);
+
+        expect(stateMachine.transitionToHolding).toHaveBeenCalledWith(
+          'comm-3min-1',
+          180 / 3600,
+          deliveryDate,
+        );
+
+        const settleAt = new Date('2026-11-27T14:03:00Z');
+        prisma.affiliateCommission.findMany.mockResolvedValueOnce([
+          {
+            id: 'comm-3min-1',
+            profileId: 'prof-ctv-1',
+            profile: { userId: 'user-ctv-99' },
+            orderId: 'ord-3min',
+            orderItemId: 'oi-3min',
+            bookTitle: 'Sách Test Realtime',
+            status: AffiliateCommissionStatus.HOLDING,
+            disputeBlocked: false,
+            holdingUntil: settleAt,
+          },
+        ]);
+
+        const settled = await service.processMaturedHoldings(50, settleAt);
+        expect(settled.settledCommissions).toHaveLength(1);
+        expect(prisma.outboxEvent.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              type: 'AFFILIATE_COMMISSION_AVAILABLE',
+              payload: expect.objectContaining({
+                userId: 'user-ctv-99',
+                bookTitle: 'Sách Test Realtime',
+              }),
+            }),
+          }),
+        );
+      } finally {
+        if (prevEnv === undefined) {
+          delete process.env.ESCROW_HOLD_DURATION_SECONDS;
+        } else {
+          process.env.ESCROW_HOLD_DURATION_SECONDS = prevEnv;
+        }
+      }
     });
   });
 });

@@ -3,9 +3,11 @@
 import React from 'react';
 import Link from 'next/link';
 import { useAffiliateGuard } from '@/lib/affiliate/useAffiliateGuard';
+import { ESCROW_CONFIG } from '@/ui/constants/escrowConfig';
 
 export default function AffiliateLandingPage() {
   const { step, isLoggedIn } = useAffiliateGuard() as any;
+  const isShortUatHold = ESCROW_CONFIG.HOLD_DURATION_SECONDS < 86400;
   const benefits = [
     {
       icon: 'percent',
@@ -15,7 +17,9 @@ export default function AffiliateLandingPage() {
     {
       icon: 'schedule',
       title: 'Đối soát minh bạch, nhanh chóng',
-      desc: 'Thời gian tạm giữ chuẩn xác: Sách in 7 ngày sau khi giao thành công; Sách số (Ebook/Audio) chỉ 24 giờ.',
+      desc: isShortUatHold
+        ? `Thời gian tạm giữ đối soát hiện hành: ${ESCROW_CONFIG.DURATION_LABEL} sau khi giao thành công (sách in) hoặc thanh toán (Ebook/Audio).`
+        : 'Thời gian tạm giữ chuẩn xác: Sách in 7 ngày sau khi giao thành công; Sách số (Ebook/Audio) chỉ 24 giờ.',
     },
     {
       icon: 'link',
@@ -54,7 +58,9 @@ export default function AffiliateLandingPage() {
     },
     {
       q: 'Thời gian đối soát và tạm giữ hoa hồng được tính như thế nào?',
-      a: 'Với sách in/vật lý: Thời gian tạm giữ là 7 ngày tính từ lúc đơn hàng chuyển trạng thái DELIVERED. Với Ebook và Sách nói: Tạm giữ 24 giờ sau khi thanh toán thành công. Trường hợp phát sinh khiếu nại/đổi trả, hoa hồng được đóng băng cho đến khi giải quyết xong.',
+      a: isShortUatHold
+        ? `Trên môi trường hiện tại, thời gian tạm giữ đối soát được cấu hình đồng bộ là ${ESCROW_CONFIG.DURATION_LABEL} tính từ lúc đơn hàng giao thành công (sách in) hoặc thanh toán thành công (Ebook/Audio). Trường hợp phát sinh khiếu nại/đổi trả, hoa hồng được đóng băng cho đến khi giải quyết xong.`
+        : 'Với sách in/vật lý: Thời gian tạm giữ là 7 ngày tính từ lúc đơn hàng chuyển trạng thái DELIVERED. Với Ebook và Sách nói: Tạm giữ 24 giờ sau khi thanh toán thành công. Trường hợp phát sinh khiếu nại/đổi trả, hoa hồng được đóng băng cho đến khi giải quyết xong.',
     },
     {
       q: 'Mã đối tác (Affiliate Code) khác gì với Mã link rút gọn (Short Code)?',

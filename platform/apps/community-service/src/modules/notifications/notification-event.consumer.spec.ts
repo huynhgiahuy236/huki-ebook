@@ -172,4 +172,27 @@ describe("NotificationEventConsumer", () => {
       }),
     );
   });
+
+  it("BUG-33: delivers real-time USER notification when AFFILIATE_COMMISSION_AVAILABLE fires", async () => {
+    await (consumer as any).handle({
+      eventId: "evt-aff-avail-1",
+      eventType: "AFFILIATE_COMMISSION_AVAILABLE",
+      payload: {
+        userId: "user-ctv-99",
+        commissionId: "comm-1",
+        bookTitle: "Nhà Giả Kim",
+        amount: 55300,
+      },
+    });
+
+    expect(delivery.deliver).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: "user-ctv-99",
+        recipientType: "USER",
+        type: "PAYMENT_SUCCESS",
+        priority: "HIGH",
+        actionUrl: "/account/affiliate/dashboard",
+      }),
+    );
+  });
 });

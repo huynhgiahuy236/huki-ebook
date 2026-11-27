@@ -350,7 +350,11 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
       // 5. Broadcast to internal app bus
       realtimeSyncBus.publish('NOTIFICATIONS_UPDATED', newNoti);
       const evtType = String((newNoti.payload as any)?.eventType || '');
-      if (evtType === 'business.update_requested' || newNoti.actionUrl === '/admin/business-requests') {
+      if (evtType === 'AFFILIATE_COMMISSION_AVAILABLE') {
+        realtimeSyncBus.publish('WALLET_BALANCE_UPDATED', newNoti.payload as any);
+      } else if (evtType === 'AFFILIATE_COMMISSION_CREATED') {
+        realtimeSyncBus.publish('AFFILIATE_COMMISSION_CREATED', newNoti.payload as any);
+      } else if (evtType === 'business.update_requested' || newNoti.actionUrl === '/admin/business-requests') {
         realtimeSyncBus.publish('BUSINESS_REVISION_SUBMITTED', newNoti.payload as any);
       } else if (
         evtType === 'business.update_approved' ||

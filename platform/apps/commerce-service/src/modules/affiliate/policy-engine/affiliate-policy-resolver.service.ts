@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { Decimal } from '@prisma/client/runtime/library';
+import { resolveEscrowHoldHours } from '@huki/shared';
 
 export type BookFormatType = 'PHYSICAL' | 'DIGITAL' | 'EBOOK' | 'AUDIO';
 
@@ -155,31 +156,33 @@ export class AffiliatePolicyResolverService {
     });
 
     let platformRate = 5.0; // Default 5% for physical
-    let holdingHours = 7 * 24; // 7 days default
+    let fallbackHoldingHours = 7 * 24; // 7 days default
     let holdingRule: 'PHYSICAL_DAYS_AFTER_DELIVERY' | 'DIGITAL_HOURS_AFTER_PAYMENT' = 'PHYSICAL_DAYS_AFTER_DELIVERY';
 
     if (activePolicy) {
       if (normalizedFormat === 'PHYSICAL') {
         platformRate = new Decimal(activePolicy.defaultPhysicalRate.toString()).toNumber();
-        holdingHours = activePolicy.physicalHoldingDays * 24;
+        fallbackHoldingHours = activePolicy.physicalHoldingDays * 24;
         holdingRule = 'PHYSICAL_DAYS_AFTER_DELIVERY';
       } else if (normalizedFormat === 'AUDIO') {
         platformRate = new Decimal(activePolicy.defaultAudioRate.toString()).toNumber();
-        holdingHours = activePolicy.digitalHoldingHours;
+        fallbackHoldingHours = activePolicy.digitalHoldingHours;
         holdingRule = 'DIGITAL_HOURS_AFTER_PAYMENT';
       } else {
         // EBOOK or DIGITAL
         platformRate = new Decimal(activePolicy.defaultEbookRate.toString()).toNumber();
-        holdingHours = activePolicy.digitalHoldingHours;
+        fallbackHoldingHours = activePolicy.digitalHoldingHours;
         holdingRule = 'DIGITAL_HOURS_AFTER_PAYMENT';
       }
     } else {
       if (normalizedFormat === 'AUDIO' || normalizedFormat === 'EBOOK' || normalizedFormat === 'DIGITAL') {
         platformRate = 10.0;
-        holdingHours = 24;
+        fallbackHoldingHours = 24;
         holdingRule = 'DIGITAL_HOURS_AFTER_PAYMENT';
       }
     }
+
+    const holdingHours = resolveEscrowHoldHours(fallbackHoldingHours);
 
     const commissionAmountDec = commissionBaseDec.mul(new Decimal(platformRate)).div(100);
     const flooredAmount = Math.floor(commissionAmountDec.toNumber());
@@ -231,9 +234,10 @@ export class AffiliatePolicyResolverService {
     });
 
     const isPhysical = opts.format === 'PHYSICAL';
-    const holdingHours = isPhysical
+    const fallbackHours = isPhysical
       ? (activePolicy?.physicalHoldingDays ?? 7) * 24
       : (activePolicy?.digitalHoldingHours ?? 24);
+    const holdingHours = resolveEscrowHoldHours(fallbackHours);
 
     return {
       isEligible: finalAmount > 0,

@@ -11,6 +11,7 @@ import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { tokenStorage } from '@/ui/api/tokenStorage';
+import { ESCROW_CONFIG } from '@/ui/constants/escrowConfig';
 
 interface CtvStats {
   profile: {
@@ -325,15 +326,15 @@ export default function AffiliateDashboardPage() {
           </div>
         )}
 
-        {/* 7 Core KPI Cards (Guaranteed exact names for tests & users) */}
+        {/* 7 Core KPI Cards */}
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-              7 Chỉ Số Hiệu Suất Cốt Lõi Dự Kiến
+              7 Chỉ Số Hiệu Suất Cốt Lõi
             </h2>
             {isLive && stats && (
               <span className="text-[11px] text-gray-500">
-                Tỷ lệ chuyển đổi: <strong className="text-emerald-700">{stats.metrics.conversionRate}%</strong>
+                Tỷ lệ chuyển đổi theo click: <strong className="text-emerald-700">{Math.min(100, Number(stats.metrics.conversionRate || 0))}%</strong>
               </span>
             )}
           </div>
@@ -349,7 +350,7 @@ export default function AffiliateDashboardPage() {
               },
               {
                 label: 'Chuyển đổi',
-                desc: 'Đơn hàng đặt thành công có gắn phiên giới thiệu hợp lệ.',
+                desc: 'Đơn hàng đặt thành công gắn phiên giới thiệu (nhiều đơn trong cookie 30 ngày).',
                 icon: 'shopping_bag',
                 value: isLive ? (stats?.metrics.conversionsCount ?? 0).toLocaleString('vi-VN') : '--',
                 highlight: false,
@@ -363,7 +364,7 @@ export default function AffiliateDashboardPage() {
               },
               {
                 label: 'Đang giữ đối soát',
-                desc: 'Hoa hồng trong thời gian tạm giữ theo dõi giao nhận và đổi trả.',
+                desc: `Hoa hồng tạm giữ trong ${ESCROW_CONFIG.DURATION_LABEL} theo thời hạn bảo chứng đổi trả.`,
                 icon: 'lock_clock',
                 value: isLive ? formatVnd(stats?.metrics.holdingCommission) : '--',
                 highlight: false,
@@ -376,7 +377,7 @@ export default function AffiliateDashboardPage() {
                 highlight: true,
               },
               {
-                label: 'Đã thanh toán (Gross)',
+                label: 'Đã giải ngân (Tổng chi trả)',
                 desc: 'Tổng hoa hồng đã giải ngân thành công qua các kỳ thanh toán.',
                 icon: 'payments',
                 value: isLive ? formatVnd(stats?.metrics.lifetimePaid) : '--',

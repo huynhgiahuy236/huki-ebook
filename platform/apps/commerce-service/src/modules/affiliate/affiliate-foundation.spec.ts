@@ -14,6 +14,7 @@ import {
 import { ConflictException, NotFoundException } from '@nestjs/common';
 
 describe('Affiliate Foundation — Policy Resolver & State Machine (Phase 2)', () => {
+  const originalHoldEnv = process.env.ESCROW_HOLD_DURATION_SECONDS;
   let policyResolver: AffiliatePolicyResolverService;
   let stateMachine: AffiliateCommissionStateMachineService;
   let mockPrisma: any;
@@ -21,6 +22,7 @@ describe('Affiliate Foundation — Policy Resolver & State Machine (Phase 2)', (
   let mockAuditService: any;
 
   beforeEach(async () => {
+    delete process.env.ESCROW_HOLD_DURATION_SECONDS;
     mockPrisma = {
       bookAffiliateSetting: {
         findUnique: jest.fn(),
@@ -73,6 +75,14 @@ describe('Affiliate Foundation — Policy Resolver & State Machine (Phase 2)', (
 
     policyResolver = module.get<AffiliatePolicyResolverService>(AffiliatePolicyResolverService);
     stateMachine = module.get<AffiliateCommissionStateMachineService>(AffiliateCommissionStateMachineService);
+  });
+
+  afterAll(() => {
+    if (originalHoldEnv === undefined) {
+      delete process.env.ESCROW_HOLD_DURATION_SECONDS;
+    } else {
+      process.env.ESCROW_HOLD_DURATION_SECONDS = originalHoldEnv;
+    }
   });
 
   describe('AffiliatePolicyResolverService (3-Tier Precedence & Calculations)', () => {

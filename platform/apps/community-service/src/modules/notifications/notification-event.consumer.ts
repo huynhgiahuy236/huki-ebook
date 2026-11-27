@@ -47,6 +47,8 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
     "business.update_requested",
     "business.update_approved",
     "business.update_rejected",
+    "AFFILIATE_COMMISSION_AVAILABLE",
+    "AFFILIATE_COMMISSION_CREATED",
   ];
 
   constructor(
@@ -546,6 +548,37 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
             title: "Yêu cầu cập nhật hồ sơ bị từ chối",
             message: `Yêu cầu cập nhật hồ sơ "${shopName}" chưa được duyệt: ${reason}`,
             actionUrl: "/seller/business/notifications",
+          });
+        }
+        break;
+      }
+      case "AFFILIATE_COMMISSION_AVAILABLE": {
+        if (payload.userId) {
+          const amountVal = Number(payload.amount || 0).toLocaleString("vi-VN");
+          const bookLabel = payload.bookTitle ? ` (${payload.bookTitle})` : "";
+          targets.push({
+            recipientId: String(payload.userId),
+            recipientType: "USER",
+            type: "PAYMENT_SUCCESS",
+            priority: "HIGH",
+            title: "Hoa hồng đã khả dụng!",
+            message: `Khoản hoa hồng +${amountVal}đ${bookLabel} đã hoàn tất đối soát và được cộng vào Số dư khả dụng.`,
+            actionUrl: "/account/affiliate/dashboard",
+          });
+        }
+        break;
+      }
+      case "AFFILIATE_COMMISSION_CREATED": {
+        if (payload.userId) {
+          const amountVal = Number(payload.totalCommissionAmount || 0).toLocaleString("vi-VN");
+          targets.push({
+            recipientId: String(payload.userId),
+            recipientType: "USER",
+            type: "ORDER_STATUS",
+            priority: "NORMAL",
+            title: "Ghi nhận đơn giới thiệu mới",
+            message: `Đơn ${payload.orderCode || ""} đã tạo ${payload.commissionsCount || 1} khoản hoa hồng chờ duyệt (+${amountVal}đ).`,
+            actionUrl: "/account/affiliate/dashboard",
           });
         }
         break;

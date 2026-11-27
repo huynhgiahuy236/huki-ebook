@@ -317,15 +317,15 @@ function SellerFollowersContent() {
 
                       {/* Cột 1: Mã khách hàng */}
                       <td className="py-3.5 px-5 whitespace-nowrap">
-                        <span className="font-mono font-bold text-xs text-gray-800 px-2 py-0.5 bg-gray-100 rounded-md border border-gray-200/60">
+                        <span className="font-mono text-xs text-gray-500">
                           {item.customerCode || 'KH-HUKI'}
                         </span>
                       </td>
 
                       {/* Cột 2: Tên khách hàng (Avatar + Tên tối đa 10 ký tự có Tooltip) */}
                       <td className="py-3.5 px-5 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-[#006953]/10 text-[#006953] border border-[#006953]/20 font-bold flex items-center justify-center text-xs shrink-0 overflow-hidden">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-full bg-slate-100 text-slate-700 border border-slate-200 font-semibold flex items-center justify-center text-xs shrink-0 overflow-hidden">
                             {item.avatar ? (
                               <img src={item.avatar} alt={fullName} className="w-full h-full object-cover" />
                             ) : (
@@ -364,8 +364,8 @@ function SellerFollowersContent() {
 
                       {/* Cột 4: Huy hiệu Gắn Bó */}
                       <td className="py-3.5 px-5 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-2xs ${badgeInfo.bgClass} ${badgeInfo.borderClass}`}>
-                          <span className="material-symbols-outlined text-[14px]">{badgeInfo.icon}</span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700">
+                          <span className="material-symbols-outlined text-[15px] text-amber-500">{badgeInfo.icon}</span>
                           <span>{badgeInfo.badge}</span>
                         </span>
                       </td>
@@ -397,23 +397,23 @@ function SellerFollowersContent() {
                         )}
                       </td>
 
-                      {/* Cột 7: Thao tác (Nhắn tin - Tạm thời disabled) */}
+                      {/* Cột 7: Thao tác */}
                       <td className="py-3.5 px-5 whitespace-nowrap text-right">
                         <div className="inline-flex items-center gap-1.5">
                           <Link
                             href="/seller/promotions/vouchers"
-                            className="px-2.5 py-1.5 rounded-lg border border-pink-200 bg-pink-50 text-pink-700 hover:bg-pink-100 font-bold text-xs flex items-center gap-1 transition-colors"
+                            className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 font-semibold text-xs flex items-center gap-1 transition-colors"
                             title="Tạo Voucher tri ân người theo dõi"
                           >
-                            <span className="material-symbols-outlined text-sm">loyalty</span>
+                            <span className="material-symbols-outlined text-[14px] text-gray-500">loyalty</span>
                             <span>Tặng Voucher</span>
                           </Link>
                           <Link
                             href={`/seller/chat?recipientId=${item.userId || item.id}&recipientName=${encodeURIComponent(fullName)}`}
-                            className="px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-semibold text-xs flex items-center gap-1 transition-colors shadow-2xs"
+                            className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 font-semibold text-xs flex items-center gap-1 transition-colors"
                             title={`Nhắn tin trực tiếp với ${fullName}`}
                           >
-                            <span className="material-symbols-outlined text-sm">chat</span>
+                            <span className="material-symbols-outlined text-[14px] text-gray-500">chat</span>
                             <span>Nhắn tin</span>
                           </Link>
                         </div>
