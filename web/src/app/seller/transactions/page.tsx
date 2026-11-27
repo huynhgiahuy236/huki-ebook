@@ -6,6 +6,10 @@ import { useAuth } from '@/ui/context/AuthContext';
 import { walletApi, type WalletTransactionItem } from '@/ui/api/walletApi';
 import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 import {
+  getWalletTransactionMeta,
+  formatWalletTransactionDescription,
+} from '@/ui/utils/walletTransactionFormat';
+import {
   DataTableFilterBar,
   DateFilterValue,
   matchesDateFilter,
@@ -56,57 +60,7 @@ function getTransactionTypeDetails(type: string): {
   isPositive: boolean;
   icon: string;
 } {
-  switch (type) {
-    case 'CREDIT_AVAILABLE':
-      return {
-        label: 'Cộng tiền doanh thu bán hàng',
-        badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-        isPositive: true,
-        icon: 'add_circle',
-      };
-    case 'DEBIT_AVAILABLE':
-      return {
-        label: 'Khấu trừ rút tiền về ngân hàng',
-        badgeClass: 'bg-slate-100 text-slate-700 border-slate-300',
-        isPositive: false,
-        icon: 'remove_circle',
-      };
-    case 'MOVE_PENDING_TO_AVAILABLE':
-      return {
-        label: 'Giải ngân tiền tạm giữ vào ví',
-        badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-        isPositive: true,
-        icon: 'check_circle',
-      };
-    case 'CREDIT_PENDING':
-      return {
-        label: 'Tạm giữ ký quỹ Escrow (Chờ hạn đổi trả)',
-        badgeClass: 'bg-blue-50 text-blue-700 border-blue-200',
-        isPositive: true,
-        icon: 'hourglass_top',
-      };
-    case 'MOVE_AVAILABLE_TO_FROZEN':
-      return {
-        label: 'Đóng băng số dư do khiếu nại',
-        badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
-        isPositive: false,
-        icon: 'lock',
-      };
-    case 'MOVE_FROZEN_TO_AVAILABLE':
-      return {
-        label: 'Giải phóng số dư sau xử lý khiếu nại',
-        badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-        isPositive: true,
-        icon: 'lock_open',
-      };
-    default:
-      return {
-        label: type,
-        badgeClass: 'bg-slate-50 text-slate-700 border-slate-200',
-        isPositive: true,
-        icon: 'receipt',
-      };
-  }
+  return getWalletTransactionMeta(type);
 }
 
 export default function SellerTransactionsPage() {
@@ -244,11 +198,12 @@ export default function SellerTransactionsPage() {
 
         const csvRows = rows.map((tx) => {
           const typeMeta = getTransactionTypeDetails(tx.type);
+          const cleanDesc = formatWalletTransactionDescription(tx.description, tx.metadata);
           return [
             `"${tx.id}"`,
             `"${formatVietnamDateTime(tx.createdAt)}"`,
             `"${typeMeta.label}"`,
-            `"${tx.description?.replace(/"/g, '""') || ''}"`,
+            `"${cleanDesc.replace(/"/g, '""')}"`,
             `"${tx.referenceId || ''}"`,
             typeMeta.isPositive ? Number(tx.amount) : -Number(tx.amount),
             Number(tx.availableAfter),
@@ -284,11 +239,12 @@ export default function SellerTransactionsPage() {
 
     const rows = filteredTransactions.map((tx) => {
       const typeMeta = getTransactionTypeDetails(tx.type);
+      const cleanDesc = formatWalletTransactionDescription(tx.description, tx.metadata);
       return [
         `"${tx.id}"`,
         `"${formatVietnamDateTime(tx.createdAt)}"`,
         `"${typeMeta.label}"`,
-        `"${tx.description?.replace(/"/g, '""') || ''}"`,
+        `"${cleanDesc.replace(/"/g, '""')}"`,
         `"${tx.referenceId || ''}"`,
         typeMeta.isPositive ? Number(tx.amount) : -Number(tx.amount),
         Number(tx.availableAfter),
@@ -336,6 +292,7 @@ export default function SellerTransactionsPage() {
         minWidth: 260,
         render: (_val, item) => {
           const typeMeta = getTransactionTypeDetails(item.type);
+          const displayDesc = formatWalletTransactionDescription(item.description, item.metadata);
           return (
             <div className="flex items-center gap-2.5 py-1">
               <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 text-slate-500 border border-slate-200">
@@ -350,9 +307,9 @@ export default function SellerTransactionsPage() {
                 </span>
                 <span
                   className="font-medium text-slate-900 text-xs line-clamp-2 leading-snug break-words"
-                  title={item.description || 'Giao dịch ví'}
+                  title={displayDesc}
                 >
-                  {item.description || 'Giao dịch số dư ví'}
+                  {displayDesc}
                 </span>
               </div>
             </div>

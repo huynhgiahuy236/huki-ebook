@@ -291,8 +291,8 @@ export class SettlementService implements OnApplicationBootstrap {
     }
 
     // 5. Fulfillment Format & Holding Window Check (POL-14 ESC-001)
-    const hasDigital = items.some((i) => i.format === CartItemFormat.DIGITAL);
-    const hasPhysical = items.some((i) => i.format === CartItemFormat.PHYSICAL);
+    const hasDigital = items.some((i) => i.format === CartItemFormat.DIGITAL || i.format === CartItemFormat.BOTH);
+    const hasPhysical = items.some((i) => i.format === CartItemFormat.PHYSICAL || i.format === CartItemFormat.BOTH);
     const format: 'PHYSICAL' | 'DIGITAL' | 'BOTH' =
       hasDigital && hasPhysical ? 'BOTH' : hasDigital ? 'DIGITAL' : 'PHYSICAL';
 
@@ -490,9 +490,12 @@ export class SettlementService implements OnApplicationBootstrap {
           {
             referenceType: 'SETTLEMENT',
             referenceId: sellerOrderId,
-            description: `Escrow released net proceeds for sub-order ${sellerOrder.code}`,
+            description: `Giải ngân doanh thu thực nhận đơn #${sellerOrder.code} vào ví khả dụng`,
             metadata: {
               ledgerTransactionId: existingLedgerTx.id,
+              orderCode: sellerOrder.code,
+              orderId: sellerOrder.orderId,
+              sellerOrderId,
               platformCommission: calculation.platformCommission,
               affiliateCommission: calculation.affiliateCommission,
             },
@@ -608,9 +611,12 @@ export class SettlementService implements OnApplicationBootstrap {
       {
         referenceType: 'SETTLEMENT',
         referenceId: sellerOrderId,
-        description: `Escrow released net proceeds for sub-order ${sellerOrder.code}`,
+        description: `Giải ngân doanh thu thực nhận đơn #${sellerOrder.code} vào ví khả dụng`,
         metadata: {
           ledgerTransactionId: ledgerTx.id,
+          orderCode: sellerOrder.code,
+          orderId: sellerOrder.orderId,
+          sellerOrderId,
           platformCommission: calculation.platformCommission,
           affiliateCommission: calculation.affiliateCommission,
         },
@@ -764,7 +770,12 @@ export class SettlementService implements OnApplicationBootstrap {
       await this.walletService.creditPending(sellerOrder.storeId, calculation.sellerNet, {
         referenceType: 'ORDER_PAYMENT',
         referenceId: sellerOrder.id,
-        description: `Pending revenue credited from sub-order ${sellerOrder.code}`,
+        description: `Tạm giữ doanh thu đơn #${sellerOrder.code} vào ký quỹ Escrow`,
+        metadata: {
+          orderCode: sellerOrder.code,
+          orderId: sellerOrder.orderId,
+          sellerOrderId: sellerOrder.id,
+        },
       });
     }
   }

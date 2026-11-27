@@ -155,8 +155,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           (i.apiFormat === serverItem.format || i.format === serverItem.format))
     );
 
-    const isPhysical = serverItem.format === 'PHYSICAL';
-    const isEbook = serverItem.format === 'DIGITAL';
+    const fmtStr = String(serverItem.format || '').toUpperCase();
+    const isCombo = fmtStr === 'BOTH';
+    const isPhysical = fmtStr === 'PHYSICAL' || isCombo;
+    const isEbook = fmtStr === 'DIGITAL';
 
     const isAvailable = serverItem.isAvailable !== false && serverItem.status !== 'OUT_OF_STOCK';
 
@@ -200,9 +202,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       storeName: resolvedStoreName,
       storeId: resolvedStoreId,
       businessId: resolvedBusinessId,
-      format: isPhysical ? 'Sách giấy' : isEbook ? 'Ebook Số' : existing?.format || 'Sách giấy',
+      format: isCombo ? 'Combo Giấy + Ebook' : isPhysical ? 'Sách giấy' : isEbook ? 'Ebook Số' : existing?.format || 'Sách giấy',
       apiFormat: serverItem.format,
-      formatTag: isPhysical ? 'Bìa mềm cao cấp' : 'Ebook DRM Bản quyền',
+      formatTag: isCombo ? 'Sách Giấy + Ebook trọn đời' : isPhysical ? 'Bìa mềm cao cấp' : 'Ebook DRM Bản quyền',
       price: Number(serverItem.unitPrice || existing?.price || 0),
       addedPrice: Number(serverItem.addedPrice || existing?.addedPrice || serverItem.unitPrice || 0),
       originalPrice: Number(serverItem.originalPrice || existing?.originalPrice || serverItem.addedPrice || serverItem.unitPrice || 0),
@@ -304,11 +306,20 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const idCand = item.bookId || item.id;
                 return typeof idCand === 'string' && UUID_REGEX.test(idCand);
               })
-              .map((item) => ({
-                bookId: item.bookId || item.id,
-                format: (((item.apiFormat || item.format || (item.type === 'ebook' ? 'DIGITAL' : 'PHYSICAL')).toString().toUpperCase().includes('EBOOK') || (item.apiFormat || item.format || '').toString().toUpperCase() === 'DIGITAL') ? 'DIGITAL' : 'PHYSICAL') as CartItemFormat,
-                quantity: item.quantity || 1,
-              }));
+              .map((item) => {
+                const upper = String(item.apiFormat || item.format || (item.type === 'ebook' ? 'DIGITAL' : 'PHYSICAL')).toUpperCase();
+                const mappedFmt: CartItemFormat =
+                  upper === 'BOTH' || upper.includes('COMBO') || upper.includes('HYBRID')
+                    ? 'BOTH'
+                    : upper === 'DIGITAL' || (upper.includes('EBOOK') && !upper.includes('GIẤY'))
+                      ? 'DIGITAL'
+                      : 'PHYSICAL';
+                return {
+                  bookId: item.bookId || item.id,
+                  format: mappedFmt,
+                  quantity: item.quantity || 1,
+                };
+              });
 
             if (payloadItems.length > 0) {
               const res = await cartApi.mergeCart(payloadItems);
@@ -388,23 +399,27 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const typeStr = String(itemOrBook.type || '').toLowerCase();
         const argFmt = String(format || '').toLowerCase();
 
-        const isEbook =
-          typeStr === 'ebook' ||
-          typeStr === 'digital' ||
-          argFmt === 'ebook' ||
-          argFmt === 'digital' ||
-          fmtStr === 'digital' ||
-          fmtStr.includes('ebook') ||
-          fmtStr.includes('số') ||
-          fmtStr.includes('drm');
-
         const isCombo =
           typeStr === 'hybrid' ||
           typeStr === 'combo' ||
+          typeStr === 'both' ||
           argFmt === 'combo' ||
           argFmt === 'hybrid' ||
+          argFmt === 'both' ||
+          fmtStr === 'both' ||
           fmtStr.includes('combo') ||
           fmtStr.includes('hybrid');
+
+        const isEbook =
+          !isCombo &&
+          (typeStr === 'ebook' ||
+            typeStr === 'digital' ||
+            argFmt === 'ebook' ||
+            argFmt === 'digital' ||
+            fmtStr === 'digital' ||
+            fmtStr.includes('ebook') ||
+            fmtStr.includes('số') ||
+            fmtStr.includes('drm'));
 
         const isPhysical =
           !isEbook &&
@@ -416,7 +431,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             fmtStr.includes('in') ||
             fmtStr === 'physical');
 
-        apiFormat = isPhysical ? 'PHYSICAL' : 'DIGITAL';
+        apiFormat = isCombo ? 'BOTH' : isPhysical ? 'PHYSICAL' : 'DIGITAL';
         bookId = itemOrBook.bookId || itemOrBook.id;
 
         const resolvedStoreId =
@@ -483,10 +498,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
       } else {
         const book = itemOrBook;
-        const isEbook = format === 'ebook';
-        const isCombo = format === 'combo' || format === 'hybrid';
+        const isCombo = format === 'combo' || format === 'hybrid' || format === 'both';
+        const isEbook = !isCombo && format === 'ebook';
         const isPhysical = !isEbook;
-        apiFormat = isPhysical ? 'PHYSICAL' : 'DIGITAL';
+        apiFormat = isCombo ? 'BOTH' : isPhysical ? 'PHYSICAL' : 'DIGITAL';
         bookId = book.id;
 
         const price = isEbook ? (book.priceEbook || book.price) : (isCombo ? book.priceCombo : (book.pricePaper || book.price));

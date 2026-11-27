@@ -486,4 +486,81 @@ describe('WalletService (Task 70 / POL-15 WAL-001)', () => {
       } as any),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
+
+  // 21. BUG-32: No ORDER_ITEM auto-backfill + deduplication + Vietnamese normalization
+  it('21. deduplicates legacy ORDER_ITEM rows when canonical ORDER_PAYMENT/SETTLEMENT exists and normalizes English descriptions', async () => {
+    const wallet = createMockWallet();
+    prisma.wallet.findUnique.mockResolvedValueOnce(wallet);
+    prisma.walletTransaction = {
+      create: jest.fn(),
+      findMany: jest.fn().mockResolvedValueOnce([
+        {
+          id: 'wtx-canon',
+          walletId: wallet.id,
+          type: WalletTransactionType.CREDIT_PENDING,
+          amount: new Decimal(232650),
+          availableBefore: new Decimal(0),
+          availableAfter: new Decimal(0),
+          pendingBefore: new Decimal(0),
+          pendingAfter: new Decimal(232650),
+          frozenBefore: new Decimal(0),
+          frozenAfter: new Decimal(0),
+          referenceType: 'ORDER_PAYMENT',
+          referenceId: 'so-1',
+          description: 'Pending revenue credited from sub-order ORD-MWXEYP1K-63E05600-S1',
+          metadata: null,
+          createdAt: new Date('2026-11-26T10:32:00Z'),
+        },
+        {
+          id: 'wtx-legacy-item-dup',
+          walletId: wallet.id,
+          type: WalletTransactionType.CREDIT_PENDING,
+          amount: new Decimal(94050),
+          availableBefore: new Decimal(0),
+          availableAfter: new Decimal(0),
+          pendingBefore: new Decimal(0),
+          pendingAfter: new Decimal(94050),
+          frozenBefore: new Decimal(0),
+          frozenAfter: new Decimal(0),
+          referenceType: 'ORDER_ITEM',
+          referenceId: 'item-1',
+          description: 'Tạm giữ doanh thu bán sách [A] - Đơn hàng #ORD-MWXEYP1K-63E05600 (Chờ hạn đổi trả 2 phút)',
+          metadata: { orderCode: 'ORD-MWXEYP1K-63E05600' },
+          createdAt: new Date('2026-11-26T10:32:00Z'),
+        },
+        {
+          id: 'wtx-release',
+          walletId: wallet.id,
+          type: WalletTransactionType.MOVE_PENDING_TO_AVAILABLE,
+          amount: new Decimal(108000),
+          availableBefore: new Decimal(208050),
+          availableAfter: new Decimal(316050),
+          pendingBefore: new Decimal(108000),
+          pendingAfter: new Decimal(0),
+          frozenBefore: new Decimal(0),
+          frozenAfter: new Decimal(0),
+          referenceType: 'SETTLEMENT',
+          referenceId: 'so-2',
+          description: 'Escrow released net proceeds for sub-order ORD-MWXAFD9G-7FAF7FB5-S1',
+          metadata: null,
+          createdAt: new Date('2026-11-26T08:28:00Z'),
+        },
+      ]),
+      count: jest.fn().mockResolvedValueOnce(3),
+    };
+
+    const result = await service.getTransactions(mockStoreId, {
+      sub: mockOwnerId,
+      role: 'BUSINESS',
+    } as any);
+
+    expect(prisma.walletTransaction.create).not.toHaveBeenCalled();
+    expect(result.items.map((x: any) => x.id)).toEqual(['wtx-canon', 'wtx-release']);
+    expect(result.items[0].description).toBe(
+      'Tạm giữ doanh thu đơn #ORD-MWXEYP1K-63E05600-S1 vào ký quỹ Escrow (Chờ hạn đổi trả 3 phút)',
+    );
+    expect(result.items[1].description).toBe(
+      'Giải ngân doanh thu thực nhận đơn #ORD-MWXAFD9G-7FAF7FB5-S1 vào ví khả dụng',
+    );
+  });
 });

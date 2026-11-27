@@ -27,6 +27,7 @@ export interface FlashSaleItem {
   startsAt: string;
   endsAt: string;
   format?: string;
+  targetFormat?: "PHYSICAL" | "DIGITAL" | "BOTH";
 }
 
 export interface FlashSaleSlot {
@@ -88,6 +89,7 @@ export interface CreateFlashSaleItemPayload {
   salePrice: number;
   stock: number;
   maxPerUser?: number;
+  targetFormat?: "PHYSICAL" | "DIGITAL" | "BOTH";
 }
 
 export interface ValidateQuotaPayload {
@@ -95,6 +97,7 @@ export interface ValidateQuotaPayload {
   bookId: string;
   flashSaleId?: string;
   quantity?: number;
+  targetFormat?: "PHYSICAL" | "DIGITAL" | "BOTH";
 }
 
 export interface QuotaValidationResult {
@@ -205,12 +208,18 @@ export const flashSaleApi = {
     });
   },
 
-  getBookPrice: async (bookId: string): Promise<ApiResponse<FlashSaleItem>> => {
-    const cached = activeItemsCache.get(bookId);
-    if (cached) {
-      return { success: true, data: cached };
+  getBookPrice: async (
+    bookId: string,
+    targetFormat?: "PHYSICAL" | "DIGITAL" | "BOTH",
+  ): Promise<ApiResponse<FlashSaleItem>> => {
+    if (!targetFormat) {
+      const cached = activeItemsCache.get(bookId);
+      if (cached) {
+        return { success: true, data: cached };
+      }
     }
-    return apiClient<FlashSaleItem>(`/flash-sales/price/${bookId}`, {
+    const qs = targetFormat ? `?format=${encodeURIComponent(targetFormat)}` : "";
+    return apiClient<FlashSaleItem>(`/flash-sales/price/${bookId}${qs}`, {
       method: "GET",
       skipAuth: true,
     });
@@ -312,6 +321,7 @@ export const flashSaleApi = {
     salePrice: number;
     stock: number;
     maxPerUser?: number;
+    targetFormat?: "PHYSICAL" | "DIGITAL" | "BOTH";
   }): Promise<ApiResponse<any>> => {
     return apiClient<any>("/flash-sales/seller/register", {
       method: "POST",
@@ -326,6 +336,7 @@ export const flashSaleApi = {
       salePrice: number;
       stock: number;
       maxPerUser?: number;
+      targetFormat?: "PHYSICAL" | "DIGITAL" | "BOTH";
     }>;
   }): Promise<ApiResponse<any>> => {
     return apiClient<any>("/flash-sales/seller/register-batch", {
@@ -351,6 +362,7 @@ export const flashSaleApi = {
       salePrice?: number;
       stock?: number;
       maxPerUser?: number;
+      targetFormat?: "PHYSICAL" | "DIGITAL" | "BOTH";
     },
   ): Promise<ApiResponse<any>> => {
     return apiClient<any>(`/flash-sales/seller/items/${itemId}`, {

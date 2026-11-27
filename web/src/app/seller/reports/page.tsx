@@ -8,13 +8,9 @@ import {
   payoutApi,
   type SellerEscrowItem,
   type WalletData,
-  type WalletTransactionItem,
   type PayoutRequestItem,
 } from '@/ui/api/walletApi';
-import EscrowTableBadge from '@/ui/components/seller/EscrowTableBadge';
-import { SellerPagination } from '@/ui/components/seller/SellerUI';
 import { SellerGroupedOrderTable } from '@/ui/components/seller/SellerGroupedOrderTable';
-import { SellerPayoutGroupedTable } from '@/ui/components/seller/SellerPayoutGroupedTable';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { useToast } from '@/ui/context/ToastContext';
 import { calculateSellerFinancials, formatVND, ESCROW_CONFIG } from '@/ui/utils/sellerFinanceEngine';
@@ -48,7 +44,6 @@ export default function SellerFinancialReportsPage() {
 
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [escrowItems, setEscrowItems] = useState<SellerEscrowItem[]>([]);
-  const [transactions, setTransactions] = useState<WalletTransactionItem[]>([]);
   const [payouts, setPayouts] = useState<PayoutRequestItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -56,16 +51,14 @@ export default function SellerFinancialReportsPage() {
   const [dateRange, setDateRange] = useState<'ALL' | 'TODAY' | '7DAYS' | '30DAYS' | 'THIS_MONTH'>('ALL');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
-  const [activeTab, setActiveTab] = useState<'ITEMS' | 'TRANSACTIONS' | 'PAYOUTS'>('ITEMS');
   const [showFormulaModal, setShowFormulaModal] = useState(false);
 
   const fetchData = useCallback(async (isSilent?: boolean) => {
     if (!isSilent) setIsLoading(true);
     try {
-      const [wRes, escRes, txRes, pRes] = await Promise.all([
+      const [wRes, escRes, pRes] = await Promise.all([
         walletApi.getStoreWallet(storeId),
         walletApi.getSellerEscrowItems(),
-        walletApi.getStoreWalletTransactions(storeId, { page: 1, limit: 100 }),
         payoutApi.getStorePayoutRequests(storeId, { page: 1, limit: 50 }),
       ]);
 
@@ -74,9 +67,6 @@ export default function SellerFinancialReportsPage() {
       }
       if (escRes.success && Array.isArray(escRes.data)) {
         setEscrowItems(escRes.data);
-      }
-      if (txRes.success && txRes.data?.items) {
-        setTransactions(txRes.data.items);
       }
       if (pRes.success && pRes.data?.items) {
         setPayouts(pRes.data.items);
@@ -158,10 +148,10 @@ export default function SellerFinancialReportsPage() {
     setWallet((prev) =>
       prev
         ? {
-            ...prev,
-            availableBalance: Number(prev.availableBalance) + Number(item.sellerNet),
-            pendingBalance: Math.max(0, Number(prev.pendingBalance) - Number(item.sellerNet)),
-          }
+          ...prev,
+          availableBalance: Number(prev.availableBalance) + Number(item.sellerNet),
+          pendingBalance: Math.max(0, Number(prev.pendingBalance) - Number(item.sellerNet)),
+        }
         : prev
     );
 
@@ -210,46 +200,19 @@ export default function SellerFinancialReportsPage() {
     });
   }, [escrowItems, dateRange, customStartDate, customEndDate]);
 
-  // Financial Computations & Unified Data
   // Financial Computations & Unified Data via Centralized Engine
   const stats = useMemo(() => {
     return calculateSellerFinancials({
       escrowItems: filteredItems,
       wallet,
       payouts,
-      transactions,
     });
-  }, [filteredItems, wallet, payouts, transactions]);
+  }, [filteredItems, wallet, payouts]);
 
-  // Pagination States for all 3 Tabs (Chuẩn Shopee)
-  const [itemsPage, setItemsPage] = useState(1);
-  const itemsPageSize = 10;
-  const itemsTotalPages = Math.max(1, Math.ceil(filteredItems.length / itemsPageSize));
-  const paginatedItems = useMemo(() => {
-    const start = (itemsPage - 1) * itemsPageSize;
-    return filteredItems.slice(start, start + itemsPageSize);
-  }, [filteredItems, itemsPage, itemsPageSize]);
-
-  const [txPage, setTxPage] = useState(1);
-  const txPageSize = 10;
-  const txTotalPages = Math.max(1, Math.ceil(transactions.length / txPageSize));
-  const paginatedTransactions = useMemo(() => {
-    const start = (txPage - 1) * txPageSize;
-    return transactions.slice(start, start + txPageSize);
-  }, [transactions, txPage, txPageSize]);
-
-  const [payoutPage, setPayoutPage] = useState(1);
-  const payoutPageSize = 10;
-  const payoutTotalPages = Math.max(1, Math.ceil(payouts.length / payoutPageSize));
-  const paginatedPayouts = useMemo(() => {
-    const start = (payoutPage - 1) * payoutPageSize;
-    return payouts.slice(start, start + payoutPageSize);
-  }, [payouts, payoutPage, payoutPageSize]);
-
-  // Reset itemsPage khi bộ lọc thời gian thay đổi
-  useEffect(() => {
-    setItemsPage(1);
-  }, [dateRange, customStartDate, customEndDate]);
+  // Tỷ trọng phương thức thanh toán cho thẻ KPI 4 & 5
+  const totalPaymentGMV = stats.codGMV + stats.payosGMV || 1;
+  const codPercent = Math.round((stats.codGMV / totalPaymentGMV) * 100);
+  const payosPercent = 100 - codPercent;
 
   // Export CSV Function
   const handleExportCSV = () => {
@@ -278,10 +241,10 @@ export default function SellerFinancialReportsPage() {
         it.escrowStatus === 'RELEASED'
           ? 'Đã Giải Ngân Khả Dụng'
           : it.escrowStatus === 'HOLDING'
-          ? `Đang Ký Quỹ Đổi Trả (${ESCROW_CONFIG.DURATION_LABEL})`
-          : it.escrowStatus === 'PENDING_PAYMENT'
-          ? 'Đang Giao Hàng (Dự Kiến)'
-          : 'Đang Phong Tỏa Khiếu Nại';
+            ? `Đang Ký Quỹ Đổi Trả (${ESCROW_CONFIG.DURATION_LABEL})`
+            : it.escrowStatus === 'PENDING_PAYMENT'
+              ? 'Đang Giao Hàng (Dự Kiến)'
+              : 'Đang Phong Tỏa Khiếu Nại';
 
       return [
         `"${it.orderCode || it.orderId}"`,
@@ -311,18 +274,6 @@ export default function SellerFinancialReportsPage() {
     link.click();
     document.body.removeChild(link);
   };
-
-  // Tính tỷ lệ % cho biểu đồ Donut phương thức thanh toán
-  const totalPaymentGMV = (stats.codGMV + stats.payosGMV) || 1;
-  const codPercent = Math.round((stats.codGMV / totalPaymentGMV) * 100);
-  const payosPercent = 100 - codPercent;
-
-  // Tính tỷ lệ cho biểu đồ Dòng tiền (Waterfall flow)
-  const totalFlowBase = (stats.inTransitNet + stats.holdingNet + stats.availableBalance + stats.totalWithdrawn) || 1;
-  const inTransitFlowPct = Math.round((stats.inTransitNet / totalFlowBase) * 100);
-  const holdingFlowPct = Math.round((stats.holdingNet / totalFlowBase) * 100);
-  const availableFlowPct = Math.round((stats.availableBalance / totalFlowBase) * 100);
-  const withdrawnFlowPct = Math.max(0, 100 - inTransitFlowPct - holdingFlowPct - availableFlowPct);
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
@@ -438,11 +389,10 @@ export default function SellerFinancialReportsPage() {
                 setCustomStartDate('');
                 setCustomEndDate('');
               }}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
-                dateRange === btn.key && !customStartDate
-                  ? 'bg-[#00875A] text-white shadow-xs'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer ${dateRange === btn.key && !customStartDate
+                ? 'bg-[#00875A] text-white shadow-xs'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
             >
               {btn.label}
             </button>
@@ -599,374 +549,46 @@ export default function SellerFinancialReportsPage() {
         </div>
       </div>
 
-      {/* 5. CỤM BIỂU ĐỒ DASHBOARD DÒNG TIỀN (INTERACTIVE CHARTS) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* BIỂU ĐỒ 1: PHỄU VÒNG ĐỜI DÒNG TIỀN (WATERFALL / LIFECYCLE PIPELINE) */}
-        <div className="lg:col-span-7 bg-white rounded-2xl border border-gray-200 p-5 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <span className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-lg">schema</span>
-                </span>
-                <div>
-                  <h3 className="text-sm font-bold text-gray-900">Biểu Đồ Vòng Đời Dòng Tiền (Cash Flow Lifecycle)</h3>
-                  <p className="text-[11px] text-gray-500">Tiến trình luân chuyển tiền từ lúc giao hàng đến khi rút về ngân hàng</p>
-                </div>
-              </div>
-              <span className="text-xs font-mono font-bold text-gray-700 bg-gray-100 px-2.5 py-1 rounded-lg">
-                Tổng 95%: {formatVND(stats.totalNetRevenue)}
-              </span>
-            </div>
-
-            {/* Pipeline Step Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 my-4">
-              <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200 text-center">
-                <span className="text-[10px] font-bold text-blue-700 uppercase">1. Đang Giao</span>
-                <div className="text-sm font-black text-blue-800 font-mono mt-1">{formatVND(stats.inTransitNet)}</div>
-                <div className="text-[10px] text-blue-600 mt-0.5">{stats.inTransitCount} món ({inTransitFlowPct}%)</div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-center">
-                <span className="text-[10px] font-bold text-amber-700 uppercase">2. Ký Quỹ Đổi Trả</span>
-                <div className="text-sm font-black text-amber-800 font-mono mt-1">{formatVND(stats.holdingNet)}</div>
-                <div className="text-[10px] text-amber-600 mt-0.5">{stats.holdingCount} món ({holdingFlowPct}%)</div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-center">
-                <span className="text-[10px] font-bold text-emerald-700 uppercase">3. Khả Dụng Ví</span>
-                <div className="text-sm font-black text-emerald-800 font-mono mt-1">{formatVND(stats.availableBalance)}</div>
-                <div className="text-[10px] text-emerald-600 mt-0.5">Sẵn sàng rút ({availableFlowPct}%)</div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200 text-center">
-                <span className="text-[10px] font-bold text-indigo-700 uppercase">4. Đã Rút Về STK</span>
-                <div className="text-sm font-black text-indigo-800 font-mono mt-1">{formatVND(stats.totalWithdrawn)}</div>
-                <div className="text-[10px] text-indigo-600 mt-0.5">Giải ngân ({withdrawnFlowPct}%)</div>
-              </div>
-            </div>
-
-            {/* Visual Multi-Segment Progress Bar */}
-            <div className="space-y-1.5 mt-2">
-              <div className="h-3 w-full bg-gray-100 rounded-full overflow-hidden flex">
-                <div
-                  style={{ width: `${Math.max(stats.inTransitNet > 0 ? 5 : 0, inTransitFlowPct)}%` }}
-                  className="bg-blue-500 h-full transition-all duration-500"
-                  title={`Đang giao: ${formatVND(stats.inTransitNet)} (${inTransitFlowPct}%)`}
-                />
-                <div
-                  style={{ width: `${Math.max(stats.holdingNet > 0 ? 5 : 0, holdingFlowPct)}%` }}
-                  className="bg-amber-500 h-full transition-all duration-500"
-                  title={`Ký quỹ: ${formatVND(stats.holdingNet)} (${holdingFlowPct}%)`}
-                />
-                <div
-                  style={{ width: `${Math.max(stats.availableBalance > 0 ? 5 : 0, availableFlowPct)}%` }}
-                  className="bg-emerald-500 h-full transition-all duration-500"
-                  title={`Khả dụng: ${formatVND(stats.availableBalance)} (${availableFlowPct}%)`}
-                />
-                <div
-                  style={{ width: `${Math.max(stats.totalWithdrawn > 0 ? 5 : 0, withdrawnFlowPct)}%` }}
-                  className="bg-indigo-600 h-full transition-all duration-500"
-                  title={`Đã rút về STK: ${formatVND(stats.totalWithdrawn)} (${withdrawnFlowPct}%)`}
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-[10.5px] text-gray-500 pt-1">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-blue-500"></span> Đang giao
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-amber-500"></span> Ký quỹ đổi trả
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Khả dụng trong ví
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-indigo-600"></span> Đã giải ngân về STK
-                </span>
-              </div>
-            </div>
+      {/* 5. BẢNG ĐỐI SOÁT DOANH THU TỪNG MÓN HÀNG & DÒNG TIỀN */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
+        <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-50/50">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#00875A] text-white shadow-xs">
+              <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+              <span>Chi Tiết Từng Món Hàng &amp; Dòng Tiền ({filteredItems.length})</span>
+            </span>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-600 bg-gray-50/70 p-3 rounded-xl">
-            <span className="flex items-center gap-1 text-[11px]">
-              <span className="material-symbols-outlined text-sm text-emerald-600">verified</span>
-              <span>Bảo chứng Escrow: Hết {ESCROW_CONFIG.DURATION_LABEL} đổi trả, tiền tự động nhảy sang Khả dụng và ghi lịch sử.</span>
-            </span>
-            <Link href="/seller/finance" className="text-emerald-700 font-bold hover:underline shrink-0 text-xs">
-              Mở Ví Rút Tiền &rarr;
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link
+              href="/seller/finance"
+              className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors inline-flex items-center gap-1 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-sm">account_balance_wallet</span>
+              <span>Ví &amp; Sổ Cái Biến Động</span>
+              <span className="material-symbols-outlined text-sm">arrow_forward</span>
+            </Link>
+
+            <Link
+              href="/seller/escrow"
+              className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors inline-flex items-center gap-1 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-sm">hourglass_top</span>
+              <span>Xem Tiền Chờ Quyết Toán</span>
+              <span className="material-symbols-outlined text-sm">arrow_forward</span>
             </Link>
           </div>
         </div>
 
-        {/* BIỂU ĐỒ 2: CƠ CẤU THANH TOÁN (COD vs CHUYỂN KHOẢN) */}
-        <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-200 p-5 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <span className="w-8 h-8 rounded-lg bg-orange-50 text-orange-700 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-lg">pie_chart</span>
-                </span>
-                <div>
-                  <h3 className="text-sm font-bold text-gray-900">Cơ Cấu Phương Thức Thanh Toán</h3>
-                  <p className="text-[11px] text-gray-500">Tiền mặt COD vs Chuyển khoản trực tuyến</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Donut Chart Visual */}
-            <div className="flex items-center justify-center gap-6 my-4">
-              <div className="relative w-32 h-32 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                  <path
-                    className="text-gray-100"
-                    strokeWidth="4"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                  {/* COD Segment */}
-                  <path
-                    className="text-orange-500 transition-all duration-700"
-                    strokeDasharray={`${codPercent}, 100`}
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                  {/* PayOS Segment */}
-                  <path
-                    className="text-indigo-600 transition-all duration-700"
-                    strokeDasharray={`${payosPercent}, 100`}
-                    strokeDashoffset={`-${codPercent}`}
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                </svg>
-                <div className="absolute flex flex-col items-center justify-center text-center">
-                  <span className="text-[10px] text-gray-400 font-bold uppercase">Tổng GMV</span>
-                  <span className="text-xs font-black text-gray-900 font-mono">{formatVND(stats.totalGrossGMV)}</span>
-                </div>
-              </div>
-
-              <div className="space-y-3 flex-1 text-xs">
-                <div className="p-2.5 rounded-xl bg-orange-50/60 border border-orange-200">
-                  <div className="flex items-center justify-between text-orange-900 font-bold">
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
-                      <span>Tiền Mặt COD ({codPercent}%)</span>
-                    </span>
-                    <span className="font-mono">{formatVND(stats.codGMV)}</span>
-                  </div>
-                  <div className="text-[10.5px] text-orange-700 mt-0.5 flex justify-between">
-                    <span>{stats.codCount} đơn hàng thu tiền tận nơi</span>
-                    <span>Thực nhận: {formatVND(stats.codNet)}</span>
-                  </div>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-indigo-50/60 border border-indigo-200">
-                  <div className="flex items-center justify-between text-indigo-900 font-bold">
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
-                      <span>Chuyển Khoản ({payosPercent}%)</span>
-                    </span>
-                    <span className="font-mono">{formatVND(stats.payosGMV)}</span>
-                  </div>
-                  <div className="text-[10.5px] text-indigo-700 mt-0.5 flex justify-between">
-                    <span>{stats.payosCount} đơn VietQR / PayOS</span>
-                    <span>Thực nhận: {formatVND(stats.payosNet)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2.5 border-t border-gray-100 text-[11px] text-gray-500 flex items-center justify-between">
-            <span>Khấu trừ sàn cố định 5%: <strong>-{formatVND(stats.totalPlatformFee)}</strong></span>
-            <span className="text-emerald-700 font-bold">Shop hưởng 95%</span>
-          </div>
+        <div className="p-4 sm:p-6">
+          <SellerGroupedOrderTable
+            items={filteredItems}
+            loading={isLoading}
+            onAutoReleaseItem={handleAutoReleaseItem}
+            title="Bảng Kê Chi Tiết Đơn Hàng & Dòng Tiền"
+            subtitle="Báo cáo sao kê đơn hàng thực nhận 95% theo thời gian thực"
+          />
         </div>
-      </div>
-
-      {/* 6. BẢNG DỮ LIỆU ĐỐI SOÁT CHI TIẾT & NHẬT KÝ BIẾN ĐỘNG */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-        {/* Navigation Tabs for Tables */}
-        <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-50/50">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveTab('ITEMS')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'ITEMS'
-                  ? 'bg-[#00875A] text-white shadow-xs'
-                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">receipt_long</span>
-              <span>Chi Tiết Từng Món Hàng &amp; Dòng Tiền ({filteredItems.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('TRANSACTIONS')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'TRANSACTIONS'
-                  ? 'bg-[#00875A] text-white shadow-xs'
-                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">sync_alt</span>
-              <span>Sổ Cái Biến Động Ví ({transactions.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('PAYOUTS')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'PAYOUTS'
-                  ? 'bg-[#00875A] text-white shadow-xs'
-                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">account_balance</span>
-              <span>Lệnh Rút Tiền Về STK ({payouts.length})</span>
-            </button>
-          </div>
-
-          <Link
-            href="/seller/escrow"
-            className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors inline-flex items-center gap-1 self-start sm:self-auto cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-sm">hourglass_top</span>
-            <span>Xem Tiền Chờ Quyết Toán</span>
-            <span className="material-symbols-outlined text-sm">arrow_forward</span>
-          </Link>
-        </div>
-
-        {/* TAB 1: BẢNG KÊ CHI TIẾT TỪNG MÓN HÀNG (GROUPED DATA TABLE) */}
-        {activeTab === 'ITEMS' && (
-          <div className="p-4 sm:p-6">
-            <SellerGroupedOrderTable
-              items={filteredItems}
-              loading={isLoading}
-              onAutoReleaseItem={handleAutoReleaseItem}
-              title="Bảng Kê Chi Tiết Đơn Hàng & Dòng Tiền"
-              subtitle="Báo cáo sao kê đơn hàng thực nhận 95% theo thời gian thực"
-            />
-          </div>
-        )}
-
-        {/* TAB 2: NHẬT KÝ DÒNG TIỀN VÀO - RA */}
-        {activeTab === 'TRANSACTIONS' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-gray-700">
-              <thead className="bg-[#F8FAFC] text-[11px] font-bold text-gray-500 uppercase border-b border-gray-200">
-                <tr>
-                  <th className="p-3.5">Thời Gian</th>
-                  <th className="p-3.5">Loại Biến Động</th>
-                  <th className="p-3.5">Nội Dung Chi Tiết</th>
-                  <th className="p-3.5 text-right">Số Tiền Phát Sinh</th>
-                  <th className="p-3.5 text-right">Khả Dụng Trước</th>
-                  <th className="p-3.5 text-right">Khả Dụng Sau</th>
-                  <th className="p-3.5 text-center">Trạng Thái</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {transactions.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="p-8 text-center text-gray-500">
-                      Chưa có giao dịch biến động số dư nào được ghi nhận.
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedTransactions.map((tx) => {
-                    const isCredit = tx.type === 'CREDIT_AVAILABLE';
-                    const isDebit = tx.type === 'DEBIT_AVAILABLE';
-                    return (
-                      <tr key={tx.id} className="hover:bg-gray-50/70 transition-colors">
-                        <td className="p-3.5 font-mono text-gray-500 whitespace-nowrap">
-                          {formatVietnamDateTime(tx.createdAt)}
-                        </td>
-                        <td className="p-3.5 whitespace-nowrap">
-                          {isCredit ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <span className="material-symbols-outlined text-[13px]">arrow_downward</span>
-                              <span>+ Cộng Doanh Thu</span>
-                            </span>
-                          ) : isDebit ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                              <span className="material-symbols-outlined text-[13px]">arrow_upward</span>
-                              <span>- Rút Tiền Về STK</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                              <span className="material-symbols-outlined text-[13px]">sync</span>
-                              <span>Chuyển Quỹ Ký Quỹ</span>
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-3.5 max-w-sm">
-                          <div className="font-semibold text-gray-900">{tx.description || 'Giao dịch hệ thống'}</div>
-                          {tx.metadata?.orderCode && (
-                            <div className="text-[11px] text-gray-500 font-mono mt-0.5">
-                              Đơn hàng: #{tx.metadata.orderCode}
-                            </div>
-                          )}
-                        </td>
-                        <td className={`p-3.5 text-right font-black font-mono text-sm ${isCredit ? 'text-emerald-700' : isDebit ? 'text-rose-600' : 'text-gray-900'}`}>
-                          {isCredit ? '+' : isDebit ? '-' : ''}
-                          {formatVND(tx.amount)}
-                        </td>
-                        <td className="p-3.5 text-right font-mono text-gray-500">
-                          {formatVND(tx.availableBefore)}
-                        </td>
-                        <td className="p-3.5 text-right font-mono font-bold text-gray-900">
-                          {formatVND(tx.availableAfter)}
-                        </td>
-                        <td className="p-3.5 text-center">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <span className="material-symbols-outlined text-[12px]">check</span>
-                            <span>Thành công</span>
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-
-            {/* Phân trang Tab 2 */}
-            {transactions.length > 0 && (
-              <div className="p-3.5 border-t border-gray-100 bg-white">
-                <SellerPagination
-                  currentPage={txPage}
-                  totalPages={txTotalPages}
-                  totalItems={transactions.length}
-                  pageSize={txPageSize}
-                  onPageChange={(p) => setTxPage(p)}
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* TAB 3: LỆNH RÚT TIỀN VỀ NGÂN HÀNG (GROUPED DATA TABLE) */}
-        {activeTab === 'PAYOUTS' && (
-          <div className="p-4 sm:p-6">
-            <SellerPayoutGroupedTable
-              items={payouts}
-              loading={isLoading}
-              totalItems={payouts.length}
-              currentPage={payoutPage}
-              onPageChange={(p) => setPayoutPage(p)}
-            />
-          </div>
-        )}
       </div>
 
       {/* 7. MODAL DIỄN GIẢI CÔNG THỨC DÒNG TIỀN */}

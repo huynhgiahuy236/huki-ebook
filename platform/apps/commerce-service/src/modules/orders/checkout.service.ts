@@ -141,7 +141,14 @@ export class CheckoutService {
         throwForbidden(ErrorCode.SELF_PURCHASE_FORBIDDEN, 'Bạn không thể mua sản phẩm từ gian hàng của chính mình (chính sách chống tự mua hàng)');
       }
 
-      if (dto.directItem.format === CartItemFormat.PHYSICAL) {
+      const needsPhysical =
+        dto.directItem.format === CartItemFormat.PHYSICAL ||
+        dto.directItem.format === CartItemFormat.BOTH;
+      const needsDigital =
+        dto.directItem.format === CartItemFormat.DIGITAL ||
+        dto.directItem.format === CartItemFormat.BOTH;
+
+      if (needsPhysical) {
         if (
           (book.format !== BookFormat.PHYSICAL && book.format !== BookFormat.BOTH) ||
           !book.physicalDetails?.physicalEnabled
@@ -154,7 +161,8 @@ export class CheckoutService {
         ) {
           throwConflict(ErrorCode.INVENTORY_INSUFFICIENT);
         }
-      } else {
+      }
+      if (needsDigital) {
         if (!book.digitalDetails && [BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format as any)) {
           await this.prisma.digitalBookDetails.create({
             data: {
@@ -167,11 +175,12 @@ export class CheckoutService {
         }
       }
 
-      const basePrice = Number(book.price);
+      const basePrice = this.resolveFormatBasePrice(book, dto.directItem.format);
       const flashSale = await this.flashSales.quote(
         userId,
         book.id,
         dto.directItem.quantity,
+        dto.directItem.format,
       );
       let unitPrice = basePrice;
       if (flashSale.isFlashSale && flashSale.salePrice) {
@@ -206,7 +215,7 @@ export class CheckoutService {
         unitPrice,
         subtotal: unitPrice * dto.directItem.quantity,
         weight:
-          dto.directItem.format === CartItemFormat.PHYSICAL && book.physicalDetails
+          needsPhysical && book.physicalDetails
             ? (book.physicalDetails.weight ?? 0) * dto.directItem.quantity
             : 0,
         isFlashSale: flashSale.isFlashSale,
@@ -235,7 +244,14 @@ export class CheckoutService {
             throwForbidden(ErrorCode.SELF_PURCHASE_FORBIDDEN, 'Đơn hàng chứa sản phẩm từ gian hàng của chính bạn. Người bán không được phép tự mua hàng của mình.');
           }
 
-          if (item.format === CartItemFormat.PHYSICAL) {
+          const needsPhysical =
+            item.format === CartItemFormat.PHYSICAL ||
+            item.format === CartItemFormat.BOTH;
+          const needsDigital =
+            item.format === CartItemFormat.DIGITAL ||
+            item.format === CartItemFormat.BOTH;
+
+          if (needsPhysical) {
             if (
               ![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format) ||
               !book.physicalDetails?.physicalEnabled
@@ -248,7 +264,8 @@ export class CheckoutService {
             ) {
               throwConflict(ErrorCode.INVENTORY_INSUFFICIENT);
             }
-          } else {
+          }
+          if (needsDigital) {
             if (
               ![BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format) ||
               !book.digitalDetails?.digitalEnabled
@@ -257,11 +274,12 @@ export class CheckoutService {
             }
           }
 
-          const basePrice = Number(book.price);
+          const basePrice = this.resolveFormatBasePrice(book, item.format);
           const flashSale = await this.flashSales.quote(
             userId,
             book.id,
             item.quantity,
+            item.format,
           );
           let unitPrice = basePrice;
           if (flashSale.isFlashSale && flashSale.salePrice) {
@@ -294,7 +312,7 @@ export class CheckoutService {
             unitPrice,
             subtotal: unitPrice * item.quantity,
             weight:
-              item.format === CartItemFormat.PHYSICAL && book.physicalDetails
+              needsPhysical && book.physicalDetails
                 ? book.physicalDetails.weight * item.quantity
                 : 0,
             isFlashSale: flashSale.isFlashSale,
@@ -314,7 +332,9 @@ export class CheckoutService {
     }
 
     const hasPhysicalItems = items.some(
-      (item) => item.format === CartItemFormat.PHYSICAL,
+      (item) =>
+        item.format === CartItemFormat.PHYSICAL ||
+        item.format === CartItemFormat.BOTH,
     );
 
     // Step 2: Resolve address
@@ -1068,6 +1088,43 @@ export class CheckoutService {
       this.logger.error(`[Checkout Confirm Failure] userId=${userId} sessionId=${dto.sessionId}: ${(error as any)?.message}`, (error as any)?.stack);
       throw error;
     }
+  }
+
+  private resolveFormatBasePrice(book: any, format?: CartItemFormat | string): number {
+    const comboPrice = Number(book?.priceCombo ?? book?.price ?? 0);
+    const bookFormat = String(book?.format || 'PHYSICAL').toUpperCase();
+    let pricePaper = Number(book?.pricePaper ?? book?.physicalPrice ?? 0);
+    let priceEbook = Number(book?.priceEbook ?? book?.ebookPrice ?? 0);
+
+    if (book?.physicalDetails?.dimensions) {
+      try {
+        const dim =
+          typeof book.physicalDetails.dimensions === 'string'
+            ? JSON.parse(book.physicalDetails.dimensions)
+            : book.physicalDetails.dimensions;
+        if (dim && typeof dim === 'object') {
+          if (!pricePaper && dim.pricePaper !== undefined) pricePaper = Number(dim.pricePaper);
+          if (!priceEbook && dim.priceEbook !== undefined) priceEbook = Number(dim.priceEbook);
+        }
+      } catch {}
+    }
+
+    const fmt = String(format || bookFormat).toUpperCase();
+    if (fmt === CartItemFormat.PHYSICAL) {
+      return pricePaper > 0
+        ? pricePaper
+        : bookFormat === 'BOTH' && comboPrice > 0
+          ? Math.round(comboPrice * 0.75)
+          : comboPrice;
+    }
+    if (fmt === CartItemFormat.DIGITAL) {
+      return priceEbook > 0
+        ? priceEbook
+        : bookFormat === 'BOTH' && comboPrice > 0
+          ? Math.round(comboPrice * 0.45)
+          : comboPrice;
+    }
+    return comboPrice;
   }
 
   private code(prefix: string) {

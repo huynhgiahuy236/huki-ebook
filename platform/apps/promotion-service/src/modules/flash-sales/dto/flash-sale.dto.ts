@@ -34,6 +34,12 @@ export enum FlashSaleScope {
   SHOP = "SHOP",
 }
 
+export enum FlashSaleTargetFormat {
+  PHYSICAL = "PHYSICAL",
+  DIGITAL = "DIGITAL",
+  BOTH = "BOTH",
+}
+
 export class CreateFlashSaleDto {
   @ApiProperty({ example: "Summer Sale 2026" })
   @IsString()
@@ -135,6 +141,11 @@ export class CreateFlashSaleItemDto {
   @Min(1)
   @IsOptional()
   maxPerUser?: number;
+
+  @ApiPropertyOptional({ enum: FlashSaleTargetFormat, description: "Định dạng sách áp dụng Flash Sale" })
+  @IsEnum(FlashSaleTargetFormat)
+  @IsOptional()
+  targetFormat?: FlashSaleTargetFormat;
 }
 
 export class FlashSaleQueryDto {
@@ -197,6 +208,11 @@ export class ValidateQuotaDto {
   @Min(1)
   @IsOptional()
   quantity?: number = 1;
+
+  @ApiPropertyOptional({ enum: FlashSaleTargetFormat, description: "Định dạng mua của khách hàng" })
+  @IsEnum(FlashSaleTargetFormat)
+  @IsOptional()
+  targetFormat?: FlashSaleTargetFormat;
 }
 
 export class ReserveFlashSaleDto {
@@ -223,6 +239,11 @@ export class ReserveFlashSaleDto {
   })
   @IsString()
   orderId: string;
+
+  @ApiPropertyOptional({ enum: FlashSaleTargetFormat })
+  @IsEnum(FlashSaleTargetFormat)
+  @IsOptional()
+  targetFormat?: FlashSaleTargetFormat;
 }
 
 export class ReleaseFlashSaleOrderDto {
@@ -278,6 +299,11 @@ export class SellerRegisterFlashSaleItemDto {
   @Min(1)
   @IsOptional()
   maxPerUser?: number = 1;
+
+  @ApiPropertyOptional({ enum: FlashSaleTargetFormat, description: "Định dạng áp dụng Flash Sale" })
+  @IsEnum(FlashSaleTargetFormat)
+  @IsOptional()
+  targetFormat?: FlashSaleTargetFormat;
 }
 
 export class SellerBatchItemDto {
@@ -296,6 +322,11 @@ export class SellerBatchItemDto {
   @Min(1)
   @IsOptional()
   maxPerUser?: number = 1;
+
+  @ApiPropertyOptional({ enum: FlashSaleTargetFormat })
+  @IsEnum(FlashSaleTargetFormat)
+  @IsOptional()
+  targetFormat?: FlashSaleTargetFormat;
 }
 
 export class SellerBatchRegisterFlashSaleItemsDto {
@@ -326,6 +357,11 @@ export class SellerUpdateFlashSaleItemDto {
   @IsInt()
   @Min(1)
   maxPerUser?: number;
+
+  @ApiPropertyOptional({ enum: FlashSaleTargetFormat, description: "Định dạng áp dụng Flash Sale" })
+  @IsOptional()
+  @IsEnum(FlashSaleTargetFormat)
+  targetFormat?: FlashSaleTargetFormat;
 }
 
 

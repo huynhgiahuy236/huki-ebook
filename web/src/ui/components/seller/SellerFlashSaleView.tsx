@@ -28,10 +28,16 @@ import {
   type ViolationType,
 } from '@/ui/services/sellerPenaltyService';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+import {
+  resolveBookOriginalPriceByFormat,
+  getDefaultFlashSaleTargetFormat,
+  type FlashSaleTargetFormat,
+} from '@/ui/utils/flashSaleFormat';
 
 interface ConfiguredBookItem {
   book: BookData;
   isSelected: boolean;
+  targetFormat: FlashSaleTargetFormat;
   salePrice: number;
   stock: number;
   maxPerUser: number;
@@ -268,6 +274,7 @@ interface StudioBookRowProps {
   };
   onToggleSelect: (bookId: string) => void;
   onUpdateField: (bookId: string, field: 'salePrice' | 'stock' | 'maxPerUser', val: number) => void;
+  onUpdateTargetFormat: (bookId: string, targetFormat: FlashSaleTargetFormat) => void;
 }
 
 const StudioBookRow = React.memo(function StudioBookRow({
@@ -279,11 +286,13 @@ const StudioBookRow = React.memo(function StudioBookRow({
   conflictInfo,
   onToggleSelect,
   onUpdateField,
+  onUpdateTargetFormat,
 }: StudioBookRowProps) {
-  const orig = Number(book.price || 0);
+  const targetFormat = config?.targetFormat || getDefaultFlashSaleTargetFormat(book);
+  const orig = resolveBookOriginalPriceByFormat(book, targetFormat);
   const defaultSale = isPlatformScope
     ? Math.max(1, Math.round(orig * (1 - platformDiscountPercent / 100)))
-    : Math.round(orig * 0.7);
+    : Math.max(1000, Math.round(orig * 0.7));
   const defaultMaxUser = isPlatformScope ? platformMaxPerUser : 1;
 
   const isSelected = Boolean(config?.isSelected);
@@ -297,7 +306,10 @@ const StudioBookRow = React.memo(function StudioBookRow({
     : orig > 0 && sale > 0 && sale < orig
       ? Math.round(((orig - sale) / orig) * 100)
       : 0;
-  const avail = Number((book as any).available ?? book.physicalDetails?.stock ?? (book as any).stock ?? 20);
+  const avail =
+    targetFormat === 'DIGITAL'
+      ? 999
+      : Number((book as any).available ?? book.physicalDetails?.stock ?? (book as any).stock ?? 20);
   const isConflicted = Boolean(conflictInfo?.hasConflict);
 
   const lowest30d = (book as any).lowestPrice30Days || orig;
@@ -375,15 +387,28 @@ const StudioBookRow = React.memo(function StudioBookRow({
 
       <td className="py-2.5 px-3">
         {book.format === 'DIGITAL' ? (
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-200">
             <span className="material-symbols-outlined text-[12px]">bolt</span>
             <span>Ebook DRM</span>
           </span>
         ) : book.format === 'BOTH' ? (
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-200">
-            <span className="material-symbols-outlined text-[12px]">auto_stories</span>
-            <span>Hybrid (Cả 2)</span>
-          </span>
+          <select
+            value={targetFormat}
+            disabled={isConflicted}
+            onChange={(e) => onUpdateTargetFormat(book.id, e.target.value as FlashSaleTargetFormat)}
+            title="Chọn định dạng áp dụng Flash Sale cho cuốn sách Hybrid này"
+            className={`px-2 py-1 rounded-lg text-[11px] font-bold outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border transition-colors ${
+              targetFormat === 'PHYSICAL'
+                ? 'bg-amber-50 text-amber-800 border-amber-300 focus:border-amber-500'
+                : targetFormat === 'DIGITAL'
+                  ? 'bg-sky-50 text-sky-800 border-sky-300 focus:border-sky-500'
+                  : 'bg-purple-50 text-purple-900 border-purple-300 focus:border-purple-500'
+            }`}
+          >
+            <option value="BOTH">Combo (Giấy + Ebook)</option>
+            <option value="PHYSICAL">Chỉ Sách Giấy</option>
+            <option value="DIGITAL">Chỉ Ebook DRM</option>
+          </select>
         ) : (
           <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
             <span className="material-symbols-outlined text-[12px]">inventory_2</span>
@@ -392,7 +417,9 @@ const StudioBookRow = React.memo(function StudioBookRow({
         )}
       </td>
 
-      <td className="py-2.5 px-3 font-semibold text-gray-600">{avail} cuốn</td>
+      <td className="py-2.5 px-3 font-semibold text-gray-600">
+        {targetFormat === 'DIGITAL' ? 'Không giới hạn' : `${avail} cuốn`}
+      </td>
 
       <td className="py-2.5 px-3 font-bold text-gray-800">{orig.toLocaleString('vi-VN')} đ</td>
 
@@ -481,8 +508,8 @@ const StudioBookRow = React.memo(function StudioBookRow({
             Min 30d: <strong className="text-gray-800">{lowest30d.toLocaleString('vi-VN')} đ</strong>
           </div>
           {antiFakeValidation.isValid ? (
-            <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 w-fit">
-              <span className="material-symbols-outlined text-[10px]">verified</span>
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 w-fit">
+              <span className="material-symbols-outlined text-[12px] text-slate-500">check_circle</span>
               <span>Hợp lệ (-{orig > 0 ? Math.round(((orig - sale) / orig) * 100) : 0}%)</span>
             </span>
           ) : (
@@ -928,12 +955,14 @@ export function SellerFlashSaleView() {
             nextMap[b.id] = { ...prevMap[b.id], book: b };
             return;
           }
-          const origPrice = Number(b.price || 100000);
+          const defaultFmt = getDefaultFlashSaleTargetFormat(b);
+          const origPrice = resolveBookOriginalPriceByFormat(b, defaultFmt) || Number(b.price || 100000);
           const defaultSale = Math.max(1000, Math.round(origPrice * 0.7));
           const avail = Number((b as any).available ?? b.physicalDetails?.stock ?? (b as any).stock ?? 20);
           nextMap[b.id] = {
             book: b,
             isSelected: false,
+            targetFormat: defaultFmt,
             salePrice: defaultSale,
             stock: Math.min(10, Math.max(1, avail)),
             maxPerUser: 1,
@@ -1015,7 +1044,8 @@ export function SellerFlashSaleView() {
       const matchFormat =
         bookFormatFilter === 'ALL' ||
         (bookFormatFilter === 'PHYSICAL' && format === 'PHYSICAL') ||
-        (bookFormatFilter === 'DIGITAL' && (format === 'DIGITAL' || format === 'BOTH'));
+        (bookFormatFilter === 'DIGITAL' && format === 'DIGITAL') ||
+        (bookFormatFilter === 'BOTH' && format === 'BOTH');
 
       return matchSearch && matchCategory && matchFormat;
     });
@@ -1073,7 +1103,7 @@ export function SellerFlashSaleView() {
         let nextMaxPerUser = current.maxPerUser;
 
         if (nextSelected && isPlatformScope) {
-          const orig = Number(current.book.price || 0);
+          const orig = resolveBookOriginalPriceByFormat(current.book, current.targetFormat);
           nextSalePrice = Math.max(1, Math.round(orig * (1 - platformDiscountPercent / 100)));
           nextMaxPerUser = platformMaxPerUser;
         }
@@ -1125,7 +1155,7 @@ export function SellerFlashSaleView() {
         if (updated[b.id]) {
           if (nextVal) {
             if (selectedCount < maxAllowed) {
-              const orig = Number(updated[b.id].book.price || 0);
+              const orig = resolveBookOriginalPriceByFormat(updated[b.id].book, updated[b.id].targetFormat);
               const nextSalePrice = isPlatformScope
                 ? Math.max(1, Math.round(orig * (1 - platformDiscountPercent / 100)))
                 : updated[b.id].salePrice;
@@ -1179,6 +1209,28 @@ export function SellerFlashSaleView() {
     [isPlatformScope],
   );
 
+  // Update target format on a Hybrid book and recalculate default prices
+  const handleUpdateTargetFormat = useCallback(
+    (bookId: string, targetFormat: FlashSaleTargetFormat) => {
+      setBookConfigMap((prev) => {
+        const current = prev[bookId];
+        if (!current) return prev;
+        const orig = resolveBookOriginalPriceByFormat(current.book, targetFormat);
+        const pct = isPlatformScope ? platformDiscountPercent : 30;
+        const nextSalePrice = Math.max(1000, Math.round(orig * (1 - pct / 100)));
+        return {
+          ...prev,
+          [bookId]: {
+            ...current,
+            targetFormat,
+            salePrice: nextSalePrice,
+          },
+        };
+      });
+    },
+    [isPlatformScope, platformDiscountPercent],
+  );
+
   // Bulk Apply Percent Discount
   const handleApplyBulkDiscount = (target: 'ALL_SELECTED' | 'BY_CATEGORY', specificPercent?: number) => {
     if (isPlatformScope) {
@@ -1205,7 +1257,7 @@ export function SellerFlashSaleView() {
         }
 
         if (shouldApply) {
-          const orig = Number(item.book.price || 0);
+          const orig = resolveBookOriginalPriceByFormat(item.book, item.targetFormat);
           const newSale = Math.max(1000, Math.round(orig * (1 - percent / 100)));
           updated[id] = { ...item, salePrice: newSale };
         }
@@ -1291,7 +1343,7 @@ export function SellerFlashSaleView() {
         Object.keys(next).forEach((id) => {
           const item = next[id];
           if (item) {
-            const orig = Number(item.book.price || 0);
+            const orig = resolveBookOriginalPriceByFormat(item.book, item.targetFormat);
             next[id] = {
               ...item,
               salePrice: Math.max(1, Math.round(orig * (1 - disc / 100))),
@@ -1377,7 +1429,7 @@ export function SellerFlashSaleView() {
     }
 
     for (const item of selectedBooksList) {
-      const orig = Number(item.book.price || 0);
+      const orig = resolveBookOriginalPriceByFormat(item.book, item.targetFormat);
       if (item.salePrice <= 0 || item.salePrice >= orig) {
         showToast(
           `Sách "${item.book.title}" có giá Flash Sale (${item.salePrice.toLocaleString('vi-VN')} đ) không hợp lệ so với giá niêm yết (${orig.toLocaleString('vi-VN')} đ)`,
@@ -1430,6 +1482,7 @@ export function SellerFlashSaleView() {
           salePrice: item.salePrice,
           stock: item.stock,
           maxPerUser: item.maxPerUser || 1,
+          targetFormat: item.targetFormat,
         })),
       };
 
@@ -1546,8 +1599,15 @@ export function SellerFlashSaleView() {
 
   // Inline Row Editing Handlers (Zero Popup)
   const handleStartInlineEdit = (item: any) => {
-    const orig = Number(item.originalPrice || item.book?.price || 0);
-    const avail = Number(item.book?.available ?? item.book?.physicalDetails?.stock ?? item.book?.stock ?? 20);
+    const orig = Number(
+      item.originalPrice ||
+        resolveBookOriginalPriceByFormat(item.book, item.targetFormat || item.format),
+    );
+    const targetFmt = item.targetFormat || item.format || item.book?.format || 'PHYSICAL';
+    const avail =
+      targetFmt === 'DIGITAL'
+        ? 999
+        : Number(item.book?.available ?? item.book?.physicalDetails?.stock ?? item.book?.stock ?? 20);
     setEditingRowId(item.id);
     setEditingRowData({
       salePrice: Number(item.salePrice || Math.round(orig * 0.7)),
@@ -2682,6 +2742,7 @@ export function SellerFlashSaleView() {
                     <option value="ALL">Tất cả định dạng</option>
                     <option value="PHYSICAL">Sách giấy</option>
                     <option value="DIGITAL">Sách điện tử Ebook</option>
+                    <option value="BOTH">Combo Hybrid (Cả 2)</option>
                   </select>
                 </div>
               </div>
@@ -2729,6 +2790,7 @@ export function SellerFlashSaleView() {
                           conflictInfo={bookConflictMap.get(book.id)}
                           onToggleSelect={handleToggleSelectBook}
                           onUpdateField={handleUpdateBookField}
+                          onUpdateTargetFormat={handleUpdateTargetFormat}
                         />
                       ))
                     )}

@@ -1,7 +1,7 @@
 import { apiClient } from './apiClient';
 import type { ApiResponse } from './types';
 
-export type CartItemFormat = 'PHYSICAL' | 'DIGITAL';
+export type CartItemFormat = 'PHYSICAL' | 'DIGITAL' | 'BOTH';
 
 export interface CartBook {
   id: string;

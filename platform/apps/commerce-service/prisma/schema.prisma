@@ -32,6 +32,7 @@ enum BookStatus {
 enum CartItemFormat {
   PHYSICAL
   DIGITAL
+  BOTH
 }
 
 enum OrderStatus {

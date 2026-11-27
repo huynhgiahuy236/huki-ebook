@@ -826,9 +826,11 @@ export default function CheckoutPage() {
           payload.directItem = {
             bookId: directItem.bookId || directItem.id,
             format:
-              directItem.format === "DIGITAL" || directItem.type === "ebook"
-                ? "DIGITAL"
-                : "PHYSICAL",
+              directItem.format === "BOTH" || directItem.type === "hybrid"
+                ? "BOTH"
+                : directItem.format === "DIGITAL" || directItem.type === "ebook"
+                  ? "DIGITAL"
+                  : "PHYSICAL",
             quantity: Number(directItem.quantity) || 1,
           };
         } else {
@@ -1079,11 +1081,15 @@ export default function CheckoutPage() {
                   item.bookId
                 );
               if (isUUID) {
-                const apiFormat =
-                  item.type === "physical" ||
-                  item.format?.toLowerCase().includes("giấy")
-                    ? "PHYSICAL"
-                    : "DIGITAL";
+                const apiFormat: "PHYSICAL" | "DIGITAL" | "BOTH" =
+                  item.apiFormat === "BOTH" ||
+                  item.type === "hybrid" ||
+                  item.format?.toLowerCase().includes("combo")
+                    ? "BOTH"
+                    : item.type === "physical" ||
+                      item.format?.toLowerCase().includes("giấy")
+                      ? "PHYSICAL"
+                      : "DIGITAL";
                 const exists = syncedServerItems.some(
                   (si: any) => si.bookId === item.bookId && si.format === apiFormat
                 );
@@ -1189,9 +1195,11 @@ export default function CheckoutPage() {
           previewPayload.directItem = {
             bookId: targetBookId,
             format:
-              directItem.format === "DIGITAL" || directItem.type === "ebook"
-                ? "DIGITAL"
-                : "PHYSICAL",
+              directItem.format === "BOTH" || directItem.type === "hybrid"
+                ? "BOTH"
+                : directItem.format === "DIGITAL" || directItem.type === "ebook"
+                  ? "DIGITAL"
+                  : "PHYSICAL",
             quantity: Number(directItem.quantity) || 1,
           };
         } else {
@@ -1199,9 +1207,13 @@ export default function CheckoutPage() {
             .map((it: any) => {
               if (isUUID(it.id)) return it.id;
               const apiFormat =
-                it.type === "physical" || it.format?.toLowerCase().includes("giấy")
-                  ? "PHYSICAL"
-                  : "DIGITAL";
+                it.apiFormat === "BOTH" ||
+                it.type === "hybrid" ||
+                it.format?.toLowerCase().includes("combo")
+                  ? "BOTH"
+                  : it.type === "physical" || it.format?.toLowerCase().includes("giấy")
+                    ? "PHYSICAL"
+                    : "DIGITAL";
               const matched = syncedServerItems.find(
                 (si: any) => si.bookId === it.bookId && si.format === apiFormat
               );

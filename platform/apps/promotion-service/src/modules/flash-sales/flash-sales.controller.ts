@@ -85,8 +85,11 @@ export class FlashSalesController {
 
   @Get("price/:bookId")
   @ApiOperation({ summary: "Get active flash sale price for a book" })
-  getBookPrice(@Param("bookId") bookId: string) {
-    return this.flashSales.getBookFlashSalePrice(bookId);
+  getBookPrice(
+    @Param("bookId") bookId: string,
+    @Query("format") format?: string,
+  ) {
+    return this.flashSales.getBookFlashSalePrice(bookId, format);
   }
 
   @Post("validate-quota")

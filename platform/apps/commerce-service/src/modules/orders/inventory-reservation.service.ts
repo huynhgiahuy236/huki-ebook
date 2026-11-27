@@ -16,7 +16,7 @@ export class InventoryReservationService {
 
   async reserve(tx: Prisma.TransactionClient, orderId: string, items: any[]): Promise<void> {
     const physical = items
-      .filter((item) => item.format === CartItemFormat.PHYSICAL)
+      .filter((item) => item.format === CartItemFormat.PHYSICAL || item.format === CartItemFormat.BOTH)
       .sort((a, b) => a.bookId.localeCompare(b.bookId));
 
     for (const item of physical) {
