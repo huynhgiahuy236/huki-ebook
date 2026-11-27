@@ -205,15 +205,15 @@ export default function BookReportModal({ isOpen, onClose, book }: BookReportMod
 
             {/* Description Textarea */}
             <div className="space-y-1.5">
-              <label className="block font-bold text-slate-800 text-xs">
+              <label className="block font-semibold text-slate-800 text-xs">
                 Mô Tả Chi Tiết &amp; Dẫn Chứng Cụ Thể <span className="text-rose-500">*</span>
               </label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                rows={4}
-                placeholder="Vui lòng cung cấp chi tiết số trang sách, đoạn văn hoặc dấu hiệu vi phạm để BQT có cơ sở đối chiếu thẩm định..."
-                className="w-full p-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 leading-relaxed shadow-2xs text-xs"
+                rows={3}
+                placeholder="Vui lòng cung cấp chi tiết số trang sách, đoạn văn hoặc dấu hiệu vi phạm..."
+                className="w-full p-3 bg-white border border-slate-300 hover:border-slate-400 rounded-lg text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-1 focus:ring-[#00875A] leading-relaxed text-xs transition-colors resize-none"
                 required
               />
               <div className="flex items-center justify-between text-[11px] text-slate-400">
@@ -226,7 +226,7 @@ export default function BookReportModal({ isOpen, onClose, book }: BookReportMod
 
             {/* Optional Evidence URL */}
             <div className="space-y-1.5">
-              <label className="block font-bold text-slate-700 text-xs">
+              <label className="block font-semibold text-slate-700 text-xs">
                 Đường Dẫn Bằng Chứng Đối Chiếu (Không bắt buộc)
               </label>
               <input
@@ -234,7 +234,7 @@ export default function BookReportModal({ isOpen, onClose, book }: BookReportMod
                 value={evidenceUrl}
                 onChange={(e) => setEvidenceUrl(e.target.value)}
                 placeholder="Ví dụ: Link bài viết bản quyền gốc, link đối chiếu sách NXB chính thống..."
-                className="w-full h-10.5 px-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:border-[#00875A] shadow-2xs text-xs"
+                className="w-full h-10 px-3 bg-white border border-slate-300 hover:border-slate-400 rounded-lg text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-1 focus:ring-[#00875A] text-xs transition-colors"
               />
             </div>
 

@@ -93,143 +93,8 @@ export interface ReportedBook {
 
 const STORAGE_KEY = 'huki_reported_books_v1';
 
-// Dữ liệu hạt giống thực tế về các đầu sách bị cộng đồng độc giả báo cáo
-const INITIAL_SEEDS: ReportedBook[] = [
-  {
-    bookId: 'book-rep-001',
-    title: 'Nghệ Thuật Bán Hàng Bậc Cao (Bản Tái Bản Đặc Biệt)',
-    author: 'Zig Ziglar',
-    publisher: 'Nhà Nam Books Official',
-    cover: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&auto=format&fit=crop&q=80',
-    isbn: '978-604-58-1234-5',
-    format: 'hybrid',
-    formatLabel: 'Combo Sách + Ebook',
-    price: 108000,
-    ebookPrice: 64800,
-    sellerId: 'biz-nhanam-01',
-    sellerName: 'Nhà Nam Books Official',
-    sellerEmail: 'contact@nhanambooks.vn',
-    totalReports: 3,
-    reasons: [
-      { reason: 'COPYRIGHT', count: 2 },
-      { reason: 'FAKE_BOOK', count: 1 },
-    ],
-    reports: [
-      {
-        id: 'rep-01-a',
-        reporterId: 'usr-reader-01',
-        reporterName: 'Nguyễn Văn Minh (Độc giả VIP)',
-        reporterEmail: 'minh.nguyen@gmail.com',
-        reason: 'COPYRIGHT',
-        description: 'Bản Ebook DRM này có dấu hiệu scan từ sách in cũ và chèn watermark của bên thứ ba không có bản quyền.',
-        createdAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-      },
-      {
-        id: 'rep-01-b',
-        reporterId: 'usr-reader-02',
-        reporterName: 'Trần Thị Hà',
-        reporterEmail: 'ha.tran@yahoo.com',
-        reason: 'COPYRIGHT',
-        description: 'Tác phẩm này bản quyền dịch độc quyền tại VN thuộc về đơn vị khác, gian hàng này chưa cung cấp được hợp đồng chuyển nhượng.',
-        createdAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
-      },
-      {
-        id: 'rep-01-c',
-        reporterId: 'usr-reader-03',
-        reporterName: 'Lê Hoàng Nam',
-        reporterEmail: 'namle@outlook.com',
-        reason: 'FAKE_BOOK',
-        description: 'Chất lượng trang in mờ nhạt, bìa in sai tên nhà xuất bản cấp phép.',
-        createdAt: new Date(Date.now() - 4 * 3600 * 1000).toISOString(),
-      },
-    ],
-    status: 'PENDING_REVIEW',
-    actionTaken: 'NONE',
-    lastReportedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-    createdAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
-  },
-  {
-    bookId: 'book-rep-002',
-    title: 'Bí Mật Tư Duy Triệu Phú (Bản Thu Âm & Ebook Scan)',
-    author: 'T. Harv Eker',
-    publisher: 'Công ty TNHH Phát Hành Sách Trí Tuệ',
-    cover: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=300&auto=format&fit=crop&q=80',
-    isbn: '978-604-77-9876-1',
-    format: 'ebook',
-    formatLabel: 'Ebook DRM',
-    price: 45000,
-    ebookPrice: 45000,
-    sellerId: 'biz-tritue-02',
-    sellerName: 'Công Ty TNHH Phát Hành Sách Và Nội Dung Số Trí Tuệ Việt',
-    sellerEmail: 'kinhdoanh@tritueviet.vn',
-    totalReports: 2,
-    reasons: [
-      { reason: 'SCAM_PRICE', count: 1 },
-      { reason: 'FAKE_BOOK', count: 1 },
-    ],
-    reports: [
-      {
-        id: 'rep-02-a',
-        reporterId: 'usr-reader-04',
-        reporterName: 'Đặng Tuấn Anh',
-        reporterEmail: 'tuananh.dang@gmail.com',
-        reason: 'SCAM_PRICE',
-        description: 'Mô tả là Ebook đầy đủ 250 trang nhưng khi tải về chỉ có 12 trang tóm tắt sơ sài, lừa dối người mua.',
-        createdAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString(),
-      },
-      {
-        id: 'rep-02-b',
-        reporterId: 'usr-reader-05',
-        reporterName: 'Phạm Quỳnh Nga',
-        reporterEmail: 'quynhnga@gmail.com',
-        reason: 'FAKE_BOOK',
-        description: 'Giấy phép xuất bản ghi năm 2026 nhưng kiểm tra trên cục xuất bản không thấy mã xác thực.',
-        createdAt: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
-      },
-    ],
-    status: 'PENDING_REVIEW',
-    actionTaken: 'NONE',
-    lastReportedAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString(),
-    createdAt: new Date(Date.now() - 36 * 3600 * 1000).toISOString(),
-  },
-  {
-    bookId: 'book-rep-003',
-    title: 'Bộ Truyện Tranh Cổ Tích Dị Bản (Tập 1)',
-    author: 'Nhiều Tác Giả',
-    publisher: 'Gian Hàng Sách Cũ Hà Thành',
-    cover: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=300&auto=format&fit=crop&q=80',
-    isbn: 'Chưa cấp ISBN',
-    format: 'physical',
-    formatLabel: 'Sách Giấy',
-    price: 75000,
-    ebookPrice: null,
-    sellerId: 'biz-hathanh-03',
-    sellerName: 'Gian Hàng Sách Cũ Hà Thành',
-    sellerEmail: 'sachcuhathanh@gmail.com',
-    totalReports: 1,
-    reasons: [
-      { reason: 'INAPPROPRIATE', count: 1 },
-    ],
-    reports: [
-      {
-        id: 'rep-03-a',
-        reporterId: 'usr-reader-06',
-        reporterName: 'Vũ Mai Linh',
-        reporterEmail: 'mailinh.vu@gmail.com',
-        reason: 'INAPPROPRIATE',
-        description: 'Gắn mác truyện thiếu nhi nhưng minh họa bạo lực máu me phản cảm không phù hợp lứa tuổi.',
-        createdAt: new Date(Date.now() - 12 * 3600 * 1000).toISOString(),
-      },
-    ],
-    status: 'BLOCKED',
-    actionTaken: 'BLOCK',
-    actionNote: 'Khóa sản phẩm và cảnh cáo gian hàng do vi phạm tiêu chuẩn bảo vệ trẻ em.',
-    moderatedBy: 'Huki Super Admin',
-    moderatedAt: new Date(Date.now() - 10 * 3600 * 1000).toISOString(),
-    lastReportedAt: new Date(Date.now() - 12 * 3600 * 1000).toISOString(),
-    createdAt: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
-  },
-];
+// Không mock dữ liệu, hàng đợi bắt đầu hoàn toàn sạch để độc giả báo cáo thực tế
+const INITIAL_SEEDS: ReportedBook[] = [];
 
 class BookModerationService {
   private memoryCache: ReportedBook[] | null = null;
@@ -238,7 +103,7 @@ class BookModerationService {
     if (this.memoryCache) return this.memoryCache;
 
     if (typeof window === 'undefined') {
-      this.memoryCache = [...INITIAL_SEEDS];
+      this.memoryCache = [];
       return this.memoryCache;
     }
 
@@ -246,16 +111,18 @@ class BookModerationService {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          this.memoryCache = parsed;
+        if (Array.isArray(parsed)) {
+          // Lọc bỏ toàn bộ dữ liệu mock mẫu trước đó
+          const realReports = parsed.filter((b: any) => b && !String(b.bookId).startsWith('book-rep-'));
+          this.memoryCache = realReports;
           return this.memoryCache;
         }
       }
     } catch (e) {
-      console.warn('[BookModerationService] Không thể đọc localStorage, dùng dữ liệu mẫu:', e);
+      console.warn('[BookModerationService] Không thể đọc localStorage:', e);
     }
 
-    this.memoryCache = [...INITIAL_SEEDS];
+    this.memoryCache = [];
     this.saveStorage(this.memoryCache);
     return this.memoryCache;
   }

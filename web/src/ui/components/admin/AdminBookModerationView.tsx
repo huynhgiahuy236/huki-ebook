@@ -25,8 +25,7 @@ export function AdminBookModerationView() {
   const [reportedBooks, setReportedBooks] = useState<ReportedBook[]>([]);
   const [stats, setStats] = useState({ total: 0, pending: 0, blocked: 0, dismissed: 0 });
 
-  // Expandable & Selectable State (Grouped Data Standard)
-  const [expandedKeys, setExpandedKeys] = useState<(string | number)[]>([]);
+  // Selectable State (Grouped Data Standard)
   const [selectedBookIds, setSelectedBookIds] = useState<string[]>([]);
 
   // Detail & Action Modal State
@@ -120,13 +119,6 @@ export function AdminBookModerationView() {
       window.removeEventListener('huki_book_moderated', handleCustomReport);
     };
   }, [loadData, showToast]);
-
-  // Expand / Collapse helper
-  const toggleExpand = useCallback((bookId: string) => {
-    setExpandedKeys((prev) =>
-      prev.includes(bookId) ? prev.filter((k) => k !== bookId) : [...prev, bookId]
-    );
-  }, []);
 
   // Open modal
   const handleOpenModal = useCallback((book: ReportedBook) => {
@@ -239,54 +231,38 @@ export function AdminBookModerationView() {
     ];
   }, [selectedBookIds.length]);
 
-  // Columns Definition matching Standard GroupedDataTable
+  // Columns Definition matching Standard Enterprise Design
   const columns: Column<ReportedBook>[] = useMemo(
     () => [
       {
         key: 'bookInfo',
         title: 'Tác Phẩm Bị Báo Cáo',
-        minWidth: 300,
+        minWidth: 260,
         render: (_, row) => (
           <div className="flex items-center gap-3 py-1">
             <img
               src={row.cover}
               alt={row.title}
-              className="w-10 h-14 object-cover rounded-lg shadow-2xs shrink-0 border border-slate-200"
+              className="w-10 h-13 object-cover rounded-lg shadow-2xs shrink-0 border border-slate-200"
             />
             <div className="min-w-0 flex-1 space-y-0.5">
               <h4 className="font-bold text-xs text-theme-text line-clamp-1 leading-snug">
                 {row.title}
               </h4>
-              <div className="flex items-center gap-1.5 text-[11px] text-theme-text-muted flex-wrap">
-                <span>{row.author}</span>
-                <span>•</span>
-                <span className="font-mono">{row.isbn}</span>
-              </div>
-              <div className="flex items-center gap-2 pt-0.5">
-                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                  {row.formatLabel}
-                </span>
-                <span className="font-mono text-[11px] text-theme-text font-bold">
-                  {row.price.toLocaleString('vi-VN')} đ
-                </span>
-              </div>
+              <p className="text-[11px] text-theme-text-muted truncate">
+                {row.author || 'Tác giả'}
+              </p>
             </div>
           </div>
         ),
       },
       {
         key: 'sellerInfo',
-        title: 'Gian Hàng / Đối Tác',
-        width: 220,
+        title: 'Gian Hàng',
+        width: 200,
         render: (_, row) => (
-          <div className="flex flex-col gap-0.5 py-1 text-xs">
-            <div className="font-semibold text-theme-text flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[15px] text-[#00875A]">storefront</span>
-              <span className="truncate">{row.sellerName}</span>
-            </div>
-            <span className="text-[11px] text-theme-text-muted truncate">
-              {row.sellerEmail || 'shop@huki.vn'}
-            </span>
+          <div className="py-1 text-xs font-medium text-theme-text truncate">
+            {row.sellerName}
           </div>
         ),
       },
@@ -294,67 +270,50 @@ export function AdminBookModerationView() {
         key: 'reportsCount',
         title: 'Lượt Báo Cáo',
         align: 'center',
-        width: 140,
+        width: 130,
         render: (_, row) => (
           <div className="flex justify-center">
-            {row.totalReports >= 2 ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
-                <span>🔥</span>
-                <span>{row.totalReports} phản ánh</span>
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                <span className="material-symbols-outlined text-[14px]">report</span>
-                <span>{row.totalReports} phản ánh</span>
-              </span>
-            )}
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+              {row.totalReports} phản ánh
+            </span>
           </div>
         ),
       },
       {
         key: 'prominentReason',
-        title: 'Phản Ánh Phổ Biến',
-        minWidth: 260,
+        title: 'Lý Do Phổ Biến',
+        width: 180,
         render: (_, row) => {
           const topReason = row.reasons[0]?.reason || 'OTHER';
           const meta = BOOK_REPORT_REASON_LABELS[topReason] || BOOK_REPORT_REASON_LABELS.OTHER;
-          const latestSnippet = row.reports[0]?.description || 'Chưa có mô tả chi tiết';
-
           return (
-            <div className="flex flex-col gap-1 py-1 text-xs max-w-sm">
-              <div>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${meta.color}`}>
-                  {meta.label}
-                </span>
-              </div>
-              <p className="text-[11px] text-theme-text-muted line-clamp-1 italic">
-                "{latestSnippet}"
-              </p>
-            </div>
+            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${meta.color}`}>
+              {meta.label}
+            </span>
           );
         },
       },
       {
         key: 'status',
-        title: 'Trạng Thái Sàn',
+        title: 'Trạng Thái',
         align: 'center',
-        width: 150,
+        width: 140,
         render: (_, row) => (
           <div className="flex justify-center">
             {row.status === 'BLOCKED' ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-800 border border-rose-200/80">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-rose-50 text-rose-800 border border-rose-200">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                <span>Đã khóa / Chặn</span>
+                <span>Đã khóa</span>
               </span>
             ) : row.status === 'DISMISSED' ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                <span>Đã bác bỏ (Hợp lệ)</span>
+                <span>Đã bác bỏ</span>
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/80">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                <span>Chờ BQT xem xét</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                <span>Chờ xử lý</span>
               </span>
             )}
           </div>
@@ -364,7 +323,7 @@ export function AdminBookModerationView() {
         key: 'actions',
         title: 'Thao Tác',
         align: 'center',
-        width: 130,
+        width: 110,
         render: (_, row) => (
           <div className="flex justify-center">
             <button
@@ -373,80 +332,14 @@ export function AdminBookModerationView() {
                 e.stopPropagation();
                 handleOpenModal(row);
               }}
-              className="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-[#00875A] hover:text-white border border-slate-200 hover:border-[#00875A] text-slate-700 text-xs font-bold transition-all shadow-2xs inline-flex items-center gap-1.5 cursor-pointer active:scale-95"
+              className="px-3.5 py-1.5 rounded-lg bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-bold transition-all shadow-2xs inline-flex items-center gap-1 cursor-pointer active:scale-95"
             >
-              <span>Xử Lý</span>
-              <span className="material-symbols-outlined text-[14px]">gavel</span>
+              <span>Xử lý</span>
             </button>
           </div>
         ),
       },
     ],
-    [handleOpenModal]
-  );
-
-  // Grouped Reports Detail (Accordion when row is expanded)
-  const renderReportsDetail = useCallback(
-    (book: ReportedBook) => (
-      <div className="space-y-3 p-1">
-        <div className="flex items-center justify-between border-b border-theme-border/70 pb-2.5 flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-rose-600 text-[18px]">feedback</span>
-            <h4 className="text-xs font-bold text-theme-text uppercase tracking-wide">
-              Hồ Sơ Chi Tiết Các Phản Ánh Từ Bạn Đọc ({book.reports.length} phản ánh)
-            </h4>
-          </div>
-          <button
-            type="button"
-            onClick={() => handleOpenModal(book)}
-            className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-95"
-          >
-            <span className="material-symbols-outlined text-[15px]">gavel</span>
-            <span>Xử Lý Vi Phạm Tác Phẩm</span>
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-          {book.reports.map((r, idx) => {
-            const meta = BOOK_REPORT_REASON_LABELS[r.reason] || BOOK_REPORT_REASON_LABELS.OTHER;
-            return (
-              <div
-                key={r.id || idx}
-                className="p-3.5 rounded-2xl bg-theme-surface border border-theme-border/80 shadow-2xs space-y-2 text-xs"
-              >
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 font-bold text-[10px] flex items-center justify-center">
-                      {idx + 1}
-                    </span>
-                    <span className="font-bold text-theme-text">{r.reporterName}</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold border ${meta.color}`}>
-                      {meta.label}
-                    </span>
-                  </div>
-                  <span className="text-[10.5px] text-theme-text-muted">
-                    {new Date(r.createdAt).toLocaleString('vi-VN')}
-                  </span>
-                </div>
-
-                <p className="text-theme-text/90 leading-relaxed bg-theme-surface-subtle/50 p-2.5 rounded-xl border border-theme-border/50 text-xs">
-                  {r.description}
-                </p>
-
-                {r.evidenceUrl && (
-                  <div className="flex items-center gap-1 text-[11px] text-blue-600 hover:underline">
-                    <span className="material-symbols-outlined text-[13px]">link</span>
-                    <a href={r.evidenceUrl} target="_blank" rel="noopener noreferrer">
-                      Bằng chứng đối chiếu: {r.evidenceUrl}
-                    </a>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    ),
     [handleOpenModal]
   );
 
@@ -544,22 +437,19 @@ export function AdminBookModerationView() {
         selectable={true}
         selectedRowKeys={selectedBookIds}
         onSelectionChange={(keys) => setSelectedBookIds(keys as string[])}
-        expandable={true}
-        expandedRowRender={renderReportsDetail}
-        expandedRowKeys={expandedKeys}
-        onExpandedRowsChange={setExpandedKeys}
-        onRowClick={(row) => toggleExpand(row.bookId)}
+        expandable={false}
+        onRowClick={(row) => handleOpenModal(row)}
         loading={isLoading}
         onRetry={() => loadData(false)}
-        emptyTitle="Không có tác phẩm nào bị báo cáo"
+        emptyTitle="Hàng đợi kiểm duyệt trống"
         emptyMessage={
           searchQuery
             ? `Không tìm thấy tác phẩm khớp với từ khóa "${searchQuery}"`
-            : 'Hiện tại cộng đồng bạn đọc chưa gửi phản ánh vi phạm nào.'
+            : 'Hiện tại chưa có tác phẩm nào bị độc giả báo cáo vi phạm.'
         }
         emptyIcon="verified"
         pagination={true}
-        tableClassName="w-full min-w-[800px]"
+        tableClassName="w-full min-w-[750px]"
       />
 
       {/* 5. Modal Hồ Sơ Thẩm Tra & Xử Lý Vi Phạm */}
