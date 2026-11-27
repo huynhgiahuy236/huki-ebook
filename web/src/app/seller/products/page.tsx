@@ -51,6 +51,7 @@ interface SellerBookItem {
   id: string;
   title: string;
   slug?: string;
+  isbn?: string;
   price?: number;
   originalPrice?: number;
   format?: BookFormat;
@@ -85,14 +86,19 @@ function SellerProductsContent() {
 
   const [books, setBooks] = useState<SellerBookItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('ALL');
+  const tabParam = searchParams?.get('tab');
+  const [activeTab, setActiveTab] = useState(() => tabParam || 'ALL');
   const [searchQuery, setSearchQuery] = useState(() => searchParams?.get('search') || searchParams?.get('q') || '');
 
-  // BUG-020: Sync search query from URL query params
+  // BUG-020: Sync search query and tab from URL query params
   useEffect(() => {
     const q = searchParams?.get('search') || searchParams?.get('q');
     if (q !== null && q !== undefined) {
       setSearchQuery(q);
+    }
+    const t = searchParams?.get('tab');
+    if (t) {
+      setActiveTab(t);
     }
   }, [searchParams]);
   const [selectedFormat, setSelectedFormat] = useState('ALL');
@@ -410,13 +416,14 @@ function SellerProductsContent() {
   const metrics = useMemo(() => {
     const total = books.length;
     const published = books.filter(b => b.status === 'PUBLISHED').length;
+    const suspended = books.filter(b => b.status === 'SUSPENDED').length;
     const draft = books.filter(b => b.status === 'DRAFT' || !b.status).length;
     const totalStock = books.reduce((sum, b) => sum + (b.physicalDetails?.stock || 0), 0);
     const lowStock = books.filter(b => (b.physicalDetails?.stock ?? 0) < 10 && (b.physicalDetails?.stock ?? 0) > 0).length;
     const outOfStock = books.filter(b => b.format !== 'DIGITAL' && (b.physicalDetails?.stock ?? 0) === 0).length;
     const digitalCount = books.filter(b => b.format === 'DIGITAL' || b.format === 'BOTH').length;
 
-    return { total, published, draft, totalStock, lowStock, outOfStock, digitalCount };
+    return { total, published, suspended, draft, totalStock, lowStock, outOfStock, digitalCount };
   }, [books]);
 
   // Filtered books
@@ -428,7 +435,10 @@ function SellerProductsContent() {
         const matchTitle = (b.title || '').toLowerCase().includes(q);
         const matchSlug = (b.slug || '').toLowerCase().includes(q);
         const matchId = (b.id || '').toLowerCase().includes(q);
-        if (!matchTitle && !matchSlug && !matchId) return false;
+        const matchIsbn = (b.isbn || '').toLowerCase().includes(q);
+        const authorName = typeof b.author === 'string' ? b.author : (b.author as any)?.name || '';
+        const matchAuthor = authorName.toLowerCase().includes(q);
+        if (!matchTitle && !matchSlug && !matchId && !matchIsbn && !matchAuthor) return false;
       }
 
       // Format filter
@@ -467,6 +477,7 @@ function SellerProductsContent() {
 
       // Tab status filter
       if (activeTab === 'PUBLISHED' && b.status !== 'PUBLISHED') return false;
+      if (activeTab === 'SUSPENDED' && b.status !== 'SUSPENDED') return false;
       if (activeTab === 'DRAFT' && b.status !== 'DRAFT' && b.status) return false;
       if (activeTab === 'LOW_STOCK') {
         const stock = b.physicalDetails?.stock ?? 0;
@@ -591,6 +602,7 @@ function SellerProductsContent() {
   const tabs = [
     { key: 'ALL', label: 'Tất Cả', count: metrics.total },
     { key: 'PUBLISHED', label: 'Đang Bán', count: metrics.published },
+    { key: 'SUSPENDED', label: 'Bị Tạm Khóa', count: metrics.suspended },
     { key: 'DRAFT', label: 'Bản Nháp', count: metrics.draft },
     { key: 'LOW_STOCK', label: 'Sắp Hết Kho', count: metrics.lowStock + metrics.outOfStock },
   ];

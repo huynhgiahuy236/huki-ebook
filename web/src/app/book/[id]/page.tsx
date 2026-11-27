@@ -86,6 +86,7 @@ export interface BookDetailData {
   hasPreviewFile?: boolean;
   publishedAt?: string;
   authorBio?: string;
+  status?: string;
 }
 
 export default function BookDetailPage() {
@@ -913,6 +914,7 @@ export default function BookDetailPage() {
         hasPreviewFile: Boolean(realBook.hasPreviewFile || realBook.digitalDetails?.previewPdfKey),
         publishedAt: realBook.publishedAt || undefined,
         format: realBook.format || 'BOTH',
+        status: realBook.status || 'PUBLISHED',
         isBestseller: Boolean(realBook.isBestseller),
         isReal: true,
       };
@@ -1230,6 +1232,12 @@ export default function BookDetailPage() {
   const isLowStock = isPhysicalSelected && physicalAvailable !== null && physicalAvailable > 0 && physicalAvailable <= 5;
 
   // Shopee Policy: Chặn người bán tự mua sách từ gian hàng của chính mình
+  const isSuspended = Boolean(
+    realBook?.status === 'SUSPENDED' ||
+    (realBook as any)?.status === 'BLOCKED' ||
+    book.status === 'SUSPENDED'
+  );
+
   const isOwnerOfBook = Boolean(
     user && (
       (user.id && (user.id === realBook?.ownerUserId || user.id === (book as any)?.ownerUserId)) ||
@@ -1239,6 +1247,10 @@ export default function BookDetailPage() {
   );
 
   const handleAddToCart = () => {
+    if (isSuspended) {
+      showToast('Tác phẩm này đang tạm ngưng lưu hành để kiểm tra tiêu chuẩn.', 'warning');
+      return;
+    }
     if (isOwnerOfBook) {
       showToast('Bạn không thể mua sản phẩm từ gian hàng của chính mình (chính sách Shopee).', 'warning');
       return;
@@ -1282,6 +1294,10 @@ export default function BookDetailPage() {
   };
 
   const handleBuyNow = () => {
+    if (isSuspended) {
+      showToast('Tác phẩm này đang tạm ngưng lưu hành để kiểm tra tiêu chuẩn.', 'warning');
+      return;
+    }
     if (isOwnerOfBook) {
       showToast('Bạn không thể mua sản phẩm từ gian hàng của chính mình (chính sách Shopee).', 'warning');
       return;
@@ -1459,6 +1475,19 @@ export default function BookDetailPage() {
           <div className="col-span-12 lg:col-span-5.5 xl:col-span-6 flex flex-col">
             <div className="w-full h-full bg-white rounded-2xl p-4.5 sm:p-5 border border-[#e8e5df] shadow-xs flex flex-col justify-between gap-4">
               <div className="space-y-3">
+                {/* Banner Tác phẩm tạm khóa */}
+                {isSuspended && (
+                  <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 flex items-start gap-2.5 animate-in fade-in">
+                    <span className="material-symbols-outlined text-[20px] text-rose-600 shrink-0 mt-0.5">lock</span>
+                    <div className="text-xs space-y-0.5">
+                      <span className="font-bold text-rose-950 block">Tác Phẩm Đang Tạm Ngừng Lưu Hành</span>
+                      <p className="text-[11.5px] text-rose-800 leading-snug">
+                        Tác phẩm này đang tạm ngưng kinh doanh do Ban Quản Trị đang tiến hành rà soát tiêu chuẩn xuất bản hoặc bản quyền.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Title & Meta */}
                 <div>
                   <div className="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -1737,6 +1766,11 @@ export default function BookDetailPage() {
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium">
                     <span className="material-symbols-outlined text-[20px] text-amber-600 shrink-0">store</span>
                     <span>Bạn là chủ gian hàng sở hữu sản phẩm này. Không thể tự đặt mua sản phẩm của chính mình (chính sách Shopee).</span>
+                  </div>
+                ) : isSuspended ? (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold justify-center">
+                    <span className="material-symbols-outlined text-[18px]">lock</span>
+                    <span>Tác phẩm đang tạm khóa lưu hành</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 pt-1">
@@ -2441,7 +2475,7 @@ export default function BookDetailPage() {
         <button
           type="button"
           onClick={handleAddToCart}
-          disabled={isOutOfStock || isOwnerOfBook}
+          disabled={isOutOfStock || isOwnerOfBook || isSuspended}
           className="flex-1 h-10 rounded-lg border border-[#006953] text-[#006953] hover:bg-[#006953]/10 text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
         >
           <span className="material-symbols-outlined text-[17px]">add_shopping_cart</span>
@@ -2450,10 +2484,10 @@ export default function BookDetailPage() {
         <button
           type="button"
           onClick={handleBuyNow}
-          disabled={isOutOfStock || isOwnerOfBook}
+          disabled={isOutOfStock || isOwnerOfBook || isSuspended}
           className="flex-1 h-10 rounded-lg bg-[#006953] hover:bg-[#00523c] text-white text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-colors cursor-pointer"
         >
-          <span>Mua ngay</span>
+          <span>{isSuspended ? 'Tác phẩm tạm khóa' : 'Mua ngay'}</span>
         </button>
       </div>
       {/* Book Report Modal */}

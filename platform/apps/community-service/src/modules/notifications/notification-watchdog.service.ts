@@ -313,7 +313,7 @@ export class NotificationWatchdogService {
           type: "WATCHDOG_ALERT",
           title: `⚠️ Cảnh báo kho hàng: Tựa sách "${item.bookTitle}" sắp hết (< 5 cuốn)`,
           message: `Tựa sách "${item.bookTitle}" hiện chỉ còn ${item.availableStock} cuốn trong kho. Vui lòng nhập thêm hàng để không làm gián đoạn đơn sỉ/lẻ!`,
-          actionUrl: `/seller/product`,
+          actionUrl: `/seller/products`,
           payload: { bookId: item.bookId, availableStock: item.availableStock },
         });
 

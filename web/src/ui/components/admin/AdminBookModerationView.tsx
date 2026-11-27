@@ -512,7 +512,7 @@ export function AdminBookModerationView() {
                     <div className="flex items-center gap-2 pt-0.5">
                       <span className="text-[#00875A] font-bold">Gian hàng: {activeBook.sellerName}</span>
                       <span className="text-slate-300">•</span>
-                      <span className="text-slate-700 font-semibold">{activeBook.price.toLocaleString('vi-VN')} đ</span>
+                      <span className="text-slate-700 font-semibold">{(activeBook.price ?? 0).toLocaleString('vi-VN')} đ</span>
                     </div>
                   </div>
                 </div>
@@ -556,7 +556,7 @@ export function AdminBookModerationView() {
                             </span>
                           </div>
                           <span className="text-[11px] text-slate-400">
-                            {new Date(r.createdAt).toLocaleString('vi-VN')}
+                            {new Date(r.createdAt || Date.now()).toLocaleString('vi-VN')}
                           </span>
                         </div>
 

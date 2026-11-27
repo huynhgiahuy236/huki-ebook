@@ -374,7 +374,7 @@ export class ModerationService {
           priority: 'CRITICAL',
           title: 'Tác phẩm đã bị tạm khóa lưu hành',
           message: `Tác phẩm "${bookTitle}" đã bị Ban Quản Trị khóa do vi phạm tiêu chuẩn: ${dto.note || 'Vi phạm chính sách sàn'}. Vui lòng liên hệ hỗ trợ hoặc gửi giải trình.`,
-          actionUrl: '/seller/books',
+          actionUrl: `/seller/products?tab=SUSPENDED&search=${encodeURIComponent(bookTitle)}`,
           payload: {
             bookId,
             bookTitle,

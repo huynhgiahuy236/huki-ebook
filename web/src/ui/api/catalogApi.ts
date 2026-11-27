@@ -184,7 +184,6 @@ export const catalogApi = {
   async getBookById(id: string): Promise<ApiResponse<BookData>> {
     return apiClient<BookData>(`/books/${id}`, {
       method: 'GET',
-      skipAuth: true,
     });
   },
 
@@ -201,7 +200,6 @@ export const catalogApi = {
   async getBookBySlug(slug: string): Promise<ApiResponse<BookData>> {
     return apiClient<BookData>(`/books/slug/${slug}`, {
       method: 'GET',
-      skipAuth: true,
     });
   },
 

@@ -487,7 +487,7 @@ export class BooksService implements OnModuleInit {
     if (!book) throwNotFound(ErrorCode.BOOK_NOT_FOUND);
 
     const canAccess = await this.canManage(book, actor);
-    if (book!.status !== BookStatus.PUBLISHED && !canAccess) {
+    if (book!.status !== BookStatus.PUBLISHED && book!.status !== BookStatus.SUSPENDED && !canAccess) {
       throwNotFound(ErrorCode.BOOK_NOT_FOUND);
     }
 
@@ -867,7 +867,7 @@ export class BooksService implements OnModuleInit {
     if (!book) throwNotFound(ErrorCode.BOOK_NOT_FOUND);
 
     const canAccess = await this.canManage(book, actor);
-    if (book!.status !== BookStatus.PUBLISHED && !canAccess) {
+    if (book!.status !== BookStatus.PUBLISHED && book!.status !== BookStatus.SUSPENDED && !canAccess) {
       throwNotFound(ErrorCode.BOOK_NOT_FOUND);
     }
 

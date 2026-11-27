@@ -432,7 +432,7 @@ class BookModerationService {
             scheduleType: 'INSTANT',
             status: 'ACTIVE',
             authorName: 'Ban Quản Trị HUKI',
-            actionUrl: `/seller/products?search=${encodeURIComponent(current.isbn || current.title)}`,
+            actionUrl: `/seller/products?tab=SUSPENDED&search=${encodeURIComponent(current.title || current.isbn || '')}`,
             actionLabel: 'Kiểm Tra Gian Hàng',
           });
         } catch (err) {

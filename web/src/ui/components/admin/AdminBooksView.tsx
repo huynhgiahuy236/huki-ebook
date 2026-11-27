@@ -106,7 +106,7 @@ export function AdminBooksView() {
   const fetchBooks = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await adminApi.getBooks({ limit: 100 });
+      const res = await adminApi.getBooks({ limit: 100, status: 'ALL' });
       if (res.success && Array.isArray(res.data)) {
         setBooks(res.data);
       } else {
