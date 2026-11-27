@@ -1496,8 +1496,8 @@ export default function BookDetailPage() {
 
               {/* Format Options */}
               <div className="pt-1">
-                <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Chọn hình thức mua:</span>
-                <div className="grid grid-cols-1 gap-2.5">
+                <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2.5">Chọn hình thức mua:</span>
+                <div className="grid grid-cols-1 gap-3">
                   {Object.values(formatPricing).map((fmt) => {
                     const isSelected = selectedFormat === fmt.type;
                     const isFormatFlashSale = doesFlashSaleMatchPurchaseFormat(
@@ -1525,17 +1525,30 @@ export default function BookDetailPage() {
                           hasManualFormatChoiceRef.current = true;
                           setSelectedFormat(fmt.type);
                         }}
-                        className={`p-3 rounded-xl cursor-pointer transition-colors border-[1.5px] flex items-center justify-between gap-3 select-none ${isSelected
+                        className={`relative p-3.5 rounded-xl cursor-pointer transition-all border-[1.5px] flex items-center justify-between gap-3 select-none ${
+                          isFormatFlashSale ? 'mt-1.5' : ''
+                        } ${isSelected
                           ? isFormatFlashSale
-                            ? 'border-rose-500 bg-rose-50/40 shadow-2xs'
+                            ? 'border-rose-500 bg-rose-50/40 shadow-xs'
                             : 'border-[#006953] bg-[#006953]/5 shadow-2xs'
                           : isFormatFlashSale
-                            ? 'border-rose-300 bg-rose-50/20 hover:border-rose-400'
+                            ? 'border-rose-300 bg-rose-50/15 hover:border-rose-400'
                             : isDiscounted
                               ? 'border-rose-200/80 bg-rose-50/10 hover:border-rose-300'
                               : 'border-gray-200 bg-white hover:border-gray-300'
                           }`}
                       >
+                        {isFormatFlashSale && (
+                          <span className="absolute -top-2.5 right-3 inline-flex items-center px-2.5 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-bold tracking-wide shadow-xs ring-2 ring-white">
+                            Flash Sale{fsPct > 0 ? ` -${fsPct}%` : ''}
+                          </span>
+                        )}
+                        {!isFormatFlashSale && isDiscounted && (
+                          <span className="absolute -top-2 right-3 inline-flex items-center px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200 text-[9.5px] font-semibold ring-2 ring-white">
+                            Ưu đãi
+                          </span>
+                        )}
+
                         <div className="flex items-center gap-2.5 min-w-0 pr-2">
                           <div className={`w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center transition-colors shrink-0 ${isSelected
                             ? isFormatFlashSale
@@ -1547,22 +1560,9 @@ export default function BookDetailPage() {
                           </div>
 
                           <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className={`text-xs font-bold truncate ${isSelected ? (isFormatFlashSale ? 'text-rose-700' : 'text-[#006953]') : 'text-[#17201f]'}`}>
-                                {fmt.title}
-                              </span>
-                              {isFormatFlashSale && (
-                                <span className="inline-flex items-center gap-0.5 bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-semibold px-1.5 py-0.5 rounded-md">
-                                  <span className="material-symbols-outlined text-[11px]">bolt</span>
-                                  <span>Flash Sale{fsPct > 0 ? ` -${fsPct}%` : ''}</span>
-                                </span>
-                              )}
-                              {!isFormatFlashSale && isDiscounted && (
-                                <span className="bg-rose-50 text-rose-600 border border-rose-200 text-[9.5px] font-semibold px-1.5 py-0.2 rounded-md">
-                                  Ưu đãi
-                                </span>
-                              )}
-                            </div>
+                            <span className={`text-xs font-bold block truncate ${isSelected ? (isFormatFlashSale ? 'text-rose-700' : 'text-[#006953]') : 'text-[#17201f]'}`}>
+                              {fmt.title}
+                            </span>
                             <span className="text-[10.5px] text-gray-500 block truncate mt-0.5">
                               {fmt.subtitle}
                             </span>

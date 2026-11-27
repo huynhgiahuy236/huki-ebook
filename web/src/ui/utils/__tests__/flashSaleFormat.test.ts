@@ -3,6 +3,7 @@ import {
   doesFlashSaleMatchPurchaseFormat,
   formatTargetFormatLabel,
   getDefaultFlashSaleTargetFormat,
+  getFlashSaleFormatStyle,
   resolveBookOriginalPriceByFormat,
 } from '../flashSaleFormat';
 
@@ -47,5 +48,16 @@ describe('flashSaleFormat helpers (BUG-29, BUG-30)', () => {
     expect(formatTargetFormatLabel('PHYSICAL')).toBe('Sách Giấy');
     expect(formatTargetFormatLabel('DIGITAL')).toBe('Ebook DRM');
     expect(formatTargetFormatLabel('BOTH')).toBe('Combo (Giấy + Ebook)');
+  });
+
+  it('returns distinct subtle per-format styles for Studio Flash Sale UI', () => {
+    const paper = getFlashSaleFormatStyle('PHYSICAL');
+    const ebook = getFlashSaleFormatStyle('DIGITAL');
+    const combo = getFlashSaleFormatStyle('BOTH');
+    expect(paper.dotClass).not.toBe(ebook.dotClass);
+    expect(ebook.dotClass).not.toBe(combo.dotClass);
+    expect(paper.badgeClass).toContain('amber');
+    expect(ebook.badgeClass).toContain('sky');
+    expect(combo.badgeClass).toContain('violet');
   });
 });

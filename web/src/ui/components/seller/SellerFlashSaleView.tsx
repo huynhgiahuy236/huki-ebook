@@ -31,6 +31,7 @@ import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import {
   resolveBookOriginalPriceByFormat,
   getDefaultFlashSaleTargetFormat,
+  getFlashSaleFormatStyle,
   type FlashSaleTargetFormat,
 } from '@/ui/utils/flashSaleFormat';
 
@@ -367,18 +368,15 @@ const StudioBookRow = React.memo(function StudioBookRow({
             {isConflicted && (
               <span
                 title={`Đang tham gia "${conflictInfo?.conflictSessionName}"`}
-                className={`inline-flex items-center gap-1 text-[9.5px] font-bold px-1.5 py-0.5 rounded-md mt-0.5 ${
+                className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-md mt-1 border ${
                   conflictInfo?.conflictScope === 'PLATFORM'
-                    ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                    : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                    ? 'bg-rose-50/70 text-rose-700 border-rose-200/70'
+                    : 'bg-emerald-50/70 text-emerald-700 border-emerald-200/70'
                 }`}
               >
-                <span className="material-symbols-outlined text-[11px]">lock</span>
-                <span>
-                  {conflictInfo?.conflictScope === 'PLATFORM'
-                    ? 'Đang tham gia Flash Sale Sàn'
-                    : 'Đang tham gia Flash Sale Shop'}
-                </span>
+                {conflictInfo?.conflictScope === 'PLATFORM'
+                  ? 'Đang tham gia Flash Sale Sàn'
+                  : 'Đang tham gia Flash Sale Shop'}
               </span>
             )}
           </div>
@@ -387,8 +385,8 @@ const StudioBookRow = React.memo(function StudioBookRow({
 
       <td className="py-2.5 px-3">
         {book.format === 'DIGITAL' ? (
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-200">
-            <span className="material-symbols-outlined text-[12px]">bolt</span>
+          <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-md border ${getFlashSaleFormatStyle('DIGITAL').badgeClass}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${getFlashSaleFormatStyle('DIGITAL').dotClass}`} />
             <span>Ebook DRM</span>
           </span>
         ) : book.format === 'BOTH' ? (
@@ -397,21 +395,15 @@ const StudioBookRow = React.memo(function StudioBookRow({
             disabled={isConflicted}
             onChange={(e) => onUpdateTargetFormat(book.id, e.target.value as FlashSaleTargetFormat)}
             title="Chọn định dạng áp dụng Flash Sale cho cuốn sách Hybrid này"
-            className={`px-2 py-1 rounded-lg text-[11px] font-bold outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border transition-colors ${
-              targetFormat === 'PHYSICAL'
-                ? 'bg-amber-50 text-amber-800 border-amber-300 focus:border-amber-500'
-                : targetFormat === 'DIGITAL'
-                  ? 'bg-sky-50 text-sky-800 border-sky-300 focus:border-sky-500'
-                  : 'bg-purple-50 text-purple-900 border-purple-300 focus:border-purple-500'
-            }`}
+            className={`px-2.5 py-1 rounded-md text-[11px] font-medium outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border transition-colors ${getFlashSaleFormatStyle(targetFormat).selectClass}`}
           >
             <option value="BOTH">Combo (Giấy + Ebook)</option>
             <option value="PHYSICAL">Chỉ Sách Giấy</option>
             <option value="DIGITAL">Chỉ Ebook DRM</option>
           </select>
         ) : (
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
-            <span className="material-symbols-outlined text-[12px]">inventory_2</span>
+          <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-md border ${getFlashSaleFormatStyle('PHYSICAL').badgeClass}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${getFlashSaleFormatStyle('PHYSICAL').dotClass}`} />
             <span>Sách Giấy</span>
           </span>
         )}

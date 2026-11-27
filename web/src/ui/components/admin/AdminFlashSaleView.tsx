@@ -13,6 +13,7 @@ import { realtimeSyncBus } from '../../services/realtimeSyncBus';
 import {
   resolveBookOriginalPriceByFormat,
   getDefaultFlashSaleTargetFormat,
+  getFlashSaleFormatStyle,
   type FlashSaleTargetFormat,
 } from '../../utils/flashSaleFormat';
 
@@ -1674,13 +1675,7 @@ export function AdminFlashSaleView() {
                                   },
                                 }));
                               }}
-                              className={`px-2 py-1 rounded border font-bold text-[11px] ${
-                                targetFmt === 'PHYSICAL'
-                                  ? 'bg-amber-50 text-amber-800 border-amber-300'
-                                  : targetFmt === 'DIGITAL'
-                                    ? 'bg-sky-50 text-sky-800 border-sky-300'
-                                    : 'bg-purple-50 text-purple-900 border-purple-300'
-                              }`}
+                              className={`px-2.5 py-1 rounded-md border font-medium text-[11px] outline-none transition-colors ${getFlashSaleFormatStyle(targetFmt).selectClass}`}
                             >
                               <option value="BOTH">Combo (Cả 2)</option>
                               <option value="PHYSICAL">Sách Giấy</option>
