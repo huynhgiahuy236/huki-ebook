@@ -135,147 +135,141 @@ export default function BookReportModal({ isOpen, onClose, book }: BookReportMod
           </div>
         </div>
 
-        {/* Auth Check Warning */}
-        {!isLoggedIn ? (
-          <div className="py-8 px-6 text-center space-y-4 bg-amber-50/70 rounded-2xl border border-amber-200/80">
-            <span className="material-symbols-outlined text-[36px] text-amber-600 block mx-auto">lock</span>
-            <div className="space-y-1.5">
-              <h3 className="text-sm font-bold text-amber-900">Yêu cầu đăng nhập tài khoản</h3>
-              <p className="text-xs text-amber-800 leading-relaxed max-w-md mx-auto">
-                Để bảo vệ tính minh bạch và tránh các hành vi spam phản ánh đối thủ, quý độc giả vui lòng đăng nhập trước khi gửi báo cáo vi phạm.
-              </p>
+        {/* Guest notice if not logged in */}
+        {!isLoggedIn && (
+          <div className="p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px] text-amber-600 shrink-0">info</span>
+              <span>Bạn đang phản ánh dưới danh nghĩa <strong>Độc giả vãng lai</strong>. Báo cáo vẫn được gửi thẳng đến Ban Quản Trị sàn.</span>
             </div>
-            <div className="pt-2">
-              <Link
-                href={`/login?redirect=/book/${book.id}`}
-                className="inline-flex items-center gap-2 bg-[#00875A] hover:bg-[#00704A] text-white px-6 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-all"
-              >
-                <span className="material-symbols-outlined text-[17px]">login</span>
-                <span>Đăng Nhập Ngay</span>
-              </Link>
+            <Link
+              href={`/login?redirect=/book/${book.id}`}
+              className="text-[#00875A] font-bold hover:underline shrink-0 text-xs"
+            >
+              Đăng nhập
+            </Link>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-5 pr-1.5 text-xs">
+          {errorMsg && (
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+              <span className="material-symbols-outlined text-[19px] text-rose-600 shrink-0">error</span>
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
+          {/* Select Reason: 2 columns grid for comfortable spacious UI */}
+          <div className="space-y-2">
+            <label className="block font-bold text-slate-800 text-xs">
+              Lý Do Phản Ánh Vi Phạm <span className="text-rose-500">*</span>
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {(Object.keys(BOOK_REPORT_REASON_LABELS) as BookReportReason[]).map((rKey) => {
+                const meta = BOOK_REPORT_REASON_LABELS[rKey];
+                const isChecked = selectedReason === rKey;
+                return (
+                  <label
+                    key={rKey}
+                    className={`p-3 rounded-2xl border text-left cursor-pointer transition-all flex items-start gap-3 ${
+                      isChecked
+                        ? 'border-[#00875A] bg-emerald-50/80 shadow-2xs ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="reportReason"
+                      checked={isChecked}
+                      onChange={() => setSelectedReason(rKey)}
+                      className="mt-0.5 text-[#00875A] w-4 h-4 cursor-pointer"
+                    />
+                    <div className="space-y-0.5 min-w-0">
+                      <span className={`font-bold block text-xs ${isChecked ? 'text-emerald-950' : 'text-slate-800'}`}>
+                        {meta.label}
+                      </span>
+                      <span className="text-[11px] text-slate-500 leading-snug block">
+                        {meta.desc}
+                      </span>
+                    </div>
+                  </label>
+                );
+              })}
             </div>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-5 pr-1.5 text-xs">
-            {errorMsg && (
-              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
-                <span className="material-symbols-outlined text-[19px] text-rose-600 shrink-0">error</span>
-                <span>{errorMsg}</span>
-              </div>
-            )}
 
-            {/* Select Reason: 2 columns grid for comfortable spacious UI */}
-            <div className="space-y-2">
-              <label className="block font-bold text-slate-800 text-xs">
-                Lý Do Phản Ánh Vi Phạm <span className="text-rose-500">*</span>
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {(Object.keys(BOOK_REPORT_REASON_LABELS) as BookReportReason[]).map((rKey) => {
-                  const meta = BOOK_REPORT_REASON_LABELS[rKey];
-                  const isChecked = selectedReason === rKey;
-                  return (
-                    <label
-                      key={rKey}
-                      className={`p-3 rounded-2xl border text-left cursor-pointer transition-all flex items-start gap-3 ${
-                        isChecked
-                          ? 'border-[#00875A] bg-emerald-50/80 shadow-2xs ring-2 ring-emerald-500/20'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="reportReason"
-                        checked={isChecked}
-                        onChange={() => setSelectedReason(rKey)}
-                        className="mt-0.5 text-[#00875A] w-4 h-4 cursor-pointer"
-                      />
-                      <div className="space-y-0.5 min-w-0">
-                        <span className={`font-bold block text-xs ${isChecked ? 'text-emerald-950' : 'text-slate-800'}`}>
-                          {meta.label}
-                        </span>
-                        <span className="text-[11px] text-slate-500 leading-snug block">
-                          {meta.desc}
-                        </span>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Description Textarea */}
-            <div className="space-y-1.5">
-              <label className="block font-semibold text-slate-800 text-xs">
-                Mô Tả Chi Tiết &amp; Dẫn Chứng Cụ Thể <span className="text-rose-500">*</span>
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                placeholder="Vui lòng cung cấp chi tiết số trang sách, đoạn văn hoặc dấu hiệu vi phạm..."
-                className="w-full p-3 bg-white border border-slate-300 hover:border-slate-400 rounded-lg text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-1 focus:ring-[#00875A] leading-relaxed text-xs transition-colors resize-none"
-                required
-              />
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
-                <span>Yêu cầu tối thiểu 10 ký tự</span>
-                <span className={description.trim().length >= 10 ? 'text-[#00875A] font-semibold' : ''}>
-                  {description.trim().length} ký tự
-                </span>
-              </div>
-            </div>
-
-            {/* Optional Evidence URL */}
-            <div className="space-y-1.5">
-              <label className="block font-semibold text-slate-700 text-xs">
-                Đường Dẫn Bằng Chứng Đối Chiếu (Không bắt buộc)
-              </label>
-              <input
-                type="url"
-                value={evidenceUrl}
-                onChange={(e) => setEvidenceUrl(e.target.value)}
-                placeholder="Ví dụ: Link bài viết bản quyền gốc, link đối chiếu sách NXB chính thống..."
-                className="w-full h-10 px-3 bg-white border border-slate-300 hover:border-slate-400 rounded-lg text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-1 focus:ring-[#00875A] text-xs transition-colors"
-              />
-            </div>
-
-            {/* Disclaimer */}
-            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs text-slate-500 leading-relaxed flex items-center gap-2.5">
-              <span className="material-symbols-outlined text-[18px] text-[#00875A] shrink-0">verified_user</span>
-              <span>
-                Báo cáo của bạn được gửi bảo mật đến Ban Quản Trị Hệ Thống. Thông tin danh tính của bạn sẽ được bảo vệ tuyệt đối theo chính sách người dùng.
+          {/* Description Textarea */}
+          <div className="space-y-1.5">
+            <label className="block font-semibold text-slate-800 text-xs">
+              Mô Tả Chi Tiết &amp; Dẫn Chứng Cụ Thể <span className="text-rose-500">*</span>
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              placeholder="Vui lòng cung cấp chi tiết số trang sách, đoạn văn hoặc dấu hiệu vi phạm..."
+              className="w-full p-3 bg-white border border-slate-300 hover:border-slate-400 rounded-lg text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-1 focus:ring-[#00875A] leading-relaxed text-xs transition-colors resize-none shadow-2xs"
+              required
+            />
+            <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <span>Yêu cầu tối thiểu 10 ký tự</span>
+              <span className={description.trim().length >= 10 ? 'text-[#00875A] font-semibold' : ''}>
+                {description.trim().length} ký tự
               </span>
             </div>
+          </div>
 
-            {/* Modal Buttons */}
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isSubmitting}
-                className="px-5 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold text-xs transition-colors cursor-pointer"
-              >
-                Hủy Bỏ
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting || description.trim().length < 10}
-                className="bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-xl font-bold text-xs transition-all shadow-sm hover:shadow active:scale-98 inline-flex items-center gap-2 cursor-pointer"
-              >
-                {isSubmitting ? (
-                  <>
-                    <span className="material-symbols-outlined text-[16px] animate-spin">refresh</span>
-                    <span>Đang gửi...</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-[16px]">send</span>
-                    <span>Gửi Báo Cáo Vi Phạm</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        )}
+          {/* Optional Evidence URL */}
+          <div className="space-y-1.5">
+            <label className="block font-semibold text-slate-700 text-xs">
+              Đường Dẫn Bằng Chứng Đối Chiếu (Không bắt buộc)
+            </label>
+            <input
+              type="url"
+              value={evidenceUrl}
+              onChange={(e) => setEvidenceUrl(e.target.value)}
+              placeholder="Ví dụ: Link bài viết bản quyền gốc, link đối chiếu sách NXB chính thống..."
+              className="w-full min-h-[42px] h-[42px] px-3.5 bg-white border border-slate-300 hover:border-slate-400 rounded-lg text-slate-800 focus:outline-none focus:border-[#00875A] focus:ring-1 focus:ring-[#00875A] text-xs transition-colors shadow-2xs box-border"
+            />
+          </div>
+
+          {/* Disclaimer */}
+          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs text-slate-500 leading-relaxed flex items-center gap-2.5">
+            <span className="material-symbols-outlined text-[18px] text-[#00875A] shrink-0">verified_user</span>
+            <span>
+              Báo cáo của bạn được gửi bảo mật đến Ban Quản Trị Hệ Thống. Thông tin danh tính của bạn sẽ được bảo vệ tuyệt đối theo chính sách người dùng.
+            </span>
+          </div>
+
+          {/* Modal Buttons */}
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="px-5 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold text-xs transition-colors cursor-pointer"
+            >
+              Hủy Bỏ
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting || description.trim().length < 10}
+              className="bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-xl font-bold text-xs transition-all shadow-sm hover:shadow active:scale-98 inline-flex items-center gap-2 cursor-pointer"
+            >
+              {isSubmitting ? (
+                <>
+                  <span className="material-symbols-outlined text-[16px] animate-spin">refresh</span>
+                  <span>Đang gửi...</span>
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[16px]">send</span>
+                  <span>Gửi Báo Cáo Vi Phạm</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

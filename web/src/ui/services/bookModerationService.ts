@@ -99,12 +99,13 @@ const INITIAL_SEEDS: ReportedBook[] = [];
 class BookModerationService {
   private memoryCache: ReportedBook[] | null = null;
 
-  private loadStorage(): ReportedBook[] {
-    if (this.memoryCache) return this.memoryCache;
+  public invalidateCache(): void {
+    this.memoryCache = null;
+  }
 
+  private loadStorage(): ReportedBook[] {
     if (typeof window === 'undefined') {
-      this.memoryCache = [];
-      return this.memoryCache;
+      return this.memoryCache || [];
     }
 
     try {
@@ -123,7 +124,6 @@ class BookModerationService {
     }
 
     this.memoryCache = [];
-    this.saveStorage(this.memoryCache);
     return this.memoryCache;
   }
 
@@ -222,6 +222,7 @@ class BookModerationService {
     description: string;
     evidenceUrl?: string;
   }): Promise<{ success: boolean; reportId: string; totalReports: number }> {
+    this.invalidateCache();
     const all = this.loadStorage();
     const nowIso = new Date().toISOString();
     const reportId = `rep-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;

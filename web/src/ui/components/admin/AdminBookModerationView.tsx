@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useToast } from '../../context/ToastContext';
-import { realtimeSyncBus } from '../../services/realtimeSyncBus';
+import { realtimeSyncBus, playRoleNotificationChime } from '../../services/realtimeSyncBus';
 import {
   bookModerationService,
   ReportedBook,
@@ -40,6 +40,7 @@ export function AdminBookModerationView() {
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
     try {
+      bookModerationService.invalidateCache();
       const statusFilter =
         activeTab === 'PENDING'
           ? 'PENDING_REVIEW'
@@ -69,7 +70,7 @@ export function AdminBookModerationView() {
     }
   }, [activeTab, selectedReason, searchQuery, showToast]);
 
-  // Realtime Listeners (SyncBus + Cross-tab Storage Events)
+  // Realtime Listeners (SyncBus + Cross-tab Storage Events + 2.5s Polling Fallback)
   useEffect(() => {
     void loadData(false);
 
@@ -81,8 +82,10 @@ export function AdminBookModerationView() {
         event.type === 'BOOK_REVIEWED' ||
         event.type === 'ADMIN_NOTIFICATIONS_UPDATED'
       ) {
+        bookModerationService.invalidateCache();
         void loadData(true);
         if (event.type === 'BOOK_REPORTED') {
+          playRoleNotificationChime('ADMIN');
           showToast({
             title: 'Báo cáo vi phạm mới',
             message: `Độc giả vừa báo cáo tác phẩm: ${(event.payload as any)?.bookTitle || 'Sách'}`,
@@ -90,6 +93,7 @@ export function AdminBookModerationView() {
           });
         }
         if (event.type === 'BOOK_REVIEWED') {
+          playRoleNotificationChime('ADMIN');
           showToast({
             title: 'Đánh giá tác phẩm mới',
             message: `Độc giả vừa gửi đánh giá cho tác phẩm: ${(event.payload as any)?.bookTitle || 'Sách'}`,
@@ -102,17 +106,27 @@ export function AdminBookModerationView() {
     // 2. Native window storage listener for cross-tab persistence
     const handleStorage = (e: StorageEvent) => {
       if (e.key === 'huki_reported_books_v1' || e.key === 'huki_latest_book_moderation_event') {
+        bookModerationService.invalidateCache();
         void loadData(true);
       }
     };
     window.addEventListener('storage', handleStorage);
 
     // 3. Custom DOM event listeners
-    const handleCustomReport = () => void loadData(true);
+    const handleCustomReport = () => {
+      bookModerationService.invalidateCache();
+      void loadData(true);
+    };
     window.addEventListener('huki_book_reported', handleCustomReport);
     window.addEventListener('huki_book_moderated', handleCustomReport);
 
+    // 4. Polling fallback (2.5s) to guarantee instant update even across isolated browsing contexts
+    const pollInterval = setInterval(() => {
+      void loadData(true);
+    }, 2500);
+
     return () => {
+      clearInterval(pollInterval);
       unsubscribe();
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('huki_book_reported', handleCustomReport);

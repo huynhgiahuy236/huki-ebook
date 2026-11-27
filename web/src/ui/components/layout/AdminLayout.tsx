@@ -9,6 +9,8 @@ import { adminApi } from '@/ui/api/adminApi';
 import { businessApi } from '@/ui/api/businessApi';
 import { soundEffects } from '@/ui/utils/soundEffects';
 import UniversalNotificationBell from '@/ui/components/common/UniversalNotificationBell';
+import { useToast } from '@/ui/context/ToastContext';
+import { realtimeSyncBus, playRoleNotificationChime } from '@/ui/services/realtimeSyncBus';
 
 export interface AdminLayoutProps {
   children?: React.ReactNode;
@@ -18,6 +20,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const pathname = usePathname() || '';
   const router = useRouter();
   const { user, isLoggedIn, isLoading, logout } = useAuth();
+  const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -95,18 +98,47 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     fetchNavStats();
   }, [fetchNavStats, pathname]);
 
-  // Lắng nghe sự kiện đồng bộ chấm đỏ Admin khi xem / duyệt / từ chối yêu cầu
+  // Lắng nghe sự kiện đồng bộ chấm đỏ Admin khi xem / duyệt / từ chối yêu cầu, cùng sự kiện báo cáo & đánh giá sách
   useEffect(() => {
     const handleAdminSync = () => {
       fetchNavStats();
     };
     window.addEventListener('huki_admin_noti_updated', handleAdminSync);
     window.addEventListener('storage', handleAdminSync);
+
+    const unsubscribe = realtimeSyncBus.subscribe((event) => {
+      if (event.type === 'BOOK_REPORTED') {
+        fetchNavStats();
+        // Nếu không đang ở trang kiểm duyệt sách thì phát thông báo toast toàn sàn
+        if (pathname !== '/admin/book-moderation') {
+          playRoleNotificationChime('ADMIN');
+          const p = event.payload as any;
+          showToast({
+            title: 'Báo cáo vi phạm tác phẩm mới',
+            message: `Độc giả vừa gửi báo cáo về sách: ${p?.bookTitle || 'Sách'} (${p?.reporterName || 'Độc giả'})`,
+            type: 'warning',
+            actionUrl: '/admin/book-moderation',
+            actionLabel: 'Kiểm duyệt',
+          });
+        }
+      }
+      if (event.type === 'BOOK_REVIEWED') {
+        playRoleNotificationChime('ADMIN');
+        const p = event.payload as any;
+        showToast({
+          title: 'Đánh giá tác phẩm mới',
+          message: `${p?.reviewerName || 'Độc giả'} vừa gửi đánh giá ${p?.rating ? p.rating + '★' : ''} cho sách: ${p?.bookTitle || 'Tác phẩm'}`,
+          type: 'info',
+        });
+      }
+    });
+
     return () => {
+      unsubscribe();
       window.removeEventListener('huki_admin_noti_updated', handleAdminSync);
       window.removeEventListener('storage', handleAdminSync);
     };
-  }, [fetchNavStats]);
+  }, [fetchNavStats, pathname, showToast]);
 
   const adminName = user?.fullName || user?.name || 'HUKI Super Admin';
 
