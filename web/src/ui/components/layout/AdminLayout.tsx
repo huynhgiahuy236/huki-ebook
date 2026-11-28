@@ -288,7 +288,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       items: [
         { label: 'Yêu Cầu Đổi Trả', to: '/admin/return-requests', icon: 'assignment_return' },
         { label: 'Trọng Tài Khiếu Nại', to: '/admin/disputes', icon: 'gavel' },
-        { label: 'Kiểm Duyệt Nội Dung', to: '/admin/moderation', icon: 'shield_person' },
+        { label: 'Kiểm Duyệt Bình Luận', to: '/admin/moderation', icon: 'shield_person' },
       ],
     },
     {

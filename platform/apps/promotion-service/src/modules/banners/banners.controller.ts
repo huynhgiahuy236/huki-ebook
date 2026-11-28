@@ -69,6 +69,14 @@ export class BannersController {
     return this.banners.findOne(id);
   }
 
+  @Post(':id/click')
+  @ApiOperation({ summary: 'Track real user click on banner' })
+  @ApiSuccessResponse(undefined, { description: 'Banner click recorded' })
+  @ApiStandardErrors(404)
+  trackClick(@Param('id') id: string) {
+    return this.banners.incrementClick(id);
+  }
+
   @Patch(':id')
   @ApiBearerAuth('JWT-auth')
   @UseGuards(RolesGuard)

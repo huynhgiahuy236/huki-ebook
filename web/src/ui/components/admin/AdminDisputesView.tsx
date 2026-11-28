@@ -92,8 +92,8 @@ export function AdminDisputesView() {
   const fetchDisputes = useCallback(async () => {
     try {
       setLoading(true);
+      // Tải toàn bộ theo type & search để số đếm mọi tab trạng thái luôn độc lập, không bị 0 khi chuyển tab
       const res = await adminApi.getDisputes({
-        status: filterStatus === 'ALL' ? undefined : filterStatus,
         type: filterType === 'ALL' ? undefined : filterType,
         search: searchQuery.trim() || undefined,
       });
@@ -109,7 +109,7 @@ export function AdminDisputesView() {
     } finally {
       setLoading(false);
     }
-  }, [filterStatus, filterType, searchQuery, showToast]);
+  }, [filterType, searchQuery, showToast]);
 
   useEffect(() => {
     fetchDisputes();
@@ -201,19 +201,31 @@ export function AdminDisputesView() {
     }
   };
 
-  // Filtered & Paginated Disputes
-  const filteredDisputes = useMemo(() => {
-    return disputes.filter((d) => {
-      if (!matchesDateFilter(d.createdAt, dateFilter)) return false;
-      return true;
-    });
+  // Metrics calculated from all loaded disputes (independent of active status tab)
+  const dateMatchedDisputes = useMemo(() => {
+    return disputes.filter((d) => matchesDateFilter(d.createdAt, dateFilter));
   }, [disputes, dateFilter]);
 
-  // Metrics
-  const totalCount = filteredDisputes.length;
-  const pendingCount = useMemo(() => filteredDisputes.filter((d) => d.status === 'DISPUTE_OPENED' || d.status === 'UNDER_PLATFORM_REVIEW').length, [filteredDisputes]);
-  const buyerWinsCount = useMemo(() => filteredDisputes.filter((d) => d.status === 'RULING_BUYER_WINS' || d.ruling === 'BUYER_WINS').length, [filteredDisputes]);
-  const sellerWinsCount = useMemo(() => filteredDisputes.filter((d) => d.status === 'RULING_SELLER_WINS' || d.ruling === 'SELLER_WINS').length, [filteredDisputes]);
+  const totalCount = dateMatchedDisputes.length;
+  const pendingCount = useMemo(() => dateMatchedDisputes.filter((d) => d.status === 'DISPUTE_OPENED' || d.status === 'UNDER_PLATFORM_REVIEW').length, [dateMatchedDisputes]);
+  const buyerWinsCount = useMemo(() => dateMatchedDisputes.filter((d) => d.status === 'RULING_BUYER_WINS' || d.ruling === 'BUYER_WINS').length, [dateMatchedDisputes]);
+  const sellerWinsCount = useMemo(() => dateMatchedDisputes.filter((d) => d.status === 'RULING_SELLER_WINS' || d.ruling === 'SELLER_WINS').length, [dateMatchedDisputes]);
+
+  // Filtered & Paginated Disputes
+  const filteredDisputes = useMemo(() => {
+    return dateMatchedDisputes.filter((d) => {
+      if (filterStatus === 'DISPUTE_OPENED') {
+        return d.status === 'DISPUTE_OPENED' || d.status === 'UNDER_PLATFORM_REVIEW';
+      }
+      if (filterStatus === 'RULING_BUYER_WINS') {
+        return d.status === 'RULING_BUYER_WINS' || d.ruling === 'BUYER_WINS';
+      }
+      if (filterStatus === 'RULING_SELLER_WINS') {
+        return d.status === 'RULING_SELLER_WINS' || d.ruling === 'SELLER_WINS';
+      }
+      return true;
+    });
+  }, [dateMatchedDisputes, filterStatus]);
 
   const totalPages = Math.ceil(filteredDisputes.length / pageSize) || 1;
   const paginatedDisputes = useMemo(() => {

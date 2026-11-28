@@ -96,6 +96,17 @@ export class BannersService {
     });
   }
 
+  async incrementClick(id: string) {
+    const banner = await this.prisma.banner.findUnique({ where: { id } });
+    if (!banner) throwNotFound(ErrorCode.BANNER_NOT_FOUND);
+
+    return this.prisma.banner.update({
+      where: { id },
+      data: { clicks: { increment: 1 } },
+      select: { id: true, clicks: true },
+    });
+  }
+
   async delete(id: string) {
     const banner = await this.prisma.banner.findUnique({ where: { id } });
     if (!banner) {

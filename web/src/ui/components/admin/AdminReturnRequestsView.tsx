@@ -94,8 +94,8 @@ export default function AdminReturnRequestsView() {
   const fetchReturnRequests = useCallback(async () => {
     setLoading(true);
     try {
+      // Tải toàn bộ danh sách theo từ khóa để tabCounts mọi tab luôn độc lập và chính xác 100%
       const res = await adminApi.getReturnRequests({
-        status: activeTab !== 'ALL' && activeTab !== 'RESOLVED' ? activeTab : undefined,
         search: searchQuery || undefined,
       });
 
@@ -109,7 +109,7 @@ export default function AdminReturnRequestsView() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, searchQuery]);
+  }, [searchQuery]);
 
   useEffect(() => {
     fetchReturnRequests();
@@ -225,14 +225,15 @@ export default function AdminReturnRequestsView() {
     }
   };
 
+  const ACCEPTED_GROUP_STATUSES = ['SELLER_ACCEPTED', 'PICKUP_SCHEDULED', 'IN_TRANSIT', 'RETURNED_TO_SELLER', 'APPROVED'];
+  const RESOLVED_GROUP_STATUSES = ['COMPLETED', 'ARBITRATED_BUYER_WINS', 'ARBITRATED_SELLER_WINS', 'REJECTED', 'CANCELLED'];
+
   const filteredItems = useMemo(() => {
     return items.filter((it) => {
-      if (activeTab === 'RESOLVED') {
-        const isResolved =
-          it.status === 'COMPLETED' ||
-          it.status === 'ARBITRATED_BUYER_WINS' ||
-          it.status === 'ARBITRATED_SELLER_WINS';
-        if (!isResolved) return false;
+      if (activeTab === 'SELLER_ACCEPTED') {
+        if (!ACCEPTED_GROUP_STATUSES.includes(it.status)) return false;
+      } else if (activeTab === 'RESOLVED') {
+        if (!RESOLVED_GROUP_STATUSES.includes(it.status)) return false;
       } else if (activeTab !== 'ALL' && it.status !== activeTab) {
         return false;
       }
@@ -262,20 +263,15 @@ export default function AdminReturnRequestsView() {
     return filteredItems.slice(start, start + pageSize);
   }, [filteredItems, currentPage, pageSize]);
 
-  // Tab counts
+  // Tab counts (độc lập 100% theo dữ liệu thực tế)
   const tabCounts = useMemo(() => {
     return {
       all: items.length,
       waiting: items.filter((i) => i.status === 'WAITING_FORWARD').length,
       forwarded: items.filter((i) => i.status === 'FORWARDED_TO_SELLER').length,
-      accepted: items.filter((i) => i.status === 'SELLER_ACCEPTED').length,
+      accepted: items.filter((i) => ACCEPTED_GROUP_STATUSES.includes(i.status)).length,
       disputed: items.filter((i) => i.status === 'SELLER_DISPUTED').length,
-      resolved: items.filter(
-        (i) =>
-          i.status === 'COMPLETED' ||
-          i.status === 'ARBITRATED_BUYER_WINS' ||
-          i.status === 'ARBITRATED_SELLER_WINS'
-      ).length,
+      resolved: items.filter((i) => RESOLVED_GROUP_STATUSES.includes(i.status)).length,
     };
   }, [items]);
 

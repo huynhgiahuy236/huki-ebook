@@ -163,9 +163,10 @@ export function getFriendlyLinkName(url: string): string {
   return url;
 }
 
-// Helper ghi nhận click thật tế vào banner và phát sự kiện realtime
+// Helper ghi nhận click thật tế vào banner lên Backend PostgreSQL và phát sự kiện realtime
 export function recordBannerClick(bannerId: string) {
   if (typeof window === "undefined" || !bannerId) return;
+  void bannerApi.trackClick(bannerId).catch(() => {});
   try {
     const saved = localStorage.getItem("huki_admin_marketing_banners");
     if (saved) {
@@ -1157,46 +1158,37 @@ export function AdminMarketingView() {
                   </span>
                 )}
               </span>
-              <div className="flex items-center gap-1.5">
-                {/* NÚT TEST CLICK REALTIME */}
+              <div className="flex items-center gap-1.5 flex-nowrap whitespace-nowrap">
                 <button
                   type="button"
-                  onClick={() => {
-                    recordBannerClick(b.id);
-                    showToast(`+1 Click realtime cho banner "${b.title.slice(0, 18)}..."`, "info");
-                  }}
-                  className="p-1.5 rounded-xl border border-emerald-200 bg-white hover:bg-emerald-50 text-emerald-700 hover:text-emerald-900 transition-colors cursor-pointer flex items-center gap-1"
-                  title="Thử nghiệm Click thật (Tăng số ngay tức thì realtime)"
-                >
-                  <span className="material-symbols-outlined text-[14px]">touch_app</span>
-                </button>
-
-                {/* NÚT CHỈNH SỬA BANNER */}
-                <button
-
                   onClick={() => handleEditBanner(b)}
-                  className="px-2.5 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
                   title="Chỉnh sửa thông tin banner này"
                 >
-                  <span className="material-symbols-outlined text-[15px]">edit</span>
+                  <span className="material-symbols-outlined text-[14px] text-slate-500">edit</span>
                   <span>Sửa</span>
                 </button>
 
-                {/* NÚT ẨN / HIỂN THỊ */}
                 <button
+                  type="button"
                   onClick={() => handleToggleBanner(b.id)}
-                  className="px-2.5 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-100 text-gray-800 font-bold text-xs transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
+                  title={b.status === "active" ? "Ẩn banner khỏi trang chủ" : "Hiển thị lại banner"}
                 >
-                  {b.status === "active" ? "Ẩn" : "Hiển Thị"}
+                  <span className="material-symbols-outlined text-[14px] text-slate-500">
+                    {b.status === "active" ? "visibility_off" : "visibility"}
+                  </span>
+                  <span>{b.status === "active" ? "Ẩn" : "Hiện"}</span>
                 </button>
 
-                {/* NÚT XÓA */}
                 <button
+                  type="button"
                   onClick={() => handleDeleteBanner(b.id)}
-                  className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 font-semibold text-xs transition-colors cursor-pointer"
                   title="Xóa banner vĩnh viễn"
                 >
-                  <span className="material-symbols-outlined text-sm">delete</span>
+                  <span className="material-symbols-outlined text-[14px]">delete</span>
+                  <span>Xóa</span>
                 </button>
               </div>
             </div>

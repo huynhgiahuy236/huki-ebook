@@ -55,5 +55,12 @@ export const bannerApi = {
       method: 'DELETE',
     });
   },
+
+  async trackClick(id: string): Promise<ApiResponse<{ id: string; clicks: number }>> {
+    return apiClient<{ id: string; clicks: number }>(`/banners/${encodeURIComponent(id)}/click`, {
+      method: 'POST',
+      skipAuth: true,
+    });
+  },
 };
 

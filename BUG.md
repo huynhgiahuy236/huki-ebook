@@ -2492,3 +2492,13 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 - **Kiểm chứng & E2E:**
   - `build:identity`, `build:commerce`, `build:community`, `web run typecheck`: **0 errors**.
   - [`scripts/test_e2e_stage2_bug42_43_44.js`](file:///e:/HuKi/scripts/test_e2e_stage2_bug42_43_44.js): **PASS 100%** trên môi trường thật (`BE :3000`, PostgreSQL thật — `253` DRM licenses).
+
+### Bước 4 — Giai đoạn 3 (`BUG-45`, `BUG-46`, `BUG-47`): Sửa Tận Gốc & E2E Độc Lập (28/11/2026)
+
+- **Khắc phục mã nguồn:**
+  - `BUG-45`: Sửa [`AdminReturnRequestsView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminReturnRequestsView.tsx) & [`AdminDisputesView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminDisputesView.tsx) tải toàn bộ danh sách theo từ khóa/loại để số đếm mọi tab luôn độc lập và chính xác 100%; thêm alias [`web/src/app/admin/returnrequests/page.tsx`](file:///e:/HuKi/web/src/app/admin/returnrequests/page.tsx) redirect sang `/admin/return-requests`.
+  - `BUG-46`: Tách riêng [`AdminModerationView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminModerationView.tsx) chỉ hiển thị báo cáo đánh giá/bình luận (lọc bỏ `BOOK` vì đã có `/admin/book-moderation`), cập nhật nhãn menu `"Kiểm Duyệt Bình Luận"` trong [`AdminLayout.tsx`](file:///e:/HuKi/web/src/ui/components/layout/AdminLayout.tsx).
+  - `BUG-47`: Thêm cột `clicks` vào `model Banner` ([`promotion-service/prisma/schema.prisma`](file:///e:/HuKi/platform/apps/promotion-service/prisma/schema.prisma)), thêm `POST /banners/:id/click` trong [`banners.controller.ts`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/banners/banners.controller.ts) & [`banners.service.ts`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/banners/banners.service.ts), gọi `bannerApi.trackClick` từ `recordBannerClick`; xóa nút thử nghiệm click (`touch_app`) và chuẩn hóa 3 nút `Sửa`, `Ẩn`/`Hiện`, `Xóa` trong [`AdminMarketingView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminMarketingView.tsx).
+- **Kiểm chứng & E2E:**
+  - `build:promotion`, `web run typecheck`: **0 errors**.
+  - [`scripts/test_e2e_stage3_bug45_46_47.js`](file:///e:/HuKi/scripts/test_e2e_stage3_bug45_46_47.js): **PASS 100%** trên môi trường thật (`BE :3000`, `FE :3100`, PostgreSQL thật).
