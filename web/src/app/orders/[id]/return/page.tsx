@@ -338,12 +338,6 @@ export default function OrderReturnPage() {
                 badge: 'Khuyên dùng'
               },
               {
-                id: 'refund-wallet',
-                title: 'Hoàn Tiền Vào Ví Xu Huki',
-                desc: 'Nhận xu ngay sau 5 phút + Tặng thêm Voucher giảm 10% đơn kế tiếp.',
-                badge: 'Nhanh nhất'
-              },
-              {
                 id: 'refund-bank',
                 title: 'Hoàn Về Tài Khoản Ngân Hàng',
                 desc: 'Chuyển khoản hoàn tiền lại thẻ thanh toán gốc trong 24-48 giờ làm việc.',

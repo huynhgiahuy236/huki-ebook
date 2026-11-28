@@ -235,7 +235,7 @@ export default function OrderReviewPage() {
       });
 
       if (res?.success) {
-        showToast('Đã gửi đánh giá thành công! Bạn nhận được +50 HUKI Xu thưởng.', 'success');
+        showToast('Đã gửi đánh giá thành công! Cảm ơn chia sẻ của bạn.', 'success');
         reviewStorage.saveReview({
           id: res?.data?.id || `rev-${Date.now()}`,
           targetId: bookId,

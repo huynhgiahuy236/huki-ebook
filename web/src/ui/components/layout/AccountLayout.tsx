@@ -100,9 +100,9 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
         },
         {
           label: 'Ví Voucher / Mã Giảm Giá',
-          href: '/vouchers?tab=wallet',
+          href: '/profile/vouchers',
           icon: 'confirmation_number',
-          active: pathname === '/vouchers',
+          active: pathname === '/profile/vouchers',
         },
         // Temporarily disabled until Wallet/Xu feature is developed
         // {

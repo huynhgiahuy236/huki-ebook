@@ -193,177 +193,99 @@ export default function MyReviewsPage() {
         <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200/80 shadow-2xs w-full max-w-full overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-100">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold font-editorial text-gray-900 flex items-center gap-2.5 min-w-0 break-words flex-wrap">
-                <span className="material-symbols-outlined text-[#006953] text-2xl">rate_review</span>
+              <h1 className="text-xl sm:text-2xl font-bold font-editorial text-gray-900">
                 Đánh Giá Của Tôi
               </h1>
               <p className="text-xs text-gray-500 mt-1">
-                Quản lý lịch sử nhận xét, điểm sao và theo dõi các đơn hàng đủ điều kiện nhận đánh giá theo chính sách POL-13.
+                Quản lý lịch sử nhận xét, điểm sao và các đơn hàng chờ đánh giá.
               </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-200/70 text-xs font-bold">
-                <span className="material-symbols-outlined text-base text-amber-500" style={{ fontVariationSettings: "'FILL' 1" }}>
-                  monetization_on
-                </span>
-                <span>+50 Xu / mỗi đánh giá</span>
-              </span>
             </div>
           </div>
 
           {/* 3 Summary Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-5 text-xs">
-            <div className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100 flex items-center justify-between">
-              <div>
-                <span className="text-gray-500 font-medium block">Đã đánh giá</span>
-                <span className="text-2xl font-black text-gray-900 mt-0.5 block">
-                  {reviewedList.length}
-                </span>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-emerald-100/70 text-[#006953] flex items-center justify-center">
-                <span className="material-symbols-outlined text-xl">reviews</span>
-              </div>
+            <div className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-200/70">
+              <span className="text-gray-500 font-medium block">Đã đánh giá</span>
+              <span className="text-2xl font-black text-gray-900 mt-0.5 block">
+                {reviewedList.length}
+              </span>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100 flex items-center justify-between">
-              <div>
-                <span className="text-gray-500 font-medium block">Chờ đánh giá</span>
-                <span className="text-2xl font-black text-amber-600 mt-0.5 block">
-                  {pendingOrdersList.length}
-                </span>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-amber-100/70 text-amber-600 flex items-center justify-center">
-                <span className="material-symbols-outlined text-xl">pending_actions</span>
-              </div>
+            <div className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-200/70">
+              <span className="text-gray-500 font-medium block">Chờ đánh giá</span>
+              <span className="text-2xl font-black text-amber-600 mt-0.5 block">
+                {pendingOrdersList.length}
+              </span>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100 flex items-center justify-between">
-              <div>
-                <span className="text-gray-500 font-medium block">Xu thưởng đã nhận</span>
-                <span className="text-2xl font-black text-[#006953] mt-0.5 block">
-                  {(reviewedList.length * 50).toLocaleString('vi-VN')} Xu
-                </span>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-[#006953]/10 text-[#006953] flex items-center justify-center">
-                <span className="material-symbols-outlined text-xl">savings</span>
-              </div>
+            <div className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-200/70">
+              <span className="text-gray-500 font-medium block">Điểm trung bình</span>
+              <span className="text-2xl font-black text-[#006953] mt-0.5 block">
+                {reviewedList.length > 0
+                  ? `${(reviewedList.reduce((s, r) => s + Number(r.rating || 0), 0) / reviewedList.length).toFixed(1)} ★`
+                  : '—'}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* ================= 2. TABS & CONTROLS (Image 2 Pill Style) ================= */}
+        {/* ================= 2. TABS & CONTROLS ================= */}
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-3.5 w-full max-w-full overflow-hidden">
-          {/* Filter Tabs (Horizontal Rounded-full Pills) */}
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 custom-scrollbar w-full max-w-full min-w-0">
-            {/* 1. Tất Cả */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('REVIEWED');
-                setStarFilter('ALL');
-              }}
-              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer select-none active:scale-[0.98] ${
-                activeTab === 'REVIEWED' && starFilter === 'ALL'
-                  ? 'bg-[#00875A] text-white shadow-2xs font-bold'
-                  : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/90 shadow-2xs'
-              }`}
-            >
-              <span>Tất Cả</span>
-              <span
-                className={`px-2 py-0.5 rounded-full text-[11px] font-bold transition-colors ${
-                  activeTab === 'REVIEWED' && starFilter === 'ALL'
-                    ? 'bg-white/25 text-white'
-                    : 'bg-slate-100 text-slate-500'
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Filter Tabs */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('REVIEWED');
+                  setStarFilter('ALL');
+                }}
+                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                  activeTab === 'REVIEWED'
+                    ? 'bg-[#003B2B] text-white font-bold'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {reviewedList.length}
-              </span>
-            </button>
+                <span>Đã Đánh Giá</span>
+                <span className={`px-1.5 py-0.2 rounded-md text-[11px] font-bold ${activeTab === 'REVIEWED' ? 'bg-white/20 text-white' : 'bg-white text-slate-700'}`}>
+                  {reviewedList.length}
+                </span>
+              </button>
 
-            {/* 2. Chưa Đánh Giá */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('PENDING')}
-              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer select-none active:scale-[0.98] ${
-                activeTab === 'PENDING'
-                  ? 'bg-[#00875A] text-white shadow-2xs font-bold'
-                  : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/90 shadow-2xs'
-              }`}
-            >
-              <span>Chưa Đánh Giá</span>
-              <span
-                className={`px-2 py-0.5 rounded-full text-[11px] font-bold transition-colors ${
+              <button
+                type="button"
+                onClick={() => setActiveTab('PENDING')}
+                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                   activeTab === 'PENDING'
-                    ? 'bg-white/25 text-white'
-                    : 'bg-slate-100 text-slate-500'
+                    ? 'bg-[#003B2B] text-white font-bold'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {pendingOrdersList.length}
-              </span>
-            </button>
+                <span>Chưa Đánh Giá</span>
+                <span className={`px-1.5 py-0.2 rounded-md text-[11px] font-bold ${activeTab === 'PENDING' ? 'bg-white/20 text-white' : 'bg-white text-slate-700'}`}>
+                  {pendingOrdersList.length}
+                </span>
+              </button>
+            </div>
 
-            {/* 3. Đã Đánh Giá */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('REVIEWED');
-                setStarFilter('ALL');
-              }}
-              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer select-none active:scale-[0.98] ${
-                activeTab === 'REVIEWED' && starFilter === 'ALL'
-                  ? 'bg-[#00875A] text-white shadow-2xs font-bold'
-                  : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/90 shadow-2xs'
-              }`}
-            >
-              <span>Đã Đánh Giá</span>
-              <span
-                className={`px-2 py-0.5 rounded-full text-[11px] font-bold transition-colors ${
-                  activeTab === 'REVIEWED' && starFilter === 'ALL'
-                    ? 'bg-white/25 text-white'
-                    : 'bg-slate-100 text-slate-500'
-                }`}
+            {activeTab === 'REVIEWED' && (
+              <select
+                value={String(starFilter)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setStarFilter(val === 'ALL' ? 'ALL' : Number(val));
+                }}
+                aria-label="Lọc theo số sao"
+                className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#003B2B] cursor-pointer"
               >
-                {reviewedList.length}
-              </span>
-            </button>
-
-            {/* 4. 5 Sao .. 1 Sao */}
-            {[5, 4, 3, 2, 1].map((star) => {
-              const count = reviewedList.filter((r) => Math.round(r.rating) === star).length;
-              const isStarActive = activeTab === 'REVIEWED' && starFilter === star;
-              return (
-                <button
-                  key={star}
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('REVIEWED');
-                    setStarFilter(star);
-                  }}
-                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer select-none active:scale-[0.98] ${
-                    isStarActive
-                      ? 'bg-[#00875A] text-white shadow-2xs font-bold'
-                      : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/90 shadow-2xs'
-                  }`}
-                >
-                  <span>{star} Sao</span>
-                  <span
-                    className="material-symbols-outlined text-[14px] text-[#fea619]"
-                    style={{ fontVariationSettings: "'FILL' 1" }}
-                  >
-                    star
-                  </span>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[11px] font-bold transition-colors ${
-                      isStarActive
-                        ? 'bg-white/25 text-white'
-                        : 'bg-slate-100 text-slate-500'
-                    }`}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
+                <option value="ALL">Tất cả số sao ({reviewedList.length})</option>
+                {[5, 4, 3, 2, 1].map((star) => (
+                  <option key={star} value={star}>
+                    {star} Sao ({reviewedList.filter((r) => r.rating === star).length})
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Search Box & Controls Bar */}
@@ -460,17 +382,17 @@ export default function MyReviewsPage() {
                               <span className="text-gray-300">•</span>
                               <VerifiedPurchaseBadge variant="compact" />
                               {rev.status === 'HIDDEN' ? (
-                                <span className="px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold inline-flex items-center gap-1">
-                                  <span className="material-symbols-outlined text-[12px]">visibility_off</span>
-                                  Đã bị Admin ẩn
+                                <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[11px] font-semibold inline-flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                  Đã bị ẩn
                                 </span>
                               ) : (rev.isReported || rev.status === 'FLAGGED') ? (
                                 <span
-                                  className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold inline-flex items-center gap-1"
+                                  className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[11px] font-semibold inline-flex items-center gap-1.5"
                                   title="Đánh giá vẫn hiển thị bình thường cho tới khi Admin quyết định"
                                 >
-                                  <span className="material-symbols-outlined text-[12px]">flag</span>
-                                  Đang bị báo cáo • Chờ Admin duyệt
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                  Đang bị báo cáo
                                 </span>
                               ) : null}
                             </div>
