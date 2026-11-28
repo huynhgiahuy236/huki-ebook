@@ -548,11 +548,12 @@ function SellerProductsContent() {
     return filteredBooks.slice(start, start + pageSize);
   }, [filteredBooks, currentPage, pageSize]);
 
-  // Bulk action groups definition (Xuất bản hàng loạt đã chuyển sang Sách nháp /seller/correction)
+  // Bulk action groups definition (Xuất bản sách nháp đã chuyển sang /seller/correction)
   const productBulkActionGroups: BulkActionGroup[] = [
     {
       groupLabel: 'TIẾN TRÌNH HIỂN THỊ',
       actions: [
+        { value: 'SHOW_ALL', label: 'Hiển thị lại hàng loạt (Mở bán)' },
         { value: 'HIDE_ALL', label: 'Tạm ẩn hàng loạt (Ẩn khỏi sàn)' },
       ],
     },
@@ -573,7 +574,20 @@ function SellerProductsContent() {
     if (selectedIds.length === 0) return;
     setBulkLoading(true);
     try {
-      if (actionValue === 'PUBLISH_ALL') {
+      if (actionValue === 'SHOW_ALL') {
+        const hiddenOrSelected = books.filter(b => selectedIds.includes(b.id) && b.status === 'HIDDEN');
+        const targetIds = hiddenOrSelected.length > 0 ? hiddenOrSelected.map(b => b.id) : selectedIds;
+        let count = 0;
+        for (const id of targetIds) {
+          try {
+            const res = await catalogApi.publishBook(id);
+            if (res.success) count++;
+          } catch {}
+        }
+        showToast?.(`Đã hiển thị mở bán lại ${count} đầu sách!`, 'success');
+        setSelectedIds([]);
+        void loadBooks();
+      } else if (actionValue === 'PUBLISH_ALL') {
         let count = 0;
         for (const id of selectedIds) {
           try {
