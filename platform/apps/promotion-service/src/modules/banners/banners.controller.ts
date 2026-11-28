@@ -14,7 +14,9 @@ import {
   ApiBearerAuth,
   ApiTags,
   ApiOperation,
+  ApiQuery,
 } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { BannersService } from './banners.service';
 import {
   CreateBannerDto,
@@ -30,22 +32,28 @@ export class BannersController {
   constructor(private readonly banners: BannersService) {}
 
   @Post()
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(RolesGuard)
   @Roles('PLATFORM_ADMIN', 'BUSINESS')
   @ApiOperation({ summary: 'Create a new banner' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Banner created' })
+  @ApiStandardErrors(400, 401, 403)
   create(@Body() dto: CreateBannerDto) {
     return this.banners.create(dto);
   }
 
   @Get()
   @ApiOperation({ summary: 'List all banners' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Banners list' })
   findAll(@Query() query: BannerQueryDto) {
     return this.banners.findAll(query);
   }
 
   @Get('active')
   @ApiOperation({ summary: 'Get active banners' })
+  @ApiQuery({ name: 'scope', required: false, enum: BannerScope })
+  @ApiQuery({ name: 'storeId', required: false, type: String })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Active banners' })
   getActive(
     @Query('scope') scope?: BannerScope,
     @Query('storeId') storeId?: string,
@@ -55,15 +63,19 @@ export class BannersController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get banner by ID' })
+  @ApiSuccessResponse(undefined, { description: 'Banner detail' })
+  @ApiStandardErrors(404)
   findOne(@Param('id') id: string) {
     return this.banners.findOne(id);
   }
 
   @Patch(':id')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(RolesGuard)
   @Roles('PLATFORM_ADMIN', 'BUSINESS')
   @ApiOperation({ summary: 'Update banner' })
+  @ApiSuccessResponse(undefined, { description: 'Banner updated' })
+  @ApiStandardErrors(400, 401, 403, 404)
   update(
     @Param('id') id: string,
     @Body() dto: UpdateBannerDto,
@@ -72,10 +84,12 @@ export class BannersController {
   }
 
   @Delete(':id')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(RolesGuard)
   @Roles('PLATFORM_ADMIN', 'BUSINESS')
   @ApiOperation({ summary: 'Delete banner' })
+  @ApiSuccessResponse(undefined, { description: 'Banner deleted' })
+  @ApiStandardErrors(401, 403, 404)
   delete(@Param('id') id: string) {
     return this.banners.delete(id);
   }

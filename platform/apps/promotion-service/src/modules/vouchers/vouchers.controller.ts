@@ -22,16 +22,13 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiTags,
   ApiOperation,
   ApiParam,
-  ApiResponse,
-  ApiUnauthorizedResponse,
-  ApiNotFoundResponse,
-  ApiForbiddenResponse,
-  ApiBadRequestResponse,
   ApiHeader,
 } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { Request } from 'express';
 import { getJwtSecret } from '@huki/shared';
 import { VouchersService } from './vouchers.service';
@@ -53,40 +50,40 @@ export class VouchersController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(RolesGuard)
   @Roles('PLATFORM_ADMIN')
   @ApiOperation({
     summary: 'Create a new voucher',
     description: 'Creates a new voucher. Requires PLATFORM_ADMIN role.',
   })
-  @ApiResponse({ status: 201, description: 'Voucher created successfully' })
-  @ApiBadRequestResponse({ description: 'Invalid voucher data' })
-  @ApiForbiddenResponse({ description: 'Requires PLATFORM_ADMIN role' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Voucher created successfully' })
+  @ApiStandardErrors(400, 401, 403, 409)
   create(@Body() dto: CreateVoucherDto) {
     return this.vouchers.create(dto);
   }
 
   @Get()
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'List all vouchers',
     description: 'Returns a paginated list of vouchers.',
   })
-  @ApiResponse({ status: 200, description: 'Paginated list of vouchers' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Paginated list of vouchers' })
+  @ApiStandardErrors(401)
   findAll(@Query() query: VoucherQueryDto) {
     return this.vouchers.findAll(query);
   }
 
   @Get('eligible-feed')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Get eligible vouchers feed for user',
     description: 'Returns vouchers filtered by user eligibility (platform + shop vouchers grouped by store).',
   })
   @ApiHeader({ name: 'x-user-id', required: false, description: 'User ID' })
+  @ApiSuccessResponse(undefined, { description: 'Eligible vouchers feed' })
+  @ApiStandardErrors(401)
   async getEligibleFeed(
     @Headers('x-user-id') userId: string,
     @Req() req: Request,
@@ -96,12 +93,13 @@ export class VouchersController {
   }
 
   @Get('homepage-feed')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Get homepage vouchers feed for user',
     description: 'Returns platform vouchers and followed store vouchers that user is eligible for.',
   })
   @ApiHeader({ name: 'x-user-id', required: false, description: 'User ID' })
+  @ApiSuccessResponse(undefined, { description: 'Homepage vouchers feed' })
   async getHomepageFeed(
     @Headers('x-user-id') userId: string,
     @Req() req: Request,
@@ -111,12 +109,14 @@ export class VouchersController {
   }
 
   @Get('wallet')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Get user voucher wallet',
     description: 'Returns all valid saved vouchers in user wallet (split into platform freeship, discount, and shop vouchers).',
   })
   @ApiHeader({ name: 'x-user-id', required: false, description: 'User ID' })
+  @ApiSuccessResponse(undefined, { description: 'User voucher wallet' })
+  @ApiStandardErrors(401)
   async getWallet(
     @Headers('x-user-id') userId: string,
     @Req() req: Request,
@@ -127,12 +127,14 @@ export class VouchersController {
 
   @Post(':id/save')
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Save voucher to wallet',
     description: 'Saves a voucher to the user wallet after checking eligibility.',
   })
   @ApiHeader({ name: 'x-user-id', required: false, description: 'User ID' })
+  @ApiSuccessResponse(undefined, { description: 'Voucher saved to wallet' })
+  @ApiStandardErrors(400, 401, 404, 409)
   async saveToWallet(
     @Param('id') id: string,
     @Headers('x-user-id') userId: string,
@@ -144,12 +146,14 @@ export class VouchersController {
 
   @Delete(':id/save')
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Unsave voucher from wallet',
     description: 'Removes a voucher from the user wallet.',
   })
   @ApiHeader({ name: 'x-user-id', required: false, description: 'User ID' })
+  @ApiSuccessResponse(undefined, { description: 'Voucher removed from wallet' })
+  @ApiStandardErrors(401, 404)
   async unsaveFromWallet(
     @Param('id') id: string,
     @Headers('x-user-id') userId: string,
@@ -160,14 +164,14 @@ export class VouchersController {
   }
 
   @Get('available')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Get available vouchers for user',
     description: 'Returns vouchers available for the current user based on cart context.',
   })
   @ApiHeader({ name: 'x-user-id', required: false, description: 'User ID (from internal service or JWT)' })
-  @ApiResponse({ status: 200, description: 'List of available vouchers' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'List of available vouchers' })
+  @ApiStandardErrors(401)
   async getAvailableVouchers(
     @Headers('x-user-id') userId: string,
     @Req() req: Request,
@@ -178,35 +182,33 @@ export class VouchersController {
   }
 
   @Get(':id')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Get voucher by ID',
     description: 'Returns voucher details by ID.',
   })
   @ApiParam({ name: 'id', description: 'Voucher ID' })
-  @ApiResponse({ status: 200, description: 'Voucher details' })
-  @ApiNotFoundResponse({ description: 'Voucher not found' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Voucher details' })
+  @ApiStandardErrors(401, 404)
   findOne(@Param('id') id: string) {
     return this.vouchers.findOne(id);
   }
 
   @Get('code/:code')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Get voucher by code',
     description: 'Returns voucher details by promo code.',
   })
   @ApiParam({ name: 'code', description: 'Voucher code' })
-  @ApiResponse({ status: 200, description: 'Voucher details' })
-  @ApiNotFoundResponse({ description: 'Voucher not found' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Voucher details' })
+  @ApiStandardErrors(401, 404)
   findByCode(@Param('code') code: string) {
     return this.vouchers.findByCode(code);
   }
 
   @Patch(':id')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(RolesGuard)
   @Roles('PLATFORM_ADMIN')
   @ApiOperation({
@@ -214,10 +216,8 @@ export class VouchersController {
     description: 'Updates voucher details. Requires PLATFORM_ADMIN role.',
   })
   @ApiParam({ name: 'id', description: 'Voucher ID' })
-  @ApiResponse({ status: 200, description: 'Voucher updated successfully' })
-  @ApiNotFoundResponse({ description: 'Voucher not found' })
-  @ApiForbiddenResponse({ description: 'Requires PLATFORM_ADMIN role' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Voucher updated successfully' })
+  @ApiStandardErrors(400, 401, 403, 404)
   update(
     @Param('id') id: string,
     @Body() dto: UpdateVoucherDto,
@@ -226,7 +226,7 @@ export class VouchersController {
   }
 
   @Delete(':id')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(RolesGuard)
   @Roles('PLATFORM_ADMIN')
   @ApiOperation({
@@ -234,25 +234,22 @@ export class VouchersController {
     description: 'Deletes a voucher. Requires PLATFORM_ADMIN role.',
   })
   @ApiParam({ name: 'id', description: 'Voucher ID' })
-  @ApiResponse({ status: 200, description: 'Voucher deleted successfully' })
-  @ApiNotFoundResponse({ description: 'Voucher not found' })
-  @ApiForbiddenResponse({ description: 'Requires PLATFORM_ADMIN role' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Voucher deleted successfully' })
+  @ApiStandardErrors(401, 403, 404)
   delete(@Param('id') id: string) {
     return this.vouchers.delete(id);
   }
 
   @Post('validate')
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Validate voucher for checkout',
     description: 'Validates a voucher against cart/order items and calculates discount amount. Used during checkout.',
   })
   @ApiHeader({ name: 'x-user-id', required: false, description: 'User ID (from internal service or JWT)' })
-  @ApiResponse({ status: 200, description: 'Validation result' })
-  @ApiBadRequestResponse({ description: 'Invalid voucher code or conditions not met' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Validation result' })
+  @ApiStandardErrors(400, 401, 404, 409)
   validate(
     @Req() req: Request,
     @Headers('x-user-id') userIdHeader: string,
@@ -265,15 +262,25 @@ export class VouchersController {
 
   @Post('apply')
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Apply/consume voucher',
     description: 'Consumes voucher usage after successful order. Called by commerce-service.',
   })
   @ApiHeader({ name: 'x-user-id', required: true, description: 'User ID' })
-  @ApiResponse({ status: 200, description: 'Voucher applied successfully' })
-  @ApiBadRequestResponse({ description: 'Failed to apply voucher' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['code', 'orderId', 'discountAmount'],
+      properties: {
+        code: { type: 'string' },
+        orderId: { type: 'string' },
+        discountAmount: { type: 'number' },
+      },
+    },
+  })
+  @ApiSuccessResponse(undefined, { description: 'Voucher applied successfully' })
+  @ApiStandardErrors(400, 401, 404, 409)
   async apply(
     @Headers('x-user-id') userId: string,
     @Body() body: { code: string; orderId: string; discountAmount: number },
@@ -290,11 +297,14 @@ export class VouchersController {
 
   @Post('rollback')
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Rollback voucher usage',
     description: 'Rolls back voucher usages for a cancelled or refunded order.',
   })
+  @ApiBody({ schema: { type: 'object', required: ['orderId'], properties: { orderId: { type: 'string' } } } })
+  @ApiSuccessResponse(undefined, { description: 'Voucher usage rolled back' })
+  @ApiStandardErrors(400, 401)
   async rollback(@Body() body: { orderId: string }) {
     if (!body.orderId) {
       throwBadRequest(ErrorCode.VALIDATION_REQUIRED, 'orderId is required');
@@ -308,6 +318,8 @@ export class VouchersController {
     summary: 'Get voucher usages by order IDs',
     description: 'Returns voucher usages with voucher details for given order IDs.',
   })
+  @ApiBody({ schema: { type: 'object', required: ['orderIds'], properties: { orderIds: { type: 'array', items: { type: 'string' } } } } })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Voucher usages list' })
   async getUsagesByOrders(@Body() body: { orderIds: string[] }) {
     const usages = await this.vouchers.getUsagesByOrderIds(body?.orderIds || []);
     return { data: usages };

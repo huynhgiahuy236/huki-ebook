@@ -18,18 +18,17 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiTags,
   ApiOperation,
-  ApiResponse,
-  ApiUnauthorizedResponse,
-  ApiForbiddenResponse,
 } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { DiscountsService } from './discounts.service';
 import { CreateBookDiscountDto } from './dto/discount.dto';
 import { BusinessRolesGuard } from '../../common/business-roles.guard';
 
 @ApiTags('Seller - Book Discounts')
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 @UseGuards(BusinessRolesGuard)
 @Controller(['seller/discounts', 'discounts/seller'])
 export class SellerDiscountsController {
@@ -41,9 +40,8 @@ export class SellerDiscountsController {
     summary: 'Create or update book discount',
     description: 'Sets custom percentage or fixed amount discount for a book',
   })
-  @ApiResponse({ status: 200, description: 'Discount saved successfully' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
-  @ApiForbiddenResponse({ description: 'Not a business owner' })
+  @ApiSuccessResponse(undefined, { description: 'Discount saved successfully' })
+  @ApiStandardErrors(400, 401, 403)
   async createOrUpdate(@Body() dto: CreateBookDiscountDto) {
     const data = await this.discounts.createOrUpdateDiscount(dto);
     return {
@@ -56,6 +54,8 @@ export class SellerDiscountsController {
   @Get('books/:bookId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get discount info for a book' })
+  @ApiSuccessResponse(undefined, { description: 'Book discount detail' })
+  @ApiStandardErrors(401, 403, 404)
   async getByBookId(@Param('bookId', ParseUUIDPipe) bookId: string) {
     const data = await this.discounts.getDiscountByBookId(bookId);
     return {
@@ -67,6 +67,9 @@ export class SellerDiscountsController {
   @Post('batch-books')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get discounts for multiple books' })
+  @ApiBody({ schema: { type: 'object', required: ['bookIds'], properties: { bookIds: { type: 'array', items: { type: 'string' } } } } })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Batch book discounts' })
+  @ApiStandardErrors(400, 401, 403)
   async getForBooks(@Body() body: { bookIds: string[] }) {
     const data = await this.discounts.getDiscountsForBooks(body.bookIds || []);
     return {
@@ -78,6 +81,8 @@ export class SellerDiscountsController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Cancel a book discount' })
+  @ApiSuccessResponse(undefined, { description: 'Book discount cancelled' })
+  @ApiStandardErrors(401, 403, 404)
   async cancel(@Param('id', ParseUUIDPipe) id: string) {
     const data = await this.discounts.cancelDiscount(id);
     return {

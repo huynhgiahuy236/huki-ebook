@@ -4495,7 +4495,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"TESTCODE\",\n  \"orderAmount\": 100000\n}"
+              "raw": "{\n  \"code\": \"HUKI10\",\n  \"orderSubtotal\": 200000\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/vouchers/validate",
@@ -4602,7 +4602,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"POSTMAN10\",\n  \"type\": \"PERCENTAGE\",\n  \"value\": 10,\n  \"startsAt\": \"2026-08-31T00:00:00.000Z\",\n  \"expiresAt\": \"2026-09-30T00:00:00.000Z\"\n}",
+              "raw": "{\n  \"code\": \"HUKI{{}}\",\n  \"name\": \"Giảm 10% đơn hàng\",\n  \"type\": \"PERCENTAGE\",\n  \"value\": 10,\n  \"scope\": \"PLATFORM\",\n  \"minOrderAmount\": 100000,\n  \"maxDiscountAmount\": 50000\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5314,7 +5314,7 @@
             "description": "SYSTEM_ONLY: service-to-service contract.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"POSTMAN10\",\n  \"userId\": \"{{userId}}\",\n  \"orderAmount\": 100000\n}",
+              "raw": "{\n  \"code\": \"HUKI10\",\n  \"userId\": \"{{userId}}\",\n  \"orderSubtotal\": 200000\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5372,7 +5372,7 @@
             "description": "SYSTEM_ONLY: service-to-service contract.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"POSTMAN10\",\n  \"userId\": \"{{userId}}\",\n  \"orderId\": \"{{orderId}}\",\n  \"orderAmount\": 100000\n}",
+              "raw": "{\n  \"code\": \"HUKI10\",\n  \"userId\": \"{{userId}}\",\n  \"orderId\": \"{{orderId}}\",\n  \"discountAmount\": 20000\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5430,7 +5430,7 @@
             "description": "SYSTEM_ONLY: service-to-service contract.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"bookId\": \"{{bookId}}\",\n  \"quantity\": 1\n}",
+              "raw": "{\n  \"bookIds\": [\n    \"{{bookId}}\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"

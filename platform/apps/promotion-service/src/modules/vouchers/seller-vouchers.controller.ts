@@ -24,12 +24,8 @@ import {
   ApiTags,
   ApiOperation,
   ApiParam,
-  ApiResponse,
-  ApiUnauthorizedResponse,
-  ApiNotFoundResponse,
-  ApiForbiddenResponse,
-  ApiBadRequestResponse,
 } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { VouchersService } from './vouchers.service';
 import {
   CreateVoucherDto,
@@ -42,7 +38,7 @@ import { throwBadRequest, throwForbidden } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
 
 @ApiTags('Seller - Vouchers')
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 @UseGuards(BusinessRolesGuard)
 @Controller(['seller/vouchers', 'vouchers/seller'])
 export class SellerVouchersController {
@@ -54,9 +50,8 @@ export class SellerVouchersController {
     summary: 'List shop vouchers',
     description: 'Returns all vouchers belonging to the seller\'s store. Filters by storeId.',
   })
-  @ApiResponse({ status: 200, description: 'List of shop vouchers' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
-  @ApiForbiddenResponse({ description: 'Not a business owner' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'List of shop vouchers' })
+  @ApiStandardErrors(401, 403)
   async findAll(
     @CurrentBusiness() business: any,
     @Query() query: VoucherQueryDto,
@@ -76,10 +71,8 @@ export class SellerVouchersController {
     description: 'Returns voucher details by ID. Validates ownership.',
   })
   @ApiParam({ name: 'id', description: 'Voucher ID' })
-  @ApiResponse({ status: 200, description: 'Voucher details' })
-  @ApiNotFoundResponse({ description: 'Voucher not found' })
-  @ApiForbiddenResponse({ description: 'Voucher does not belong to seller' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Voucher details' })
+  @ApiStandardErrors(401, 403, 404)
   async findOne(
     @CurrentBusiness() business: any,
     @Param('id', ParseUUIDPipe) id: string,
@@ -98,10 +91,8 @@ export class SellerVouchersController {
     summary: 'Create shop voucher',
     description: 'Creates a new shop voucher. StoreId is required for scope=STORE.',
   })
-  @ApiResponse({ status: 201, description: 'Voucher created successfully' })
-  @ApiBadRequestResponse({ description: 'Invalid voucher data or storeId required' })
-  @ApiForbiddenResponse({ description: 'Not a business owner' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Voucher created successfully' })
+  @ApiStandardErrors(400, 401, 403, 409)
   async create(
     @CurrentBusiness() business: any,
     @Body() dto: CreateVoucherDto,
@@ -128,10 +119,8 @@ export class SellerVouchersController {
     description: 'Updates voucher details. Validates ownership.',
   })
   @ApiParam({ name: 'id', description: 'Voucher ID' })
-  @ApiResponse({ status: 200, description: 'Voucher updated successfully' })
-  @ApiNotFoundResponse({ description: 'Voucher not found' })
-  @ApiForbiddenResponse({ description: 'Voucher does not belong to seller' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Voucher updated successfully' })
+  @ApiStandardErrors(400, 401, 403, 404)
   async update(
     @CurrentBusiness() business: any,
     @Param('id', ParseUUIDPipe) id: string,
@@ -150,8 +139,8 @@ export class SellerVouchersController {
     description: 'Activates a voucher. Validates ownership.',
   })
   @ApiParam({ name: 'id', description: 'Voucher ID' })
-  @ApiResponse({ status: 200, description: 'Voucher activated' })
-  @ApiForbiddenResponse({ description: 'Voucher does not belong to seller' })
+  @ApiSuccessResponse(undefined, { description: 'Voucher activated' })
+  @ApiStandardErrors(401, 403, 404)
   async activate(
     @CurrentBusiness() business: any,
     @Param('id', ParseUUIDPipe) id: string,
@@ -167,8 +156,8 @@ export class SellerVouchersController {
     description: 'Deactivates a voucher. Validates ownership.',
   })
   @ApiParam({ name: 'id', description: 'Voucher ID' })
-  @ApiResponse({ status: 200, description: 'Voucher deactivated' })
-  @ApiForbiddenResponse({ description: 'Voucher does not belong to seller' })
+  @ApiSuccessResponse(undefined, { description: 'Voucher deactivated' })
+  @ApiStandardErrors(401, 403, 404)
   async deactivate(
     @CurrentBusiness() business: any,
     @Param('id', ParseUUIDPipe) id: string,
@@ -184,10 +173,8 @@ export class SellerVouchersController {
     description: 'Deletes a voucher. Only allowed if currentUsage is 0. Validates ownership.',
   })
   @ApiParam({ name: 'id', description: 'Voucher ID' })
-  @ApiResponse({ status: 200, description: 'Voucher deleted' })
-  @ApiNotFoundResponse({ description: 'Voucher not found' })
-  @ApiForbiddenResponse({ description: 'Voucher does not belong to seller or has been used' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Voucher deleted' })
+  @ApiStandardErrors(401, 403, 404, 409)
   async delete(
     @CurrentBusiness() business: any,
     @Param('id', ParseUUIDPipe) id: string,
@@ -203,8 +190,8 @@ export class SellerVouchersController {
     description: 'Returns usage statistics for a voucher.',
   })
   @ApiParam({ name: 'id', description: 'Voucher ID' })
-  @ApiResponse({ status: 200, description: 'Usage statistics' })
-  @ApiForbiddenResponse({ description: 'Voucher does not belong to seller' })
+  @ApiSuccessResponse(undefined, { description: 'Usage statistics' })
+  @ApiStandardErrors(401, 403, 404)
   async getUsage(
     @CurrentBusiness() business: any,
     @Param('id', ParseUUIDPipe) id: string,

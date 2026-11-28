@@ -21,13 +21,12 @@ import {
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiTags,
   ApiOperation,
   ApiParam,
-  ApiResponse,
-  ApiUnauthorizedResponse,
-  ApiForbiddenResponse,
 } from "@nestjs/swagger";
+import { ApiSuccessResponse, ApiStandardErrors } from "@huki/shared";
 import { FlashSalesService } from "./flash-sales.service";
 import {
   FlashSaleScope,
@@ -39,13 +38,15 @@ import { BusinessRolesGuard } from "../../common/business-roles.guard";
 import { CurrentBusiness } from "../../common/current-business.decorator";
 
 @ApiTags("Seller - Flash Sales")
-@ApiBearerAuth()
+@ApiBearerAuth("JWT-auth")
 @UseGuards(BusinessRolesGuard)
 @Controller(["flash-sales/seller", "seller/flash-sales"])
 export class SellerFlashSalesController {
   @Get()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Get seller flash sales summary" })
+  @ApiSuccessResponse(undefined, { description: "Seller flash sales summary" })
+  @ApiStandardErrors(401, 403)
   getSellerSummary() {
     return this.flashSales.getTimeSlots(FlashSaleScope.SHOP);
   }
@@ -57,7 +58,8 @@ export class SellerFlashSalesController {
     summary: "Get available Flash Sale slots for registration",
     description: "Returns open and upcoming flash sale time slots",
   })
-  @ApiResponse({ status: 200, description: "List of available flash sale slots" })
+  @ApiSuccessResponse(undefined, { isArray: true, description: "List of available flash sale slots" })
+  @ApiStandardErrors(401, 403)
   async getAvailableSlots(@CurrentBusiness() business: any) {
     const slots = await this.flashSales.getSellerAvailableSlots(business?.id);
     return { data: slots };
@@ -69,7 +71,9 @@ export class SellerFlashSalesController {
     summary: "Create a custom Flash Sale slot for Seller",
     description: "Allows seller to create their own custom Flash Sale time window",
   })
-  @ApiResponse({ status: 201, description: "Custom Flash Sale slot created successfully" })
+  @ApiBody({ schema: { type: 'object', description: 'Custom Flash Sale slot payload' } })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Custom Flash Sale slot created successfully" })
+  @ApiStandardErrors(400, 401, 403)
   async createSlot(
     @CurrentBusiness() business: any,
     @Body() dto: any,
@@ -87,6 +91,8 @@ export class SellerFlashSalesController {
   @ApiOperation({
     summary: "Get seller's created flash sale slots and quota info",
   })
+  @ApiSuccessResponse(undefined, { isArray: true, description: "Seller flash sale slots" })
+  @ApiStandardErrors(401, 403)
   async getMySlots(@CurrentBusiness() business: any) {
     const slots = await this.flashSales.getSellerSlots(business?.id);
     return { data: slots };
@@ -98,7 +104,8 @@ export class SellerFlashSalesController {
     summary: "Get seller's registered flash sale items",
     description: "Returns all flash sale items belonging to the seller's business",
   })
-  @ApiResponse({ status: 200, description: "List of seller's registered flash sale items" })
+  @ApiSuccessResponse(undefined, { isArray: true, description: "List of seller's registered flash sale items" })
+  @ApiStandardErrors(401, 403)
   async getMyItems(@CurrentBusiness() business: any) {
     const items = await this.flashSales.getSellerFlashSaleItems(business?.id);
     return { data: items };
@@ -110,7 +117,8 @@ export class SellerFlashSalesController {
     summary: "Register a book for a flash sale slot",
     description: "Registers a shop's book for an upcoming flash sale session with discount price and stock quota",
   })
-  @ApiResponse({ status: 201, description: "Book successfully registered for flash sale" })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Book successfully registered for flash sale" })
+  @ApiStandardErrors(400, 401, 403, 409)
   async registerItem(
     @CurrentBusiness() business: any,
     @Body() dto: SellerRegisterFlashSaleItemDto,
@@ -128,7 +136,8 @@ export class SellerFlashSalesController {
     summary: "Register multiple books in batch for a flash sale slot",
     description: "Registers multiple books in a single batch request",
   })
-  @ApiResponse({ status: 201, description: "Batch registration result" })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Batch registration result" })
+  @ApiStandardErrors(400, 401, 403)
   async registerBatch(
     @CurrentBusiness() business: any,
     @Body() dto: SellerBatchRegisterFlashSaleItemsDto,
@@ -145,7 +154,8 @@ export class SellerFlashSalesController {
     description: "Updates details of a flash sale item before or during scheduled sessions",
   })
   @ApiParam({ name: "itemId", description: "Flash Sale Item ID" })
-  @ApiResponse({ status: 200, description: "Flash sale item updated successfully" })
+  @ApiSuccessResponse(undefined, { description: "Flash sale item updated successfully" })
+  @ApiStandardErrors(400, 401, 403, 404)
   async updateItem(
     @CurrentBusiness() business: any,
     @Param("itemId", ParseUUIDPipe) itemId: string,
@@ -161,7 +171,8 @@ export class SellerFlashSalesController {
     description: "Removes a book from a scheduled flash sale before the sale begins",
   })
   @ApiParam({ name: "itemId", description: "Flash Sale Item ID" })
-  @ApiResponse({ status: 200, description: "Flash sale item cancelled successfully" })
+  @ApiSuccessResponse(undefined, { description: "Flash sale item cancelled successfully" })
+  @ApiStandardErrors(401, 403, 404)
   async cancelItem(
     @CurrentBusiness() business: any,
     @Param("itemId", ParseUUIDPipe) itemId: string,
@@ -176,7 +187,8 @@ export class SellerFlashSalesController {
     description: "Shortens an active shop flash sale end time to 5 minutes from now so shoppers can complete checkout.",
   })
   @ApiParam({ name: "slotId", description: "Flash Sale Slot ID" })
-  @ApiResponse({ status: 200, description: "Flash sale early ending scheduled" })
+  @ApiSuccessResponse(undefined, { description: "Flash sale early ending scheduled" })
+  @ApiStandardErrors(401, 403, 404, 409)
   async endEarlySlot(
     @CurrentBusiness() business: any,
     @Param("slotId", ParseUUIDPipe) slotId: string,
@@ -191,7 +203,8 @@ export class SellerFlashSalesController {
     description: "Removes a flash sale slot and all registered items",
   })
   @ApiParam({ name: "slotId", description: "Flash Sale Slot ID" })
-  @ApiResponse({ status: 200, description: "Flash sale slot deleted successfully" })
+  @ApiSuccessResponse(undefined, { description: "Flash sale slot deleted successfully" })
+  @ApiStandardErrors(401, 403, 404)
   async deleteSlot(
     @CurrentBusiness() business: any,
     @Param("slotId", ParseUUIDPipe) slotId: string,

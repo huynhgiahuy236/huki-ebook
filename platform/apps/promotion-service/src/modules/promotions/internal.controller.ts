@@ -1,12 +1,14 @@
 import { Controller, Post, Body, Headers, ForbiddenException } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiBody, ApiHeader, ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { VouchersService } from '../vouchers/vouchers.service';
 import { FlashSalesService } from '../flash-sales/flash-sales.service';
 import { ConfigService } from '@nestjs/config';
 import { throwForbidden } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
 
-@ApiTags('Internal')
+@ApiTags('Internal - Promotions')
+@ApiHeader({ name: 'x-internal-service-key', required: true, description: 'Internal service key' })
 @Controller('internal')
 export class InternalPromotionsController {
   constructor(
@@ -46,6 +48,20 @@ export class InternalPromotionsController {
 
   @Post('vouchers/validate')
   @ApiOperation({ summary: 'Validate voucher for checkout (internal)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['code', 'orderSubtotal', 'userId'],
+      properties: {
+        code: { type: 'string' },
+        orderSubtotal: { type: 'number' },
+        storeId: { type: 'string' },
+        userId: { type: 'string' },
+      },
+    },
+  })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Voucher validation result' })
+  @ApiStandardErrors(400, 403, 404, 409)
   validateVoucher(
     @Headers('x-internal-service-key') serviceKey: string,
     @Headers('x-internal-api-key') apiKey: string,
@@ -61,6 +77,21 @@ export class InternalPromotionsController {
 
   @Post('vouchers/apply')
   @ApiOperation({ summary: 'Apply voucher to order (internal)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['orderId', 'userId', 'discountAmount'],
+      properties: {
+        voucherId: { type: 'string' },
+        code: { type: 'string' },
+        orderId: { type: 'string' },
+        userId: { type: 'string' },
+        discountAmount: { type: 'number' },
+      },
+    },
+  })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Voucher applied' })
+  @ApiStandardErrors(400, 403, 404, 409)
   applyVoucher(
     @Headers('x-internal-service-key') serviceKey: string,
     @Headers('x-internal-api-key') apiKey: string,
@@ -75,6 +106,20 @@ export class InternalPromotionsController {
 
   @Post('vouchers/reservations')
   @ApiOperation({ summary: 'Reserve voucher quota for checkout (internal)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['userId', 'checkoutSessionId', 'orderId', 'vouchers'],
+      properties: {
+        userId: { type: 'string' },
+        checkoutSessionId: { type: 'string' },
+        orderId: { type: 'string' },
+        vouchers: { type: 'array', items: { type: 'object' } },
+      },
+    },
+  })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Voucher quota reserved' })
+  @ApiStandardErrors(400, 403, 409)
   reserveVoucherQuota(
     @Headers('x-internal-service-key') serviceKey: string,
     @Headers('x-internal-api-key') apiKey: string,
@@ -96,6 +141,9 @@ export class InternalPromotionsController {
 
   @Post('vouchers/reservations/confirm')
   @ApiOperation({ summary: 'Confirm checkout voucher reservations (internal)' })
+  @ApiBody({ schema: { type: 'object', required: ['checkoutSessionId', 'orderId'], properties: { checkoutSessionId: { type: 'string' }, orderId: { type: 'string' } } } })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Voucher reservations confirmed' })
+  @ApiStandardErrors(400, 403, 404)
   confirmVoucherReservations(
     @Headers('x-internal-service-key') serviceKey: string,
     @Headers('x-internal-api-key') apiKey: string,
@@ -110,6 +158,9 @@ export class InternalPromotionsController {
 
   @Post('vouchers/reservations/release')
   @ApiOperation({ summary: 'Release checkout voucher reservations (internal)' })
+  @ApiBody({ schema: { type: 'object', required: ['checkoutSessionId'], properties: { checkoutSessionId: { type: 'string' } } } })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Voucher reservations released' })
+  @ApiStandardErrors(400, 403)
   releaseVoucherReservations(
     @Headers('x-internal-service-key') serviceKey: string,
     @Headers('x-internal-api-key') apiKey: string,
@@ -121,6 +172,9 @@ export class InternalPromotionsController {
 
   @Post('vouchers/rollback')
   @ApiOperation({ summary: 'Rollback voucher for cancelled/refunded order (internal)' })
+  @ApiBody({ schema: { type: 'object', required: ['orderId'], properties: { orderId: { type: 'string' } } } })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Voucher rolled back' })
+  @ApiStandardErrors(400, 403)
   rollbackVoucher(
     @Headers('x-internal-service-key') serviceKey: string,
     @Headers('x-internal-api-key') apiKey: string,
@@ -132,6 +186,9 @@ export class InternalPromotionsController {
 
   @Post('flash-sales/book-price')
   @ApiOperation({ summary: 'Get flash sale price for books (internal)' })
+  @ApiBody({ schema: { type: 'object', required: ['bookIds'], properties: { bookIds: { type: 'array', items: { type: 'string' } } } } })
+  @ApiSuccessResponse(undefined, { status: 201, isArray: true, description: 'Flash sale prices' })
+  @ApiStandardErrors(400, 403)
   getFlashSalePrice(
     @Headers('x-internal-service-key') serviceKey: string,
     @Headers('x-internal-api-key') apiKey: string,
@@ -145,6 +202,9 @@ export class InternalPromotionsController {
 
   @Post('flash-sales/release-order')
   @ApiOperation({ summary: 'Release flash sale reservation for cancelled order (internal)' })
+  @ApiBody({ schema: { type: 'object', required: ['orderId'], properties: { orderId: { type: 'string' }, bookIds: { type: 'array', items: { type: 'string' } } } } })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Flash sale reservation released' })
+  @ApiStandardErrors(400, 403)
   releaseFlashSaleOrder(
     @Headers('x-internal-service-key') serviceKey: string,
     @Headers('x-internal-api-key') apiKey: string,

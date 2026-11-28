@@ -13,7 +13,8 @@ import {
   ForbiddenException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { ApiBearerAuth, ApiTags, ApiOperation } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiBody, ApiHeader, ApiQuery, ApiTags, ApiOperation } from "@nestjs/swagger";
+import { ApiSuccessResponse, ApiStandardErrors } from "@huki/shared";
 import { FlashSalesService } from "./flash-sales.service";
 import {
   CreateFlashSaleDto,
@@ -39,52 +40,66 @@ export class FlashSalesController {
   ) {}
 
   @Post()
-  @ApiBearerAuth()
+  @ApiBearerAuth("JWT-auth")
   @UseGuards(RolesGuard)
   @Roles("PLATFORM_ADMIN")
   @ApiOperation({ summary: "Create a custom flash sale campaign (Admin)" })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Flash sale created" })
+  @ApiStandardErrors(400, 401, 403)
   create(@Body() dto: CreateFlashSaleDto) {
     return this.flashSales.create(dto);
   }
 
   @Get()
   @ApiOperation({ summary: "List all flash sale campaigns" })
+  @ApiSuccessResponse(undefined, { isArray: true, description: "Flash sale campaigns list" })
   findAll(@Query() query: FlashSaleQueryDto) {
     return this.flashSales.findAll(query);
   }
 
   @Get("active")
   @ApiOperation({ summary: "Get active flash sales with items (optionally filtered by scope PLATFORM or SHOP)" })
+  @ApiQuery({ name: "scope", required: false, enum: FlashSaleScope })
+  @ApiSuccessResponse(undefined, { isArray: true, description: "Active flash sales" })
   getActive(@Query("scope") scope?: FlashSaleScope) {
     return this.flashSales.getActiveFlashSales(scope);
   }
 
   @Get("shops/grouped")
   @ApiOperation({ summary: "Get active shop flash sales grouped by store" })
+  @ApiSuccessResponse(undefined, { isArray: true, description: "Grouped shop flash sales" })
   getGroupedShops() {
     return this.flashSales.getGroupedShopFlashSales();
   }
 
   @Get("upcoming")
   @ApiOperation({ summary: "Get upcoming flash sale campaigns" })
+  @ApiQuery({ name: "scope", required: false, enum: FlashSaleScope })
+  @ApiSuccessResponse(undefined, { isArray: true, description: "Upcoming flash sales" })
   getUpcoming(@Query("scope") scope?: FlashSaleScope) {
     return this.flashSales.getUpcomingFlashSales(scope);
   }
 
   @Get("slots")
   @ApiOperation({ summary: "Get all daily flash sale time slots" })
+  @ApiQuery({ name: "scope", required: false, enum: FlashSaleScope })
+  @ApiSuccessResponse(undefined, { isArray: true, description: "Flash sale time slots" })
   getTimeSlots(@Query("scope") scope?: FlashSaleScope) {
     return this.flashSales.getTimeSlots(scope);
   }
 
   @Get("items")
   @ApiOperation({ summary: "Get flash sale items" })
+  @ApiSuccessResponse(undefined, { isArray: true, description: "Flash sale items" })
   findItems(@Query() query: FlashSaleItemQueryDto) {
     return this.flashSales.findItems(query);
   }
 
   @Get("price/:bookId")
   @ApiOperation({ summary: "Get active flash sale price for a book" })
+  @ApiQuery({ name: "format", required: false, type: String })
+  @ApiSuccessResponse(undefined, { description: "Active flash sale price" })
+  @ApiStandardErrors(404)
   getBookPrice(
     @Param("bookId") bookId: string,
     @Query("format") format?: string,
@@ -94,12 +109,17 @@ export class FlashSalesController {
 
   @Post("validate-quota")
   @ApiOperation({ summary: "Validate if user can purchase flash sale book" })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Quota validation result" })
+  @ApiStandardErrors(400, 409)
   validateQuota(@Body() dto: ValidateQuotaDto) {
     return this.flashSales.validateUserQuota(dto);
   }
 
   @Post("reserve")
   @ApiOperation({ summary: "Reserve flash sale quota & stock" })
+  @ApiHeader({ name: "x-internal-service-key", required: true })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Flash sale quota reserved" })
+  @ApiStandardErrors(400, 403, 409)
   reserve(
     @Headers("x-internal-service-key") serviceKey: string,
     @Body() dto: ReserveFlashSaleDto,
@@ -110,6 +130,9 @@ export class FlashSalesController {
 
   @Post("release-order")
   @ApiOperation({ summary: "Release Flash Sale reservations for an order" })
+  @ApiHeader({ name: "x-internal-service-key", required: true })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Flash sale reservations released" })
+  @ApiStandardErrors(400, 403)
   releaseOrder(
     @Headers("x-internal-service-key") serviceKey: string,
     @Body() dto: ReleaseFlashSaleOrderDto,
@@ -122,6 +145,9 @@ export class FlashSalesController {
   @ApiOperation({
     summary: "Check whether an order has Flash Sale reservations",
   })
+  @ApiHeader({ name: "x-internal-service-key", required: true })
+  @ApiSuccessResponse(undefined, { description: "Reservation check result" })
+  @ApiStandardErrors(403)
   hasReservations(
     @Headers("x-internal-service-key") serviceKey: string,
     @Param("orderId") orderId: string,
@@ -132,6 +158,8 @@ export class FlashSalesController {
 
   @Get(":id")
   @ApiOperation({ summary: "Get flash sale by ID" })
+  @ApiSuccessResponse(undefined, { description: "Flash sale detail" })
+  @ApiStandardErrors(404)
   findOne(@Param("id") id: string) {
     if (id === 'seller') {
       return this.flashSales.getTimeSlots(FlashSaleScope.SHOP);
@@ -140,19 +168,23 @@ export class FlashSalesController {
   }
 
   @Post("items")
-  @ApiBearerAuth()
+  @ApiBearerAuth("JWT-auth")
   @UseGuards(RolesGuard)
   @Roles("PLATFORM_ADMIN")
   @ApiOperation({ summary: "Add item to flash sale" })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Item added" })
+  @ApiStandardErrors(400, 401, 403, 404)
   addItem(@Body() dto: CreateFlashSaleItemDto) {
     return this.flashSales.addItem(dto);
   }
 
   @Post(":id/items")
-  @ApiBearerAuth()
+  @ApiBearerAuth("JWT-auth")
   @UseGuards(RolesGuard)
   @Roles("PLATFORM_ADMIN")
   @ApiOperation({ summary: "Add item to specific flash sale" })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Item added to slot" })
+  @ApiStandardErrors(400, 401, 403, 404)
   addItemToSlot(
     @Param("id") id: string,
     @Body() dto: Omit<CreateFlashSaleItemDto, "flashSaleId">,
@@ -161,28 +193,34 @@ export class FlashSalesController {
   }
 
   @Patch(":id/end-early")
-  @ApiBearerAuth()
+  @ApiBearerAuth("JWT-auth")
   @UseGuards(RolesGuard)
   @Roles("PLATFORM_ADMIN")
   @ApiOperation({ summary: "End flash sale early in 5 minutes with platform-wide broadcast" })
+  @ApiSuccessResponse(undefined, { description: "Flash sale early ending scheduled" })
+  @ApiStandardErrors(401, 403, 404, 409)
   endEarly(@Param("id") id: string) {
     return this.flashSales.endEarly(id);
   }
 
   @Patch(":id/cancel")
-  @ApiBearerAuth()
+  @ApiBearerAuth("JWT-auth")
   @UseGuards(RolesGuard)
   @Roles("PLATFORM_ADMIN")
   @ApiOperation({ summary: "Cancel a scheduled flash sale slot" })
+  @ApiSuccessResponse(undefined, { description: "Flash sale cancelled" })
+  @ApiStandardErrors(401, 403, 404, 409)
   cancel(@Param("id") id: string) {
     return this.flashSales.cancel(id);
   }
 
   @Patch(":id/status")
-  @ApiBearerAuth()
+  @ApiBearerAuth("JWT-auth")
   @UseGuards(RolesGuard)
   @Roles("PLATFORM_ADMIN")
   @ApiOperation({ summary: "Update flash sale status" })
+  @ApiSuccessResponse(undefined, { description: "Flash sale status updated" })
+  @ApiStandardErrors(400, 401, 403, 404)
   updateStatus(
     @Param("id") id: string,
     @Body() dto: UpdateFlashSaleStatusDto,
@@ -191,10 +229,13 @@ export class FlashSalesController {
   }
 
   @Patch("items/:itemId/stock")
-  @ApiBearerAuth()
+  @ApiBearerAuth("JWT-auth")
   @UseGuards(RolesGuard)
   @Roles("PLATFORM_ADMIN")
   @ApiOperation({ summary: "Update flash sale item stock" })
+  @ApiBody({ schema: { type: 'object', required: ['stock'], properties: { stock: { type: 'number', example: 50 } } } })
+  @ApiSuccessResponse(undefined, { description: "Item stock updated" })
+  @ApiStandardErrors(400, 401, 403, 404)
   updateStock(
     @Param("itemId") itemId: string,
     @Body("stock") stock: number,
@@ -203,10 +244,12 @@ export class FlashSalesController {
   }
 
   @Delete(":id")
-  @ApiBearerAuth()
+  @ApiBearerAuth("JWT-auth")
   @UseGuards(RolesGuard)
   @Roles("PLATFORM_ADMIN")
   @ApiOperation({ summary: "Delete flash sale" })
+  @ApiSuccessResponse(undefined, { description: "Flash sale deleted" })
+  @ApiStandardErrors(401, 403, 404)
   delete(@Param("id") id: string) {
     return this.flashSales.delete(id);
   }
