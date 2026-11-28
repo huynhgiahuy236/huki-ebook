@@ -45,16 +45,14 @@ export default function VerifiedPurchaseBadge({
     return (
       <span
         title="Đánh giá từ người mua thực tế đã hoàn tất đơn hàng"
-        className={`inline-flex items-center gap-1 bg-[#006953]/10 text-[#006953] border border-[#006953]/25 px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-tight select-none shadow-2xs ${className}`}
+        className={`inline-flex items-center gap-1.5 bg-emerald-50 text-[#006953] px-2 py-0.5 rounded-md text-[11px] font-semibold tracking-tight select-none whitespace-nowrap ${className}`}
       >
-        <span className="material-symbols-outlined text-[13px] leading-none font-bold">
-          verified
-        </span>
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
         <span>{label}</span>
         {formatText && (
           <>
-            <span className="text-gray-300">•</span>
-            <span className="text-[10px] uppercase font-bold text-[#006953]/90">
+            <span className="text-emerald-300">•</span>
+            <span className="text-[10px] uppercase font-bold text-[#006953]">
               {formatText}
             </span>
           </>
@@ -67,11 +65,9 @@ export default function VerifiedPurchaseBadge({
     return (
       <span
         title="Đánh giá từ người mua thực tế đã hoàn tất đơn hàng"
-        className={`inline-flex items-center gap-0.5 text-[#006953] font-semibold text-[11px] select-none ${className}`}
+        className={`inline-flex items-center gap-1 bg-emerald-50 text-[#006953] px-1.5 py-0.5 rounded-md font-semibold text-[11px] select-none align-middle ${className}`}
       >
-        <span className="material-symbols-outlined text-[13px] leading-none font-bold">
-          verified
-        </span>
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
         <span>{label}</span>
       </span>
     );

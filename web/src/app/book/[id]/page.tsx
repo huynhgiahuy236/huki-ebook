@@ -1986,9 +1986,21 @@ export default function BookDetailPage() {
                         </span>
                       </div>
                       <div className="flex justify-between gap-4 py-1 border-b border-[#e8e5df]/60">
-                        <span className="text-gray-500">Kích thước:</span>
-                        <span className="font-semibold text-gray-900">
-                          {book.dimensions || 'Tiêu chuẩn khổ sách NXB (Đang cập nhật)'}
+                        <span className="text-gray-500 shrink-0">Kích thước:</span>
+                        <span className="font-semibold text-gray-900 text-right truncate max-w-[65%]">
+                          {(() => {
+                            if (!book.dimensions) return 'Tiêu chuẩn khổ sách NXB (Đang cập nhật)';
+                            const raw = String(book.dimensions).trim();
+                            if (raw.startsWith('{')) {
+                              try {
+                                const parsed = JSON.parse(raw);
+                                return parsed.dimensions || parsed.size || 'Tiêu chuẩn khổ sách NXB';
+                              } catch {
+                                return 'Tiêu chuẩn khổ sách NXB';
+                              }
+                            }
+                            return raw;
+                          })()}
                         </span>
                       </div>
                       <div className="flex justify-between gap-4 py-1 border-b border-[#e8e5df]/60">
@@ -2088,9 +2100,9 @@ export default function BookDetailPage() {
                         >
                           {publisherProfile.name}
                         </Link>
-                        <span className="inline-flex items-center gap-0.5 bg-[#006953]/10 text-[#006953] text-[10px] font-bold px-2 py-0.5 rounded-full">
-                          <span className="material-symbols-outlined text-xs">verified</span>
-                          Gian Hàng Chính Hãng
+                        <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-[#006953] text-[11px] font-semibold px-2 py-0.5 rounded-md whitespace-nowrap">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          Gian hàng chính hãng
                         </span>
                       </div>
                       <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{publisherProfile.description}</p>

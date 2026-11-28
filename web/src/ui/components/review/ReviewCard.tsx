@@ -238,11 +238,11 @@ export default function ReviewCard({
               )}
               {(isOwner || canReply) && (review.isReported || review.status === 'FLAGGED') && (
                 <span
-                  className="px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 text-[10px] font-bold border border-amber-200/80 dark:border-amber-800/60 inline-flex items-center gap-1"
+                  className="px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 text-[11px] font-semibold inline-flex items-center gap-1.5 whitespace-nowrap"
                   title="Đánh giá đang được Admin xem xét báo cáo và vẫn hiển thị cho tới khi có quyết định."
                 >
-                  <span className="material-symbols-outlined text-[12px]">flag</span>
-                  Đang bị báo cáo (Chờ Admin duyệt)
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                  Đang bị báo cáo (Chờ duyệt)
                 </span>
               )}
             </div>

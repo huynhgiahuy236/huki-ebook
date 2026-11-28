@@ -446,20 +446,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           </form>
         </div>
 
-        {/* Right: Storefront link, Microservice Health, User info */}
+        {/* Right: Microservice Health, Sound, Bell, User info, Storefront link */}
         <div className="flex items-center gap-2 sm:gap-2.5 z-10">
-          {/* Back to Storefront Link (Matched with SellerHeader) */}
-          <Link
-            href="/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden sm:flex items-center gap-1 text-xs font-semibold text-[#006953] hover:bg-emerald-50/70 px-2.5 py-1.5 rounded-xl border border-[#E2E8F0] transition-colors shrink-0 whitespace-nowrap"
-            title="Mở trang chủ Sàn HuKi trong tab mới"
-          >
-            <span className="material-symbols-outlined text-[15px]">open_in_new</span>
-            <span>Xem Sàn</span>
-          </Link>
-
           {/* Health quick status badge */}
           <Link
             href="/admin/health"
@@ -503,6 +491,17 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               </span>
             </div>
           </div>
+
+          {/* Back to Storefront Link */}
+          <Link
+            href="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden sm:inline-flex items-center text-xs font-semibold text-[#006953] hover:bg-emerald-50/70 px-3 py-1.5 rounded-xl border border-[#E2E8F0] transition-colors shrink-0 whitespace-nowrap"
+            title="Mở trang chủ Sàn HuKi trong tab mới"
+          >
+            Xem Sàn
+          </Link>
         </div>
       </header>
 
