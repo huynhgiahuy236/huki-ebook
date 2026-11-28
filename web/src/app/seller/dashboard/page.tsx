@@ -222,17 +222,49 @@ export default function SellerDashboardPage() {
 
     // 5. Fetch seller vouchers / promotions & flash sales (real DB)
     try {
-      const vRes = await getSellerVouchers(bizId ? { storeId: bizId } : undefined);
-      if (vRes.success && vRes.data?.items) {
-        result.activeVouchers = vRes.data.items.filter((v: Voucher) => v.status === 'ACTIVE');
-      }
+      const vRes = await getSellerVouchers({ limit: 20 });
+      const voucherList: Voucher[] = Array.isArray(vRes.data)
+        ? (vRes.data as unknown as Voucher[])
+        : Array.isArray(vRes.data?.items)
+        ? vRes.data.items
+        : [];
+      result.activeVouchers = voucherList.filter((v: Voucher) => v.status === 'ACTIVE');
     } catch { /* ignore */ }
 
-    // BUG-021: Fetch seller flash sale slots (real DB)
+    // BUG-021: Fetch seller flash sale slots & registered items (real DB)
     try {
-      const fsRes = await flashSaleApi.getSellerSlots();
-      if (fsRes.success && Array.isArray(fsRes.data)) {
-        result.activeFlashSales = fsRes.data.filter((s: FlashSaleSlot) => s.status === 'ACTIVE' || s.status === 'SCHEDULED');
+      const [fsRes, fsItemsRes] = await Promise.all([
+        flashSaleApi.getSellerSlots().catch(() => null),
+        flashSaleApi.getSellerMyItems().catch(() => null),
+      ]);
+      const slotsList: FlashSaleSlot[] =
+        fsRes?.success && Array.isArray(fsRes.data)
+          ? fsRes.data.filter((s: FlashSaleSlot) => s.status === 'ACTIVE' || s.status === 'SCHEDULED')
+          : [];
+      if (slotsList.length > 0) {
+        result.activeFlashSales = slotsList;
+      } else if (fsItemsRes?.success && Array.isArray(fsItemsRes.data)) {
+        const fsMap = new Map<string, FlashSaleSlot>();
+        fsItemsRes.data.forEach((it: any) => {
+          const fsStatus = String(it.flashSaleStatus || it.status || '').toUpperCase();
+          if (fsStatus !== 'ACTIVE' && fsStatus !== 'SCHEDULED') return;
+          const fid = it.flashSaleId || it.id;
+          if (!fsMap.has(fid)) {
+            fsMap.set(fid, {
+              id: fid,
+              name: it.flashSaleName || 'Flash Sale Gian Hàng',
+              status: fsStatus as any,
+              startsAt: it.startsAt || new Date().toISOString(),
+              endsAt: it.endsAt || new Date().toISOString(),
+              items: [],
+            } as unknown as FlashSaleSlot);
+          }
+          const existing = fsMap.get(fid)!;
+          if (Array.isArray(existing.items)) {
+            existing.items.push(it);
+          }
+        });
+        result.activeFlashSales = Array.from(fsMap.values());
       }
     } catch { /* ignore */ }
 
@@ -868,7 +900,7 @@ export default function SellerDashboardPage() {
           </div>
 
           {/* Widget 2: TIN NHẮN KHÁCH ĐỌC (TỪ DB THỰC TẾ) */}
-          <div className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+          <div className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col">
             <div className="flex items-center justify-between mb-3.5 pb-2 border-b border-gray-100">
               <h2 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[#00875A] text-[18px]">chat_bubble_outline</span>
