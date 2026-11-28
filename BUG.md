@@ -2192,11 +2192,11 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 
 ---
 
-## 19. ĐỢT XỬ LÝ BUG-39 ĐẾN BUG-53 (UAT STAGING) — UI/UX, BỘ LỌC, ADMIN, REALTIME & DỮ LIỆU THẬT
+## 19. ĐỢT XỬ LÝ BUG-39 ĐẾN BUG-54 (UAT STAGING) — UI/UX, BỘ LỌC, ADMIN, REALTIME & DỮ LIỆU THẬT
 
 > **Nhánh làm việc:** `feat/auth-left-panel-design` (hoặc tách nhánh mới theo chỉ đạo)
 > **Môi trường phát hiện:** **UAT (`https://huki-uat.duckdns.org`)**
-> **Quy trình áp dụng:** [`readme-bug.md`](file:///e:/HuKi/readme-bug.md) (Tuân thủ chặt chẽ 12 bước tuần tự & phân chặng nội bộ tối đa 3 bug/giai đoạn: **GĐ1:** `BUG-39..41` | **GĐ2:** `BUG-42..44` | **GĐ3:** `BUG-45..47` | **GĐ4:** `BUG-48..50` | **GĐ5:** `BUG-51..53`).
+> **Quy trình áp dụng:** [`readme-bug.md`](file:///e:/HuKi/readme-bug.md) (Tuân thủ chặt chẽ 12 bước tuần tự & phân chặng nội bộ tối đa 3 bug/giai đoạn: **GĐ1:** `BUG-39..41` | **GĐ2:** `BUG-42..44` | **GĐ3:** `BUG-45..47` | **GĐ4:** `BUG-48..50` | **GĐ5:** `BUG-51..53` | **GĐ6:** `BUG-54`).
 
 ### Bước 1: Thu thập & Chuẩn hóa Hồ sơ Lỗi (28/11/2026)
 
@@ -2217,6 +2217,7 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 | **`BUG-51`** | `PLATFORM_ADMIN` / `/admin/maintenance` | **Expected:** Chức năng cấu hình/bật/tắt chế độ bảo trì hệ thống hoạt động chuẩn xác trên cả Local và UAT. <br>**Actual:** Trang `/admin/maintenance` trên UAT không hoạt động. | Phản ánh trực tiếp trên UAT `https://huki-uat.duckdns.org/admin/maintenance`. | Nghiêm trọng (Broken Feature) |
 | **`BUG-52`** | `SELLER` & `PLATFORM_ADMIN` / Header Search Bar | **Expected:** Thanh tìm kiếm (Header Search) ở cả **Seller** và **Admin** phải tinh tế, mềm mại, đồng bộ thiết kế chuẩn hệ thống; icon kính lúp và text placeholder không được đè lên nhau (`padding-left` chuẩn), hỗ trợ `Ctrl+K` / focus mượt mà. <br>**Actual:** <br>1. Thanh Search của Seller còn hơi thô, thiếu độ mềm mại/tinh tế. <br>2. Thanh Search trên Header Admin bị lỗi CSS: chữ `"Tìm sách, doanh nghiệp, ISBN..."` bị đè trực tiếp lên icon kính lúp. | Ảnh chụp màn hình Header Admin trên UAT (`media_1795878106680_6a14c5d0.png`) đối chiếu với Search Buyer. | Trung bình (UI/CSS Bug) |
 | **`BUG-53`** | `PLATFORM_ADMIN` / Healthcheck & Cảnh báo Microservices (Notification Drawer) | **Expected:** Cơ chế healthcheck giữa các microservices phải có retry/grace period, cooldown chống spam, ghi rõ chi tiết lỗi thực tế (không để rỗng) và chỉ bắn cảnh báo khi dịch vụ thực sự gián đoạn; bấm `Xem chi tiết` mở đúng thông tin kiểm tra trạng thái. <br>**Actual:** Các dịch vụ (`promotion:3007`, `shipping:3004`, `commerce:3003`, `business:3002`, `identity:3001`) lâu lâu bắn hàng loạt thông báo `"Báo động đỏ: Microservice ... Chi tiết lỗi: ."` lên Admin (tới 49-50 cảnh báo), nhưng vào kiểm tra thực tế thì dịch vụ vẫn bình thường (false-positive / spam). | Ảnh chụp màn hình Notification Drawer Admin trên UAT (`media_1795878151334_0db18967.png`). | Cao (Monitoring & Alert Spam) |
+| **`BUG-54`** | `PLATFORM_ADMIN` / Quản lý Người dùng (`/admin/users` & `/admin/accounts` sau gộp `BUG-41`) | **Expected:** <br>1. Tài khoản User/Khách hàng thông thường không có trạng thái **"Chờ duyệt"** (chỉ hiển thị chờ duyệt nếu tài khoản đang đăng ký/chờ duyệt lên **Seller**). <br>2. UI cột **Vai trò** & **Trạng thái** tinh tế, gọn gàng: bỏ các khung/ô viền màu cam/xanh/đỏ bao quanh, chỉ dùng **chữ có màu** (hoặc chấm tròn nhỏ + chữ màu) khớp thẳng hàng ngang trên 1 dòng. <br>**Actual:** <br>1. Tài khoản khách hàng (`Test User`) bị hiện trạng thái `Chờ duyệt` bất hợp lý. <br>2. Cột Vai trò & Trạng thái đang bọc badge ô màu cam/xanh cồng kềnh, thiếu tinh tế. | Ảnh chụp màn hình bảng quản lý tài khoản trên UAT (`media_1795879340442_b3945377.png`). | Trung bình - Cao (Nghiệp vụ & UI) |
 
 - **Trạng thái Bước 1:** Đã chuẩn hóa hồ sơ **15 bug trên UAT (`BUG-39` → `BUG-53`)** vào [`BUG.md`](file:///e:/HuKi/BUG.md).
 
