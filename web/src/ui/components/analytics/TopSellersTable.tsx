@@ -56,13 +56,22 @@ export function TopSellersTable({ byStore, totalGmv, loading = false }: TopSelle
         >();
 
         res.data.forEach((b: any) => {
+          const bName = b.name || 'Doanh Nghiệp / NXB';
+          const bType = b.type || 'PUBLISHER';
+          if (b.id) {
+            metaMap.set(b.id, {
+              storeName: bName,
+              businessName: bName,
+              businessType: bType,
+            });
+          }
           if (Array.isArray(b.stores)) {
             b.stores.forEach((s: any) => {
               if (s.id) {
                 metaMap.set(s.id, {
-                  storeName: s.name || `Gian Hàng ${s.id.substring(0, 8)}`,
-                  businessName: b.name || 'Doanh Nghiệp / NXB',
-                  businessType: b.type || 'PUBLISHER',
+                  storeName: s.name || bName,
+                  businessName: bName,
+                  businessType: bType,
                 });
               }
             });
@@ -203,36 +212,12 @@ export function TopSellersTable({ byStore, totalGmv, loading = false }: TopSelle
         ),
       },
       {
-        key: 'storeId',
-        title: 'Mã Gian Hàng',
-        width: 150,
-        render: (_, row) => {
-          const isCopied = copiedId === row.storeId;
-          return (
-            <div className="flex items-center gap-1.5 font-mono text-[11px] text-gray-700">
-              <span title={row.storeId} className="truncate max-w-[100px]">
-                {row.storeId.substring(0, 8)}...
-              </span>
-              <button
-                onClick={(e) => handleCopy(row.storeId, e)}
-                className="text-gray-400 hover:text-gray-700 p-0.5 rounded transition-colors cursor-pointer"
-                title="Sao chép Store ID"
-              >
-                <span className="material-symbols-outlined text-[13px]">
-                  {isCopied ? 'check' : 'content_copy'}
-                </span>
-              </button>
-            </div>
-          );
-        },
-      },
-      {
         key: 'ordersCount',
         title: 'Đơn Hoàn Tất',
         align: 'right',
-        width: 100,
+        width: 110,
         render: (_, row) => (
-          <span className="font-mono text-xs font-bold text-gray-800">
+          <span className="font-mono text-sm font-bold text-gray-800">
             {row.ordersCount.toLocaleString('vi-VN')}
           </span>
         ),
@@ -243,10 +228,10 @@ export function TopSellersTable({ byStore, totalGmv, loading = false }: TopSelle
         align: 'right',
         render: (_, row) => (
           <div className="flex flex-col items-end">
-            <span className="font-editorial font-extrabold text-xs text-gray-900">
+            <span className="font-editorial font-extrabold text-sm text-gray-900">
               {formatVND(row.gmv)}
             </span>
-            <div className="flex items-center gap-1 text-[10px] text-emerald-700 font-bold">
+            <div className="flex items-center gap-1 text-[11px] text-emerald-700 font-bold">
               <span>{row.sharePercent.toFixed(1)}%</span>
               <span className="text-gray-400 font-normal">toàn sàn</span>
             </div>
@@ -258,7 +243,7 @@ export function TopSellersTable({ byStore, totalGmv, loading = false }: TopSelle
         title: 'Hoa Hồng Sàn (8%)',
         align: 'right',
         render: (_, row) => (
-          <span className="font-mono text-xs font-bold text-emerald-700">
+          <span className="font-mono text-sm font-bold text-emerald-700">
             {formatVND(row.commission)}
           </span>
         ),
@@ -267,10 +252,11 @@ export function TopSellersTable({ byStore, totalGmv, loading = false }: TopSelle
         key: 'status',
         title: 'Trạng Thái',
         align: 'center',
-        width: 110,
+        width: 150,
         render: () => (
           <div className="flex justify-center">
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-xs font-semibold whitespace-nowrap">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
               Đang Hoạt Động
             </span>
           </div>
@@ -420,24 +406,24 @@ export function TopSellersTable({ byStore, totalGmv, loading = false }: TopSelle
               </span>
             </div>
 
-            <div className="flex items-center gap-6">
-              <div>
-                <span className="text-gray-500 text-[11px]">Tổng Đơn: </span>
-                <strong className="text-gray-900 font-mono">
+            <div className="flex flex-wrap items-center gap-6">
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-gray-500 text-xs">Tổng Đơn:</span>
+                <strong className="text-gray-900 font-mono text-sm">
                   {grandTotalOrders.toLocaleString('vi-VN')}
                 </strong>
               </div>
 
-              <div>
-                <span className="text-gray-500 text-[11px]">Tổng GMV: </span>
-                <strong className="text-emerald-700 font-editorial font-bold">
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-gray-500 text-xs">Tổng GMV:</span>
+                <strong className="text-emerald-700 font-editorial font-extrabold text-base">
                   {formatVND(grandTotalGmv)}
                 </strong>
               </div>
 
-              <div>
-                <span className="text-gray-500 text-[11px]">Hoa Hồng Thu Sàn: </span>
-                <strong className="text-indigo-700 font-mono font-bold">
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-gray-500 text-xs">Hoa Hồng Thu Sàn:</span>
+                <strong className="text-indigo-700 font-mono font-extrabold text-base">
                   {formatVND(grandTotalCommission)}
                 </strong>
               </div>

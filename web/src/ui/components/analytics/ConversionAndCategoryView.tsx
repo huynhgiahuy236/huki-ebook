@@ -318,30 +318,17 @@ export function ConversionAndCategoryView() {
       {
         key: 'name',
         title: 'Thể Loại / Danh Mục',
-        minWidth: 260,
-        render: (_val, row) => {
-          const colors = getCategoryBadgeColor(row.name);
-          const icon = getCategoryIcon(row.name);
-          return (
-            <div className="flex items-start gap-3 py-1">
-              <div
-                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${colors.bg} ${colors.border}`}
-              >
-                <span className={`material-symbols-outlined text-[19px] ${colors.text}`}>
-                  {icon}
-                </span>
-              </div>
-              <div className="min-w-0">
-                <div className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                  <span className="truncate">{row.name}</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-0.5">
-                  <span className="text-gray-500 font-sans text-[11px]">{row.slug}</span>
-                </div>
-              </div>
+        minWidth: 240,
+        render: (_val, row) => (
+          <div className="min-w-0 py-1">
+            <div className="font-bold text-gray-900 text-sm">
+              <span className="truncate">{row.name}</span>
             </div>
-          );
-        },
+            <div className="text-gray-500 font-sans text-[11px] mt-0.5">
+              {row.slug}
+            </div>
+          </div>
+        ),
       },
       {
         key: 'bookCount',
@@ -875,35 +862,36 @@ export function ConversionAndCategoryView() {
             emptyMessage="Không có thể loại nào khớp với tiêu chí tìm kiếm hoặc bộ lọc hiện tại."
             summaryRow={
               <tr className="bg-gray-100/90 font-black text-xs text-gray-900 border-t-2 border-gray-300">
+                <td className="py-3 px-2" />
                 <td className="py-3 px-3 text-center whitespace-nowrap">Σ</td>
                 <td className="py-3 px-3 whitespace-nowrap">
                   <span className="font-bold uppercase tracking-wider text-gray-800 whitespace-nowrap">
                     Tổng Cộng ({filteredCategories.length} Thể Loại)
                   </span>
                 </td>
-                <td className="py-3 px-3 text-center">
+                <td className="py-3 px-3 text-center whitespace-nowrap">
                   <span className="px-2.5 py-1 rounded-full bg-gray-200 text-gray-800 text-xs">
                     {grandTotals.bookCount} sách
                   </span>
                 </td>
-                <td className="py-3 px-3 text-right">
+                <td className="py-3 px-3 text-right whitespace-nowrap">
                   {grandTotals.viewCount.toLocaleString('vi-VN')}
                 </td>
-                <td className="py-3 px-3 text-right text-[#00875A]">
+                <td className="py-3 px-3 text-right text-[#00875A] whitespace-nowrap">
                   {grandTotals.totalUnits.toLocaleString('vi-VN')} cuốn
                 </td>
-                <td className="py-3 px-3 text-right font-mono">
+                <td className="py-3 px-3 text-right font-mono text-sm font-extrabold text-gray-900 whitespace-nowrap">
                   {formatVND(grandTotals.totalRevenue)}
                 </td>
-                <td className="py-3 px-3">
+                <td className="py-3 px-3 whitespace-nowrap">
                   <span className="text-xs font-bold text-gray-700">100.0%</span>
                 </td>
-                <td className="py-3 px-3 text-center">
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                <td className="py-3 px-3 text-center whitespace-nowrap">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
                     {funnelMetrics.totalCVR}%
                   </span>
                 </td>
-                <td className="py-3 px-3 text-center text-gray-500 font-medium">Toàn Sàn</td>
+                <td className="py-3 px-3 text-center text-gray-500 font-medium whitespace-nowrap">Toàn Sàn</td>
               </tr>
             }
             pagination={{

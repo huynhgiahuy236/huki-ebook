@@ -192,20 +192,31 @@ export function AdminReportsView() {
           }),
         ]);
 
+        let cachedEscrowItems: any[] | null = null;
+        const getValidEscrowItems = async () => {
+          if (cachedEscrowItems) return cachedEscrowItems;
+          const escrowRes = await adminApi.getEscrowItems();
+          if (escrowRes.success && Array.isArray(escrowRes.data)) {
+            cachedEscrowItems = escrowRes.data.filter((it: any) => {
+              if (it.escrowStatus === 'REFUNDED') return false;
+              const dt = (it.orderCreatedAt || '').slice(0, 10);
+              if (fromDate && dt && dt < fromDate) return false;
+              if (toDate && dt && dt > toDate) return false;
+              return true;
+            });
+          } else {
+            cachedEscrowItems = [];
+          }
+          return cachedEscrowItems;
+        };
+
         // Process GMV Response (nếu DailyAggregate chưa rollup ra 0, tự tổng hợp từ đơn hàng thật trong Escrow/Commerce)
         if (gmvRes.status === 'fulfilled' && gmvRes.value.success && gmvRes.value.data) {
           let resolvedGmv = gmvRes.value.data;
           if (Number(resolvedGmv.totalGmv || 0) === 0 && (resolvedGmv.completedOrders || 0) === 0) {
             try {
-              const escrowRes = await adminApi.getEscrowItems();
-              if (escrowRes.success && Array.isArray(escrowRes.data) && escrowRes.data.length > 0) {
-                const validItems = escrowRes.data.filter((it: any) => {
-                  if (it.escrowStatus === 'REFUNDED') return false;
-                  const dt = (it.orderCreatedAt || '').slice(0, 10);
-                  if (fromDate && dt && dt < fromDate) return false;
-                  if (toDate && dt && dt > toDate) return false;
-                  return true;
-                });
+              const validItems = await getValidEscrowItems();
+              if (validItems.length > 0) {
                 const totalAmt = validItems.reduce((s: number, it: any) => s + Number(it.effectiveSubtotal ?? it.subtotal ?? 0), 0);
                 const orderIds = new Set(validItems.map((it: any) => it.orderId));
                 const dayMap = new Map<string, { gmv: number; orders: Set<string> }>();
@@ -250,16 +261,44 @@ export function AdminReportsView() {
           setError('Lỗi mạng hoặc máy chủ phân tích không phản hồi');
         }
 
-        // Process Bestsellers Response
-        if (
+        // Process Bestsellers Response (fallback sang đơn hàng thật khi Analytics chưa có rollup)
+        let resolvedBestsellers: BestsellerItem[] =
           bestsellersRes.status === 'fulfilled' &&
           bestsellersRes.value.success &&
           bestsellersRes.value.data
-        ) {
-          setBestsellers(bestsellersRes.value.data.items || []);
-        } else {
-          setBestsellers([]);
+            ? bestsellersRes.value.data.items || []
+            : [];
+
+        if (resolvedBestsellers.length === 0) {
+          try {
+            const validItems = await getValidEscrowItems();
+            const bookMap = new Map<string, BestsellerItem>();
+            validItems.forEach((it: any) => {
+              const bid = it.bookId || it.bookTitle || 'unknown';
+              const qty = Number(it.quantity || 1);
+              const amt = Number(it.effectiveSubtotal ?? it.subtotal ?? 0);
+              const cur = bookMap.get(bid) || {
+                bookId: bid,
+                title: it.bookTitle || 'Sách HuKi',
+                metricValue: '0',
+                units: 0,
+                gmv: '0',
+              };
+              cur.units += qty;
+              cur.gmv = String(Number(cur.gmv) + amt);
+              cur.metricValue = bestsellerMode === 'GMV' ? cur.gmv : String(cur.units);
+              bookMap.set(bid, cur);
+            });
+            resolvedBestsellers = Array.from(bookMap.values())
+              .sort((a, b) =>
+                bestsellerMode === 'GMV'
+                  ? Number(b.gmv) - Number(a.gmv)
+                  : b.units - a.units
+              )
+              .slice(0, 10);
+          } catch { /* ignore fallback error */ }
         }
+        setBestsellers(resolvedBestsellers);
 
         setLastRefreshedAt(new Date());
         if (isManual) {

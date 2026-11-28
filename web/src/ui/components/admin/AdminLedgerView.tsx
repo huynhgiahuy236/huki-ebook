@@ -840,11 +840,23 @@ export function AdminLedgerView() {
               </div>
               <div className="text-gray-600 flex items-center gap-1.5 mt-1">
                 <span>Phương thức:</span>
-                <span className="px-1.5 py-0.2 rounded font-bold bg-slate-100 text-slate-800 font-mono text-[10px]">
-                  {item.paymentMethod}
+                <span className="px-2 py-0.5 rounded-md font-semibold bg-slate-100 text-slate-800 text-[11px]">
+                  {item.paymentMethod === 'ONLINE_PAYMENT'
+                    ? 'Thanh toán trực tuyến'
+                    : item.paymentMethod === 'COD'
+                    ? 'Thanh toán khi nhận hàng (COD)'
+                    : item.paymentMethod === 'WALLET'
+                    ? 'Ví HuKi'
+                    : item.paymentMethod}
                 </span>
-                <span className="px-1.5 py-0.2 rounded font-bold bg-emerald-100 text-emerald-800 text-[10px]">
-                  {item.paymentStatus}
+                <span className="px-2 py-0.5 rounded-md font-semibold bg-emerald-50 text-emerald-700 text-[11px]">
+                  {item.paymentStatus === 'SUCCEEDED' || item.paymentStatus === 'PAID'
+                    ? 'Đã thanh toán'
+                    : item.paymentStatus === 'PENDING'
+                    ? 'Chờ thanh toán'
+                    : item.paymentStatus === 'REFUNDED'
+                    ? 'Đã hoàn tiền'
+                    : item.paymentStatus}
                 </span>
               </div>
             </div>
@@ -861,7 +873,14 @@ export function AdminLedgerView() {
               </div>
               {item.frozenReason ? (
                 <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 font-medium text-[11px] leading-relaxed">
-                  Lý do đóng băng: {item.frozenReason}
+                  Lý do đóng băng:{' '}
+                  {String(item.frozenReason)
+                    .replace(/NOT_AS_DESCRIBED/g, 'Hàng không đúng mô tả')
+                    .replace(/DAMAGED_IN_TRANSIT|DAMAGED/g, 'Sản phẩm bị hư hỏng')
+                    .replace(/WRONG_ITEM/g, 'Giao sai sản phẩm')
+                    .replace(/MISSING_PARTS|MISSING_ITEMS/g, 'Thiếu sản phẩm / phụ kiện')
+                    .replace(/COUNTERFEIT/g, 'Nghi ngờ hàng giả / kém chất lượng')
+                    .replace(/CHANGED_MIND/g, 'Khách đổi ý')}
                 </div>
               ) : (
                 <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-medium text-[11px]">
