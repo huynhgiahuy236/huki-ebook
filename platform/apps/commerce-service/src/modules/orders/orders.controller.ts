@@ -21,16 +21,14 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiConsumes,
   ApiOperation,
+  ApiQuery,
   ApiTags,
   ApiParam,
-  ApiResponse,
-  ApiUnauthorizedResponse,
-  ApiNotFoundResponse,
-  ApiForbiddenResponse,
-  ApiBadRequestResponse,
 } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { AuthenticatedGuard, BookActor, BookWriteGuard, OptionalBookAuthGuard } from '../../common/book-auth.guard';
 import { CurrentBookActor } from '../../common/current-book-actor.decorator';
 import { CancelOrderDto, AddOrderNoteDto } from './dto/checkout.dto';
@@ -43,7 +41,7 @@ import { OrderQueryDto } from './dto/order-query.dto';
 import { OrdersService } from './orders.service';
 
 @ApiTags('Orders')
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 @UseGuards(OptionalBookAuthGuard)
 @Controller('orders')
 export class OrdersController {
@@ -55,11 +53,8 @@ export class OrdersController {
     description:
       'Platform Admin reviews submitted buyer/seller disputes across all orders.',
   })
-  @ApiResponse({ status: 200, description: 'List of disputes' })
-  @ApiForbiddenResponse({
-    description: 'Only Platform Admin can access dispute arbitration list',
-  })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'List of disputes' })
+  @ApiStandardErrors(401, 403)
   adminListDisputes(
     @CurrentBookActor() actor: BookActor,
     @Query() query: AdminDisputeQueryDto,
@@ -74,12 +69,8 @@ export class OrdersController {
       'Platform Admin retrieves full dispute context, claims, order info, and evidence gallery.',
   })
   @ApiParam({ name: 'disputeId', description: 'Dispute ID' })
-  @ApiResponse({ status: 200, description: 'Dispute detail' })
-  @ApiNotFoundResponse({ description: 'Dispute not found' })
-  @ApiForbiddenResponse({
-    description: 'Only Platform Admin can access dispute details',
-  })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Dispute detail' })
+  @ApiStandardErrors(401, 403, 404)
   adminGetDisputeDetail(
     @CurrentBookActor() actor: BookActor,
     @Param('disputeId') disputeId: string,
@@ -94,13 +85,8 @@ export class OrdersController {
       'Platform Admin executes binding arbitration ruling (BUYER_WINS, SELLER_WINS, PARTIAL_SETTLEMENT, CARRIER_AT_FAULT, REQUEST_MORE_INFO).',
   })
   @ApiParam({ name: 'disputeId', description: 'Dispute ID' })
-  @ApiResponse({ status: 200, description: 'Arbitration ruling recorded' })
-  @ApiNotFoundResponse({ description: 'Dispute not found' })
-  @ApiBadRequestResponse({ description: 'Invalid ruling parameters' })
-  @ApiForbiddenResponse({
-    description: 'Only Platform Admin can execute arbitration rulings',
-  })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Arbitration ruling recorded' })
+  @ApiStandardErrors(400, 401, 403, 404)
   adminArbitrateDispute(
     @CurrentBookActor() actor: BookActor,
     @Param('disputeId') disputeId: string,
@@ -115,11 +101,8 @@ export class OrdersController {
     description:
       'Platform Admin audits all active escrow holding funds currently frozen due to disputes.',
   })
-  @ApiResponse({ status: 200, description: 'List of frozen escrow pools' })
-  @ApiForbiddenResponse({
-    description: 'Only Platform Admin can audit frozen escrow pools',
-  })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'List of frozen escrow pools' })
+  @ApiStandardErrors(401, 403)
   adminListFrozenEscrows(@CurrentBookActor() actor: BookActor) {
     return this.orders.listFrozenEscrows(actor);
   }
@@ -129,11 +112,10 @@ export class OrdersController {
     summary: 'List all escrow holding items for Platform Admin (Task fix_checkout_v1)',
     description: 'Platform Admin reviews all item-level payments in intermediate escrow holding.',
   })
-  @ApiResponse({ status: 200, description: 'List of escrow items' })
-  @ApiForbiddenResponse({
-    description: 'Only Platform Admin can access intermediate escrow account items',
-  })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'List of escrow items' })
+  @ApiStandardErrors(401, 403)
   adminListEscrowItems(
     @CurrentBookActor() actor: BookActor,
     @Query('status') status?: string,
@@ -148,12 +130,18 @@ export class OrdersController {
     description: 'Platform Admin changes escrow status (HOLDING, FROZEN, RELEASED) for a single order item.',
   })
   @ApiParam({ name: 'orderItemId', description: 'Order Item UUID' })
-  @ApiResponse({ status: 200, description: 'Escrow status updated' })
-  @ApiNotFoundResponse({ description: 'Order item not found' })
-  @ApiForbiddenResponse({
-    description: 'Only Platform Admin can update item escrow status',
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['status'],
+      properties: {
+        status: { type: 'string', enum: ['HOLDING', 'FROZEN', 'RELEASED', 'REFUNDED'] },
+        reason: { type: 'string' },
+      },
+    },
   })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Escrow status updated' })
+  @ApiStandardErrors(400, 401, 403, 404)
   adminUpdateEscrowItemStatus(
     @CurrentBookActor() actor: BookActor,
     @Param('orderItemId', ParseUUIDPipe) orderItemId: string,
@@ -168,7 +156,10 @@ export class OrdersController {
     summary: 'List all escrow holding items for Seller (Task update_proceed_money_flow_v1)',
     description: 'Seller reviews all item-level payments in intermediate escrow holding with 4 statuses, 5% fee and 95% net revenue.',
   })
-  @ApiResponse({ status: 200, description: 'List of seller escrow items' })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'List of seller escrow items' })
+  @ApiStandardErrors(401, 403)
   sellerListEscrowItems(
     @CurrentBookActor() actor?: BookActor,
     @Query('status') status?: string,
@@ -183,6 +174,10 @@ export class OrdersController {
 
   @Get(['admin/return-requests', 'admin/returns'])
   @ApiOperation({ summary: 'List all return requests for Platform Admin' })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Admin return requests list' })
+  @ApiStandardErrors(401, 403)
   adminListReturnRequests(
     @CurrentBookActor() actor: BookActor,
     @Query('status') status?: string,
@@ -193,6 +188,8 @@ export class OrdersController {
 
   @Post(['admin/return-requests/:id/forward', 'admin/returns/:id/forward'])
   @ApiOperation({ summary: 'Platform Admin forwards return request to Seller' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Return request forwarded' })
+  @ApiStandardErrors(401, 403, 404, 409)
   adminForwardReturnRequest(
     @CurrentBookActor() actor: BookActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -202,6 +199,19 @@ export class OrdersController {
 
   @Post(['admin/return-requests/:id/arbitrate', 'admin/returns/:id/arbitrate'])
   @ApiOperation({ summary: 'Platform Admin arbitrates return dispute' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['ruling'],
+      properties: {
+        ruling: { type: 'string', enum: ['BUYER_WINS', 'SELLER_WINS'] },
+        notes: { type: 'string' },
+        reason: { type: 'string' },
+      },
+    },
+  })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Return dispute arbitrated' })
+  @ApiStandardErrors(400, 401, 403, 404)
   adminArbitrateReturnRequest(
     @CurrentBookActor() actor: BookActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -213,6 +223,10 @@ export class OrdersController {
   @Get(['seller/return-requests', 'seller/returns'])
   @UseGuards(BookWriteGuard)
   @ApiOperation({ summary: 'List return requests for Seller' })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Seller return requests list' })
+  @ApiStandardErrors(401, 403)
   sellerListReturnRequests(
     @CurrentBookActor() actor: BookActor,
     @Query('status') status?: string,
@@ -223,6 +237,8 @@ export class OrdersController {
 
   @Get(['seller/return-requests/:id', 'seller/returns/:id'])
   @ApiOperation({ summary: 'Get return request detail for Seller' })
+  @ApiSuccessResponse(undefined, { description: 'Return request detail' })
+  @ApiStandardErrors(401, 403, 404)
   sellerGetReturnRequestDetail(
     @CurrentBookActor() actor: BookActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -232,6 +248,8 @@ export class OrdersController {
 
   @Post(['seller/return-requests/:id/accept', 'seller/returns/:id/accept'])
   @ApiOperation({ summary: 'Seller accepts return request' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Return request accepted' })
+  @ApiStandardErrors(401, 403, 404, 409)
   sellerAcceptReturnRequest(
     @CurrentBookActor() actor: BookActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -241,6 +259,9 @@ export class OrdersController {
 
   @Post(['seller/return-requests/:id/dispatch-shipper', 'seller/returns/:id/dispatch-shipper'])
   @ApiOperation({ summary: 'Seller dispatches shipper to pick up return book from customer' })
+  @ApiBody({ required: false, schema: { type: 'object', properties: { note: { type: 'string' }, scheduledTime: { type: 'string' } } } })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Shipper dispatched for return pickup' })
+  @ApiStandardErrors(400, 401, 403, 404, 409)
   sellerDispatchShipper(
     @CurrentBookActor() actor: BookActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -251,6 +272,8 @@ export class OrdersController {
 
   @Post(['seller/return-requests/:id/confirm-receipt', 'seller/returns/:id/confirm-receipt'])
   @ApiOperation({ summary: 'Seller confirms returned item received at warehouse' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Return receipt confirmed' })
+  @ApiStandardErrors(401, 403, 404, 409)
   sellerConfirmReturnReceipt(
     @CurrentBookActor() actor: BookActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -260,6 +283,20 @@ export class OrdersController {
 
   @Post(['seller/return-requests/:id/dispute', 'seller/returns/:id/dispute'])
   @ApiOperation({ summary: 'Seller disputes return request' })
+  @ApiBody({
+    required: false,
+    schema: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string' },
+        evidence: { type: 'object' },
+        evidenceImages: { type: 'array', items: { type: 'string' } },
+        evidenceVideos: { type: 'array', items: { type: 'string' } },
+      },
+    },
+  })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Return dispute submitted' })
+  @ApiStandardErrors(400, 401, 403, 404, 409)
   sellerDisputeReturnRequest(
     @CurrentBookActor() actor: BookActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -270,6 +307,15 @@ export class OrdersController {
 
   @Post(['seller/return-requests/:id/ship-replacement', 'seller/returns/:id/ship-replacement'])
   @ApiOperation({ summary: 'Seller ships replacement order' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['carrier', 'trackingCode'],
+      properties: { carrier: { type: 'string' }, trackingCode: { type: 'string' } },
+    },
+  })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Replacement shipped' })
+  @ApiStandardErrors(400, 401, 403, 404, 409)
   sellerShipReplacement(
     @CurrentBookActor() actor: BookActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -280,12 +326,16 @@ export class OrdersController {
 
   @Get('seller/replacements')
   @ApiOperation({ summary: 'Seller lists replacement orders' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Seller replacement orders' })
+  @ApiStandardErrors(401, 403)
   sellerListReplacements(@CurrentBookActor() actor: BookActor) {
     return this.orders.sellerListReplacements(actor);
   }
 
   @Get('buyer/replacements')
   @ApiOperation({ summary: 'Buyer lists replacement orders' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Buyer replacement orders' })
+  @ApiStandardErrors(401)
   buyerListReplacements(@CurrentBookActor() actor: BookActor) {
     if (!actor?.sub) return [];
     return this.orders.buyerListReplacements(actor.sub);
@@ -293,6 +343,11 @@ export class OrdersController {
 
   @Get(['buyer/return-requests', 'buyer/returns'])
   @ApiOperation({ summary: 'Buyer lists their return and refund requests' })
+  @ApiQuery({ name: 'type', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'orderId', required: false, type: String })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Buyer return requests' })
+  @ApiStandardErrors(401)
   buyerListReturnRequests(
     @CurrentBookActor() actor: BookActor,
     @Query('type') type?: string,
@@ -305,6 +360,9 @@ export class OrdersController {
 
   @Post([':id/items/:orderItemId/return-request', ':id/items/:orderItemId/returns'])
   @ApiOperation({ summary: 'Buyer creates a return request for an item' })
+  @ApiBody({ schema: { type: 'object', description: 'Return request payload' } })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Return request created' })
+  @ApiStandardErrors(400, 401, 403, 404, 409)
   createReturnRequest(
     @CurrentBookActor() actor: BookActor,
     @Param('id') id: string,
@@ -319,8 +377,8 @@ export class OrdersController {
     summary: 'List user orders',
     description: 'Returns a paginated list of orders for the authenticated user.',
   })
-  @ApiResponse({ status: 200, description: 'Paginated list of orders' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Paginated list of orders' })
+  @ApiStandardErrors(401)
   list(
     @CurrentBookActor() actor: BookActor,
     @Query() query: OrderQueryDto,
@@ -334,10 +392,8 @@ export class OrdersController {
     description: 'Returns detailed information about a specific order.',
   })
   @ApiParam({ name: 'id', description: 'Order ID or Order Code' })
-  @ApiResponse({ status: 200, description: 'Order details' })
-  @ApiNotFoundResponse({ description: 'Order not found' })
-  @ApiForbiddenResponse({ description: 'Order does not belong to user' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Order details' })
+  @ApiStandardErrors(401, 403, 404)
   detail(
     @CurrentBookActor() actor: BookActor,
     @Param('id') id: string,
@@ -354,10 +410,8 @@ export class OrdersController {
     description: 'Returns real-time tracking information for an order.',
   })
   @ApiParam({ name: 'id', description: 'Order ID' })
-  @ApiResponse({ status: 200, description: 'Order tracking information' })
-  @ApiNotFoundResponse({ description: 'Order not found' })
-  @ApiForbiddenResponse({ description: 'Order does not belong to user' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Order tracking information' })
+  @ApiStandardErrors(401, 403, 404)
   tracking(
     @CurrentBookActor() actor: BookActor,
     @Param('id') id: string,
@@ -371,10 +425,8 @@ export class OrdersController {
     description: 'Returns the complete status change history for an order.',
   })
   @ApiParam({ name: 'id', description: 'Order ID or Order Code' })
-  @ApiResponse({ status: 200, description: 'Order status history' })
-  @ApiNotFoundResponse({ description: 'Order not found' })
-  @ApiForbiddenResponse({ description: 'Order does not belong to user' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Order status history' })
+  @ApiStandardErrors(401, 403, 404)
   history(
     @CurrentBookActor() actor: BookActor,
     @Param('id') id: string,
@@ -388,9 +440,8 @@ export class OrdersController {
     description: 'Buyer attaches packaging note or instructions directly to the order.',
   })
   @ApiParam({ name: 'id', description: 'Order ID or Order Code' })
-  @ApiResponse({ status: 200, description: 'Note added to order successfully' })
-  @ApiNotFoundResponse({ description: 'Order not found' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Note added to order successfully' })
+  @ApiStandardErrors(400, 401, 404)
   addNote(
     @CurrentBookActor() actor: BookActor,
     @Param('id') id: string,
@@ -408,11 +459,8 @@ export class OrdersController {
     description: 'Cancels an order. Only possible before payment or shipment.',
   })
   @ApiParam({ name: 'id', description: 'Order ID' })
-  @ApiResponse({ status: 200, description: 'Order cancelled successfully' })
-  @ApiNotFoundResponse({ description: 'Order not found' })
-  @ApiForbiddenResponse({ description: 'Order does not belong to user' })
-  @ApiBadRequestResponse({ description: 'Order cannot be cancelled (already shipped/paid)' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Order cancelled successfully' })
+  @ApiStandardErrors(400, 401, 403, 404, 409)
   cancel(
     @CurrentBookActor() actor: BookActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -428,11 +476,8 @@ export class OrdersController {
   })
   @ApiParam({ name: 'id', description: 'Master Order ID' })
   @ApiParam({ name: 'sellerOrderId', description: 'Seller Order ID' })
-  @ApiResponse({ status: 200, description: 'Seller order cancelled successfully' })
-  @ApiNotFoundResponse({ description: 'Order not found' })
-  @ApiForbiddenResponse({ description: 'Order does not belong to user' })
-  @ApiBadRequestResponse({ description: 'Seller order cannot be cancelled (already shipped)' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Seller order cancelled successfully' })
+  @ApiStandardErrors(400, 401, 403, 404, 409)
   cancelSubOrder(
     @CurrentBookActor() actor: BookActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -449,10 +494,8 @@ export class OrdersController {
   })
   @ApiParam({ name: 'id', description: 'Master Order ID' })
   @ApiParam({ name: 'sellerOrderId', description: 'Seller Order ID' })
-  @ApiResponse({ status: 200, description: 'Cancellation request submitted' })
-  @ApiNotFoundResponse({ description: 'Order not found' })
-  @ApiForbiddenResponse({ description: 'Order does not belong to user' })
-  @ApiBadRequestResponse({ description: 'Order cannot be cancelled in current state' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Cancellation request submitted' })
+  @ApiStandardErrors(400, 401, 403, 404, 409)
   requestCancelSubOrder(
     @CurrentBookActor() actor: BookActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -468,11 +511,8 @@ export class OrdersController {
     description: 'Buyer submits a dispute or complaint for an order or specific package (Task 62 / POL-12).',
   })
   @ApiParam({ name: 'id', description: 'Order ID' })
-  @ApiResponse({ status: 201, description: 'Dispute submitted successfully' })
-  @ApiNotFoundResponse({ description: 'Order not found' })
-  @ApiForbiddenResponse({ description: 'Order does not belong to user' })
-  @ApiBadRequestResponse({ description: 'Order not eligible for dispute or invalid input' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Dispute submitted successfully' })
+  @ApiStandardErrors(400, 401, 403, 404, 409)
   dispute(
     @CurrentBookActor() actor: BookActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -483,6 +523,7 @@ export class OrdersController {
 
   @Post(':id/disputes/evidence')
   @ApiConsumes('multipart/form-data')
+  @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 5 * 1024 * 1024 },
@@ -493,11 +534,8 @@ export class OrdersController {
     description: 'Upload an image or document as evidence for an order dispute (Task 63 / POL-12).',
   })
   @ApiParam({ name: 'id', description: 'Order ID' })
-  @ApiResponse({ status: 201, description: 'Evidence uploaded successfully' })
-  @ApiNotFoundResponse({ description: 'Order not found' })
-  @ApiForbiddenResponse({ description: 'Order does not belong to user' })
-  @ApiBadRequestResponse({ description: 'Invalid file or file too large' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Evidence uploaded successfully' })
+  @ApiStandardErrors(400, 401, 403, 404)
   uploadEvidence(
     @CurrentBookActor() actor: BookActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -512,10 +550,9 @@ export class OrdersController {
     description: 'Returns secure access URL for authorized dispute evidence (Task 63).',
   })
   @ApiParam({ name: 'id', description: 'Order ID' })
-  @ApiResponse({ status: 200, description: 'Authorized evidence access' })
-  @ApiNotFoundResponse({ description: 'Order not found' })
-  @ApiForbiddenResponse({ description: 'User not authorized to access evidence' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiQuery({ name: 'key', required: true, type: String })
+  @ApiSuccessResponse(undefined, { description: 'Authorized evidence access' })
+  @ApiStandardErrors(401, 403, 404)
   getEvidenceAccess(
     @CurrentBookActor() actor: BookActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -531,10 +568,8 @@ export class OrdersController {
       'Returns runtime escrow holding status, 85/15 revenue split, and frozen dispute status.',
   })
   @ApiParam({ name: 'id', description: 'Order ID' })
-  @ApiResponse({ status: 200, description: 'Escrow holding status' })
-  @ApiNotFoundResponse({ description: 'Order not found' })
-  @ApiForbiddenResponse({ description: 'Actor not authorized to view order escrow' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Escrow holding status' })
+  @ApiStandardErrors(401, 403, 404)
   getOrderEscrow(
     @CurrentBookActor() actor: BookActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -550,10 +585,8 @@ export class OrdersController {
   })
   @ApiParam({ name: 'id', description: 'Master Order ID' })
   @ApiParam({ name: 'sellerOrderId', description: 'Seller Order ID' })
-  @ApiResponse({ status: 200, description: 'Sub-order escrow status' })
-  @ApiNotFoundResponse({ description: 'Order or Sub-order not found' })
-  @ApiForbiddenResponse({ description: 'Actor not authorized to view sub-order escrow' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Sub-order escrow status' })
+  @ApiStandardErrors(401, 403, 404)
   getSubOrderEscrow(
     @CurrentBookActor() actor: BookActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -568,7 +601,9 @@ export class OrdersController {
     description: 'Marks sub-order or master order as completed and unfreezes/releases escrow funds to seller.',
   })
   @ApiParam({ name: 'id', description: 'Order ID' })
-  @ApiResponse({ status: 200, description: 'Order completed and escrow released' })
+  @ApiBody({ required: false, schema: { type: 'object', properties: { subOrderId: { type: 'string' }, orderId: { type: 'string' } } } })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Order completed and escrow released' })
+  @ApiStandardErrors(400, 401, 403, 404, 409)
   confirmDelivered(
     @CurrentBookActor() actor: BookActor,
     @Param('id') id: string,

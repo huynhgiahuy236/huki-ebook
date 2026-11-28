@@ -2453,16 +2453,7 @@
                 "confirm"
               ]
             },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": ""
           },
           "event": [
             {
@@ -2504,16 +2495,7 @@
                 "prepare"
               ]
             },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": ""
           },
           "event": [
             {
@@ -2558,7 +2540,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{}",
+              "raw": "{\n  \"carrier\": \"GHTK\",\n  \"trackingCode\": \"GHTK-{{}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2606,16 +2588,7 @@
                 "deliver"
               ]
             },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": ""
           },
           "event": [
             {

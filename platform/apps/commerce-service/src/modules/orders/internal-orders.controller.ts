@@ -6,7 +6,8 @@ import {
   HttpStatus,
   Param,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiHeader } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export interface CommercialObligationsResponse {
@@ -16,7 +17,8 @@ export interface CommercialObligationsResponse {
   sellerOrderCount: number;
 }
 
-@ApiTags('Internal')
+@ApiTags('Internal - Orders')
+@ApiHeader({ name: 'x-internal-service-key', required: true, description: 'Internal service authentication key' })
 @Controller('internal/orders')
 export class InternalOrdersController {
   constructor(private readonly prisma: PrismaService) {}
@@ -35,6 +37,8 @@ export class InternalOrdersController {
   @ApiOperation({
     summary: 'Internal API: Check pending orders before user deletion',
   })
+  @ApiSuccessResponse(undefined, { description: 'Commercial obligations status' })
+  @ApiStandardErrors(401)
   async checkCommercialObligations(
     @Param('userId') userId: string,
     @Headers('x-internal-service-key') serviceKey: string,
