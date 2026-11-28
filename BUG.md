@@ -2482,3 +2482,13 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 - **Kiểm chứng & E2E:**
   - `npm --prefix web run typecheck`: **0 errors**.
   - [`scripts/test_e2e_stage1_bug39_40_41.js`](file:///e:/HuKi/scripts/test_e2e_stage1_bug39_40_41.js): **PASS 100%** trên môi trường thật (`BE :3000`, `FE :3100`, PostgreSQL thật).
+
+### Bước 4 — Giai đoạn 2 (`BUG-42`, `BUG-43`, `BUG-44`): Sửa Tận Gốc & E2E Độc Lập (28/11/2026)
+
+- **Khắc phục mã nguồn:**
+  - `BUG-42`: Đổi nhãn sidebar trong [`HierarchicalSidebar.tsx`](file:///e:/HuKi/web/src/ui/components/layout/HierarchicalSidebar.tsx#L155-L159) từ `NXB & Tác Giả` sang **`Gian Hàng & Tác Giả`**.
+  - `BUG-43`: Trong [`drm-vault.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/drm-vault.service.ts), bỏ hardcode `4ms` & `'SG1 & HN02'`, đo `kmsLatencyMs` thật, hiển thị `'PostgreSQL KMS + R2 Vault'`, và cập nhật `scanIntegrity()` tự động backfill `DrmLicense` cho toàn bộ sách số còn thiếu. Trong [`payments.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/payments/payments.service.ts), tự động cộng `issuedLicenses` khi thanh toán đơn Ebook thành công.
+  - `BUG-44`: Thêm endpoint nội bộ `GET /internal/users/by-role/:role` tại [`internal-user.controller.ts`](file:///e:/HuKi/platform/apps/identity-service/src/modules/user/internal-user.controller.ts); sửa `adminListShippers()` trong [`orders.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/orders.service.ts) xóa sạch shipper giả hardcode và gọi Internal API lấy đúng user `DELIVERY_STAFF` thật từ DB; phát Outbox event `shipper.cod_remitted` qua [`notification-event.consumer.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/notifications/notification-event.consumer.ts) tới `admin_channel`; cập nhật [`AdminShippersView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminShippersView.tsx) lắng nghe `SHIPPER_COD_REMITTED` realtime và lưu khóa/mở shipper xuống DB thật qua `adminApi.toggleLockUser`.
+- **Kiểm chứng & E2E:**
+  - `build:identity`, `build:commerce`, `build:community`, `web run typecheck`: **0 errors**.
+  - [`scripts/test_e2e_stage2_bug42_43_44.js`](file:///e:/HuKi/scripts/test_e2e_stage2_bug42_43_44.js): **PASS 100%** trên môi trường thật (`BE :3000`, PostgreSQL thật — `253` DRM licenses).
