@@ -73,6 +73,9 @@ function ensureFallbackSocket() {
       invalidateFlashSaleCache();
       realtimeSyncBus.publish('FLASH_SALE_UPDATED', payload);
     });
+    socket.on('book:moderated', (payload: any) => {
+      realtimeSyncBus.publish('BOOK_MODERATED', payload);
+    });
     sharedGuestSocket = socket;
   }, 200);
 }

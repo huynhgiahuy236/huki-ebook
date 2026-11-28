@@ -364,7 +364,22 @@ class BookModerationService {
     adminName?: string;
     notifySeller?: boolean;
   }): Promise<{ success: boolean; book: ReportedBook }> {
-    // 1. Gửi lên Backend API thật — không nuốt lỗi
+    // 1. Cập nhật trạng thái sách trên Catalog (PostgreSQL) TRƯỚC khi phát sự kiện realtime
+    if (payload.action === 'BLOCK') {
+      try {
+        await catalogApi.updateBook(payload.bookId, { status: 'SUSPENDED' });
+      } catch (err) {
+        console.warn('[BookModerationService] Không thể gọi catalogApi để khóa sách:', err);
+      }
+    } else if (payload.action === 'UNBLOCK') {
+      try {
+        await catalogApi.updateBook(payload.bookId, { status: 'PUBLISHED' });
+      } catch (err) {
+        console.warn('[BookModerationService] Lỗi khi khôi phục sách:', err);
+      }
+    }
+
+    // 2. Gửi lên Backend Community Service (lưu MongoDB + bắn thông báo + phát Socket.IO book:moderated)
     const apiRes = await moderationApi.moderateBook(payload.bookId, {
       action: payload.action,
       note: payload.note,
@@ -381,38 +396,19 @@ class BookModerationService {
 
     const all = this.loadStorage();
     const idx = all.findIndex((b) => b.bookId === payload.bookId);
-
-    if (idx < 0) {
-      throw new Error(`Không tìm thấy hồ sơ sách bị báo cáo có mã ${payload.bookId}`);
-    }
-
-    const current = all[idx];
+    const current = idx >= 0 ? all[idx] : ({ bookId: payload.bookId, status: 'PENDING_REVIEW' } as ReportedBook);
     const nowIso = new Date().toISOString();
     let updatedStatus: BookModerationStatus = current.status;
     let actionTaken: 'BLOCK' | 'DISMISS' | 'UNBLOCK' = payload.action;
 
     if (payload.action === 'BLOCK') {
       updatedStatus = 'BLOCKED';
-
-      // Đồng bộ trạng thái sách sang SUSPENDED trên Catalog (Thông báo do Backend moderation.service.ts phát 1 bản duy nhất)
-      try {
-        await catalogApi.updateBook(current.bookId, { status: 'SUSPENDED' });
-      } catch (err) {
-        console.warn('[BookModerationService] Không thể gọi catalogApi để khóa sách:', err);
-      }
     } else if (payload.action === 'DISMISS') {
       updatedStatus = 'DISMISSED';
       actionTaken = 'DISMISS';
     } else if (payload.action === 'UNBLOCK') {
       updatedStatus = 'DISMISSED';
       actionTaken = 'UNBLOCK';
-
-      // Khôi phục trạng thái PUBLISHED cho sách (Thông báo do Backend moderation.service.ts phát 1 bản duy nhất)
-      try {
-        await catalogApi.updateBook(current.bookId, { status: 'PUBLISHED' });
-      } catch (err) {
-        console.warn('[BookModerationService] Lỗi khi khôi phục sách:', err);
-      }
     }
 
     const updatedBook: ReportedBook = {
@@ -424,8 +420,10 @@ class BookModerationService {
       moderatedAt: nowIso,
     };
 
-    all[idx] = updatedBook;
-    this.saveStorage(all);
+    if (idx >= 0) {
+      all[idx] = updatedBook;
+      this.saveStorage(all);
+    }
 
     // Bắn sự kiện realtime
     realtimeSyncBus.publish(

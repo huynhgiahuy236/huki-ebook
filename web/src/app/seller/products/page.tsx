@@ -272,7 +272,18 @@ function SellerProductsContent() {
     loadBooks();
 
     const unsub = realtimeSyncBus.subscribe((event) => {
-      if (event.type === 'BOOK_MODERATED' || event.type === 'BOOK_APPEALED') {
+      if (event.type === 'BOOK_MODERATED') {
+        const p = event.payload as any;
+        const targetBookId = String(p?.bookId || '');
+        const action = p?.action;
+        if (targetBookId && (action === 'BLOCK' || action === 'UNBLOCK')) {
+          const nextStatus = action === 'BLOCK' ? 'SUSPENDED' : 'PUBLISHED';
+          setBooks((prev) =>
+            prev.map((b) => (b.id === targetBookId ? { ...b, status: nextStatus } : b))
+          );
+        }
+        void loadBooks(true);
+      } else if (event.type === 'BOOK_APPEALED') {
         void loadBooks(true);
       }
     });
