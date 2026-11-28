@@ -141,7 +141,7 @@ function renderTypeBadge(type: string): React.ReactNode {
   }
 
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border ${style}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border whitespace-nowrap ${style}`}>
       {label}
     </span>
   );
@@ -153,46 +153,46 @@ function renderTypeBadge(type: string): React.ReactNode {
 function renderStatusBadge(status: string): React.ReactNode {
   const upper = status ? status.toUpperCase() : 'UNKNOWN';
   let label = status;
-  let style = 'bg-gray-100 text-gray-700 border-gray-200';
-  let icon = 'help';
+  let style = 'bg-slate-100 text-slate-700';
+  let dot = 'bg-slate-400';
 
   switch (upper) {
     case 'COMPLETED':
     case 'SUCCESS':
-      label = 'Thành Công';
-      style = 'bg-emerald-100 text-emerald-800 border-emerald-200';
-      icon = 'check_circle';
+      label = 'Thành công';
+      style = 'bg-emerald-50 text-emerald-700';
+      dot = 'bg-emerald-500';
       break;
     case 'PENDING':
-      label = 'Chờ Xử Lý';
-      style = 'bg-amber-100 text-amber-800 border-amber-200';
-      icon = 'schedule';
+      label = 'Chờ xử lý';
+      style = 'bg-amber-50 text-amber-700';
+      dot = 'bg-amber-500';
       break;
     case 'PROCESSING':
-      label = 'Đang Xử Lý';
-      style = 'bg-sky-100 text-sky-800 border-sky-200';
-      icon = 'autorenew';
+      label = 'Đang xử lý';
+      style = 'bg-sky-50 text-sky-700';
+      dot = 'bg-sky-500';
       break;
     case 'FAILED':
-      label = 'Thất Bại';
-      style = 'bg-rose-100 text-rose-800 border-rose-200';
-      icon = 'error';
+      label = 'Thất bại';
+      style = 'bg-rose-50 text-rose-700';
+      dot = 'bg-rose-500';
       break;
     case 'CANCELLED':
-      label = 'Đã Hủy';
-      style = 'bg-gray-100 text-gray-700 border-gray-200';
-      icon = 'cancel';
+      label = 'Đã hủy';
+      style = 'bg-slate-100 text-slate-600';
+      dot = 'bg-slate-400';
       break;
     case 'REJECTED':
-      label = 'Từ Chối';
-      style = 'bg-rose-100 text-rose-800 border-rose-200';
-      icon = 'block';
+      label = 'Từ chối';
+      style = 'bg-rose-50 text-rose-700';
+      dot = 'bg-rose-500';
       break;
   }
 
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold border ${style}`}>
-      <span className="material-symbols-outlined text-[12px]">{icon}</span>
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold whitespace-nowrap ${style}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
       <span>{label}</span>
     </span>
   );

@@ -624,24 +624,20 @@ export function AdminFinanceView() {
         render: (_val, req) => (
           <div className="flex items-center justify-end">
             {req.status === 'COMPLETED' ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-[11px] border border-emerald-200">
-                <span className="material-symbols-outlined text-[13px]">verified</span>
-                <span>Tự động giải ngân (Mã PIN)</span>
+              <span className="text-[11px] font-medium text-slate-500">
+                Tự động qua mã PIN
               </span>
             ) : req.status === 'FAILED' ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 font-bold text-[11px] border border-rose-200">
-                <span className="material-symbols-outlined text-[13px]">error</span>
-                <span>Chuyển khoản thất bại</span>
+              <span className="text-[11px] font-medium text-rose-600">
+                Chuyển khoản thất bại
               </span>
             ) : req.status === 'REJECTED' ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 text-gray-500 font-medium text-[11px] border border-gray-200">
-                <span className="material-symbols-outlined text-[13px]">block</span>
-                <span>Đã hủy</span>
+              <span className="text-[11px] font-medium text-slate-400">
+                Đã hủy
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-medium text-[11px] border border-blue-200">
-                <span className="material-symbols-outlined text-[13px]">sync</span>
-                <span>Đã xác thực PIN — Đang hạch toán</span>
+              <span className="text-[11px] font-medium text-blue-600">
+                Đã xác thực PIN
               </span>
             )}
           </div>
@@ -1157,8 +1153,10 @@ export function AdminFinanceView() {
         >
           <div className="flex items-center justify-between border-b border-gray-100 pb-3">
             <div>
-              <h4 className="font-bold text-base text-gray-900">Chi Tiết Phiên Đối Soát EOD</h4>
-              <p className="text-xs text-gray-500 font-mono">ID: #{selectedEodRun.id} &bull; Ngày: {(selectedEodRun as any).reconciliationDate || selectedEodRun.id}</p>
+              <h4 className="font-bold text-base text-gray-900">Chi Tiết Phiên Đối Soát Cuối Ngày</h4>
+              <p className="text-xs text-gray-500 font-mono">
+                Mã đợt: #{selectedEodRun.runNumber || selectedEodRun.id.slice(0, 8)} &bull; Ngày: {selectedEodRun.businessDate || (selectedEodRun as any).reconciliationDate || 'N/A'}
+              </p>
             </div>
             <button
               type="button"
@@ -1173,7 +1171,15 @@ export function AdminFinanceView() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
               <div className="p-3 bg-gray-50 rounded-xl">
                 <div className="text-gray-400 text-[10px]">Trạng Thái</div>
-                <div className="font-bold text-xs uppercase">{selectedEodRun.status}</div>
+                <div className="font-bold text-xs">
+                  {selectedEodRun.status === 'COMPLETED_PASS'
+                    ? 'Đạt chuẩn'
+                    : selectedEodRun.status === 'COMPLETED_WARNING'
+                    ? 'Có cảnh báo'
+                    : selectedEodRun.status === 'RUNNING'
+                    ? 'Đang chạy'
+                    : 'Phát hiện sai lệch'}
+                </div>
               </div>
               <div className="p-3 bg-gray-50 rounded-xl">
                 <div className="text-gray-400 text-[10px]">Thời Lượng</div>
@@ -1203,13 +1209,19 @@ export function AdminFinanceView() {
                       <div className="flex items-center justify-between">
                         <span className="font-mono font-bold text-gray-900">{disc.type}</span>
                         <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
                             disc.severity === 'CRITICAL' || disc.severity === 'ERROR'
                               ? 'bg-rose-100 text-rose-800'
                               : 'bg-amber-100 text-amber-800'
                           }`}
                         >
-                          {disc.severity}
+                          {disc.severity === 'CRITICAL'
+                            ? 'Nghiêm trọng'
+                            : disc.severity === 'ERROR'
+                            ? 'Lỗi'
+                            : disc.severity === 'WARNING'
+                            ? 'Cảnh báo'
+                            : 'Thông tin'}
                         </span>
                       </div>
                       <div className="text-gray-600">{disc.details}</div>
