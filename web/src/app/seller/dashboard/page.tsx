@@ -567,11 +567,10 @@ export default function SellerDashboardPage() {
           </div>
         )}
 
-        {/* 3. ROW 1 CHARTS */}
+        {/* 3. CHARTS ROW: TIẾN TRÌNH PHÁT HÀNH (CỘT ĐỨNG) & TĂNG TRƯỞNG ĐỘC GIẢ */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          
-          {/* 3.1 SALES PIPELINE (TIẾN TRÌNH PHÁT HÀNH TỪ DB) */}
-          <div className="lg:col-span-7 bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+          {/* 3.1 TIẾN TRÌNH PHÁT HÀNH & ĐỊNH DẠNG (DẠNG CỘT ĐỨNG) */}
+          <div className="lg:col-span-6 bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-sm sm:text-base font-bold text-gray-900">Tiến Trình Phát Hành &amp; Định Dạng (Từ DB)</h2>
@@ -588,143 +587,36 @@ export default function SellerDashboardPage() {
               </select>
             </div>
 
-            <div className="space-y-3.5 py-2">
+            <div className="grid grid-cols-5 gap-2.5 sm:gap-3 pt-2 pb-1 items-end">
               {[
-                { stage: 'Tổng sản phẩm', value: stats.totalBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#4ADE80]' },
-                { stage: 'Đã xuất bản', value: stats.publishedBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#6EE7B7]' },
-                { stage: 'Sách giấy (Physical)', value: stats.physicalBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#A7F3D0]' },
-                { stage: 'Ebook (Digital DRM)', value: stats.digitalBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#86EFAC]' },
-                { stage: 'Combo Hybrid', value: stats.hybridBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#15803D]' },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center text-xs font-medium text-gray-700">
-                  <span className="w-36 sm:w-40 shrink-0 font-semibold truncate">{item.stage}</span>
-                  <div className="flex-1 bg-gray-100 rounded-full h-4.5 overflow-hidden mx-2 relative">
-                    <div 
-                      className={`h-full ${item.color} rounded-full transition-all duration-500`}
-                      style={{ width: `${(item.value / item.max) * 100}%` }}
-                    ></div>
-                  </div>
-                  <span className="w-14 text-right font-bold font-mono text-gray-900">{item.value.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 3.2 DEAL STAGES / PHÂN BỐ ĐỊNH DẠNG SÁCH (TỪ DB) */}
-          <div className="lg:col-span-5 bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="text-sm sm:text-base font-bold text-gray-900">Phân Bố Định Dạng Sách</h2>
-                <p className="text-[11px] text-gray-500 mt-0.5">Tỷ trọng theo loại ấn phẩm (từ Database)</p>
-              </div>
-              <Link href="/seller/products" className="text-xs font-bold text-[#00875A] hover:underline">
-                Xem tất cả
-              </Link>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-center justify-around gap-4 py-2">
-              {(() => {
-                const total = stats.totalBooks || 1;
-                const circumference = 2 * Math.PI * 38;
-                const segments = [
-                  { name: 'Sách Giấy', count: stats.physicalBooks, color: '#00875A', bgColor: 'bg-[#00875A]' },
-                  { name: 'Ebook DRM', count: stats.digitalBooks, color: '#06B6D4', bgColor: 'bg-[#06B6D4]' },
-                  { name: 'Combo Hybrid', count: stats.hybridBooks, color: '#3B82F6', bgColor: 'bg-[#3B82F6]' },
-                ];
-                let offset = 0;
-                const arcs = segments.map(seg => {
-                  const pct = seg.count / total;
-                  const dash = circumference * pct;
-                  const arc = { ...seg, pct: stats.totalBooks ? Math.round(pct * 100) : 0, dasharray: `${dash} ${circumference - dash}`, dashoffset: -offset };
-                  offset += dash;
-                  return arc;
-                });
+                { stage: 'Tổng SP', fullLabel: 'Tổng sản phẩm', value: stats.totalBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#4ADE80]' },
+                { stage: 'Xuất bản', fullLabel: 'Đã xuất bản', value: stats.publishedBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#34D399]' },
+                { stage: 'Sách giấy', fullLabel: 'Sách giấy (Physical)', value: stats.physicalBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#A7F3D0]' },
+                { stage: 'Ebook', fullLabel: 'Ebook (Digital DRM)', value: stats.digitalBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#6EE7B7]' },
+                { stage: 'Combo', fullLabel: 'Combo Hybrid', value: stats.hybridBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#15803D]' },
+              ].map((item, i) => {
+                const heightPct = item.value > 0 ? Math.max(8, Math.round((item.value / item.max) * 100)) : 0;
                 return (
-                  <>
-                    <div className="relative w-40 h-40 flex items-center justify-center shrink-0">
-                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                        <circle cx="50" cy="50" r="38" stroke="#F1F5F9" strokeWidth="14" fill="none" />
-                        {arcs.map((arc, idx) => (
-                          <circle key={idx} cx="50" cy="50" r="38" stroke={arc.color} strokeWidth="14" fill="none"
-                            strokeDasharray={arc.dasharray} strokeDashoffset={arc.dashoffset} className="transition-all duration-700" />
-                        ))}
-                      </svg>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                        <span className="text-xl font-extrabold font-mono text-gray-900 leading-tight">{fmt(stats.totalBooks)}</span>
-                        <span className="text-[9.5px] text-gray-500 font-semibold uppercase">Tổng Sản Phẩm</span>
-                      </div>
+                  <div key={i} className="flex flex-col items-center gap-1.5" title={`${item.fullLabel}: ${item.value}`}>
+                    <span className="text-xs font-bold font-mono text-gray-900">
+                      {item.value.toLocaleString()}
+                    </span>
+                    <div className="w-full max-w-[44px] h-36 bg-gray-100 rounded-xl flex items-end overflow-hidden p-0.5">
+                      <div
+                        className={`w-full ${item.color} rounded-lg transition-all duration-500`}
+                        style={{ height: `${heightPct}%` }}
+                      />
                     </div>
-
-                    {/* Legend List */}
-                    <div className="space-y-1.5 text-xs w-full sm:w-auto">
-                      {arcs.map((item, idx) => (
-                        <div key={idx} className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2">
-                            <span className={`w-2.5 h-2.5 rounded-full ${item.bgColor}`}></span>
-                            <span className="text-gray-600 font-medium">{item.name}</span>
-                          </div>
-                          <span className="font-bold font-mono text-gray-900">{item.count} ({item.pct}%)</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
+                    <span className="text-[11px] font-semibold text-gray-600 text-center leading-tight">
+                      {item.stage}
+                    </span>
+                  </div>
                 );
-              })()}
-            </div>
-          </div>
-        </div>
-
-        {/* 4. ROW 2: PHÂN BỔ SẢN PHẨM & TĂNG TRƯỞNG */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          
-          {/* 4.1 PHÂN BỔ SẢN PHẨM (FUNNEL TỪ DB) */}
-          <div className="lg:col-span-6 bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm sm:text-base font-bold text-gray-900">Phân Bổ Sản Phẩm (Funnel)</h2>
-                <p className="text-[11px] text-gray-500 mt-0.5">Từ tổng sản phẩm → đã xuất bản → sách giấy &amp; Ebook</p>
-              </div>
-              <Link href="/seller/products" className="text-xs font-bold text-[#00875A] hover:underline">
-                Chi tiết
-              </Link>
-            </div>
-
-            <div className="space-y-2 py-1 flex flex-col items-center">
-              <div className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#22C55E] text-white text-xs font-bold shadow-xs">
-                <span>Tổng sản phẩm</span>
-                <div className="flex items-center gap-3">
-                  <span className="font-mono">{fmt(stats.totalBooks)}</span>
-                  <span className="text-[10px] text-emerald-100 font-normal">100%</span>
-                </div>
-              </div>
-
-              <div className="w-[82%] flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#4ADE80] text-gray-900 text-xs font-bold shadow-xs">
-                <span>Đã xuất bản</span>
-                <div className="flex items-center gap-3">
-                  <span className="font-mono">{fmt(stats.publishedBooks)}</span>
-                  <span className="text-[10px] text-gray-700 font-semibold">{stats.totalBooks ? Math.round((stats.publishedBooks / stats.totalBooks) * 100) : 0}%</span>
-                </div>
-              </div>
-
-              <div className="w-[66%] flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#86EFAC] text-gray-900 text-xs font-bold shadow-xs">
-                <span>Sách Giấy</span>
-                <div className="flex items-center gap-3">
-                  <span className="font-mono">{fmt(stats.physicalBooks)}</span>
-                  <span className="text-[10px] text-gray-700 font-semibold">{stats.totalBooks ? Math.round((stats.physicalBooks / stats.totalBooks) * 100) : 0}%</span>
-                </div>
-              </div>
-
-              <div className="w-[50%] flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#15803D] text-white text-xs font-bold shadow-xs">
-                <span>Ebook DRM</span>
-                <div className="flex items-center gap-3">
-                  <span className="font-mono">{fmt(stats.digitalBooks)}</span>
-                  <span className="text-[10px] text-emerald-200 font-normal">{stats.totalBooks ? Math.round((stats.digitalBooks / stats.totalBooks) * 100) : 0}%</span>
-                </div>
-              </div>
+              })}
             </div>
           </div>
 
-          {/* 4.2 TĂNG TRƯỞNG ĐỘC GIẢ (THEO ĐƠN HÀNG THỰC TẾ) */}
+          {/* 3.2 TĂNG TRƯỞNG ĐỘC GIẢ (THEO ĐƠN HÀNG THỰC TẾ) */}
           <div className="lg:col-span-6 bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between mb-4">
               <div>
