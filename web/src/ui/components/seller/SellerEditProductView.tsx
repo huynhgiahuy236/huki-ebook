@@ -8,6 +8,7 @@ import { useAuth } from '@/ui/context/AuthContext';
 import { catalogApi, CategoryData, BookFormat, CatalogEntity, BookData } from '@/ui/api/catalogApi';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 import { can, PERMISSIONS, PermissionKey } from '@/ui/utils/permissions';
+import { validateBookPricing } from '@/ui/utils/bookPricingValidation';
 
 export interface SellerEditProductViewProps {
   productId?: string;
@@ -629,26 +630,19 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
     }
 
     // Pricing validation by format
-    if (form.format === 'BOTH') {
-      if (!form.physicalPrice || Number(form.physicalPrice) <= 0) {
-        newErrors.physicalPrice = 'Vui lòng nhập giá bán sách in.';
-      }
-      if (!form.ebookPrice || Number(form.ebookPrice) <= 0) {
-        newErrors.ebookPrice = 'Vui lòng nhập giá bán ebook DRM.';
-      }
-      if (!form.comboPrice || Number(form.comboPrice) <= 0) {
-        newErrors.comboPrice = 'Vui lòng nhập giá bán gói combo hybrid.';
-      }
-    } else if (form.format === 'PHYSICAL') {
-      const p = Number(form.physicalPrice || form.price);
-      if (!p || p <= 0) {
-        newErrors.price = 'Giá bán sách in phải lớn hơn 0 ₫.';
-      }
-    } else if (form.format === 'DIGITAL') {
-      const p = Number(form.ebookPrice || form.price);
-      if (!p || p <= 0) {
-        newErrors.price = 'Giá bán ebook DRM phải lớn hơn 0 ₫.';
-      }
+    const pricingErrors = validateBookPricing({
+      format: form.format,
+      price: form.price,
+      physicalPrice: form.physicalPrice,
+      ebookPrice: form.ebookPrice,
+      comboPrice: form.comboPrice,
+    });
+    if (pricingErrors.physicalPrice && form.format === 'PHYSICAL') {
+      newErrors.price = pricingErrors.physicalPrice;
+    } else if (pricingErrors.ebookPrice && form.format === 'DIGITAL') {
+      newErrors.price = pricingErrors.ebookPrice;
+    } else {
+      Object.assign(newErrors, pricingErrors);
     }
 
     if (form.format === 'PHYSICAL' || form.format === 'BOTH') {

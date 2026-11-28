@@ -378,6 +378,13 @@ export class BooksService implements OnModuleInit {
       translatorId,
     );
 
+    this.validateBookPricingRules(
+      dto.format ?? BookFormat.PHYSICAL,
+      dto.pricePaper,
+      dto.priceEbook,
+      dto.priceCombo,
+    );
+
     const title = dto.title.trim();
     const slug = dto.slug ?? toCatalogSlug(title);
     await this.ensureSlugAvailable(storeId, slug);
@@ -936,6 +943,19 @@ export class BooksService implements OnModuleInit {
       );
     }
 
+    if (
+      dto.pricePaper !== undefined ||
+      dto.priceEbook !== undefined ||
+      dto.priceCombo !== undefined
+    ) {
+      this.validateBookPricingRules(
+        dto.format ?? existing!.format,
+        dto.pricePaper,
+        dto.priceEbook,
+        dto.priceCombo,
+      );
+    }
+
     const title = dto.title?.trim() ?? existing!.title;
     const slug = dto.slug ?? existing!.slug;
 
@@ -1069,6 +1089,41 @@ export class BooksService implements OnModuleInit {
     }
 
     return this.findOne(updated.id, actor);
+  }
+
+  private validateBookPricingRules(
+    format: BookFormat | string,
+    pricePaper?: number,
+    priceEbook?: number,
+    priceCombo?: number,
+  ) {
+    if (format !== BookFormat.BOTH) return;
+    const phys = Number(pricePaper ?? 0);
+    const eb = Number(priceEbook ?? 0);
+    const combo = Number(priceCombo ?? 0);
+
+    if (phys > 0 && eb > 0 && eb > phys) {
+      throwBadRequest(
+        ErrorCode.VALIDATION_ERROR,
+        `Giá Ebook DRM (${eb.toLocaleString('vi-VN')} ₫) không được cao hơn giá Sách giấy (${phys.toLocaleString('vi-VN')} ₫).`,
+      );
+    }
+    if (phys > 0 && eb > 0 && combo > 0) {
+      const minCombo = Math.max(phys, eb);
+      const maxCombo = phys + eb;
+      if (combo < minCombo) {
+        throwBadRequest(
+          ErrorCode.VALIDATION_ERROR,
+          `Giá Combo Hybrid (${combo.toLocaleString('vi-VN')} ₫) không được thấp hơn giá mua lẻ một ấn phẩm (${minCombo.toLocaleString('vi-VN')} ₫).`,
+        );
+      }
+      if (combo > maxCombo) {
+        throwBadRequest(
+          ErrorCode.VALIDATION_ERROR,
+          `Giá Combo Hybrid (${combo.toLocaleString('vi-VN')} ₫) không được vượt quá tổng giá sách giấy và ebook (${maxCombo.toLocaleString('vi-VN')} ₫).`,
+        );
+      }
+    }
   }
 
   private async cancelUnpaidOrdersForSuspendedBook(bookId: string, bookTitle: string) {

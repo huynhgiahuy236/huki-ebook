@@ -10,6 +10,7 @@ import { businessApi } from '@/ui/api/businessApi';
 import { can, PERMISSIONS, PermissionKey } from '@/ui/utils/permissions';
 import { aiAudioService, AiAudioPlan } from '@/ui/services/aiAudioService';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
+import { validateBookPricing } from '@/ui/utils/bookPricingValidation';
 
 // Slug Generator Utility
 function generateSlug(text: string) {
@@ -679,31 +680,15 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
       newErrors.coverUrl = 'Ảnh bìa không hợp lệ. Vui lòng chọn tệp ảnh từ máy tính.';
     }
 
-    if (selectedFormat === 'PHYSICAL') {
-      if (!form.physicalPrice || Number(form.physicalPrice) <= 0) {
-        newErrors.physicalPrice = 'Vui lòng nhập giá sách in lớn hơn 0 ₫.';
-      }
-    } else if (selectedFormat === 'DIGITAL') {
-      if (!form.ebookPrice || Number(form.ebookPrice) <= 0) {
-        newErrors.ebookPrice = 'Vui lòng nhập giá Ebook DRM lớn hơn 0 ₫.';
-      }
-    } else if (selectedFormat === 'BOTH') {
-      const phys = Number(form.physicalPrice) || 0;
-      const eb = Number(form.ebookPrice) || 0;
-      const combo = Number(form.comboPrice) || 0;
-
-      if (!form.comboPrice || combo <= 0) {
-        newErrors.comboPrice = 'Vui lòng nhập giá bán Combo Hybrid lớn hơn 0 ₫.';
-      } else if (phys > 0 && eb > 0 && combo > (phys + eb)) {
-        newErrors.comboPrice = `Giá Combo Hybrid (${combo.toLocaleString('vi-VN')} ₫) không được vượt quá tổng giá gốc của sách giấy và ebook (${(phys + eb).toLocaleString('vi-VN')} ₫).`;
-      }
-      if (!form.physicalPrice || phys <= 0) {
-        newErrors.physicalPrice = 'Vui lòng nhập giá sách in riêng lẻ.';
-      }
-      if (!form.ebookPrice || eb <= 0) {
-        newErrors.ebookPrice = 'Vui lòng nhập giá Ebook DRM riêng lẻ.';
-      }
-    }
+    Object.assign(
+      newErrors,
+      validateBookPricing({
+        format: selectedFormat,
+        physicalPrice: form.physicalPrice,
+        ebookPrice: form.ebookPrice,
+        comboPrice: form.comboPrice,
+      })
+    );
 
     if (hasPhysical) {
       if (form.stock === undefined || form.stock === null || String(form.stock) === '' || Number(form.stock) < 0) {
