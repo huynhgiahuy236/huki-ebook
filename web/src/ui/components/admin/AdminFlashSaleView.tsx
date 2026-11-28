@@ -7,6 +7,7 @@ import { catalogApi, type BookData } from "../../api/catalogApi";
 import { AdminStatusBadge } from './AdminUI';
 import GroupedDataTable, { type Column } from '../common/GroupedDataTable';
 import CountdownConfirmModal from '../common/CountdownConfirmModal';
+import CustomModal from '../common/CustomModal';
 import { AdminPenaltyArbitrationView } from './AdminPenaltyArbitrationView';
 import { sellerPenaltyService } from '../../services/sellerPenaltyService';
 import { realtimeSyncBus } from '../../services/realtimeSyncBus';
@@ -163,6 +164,7 @@ export function AdminFlashSaleView() {
   const [bookSearchQuery, setBookSearchQuery] = useState('');
   const [bookCategoryFilter, setBookCategoryFilter] = useState<string>('ALL');
   const [bookFormatFilter, setBookFormatFilter] = useState<string>('ALL');
+  const [bookStoreFilter, setBookStoreFilter] = useState<string>('ALL');
 
   // Bulk Tool Inputs
   const [bulkDiscountPercent, setBulkDiscountPercent] = useState<string>('30');
@@ -391,6 +393,15 @@ export function AdminFlashSaleView() {
     });
   }, [studioSlotId, catalogBooks]);
 
+  const studioStoreOptions = useMemo(() => {
+    const names = new Set<string>();
+    catalogBooks.forEach((b) => {
+      const sName = (b as any).store?.name || (b as any).storeName;
+      if (sName) names.add(String(sName));
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [catalogBooks]);
+
   // Filter books in studio
   const studioFilteredBooks = useMemo(() => {
     return catalogBooks.filter((b) => {
@@ -399,6 +410,10 @@ export function AdminFlashSaleView() {
         const matchTitle = b.title?.toLowerCase().includes(q);
         const matchAuthor = (typeof b.author === 'object' ? b.author?.name : b.author)?.toLowerCase().includes(q);
         if (!matchTitle && !matchAuthor) return false;
+      }
+      const bStoreName = (b as any).store?.name || (b as any).storeName;
+      if (bookStoreFilter !== 'ALL' && bStoreName !== bookStoreFilter) {
+        return false;
       }
       if (bookCategoryFilter !== 'ALL' && b.category?.name !== bookCategoryFilter) {
         return false;
@@ -411,7 +426,7 @@ export function AdminFlashSaleView() {
       }
       return true;
     });
-  }, [catalogBooks, bookSearchQuery, bookCategoryFilter, bookFormatFilter]);
+  }, [catalogBooks, bookSearchQuery, bookStoreFilter, bookCategoryFilter, bookFormatFilter]);
 
   const selectedBooksCount = useMemo(() => {
     return Object.values(bookConfigMap).filter((c) => c.isSelected).length;
@@ -944,13 +959,13 @@ export function AdminFlashSaleView() {
         align: 'right',
         render: (_val, slot) => {
           const isScheduled = slot.status === 'SCHEDULED';
-          const isEndedOrCancelled = slot.status === 'ENDED' || slot.status === 'CANCELLED';
+          const isPlatformCuratedEditable = slot.scope !== 'SHOP' && isScheduled;
           const isStudioOpen = studioSlotId === slot.id;
 
           return (
             <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
               <SlotStatusBadge slot={slot} />
-              {!isEndedOrCancelled && (
+              {isPlatformCuratedEditable && (
                 <button
                   type="button"
                   onClick={() => handleOpenStudio(slot)}
@@ -959,6 +974,7 @@ export function AdminFlashSaleView() {
                       ? 'bg-emerald-700 text-white hover:bg-emerald-800'
                       : 'bg-gray-900 hover:bg-gray-800 text-white'
                   }`}
+                  title="Gán hộ sách cho đối tác đã thỏa thuận (mặc định Seller tự đăng ký)"
                 >
                   <span className="material-symbols-outlined text-[14px]">
                     {isStudioOpen ? 'expand_less' : 'library_add'}
@@ -1494,32 +1510,35 @@ export function AdminFlashSaleView() {
         </div>
       </div>
 
-      {/* 5. IN-PAGE STUDIO GÁN SÁCH HÀNG LOẠT (KHI MỞ CHO 1 PHIÊN) */}
-      {activeStudioSlot && (
-        <div className="bg-white rounded-3xl border-2 border-emerald-500/70 shadow-lg overflow-hidden animate-in slide-in-from-top-3 duration-150">
-          <div className="px-5 py-3.5 bg-emerald-950 text-white flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <span className="material-symbols-outlined text-xl text-emerald-300">library_add</span>
-              <div>
-                <h3 className="font-bold text-sm">
-                  Studio Gán Sách Hàng Loạt — {activeStudioSlot.name}
-                </h3>
-                <p className="text-[11px] text-emerald-200/90">
-                  Chọn nhanh đầu sách &amp; đồng bộ giá trợ giá sàn (-{activeStudioSlot.discountPercent ?? 30}%)
-                </p>
-              </div>
+      {/* 5. MODAL STUDIO GÁN SÁCH CURATED (SHOPEE STANDARD — KHÔNG ĐẨY LAYOUT) */}
+      <CustomModal
+        isOpen={Boolean(activeStudioSlot)}
+        onClose={() => setStudioSlotId(null)}
+        size="full"
+        title={
+          <div className="flex items-center gap-2.5">
+            <span className="material-symbols-outlined text-xl text-emerald-700">library_add</span>
+            <div>
+              <span className="font-bold text-sm text-gray-900 block">
+                Studio Gán Sách Tài Trợ — {activeStudioSlot?.name}
+              </span>
+              <span className="text-[11px] font-normal text-gray-500 block">
+                Áp dụng chính sách khung giờ (-{activeStudioSlot?.discountPercent ?? 30}%) • Dùng cho chiến dịch Sàn tài trợ hoặc đối tác đã thỏa thuận
+              </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setStudioSlotId(null)}
-              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-sm">close</span>
-              <span>Đóng Studio</span>
-            </button>
           </div>
+        }
+      >
+        {activeStudioSlot && (
+          <div className="p-5 bg-gray-50/50 space-y-3">
+            {/* Shopee Standard Policy Notice */}
+            <div className="px-3.5 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
+              <span className="material-symbols-outlined text-base text-amber-600 shrink-0">info</span>
+              <span>
+                <strong>Chuẩn vận hành Shopee:</strong> Mặc định Seller sẽ tự đăng ký sách vào khung giờ này tại Kênh Người Bán. Chỉ dùng công cụ này khi gán hộ sách cho Gian hàng / NXB đã thống nhất trợ giá.
+              </span>
+            </div>
 
-          <div className="p-5 bg-gray-50/50">
             {/* Bulk Preset Tool Strip */}
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-wrap items-center justify-between gap-3 mb-4">
               <div className="flex items-center gap-3 flex-wrap">
@@ -1586,6 +1605,17 @@ export function AdminFlashSaleView() {
                   className="w-full bg-transparent text-xs focus:outline-none text-gray-900 placeholder:text-gray-400"
                 />
               </div>
+
+              <select
+                value={bookStoreFilter}
+                onChange={(e) => setBookStoreFilter(e.target.value)}
+                className="px-3 py-1.5 rounded-xl border border-gray-300 bg-white text-xs font-medium focus:border-[#00875A] max-w-[200px]"
+              >
+                <option value="ALL">Tất Cả Gian Hàng / NXB</option>
+                {studioStoreOptions.map((st) => (
+                  <option key={st} value={st}>{st}</option>
+                ))}
+              </select>
 
               <select
                 value={bookCategoryFilter}
@@ -1781,8 +1811,8 @@ export function AdminFlashSaleView() {
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </CustomModal>
 
       {/* 6. STANDARDIZED GROUPED DATA TABLE (1-1 SYNC WITH SELLER FLASH SALE) */}
       <div className="w-full max-w-full min-w-0">
