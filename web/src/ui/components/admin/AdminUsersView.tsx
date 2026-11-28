@@ -105,8 +105,8 @@ export default function AdminUsersView() {
   const [creatingUser, setCreatingUser] = useState(false);
 
   // 1. Fetch Real Users from PostgreSQL via API
-  const loadUsers = useCallback(async () => {
-    setLoading(true);
+  const loadUsers = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [res, escrowRes] = await Promise.all([
         adminApi.getUsers(),
@@ -232,7 +232,7 @@ export default function AdminUsersView() {
       showToast?.('Không thể tải danh sách người dùng từ hệ thống', 'error');
       setUsers([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [showToast]);
 
