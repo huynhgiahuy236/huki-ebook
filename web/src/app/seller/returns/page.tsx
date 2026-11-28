@@ -138,7 +138,7 @@ export default function SellerReturnsPage() {
   };
 
   const ACCEPTED_GROUP_STATUSES = ['SELLER_ACCEPTED', 'PICKUP_SCHEDULED', 'IN_TRANSIT', 'RETURNED_TO_SELLER', 'APPROVED'];
-  const RESOLVED_GROUP_STATUSES = ['COMPLETED', 'REFUNDED', 'REPLACED', 'ARBITRATED_BUYER_WINS', 'ARBITRATED_SELLER_WINS', 'REJECTED', 'CANCELLED'];
+  const RESOLVED_GROUP_STATUSES = ['COMPLETED', 'ARBITRATED_BUYER_WINS', 'ARBITRATED_SELLER_WINS', 'REJECTED', 'CANCELLED'];
 
   const filteredReturns = useMemo(() => {
     return returns.filter((it) => {
@@ -405,10 +405,10 @@ export default function SellerReturnsPage() {
       {
         key: 'actions',
         title: 'Thao Tác',
-        width: 235,
+        width: 170,
         align: 'right',
         render: (_val, item) => (
-          <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
+          <div className="flex items-center justify-end gap-1.5 flex-wrap">
             {item.replacementStatus === 'RETURNED_TO_STORE' && item.status !== 'REFUNDED' && item.status !== 'REPLACED' && (
               <SellerActionButton
                 variant="primary"

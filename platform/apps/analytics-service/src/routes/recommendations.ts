@@ -31,7 +31,7 @@ export class RecommendationController {
     private readonly recommendationService: RecommendationService,
     private readonly footprintService: FootprintService,
     private readonly recalculateJob: RecalculateAffinityJob,
-  ) {}
+  ) { }
 
   /**
    * GET /analytics/recommendations/for-you

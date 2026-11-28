@@ -106,15 +106,24 @@ export function TopProductsTable({
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-gray-100 text-gray-400 font-bold uppercase text-[10px] tracking-wider">
-                  <th className="py-2 px-2 w-12 text-center">Hạng</th>
-                  <th className="py-2 px-3">Tên Sách &amp; Gian Hàng</th>
-                  <th className="py-2 px-3 text-right">Số Bản Bán</th>
-                  <th className="py-2 px-3 text-right">Tổng GMV</th>
+                  <th className="py-2.5 px-2 w-12 text-center">Hạng</th>
+                  <th className="py-2.5 px-3">Ấn Phẩm Sách</th>
+                  <th className="py-2.5 px-3">Gian Hàng / NXB</th>
+                  <th className="py-2.5 px-3 text-center">Số Đơn</th>
+                  <th className="py-2.5 px-3 text-right">Đơn Giá TB</th>
+                  <th className="py-2.5 px-3 text-right">Số Bản Bán</th>
+                  <th className="py-2.5 px-3 text-right">Tổng GMV</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 font-medium">
                 {items.map((bk, idx) => {
-                  const storeLabel = (bk as BestsellerItem & { storeName?: string }).storeName;
+                  const storeLabel = bk.storeName || 'Gian hàng đối tác';
+                  const avgUnitPrice =
+                    bk.avgPrice && bk.avgPrice > 0
+                      ? bk.avgPrice
+                      : bk.units > 0
+                      ? Math.round(Number(bk.gmv) / bk.units)
+                      : 0;
                   return (
                     <tr key={bk.bookId} className="hover:bg-gray-50/80 transition-colors">
                       {/* Rank badge */}
@@ -136,19 +145,38 @@ export function TopProductsTable({
                         )}
                       </td>
 
-                      {/* Book Title & Store */}
+                      {/* Book Cover + Title */}
                       <td className="py-2.5 px-3 text-gray-800">
-                        <div className="flex flex-col min-w-0">
-                          <span className="font-bold text-xs text-gray-900 truncate max-w-[260px] sm:max-w-[380px]" title={bk.title}>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-11 rounded-md bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                            {bk.coverImage ? (
+                              <img src={bk.coverImage} alt={bk.title || ''} className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="material-symbols-outlined text-slate-400 text-[16px]">menu_book</span>
+                            )}
+                          </div>
+                          <span className="font-bold text-xs text-gray-900 line-clamp-2 max-w-[240px]" title={bk.title}>
                             {bk.title || 'Sách HuKi'}
                           </span>
-                          {storeLabel && (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-medium mt-0.5 truncate">
-                              <span className="material-symbols-outlined text-[13px] shrink-0">storefront</span>
-                              <span className="truncate">{storeLabel}</span>
-                            </span>
-                          )}
                         </div>
+                      </td>
+
+                      {/* Store */}
+                      <td className="py-2.5 px-3">
+                        <div className="inline-flex items-center gap-1.5 text-xs text-emerald-700 font-semibold">
+                          <span className="material-symbols-outlined text-[14px] shrink-0">storefront</span>
+                          <span className="truncate max-w-[200px]" title={storeLabel}>{storeLabel}</span>
+                        </div>
+                      </td>
+
+                      {/* Orders count */}
+                      <td className="py-2.5 px-3 text-center font-mono text-xs font-bold text-gray-700 whitespace-nowrap">
+                        {(bk.ordersCount ?? bk.units).toLocaleString('vi-VN')} đơn
+                      </td>
+
+                      {/* Avg price */}
+                      <td className="py-2.5 px-3 text-right font-mono text-xs text-gray-600 whitespace-nowrap">
+                        {formatVND(avgUnitPrice)}
                       </td>
 
                       {/* Units */}

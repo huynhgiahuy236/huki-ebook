@@ -136,13 +136,13 @@ export default function AdminUsersView() {
         const rawUsers = res.data;
         const mapped: AdminUser[] = rawUsers.map((u: any) => {
           const rawStatus = (u.status || '').toUpperCase();
-          const role = u.role || 'CUSTOMER';
-          const isSellerAccount = role === 'BUSINESS' || role === 'SELLER_ADMIN';
           const isPendingDeletion = rawStatus === 'PENDING_DELETION';
           const isDeleted = rawStatus === 'DELETED' || Boolean(u.deletedAt);
           const isLocked = rawStatus === 'LOCKED' || rawStatus === 'BLOCKED';
-          const isPending = rawStatus === 'PENDING' && isSellerAccount;
+          const isPending = rawStatus === 'PENDING';
 
+          const rawRole = String(u.role || 'CUSTOMER').toUpperCase();
+          const isRegularBuyer = rawRole === 'CUSTOMER' || rawRole === 'BUYER' || rawRole === 'USER';
           let status: 'active' | 'warning' | 'locked' | 'pending' | 'pending_deletion' | 'deleted' = 'active';
           let statusLabel = 'Hoạt động tốt';
 
@@ -155,12 +155,16 @@ export default function AdminUsersView() {
           } else if (isLocked) {
             status = 'locked';
             statusLabel = 'Đã bị khóa tài khoản';
-          } else if (isPending) {
+          } else if (isPending && !isRegularBuyer) {
             status = 'warning';
-            statusLabel = 'Chờ duyệt Seller';
+            statusLabel = 'Chờ xác thực';
+          } else if (isPending) {
+            status = 'active';
+            statusLabel = 'Hoạt động tốt';
           }
 
           // Determine role & tier
+          const role = u.role || 'CUSTOMER';
           let tier: 'diamond' | 'gold' | 'silver' | 'bronze' = 'bronze';
           let tierLabel = 'Đồng';
           if (role === 'PLATFORM_ADMIN') {
@@ -299,6 +303,8 @@ export default function AdminUsersView() {
             const isLocked = rawStatus === 'LOCKED' || rawStatus === 'BLOCKED';
             const isPending = rawStatus === 'PENDING';
 
+            const rawRole = String(u.role || 'CUSTOMER').toUpperCase();
+            const isRegularBuyer = rawRole === 'CUSTOMER' || rawRole === 'BUYER' || rawRole === 'USER';
             let status: 'active' | 'warning' | 'locked' | 'pending' | 'pending_deletion' | 'deleted' = 'active';
             let statusLabel = 'Hoạt động tốt';
 
@@ -311,9 +317,12 @@ export default function AdminUsersView() {
             } else if (isLocked) {
               status = 'locked';
               statusLabel = 'Đã bị khóa tài khoản';
-            } else if (isPending) {
+            } else if (isPending && !isRegularBuyer) {
               status = 'warning';
               statusLabel = 'Chờ xác thực';
+            } else if (isPending) {
+              status = 'active';
+              statusLabel = 'Hoạt động tốt';
             }
 
             const role = u.role || 'CUSTOMER';
@@ -742,22 +751,30 @@ export default function AdminUsersView() {
         align: 'center',
         sortable: true,
         className: 'whitespace-nowrap',
-        render: (_val, user) => {
-          const roleStyle =
-            user.role === 'PLATFORM_ADMIN'
-              ? { badge: 'bg-rose-50/90 text-rose-800 border-rose-200/80', dot: 'bg-rose-600' }
-              : user.role === 'BUSINESS' || user.role === 'SELLER_ADMIN'
-              ? { badge: 'bg-amber-50/90 text-amber-800 border-amber-300/80', dot: 'bg-amber-600' }
-              : user.role === 'DELIVERY_STAFF'
-              ? { badge: 'bg-blue-50/90 text-blue-800 border-blue-200/80', dot: 'bg-blue-600' }
-              : { badge: 'bg-emerald-50/90 text-emerald-800 border-emerald-200/80', dot: 'bg-emerald-600' };
-          return (
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-[11px] font-semibold ${roleStyle.badge}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${roleStyle.dot}`} />
-              <span>{user.roleLabel}</span>
+        render: (_val, user) => (
+          <span
+            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
+              user.role === 'PLATFORM_ADMIN'
+                ? 'bg-rose-50 text-rose-800 border border-rose-200'
+                : user.role === 'BUSINESS' || user.role === 'SELLER_ADMIN'
+                ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                : user.role === 'DELIVERY_STAFF'
+                ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[13px]">
+              {user.role === 'PLATFORM_ADMIN'
+                ? 'admin_panel_settings'
+                : user.role === 'BUSINESS' || user.role === 'SELLER_ADMIN'
+                ? 'storefront'
+                : user.role === 'DELIVERY_STAFF'
+                ? 'local_shipping'
+                : 'person'}
             </span>
-          );
-        },
+            <span>{user.roleLabel}</span>
+          </span>
+        ),
       },
       {
         key: 'joinedDate',
@@ -775,42 +792,23 @@ export default function AdminUsersView() {
         render: (_val: string, user: AdminUser) => {
           if (user.status === 'pending_deletion') {
             return (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-[11px] font-semibold bg-amber-50/90 text-amber-800 border-amber-300/80">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                <span>Chờ xóa ({user.remainingDays ?? 7} ngày)</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-50 text-amber-800 border border-amber-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                <span>Chờ xóa (${user.remainingDays ?? 7} ngày)</span>
               </span>
             );
           }
           if (user.status === 'deleted') {
             return (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-[11px] font-semibold bg-rose-50/90 text-rose-800 border-rose-200/80">
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-rose-50 text-rose-800 border border-rose-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
                 <span>Đã xóa</span>
               </span>
             );
           }
-          if (user.status === 'active') {
-            return (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-[11px] font-semibold bg-emerald-50/90 text-emerald-800 border-emerald-200/80">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                <span>Hoạt động</span>
-              </span>
-            );
-          }
-          if (user.status === 'warning') {
-            return (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-[11px] font-semibold bg-amber-50/90 text-amber-800 border-amber-300/80">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
-                <span>Chờ duyệt Seller</span>
-              </span>
-            );
-          }
-          return (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-[11px] font-semibold bg-rose-50/90 text-rose-800 border-rose-200/80">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
-              <span>Đã khóa</span>
-            </span>
-          );
+          if (user.status === 'active') return <AdminStatusBadge status="success" label="Hoạt động" icon="check_circle" />;
+          if (user.status === 'warning') return <AdminStatusBadge status="warning" label="Chờ xác thực" icon="warning" />;
+          return <AdminStatusBadge status="danger" label="Đã khóa" icon="lock" />;
         },
       },
       {

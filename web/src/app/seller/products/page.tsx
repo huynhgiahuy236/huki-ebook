@@ -305,7 +305,7 @@ function SellerProductsContent() {
       if (res.success && Array.isArray(res.data)) {
         setCategories(res.data as CategoryOption[]);
       }
-    }).catch(() => {});
+    }).catch(() => { });
 
     aiAudioService.getPlans().then((plans) => {
       const activeList = plans.filter((p) => p.status === 'ACTIVE');
@@ -313,7 +313,7 @@ function SellerProductsContent() {
       if (activeList.length > 0) {
         setSelectedPlanId(activeList[0].id);
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   const handleRegisterAiVoice = async () => {
@@ -548,12 +548,11 @@ function SellerProductsContent() {
     return filteredBooks.slice(start, start + pageSize);
   }, [filteredBooks, currentPage, pageSize]);
 
-  // Bulk action groups definition (Xuất bản sách nháp đã chuyển sang /seller/correction)
+  // Bulk action groups definition (Xuất bản hàng loạt đã chuyển sang Sách nháp /seller/correction)
   const productBulkActionGroups: BulkActionGroup[] = [
     {
       groupLabel: 'TIẾN TRÌNH HIỂN THỊ',
       actions: [
-        { value: 'SHOW_ALL', label: 'Hiển thị lại hàng loạt (Mở bán)' },
         { value: 'HIDE_ALL', label: 'Tạm ẩn hàng loạt (Ẩn khỏi sàn)' },
       ],
     },
@@ -574,26 +573,13 @@ function SellerProductsContent() {
     if (selectedIds.length === 0) return;
     setBulkLoading(true);
     try {
-      if (actionValue === 'SHOW_ALL') {
-        const hiddenOrSelected = books.filter(b => selectedIds.includes(b.id) && b.status === 'HIDDEN');
-        const targetIds = hiddenOrSelected.length > 0 ? hiddenOrSelected.map(b => b.id) : selectedIds;
-        let count = 0;
-        for (const id of targetIds) {
-          try {
-            const res = await catalogApi.publishBook(id);
-            if (res.success) count++;
-          } catch {}
-        }
-        showToast?.(`Đã hiển thị mở bán lại ${count} đầu sách!`, 'success');
-        setSelectedIds([]);
-        void loadBooks();
-      } else if (actionValue === 'PUBLISH_ALL') {
+      if (actionValue === 'PUBLISH_ALL') {
         let count = 0;
         for (const id of selectedIds) {
           try {
             const res = await catalogApi.publishBook(id);
             if (res.success) count++;
-          } catch {}
+          } catch { }
         }
         showToast?.(`Đã xuất bản thành công ${count} đầu sách!`, 'success');
         setSelectedIds([]);
@@ -604,7 +590,7 @@ function SellerProductsContent() {
           try {
             const res = await catalogApi.hideBook(id);
             if (res.success) count++;
-          } catch {}
+          } catch { }
         }
         showToast?.(`Đã tạm ẩn ${count} đầu sách khỏi sàn!`, 'success');
         setSelectedIds([]);
@@ -1005,7 +991,7 @@ function SellerProductsContent() {
 
   return (
     <div className="w-full max-w-[1600px] mx-auto space-y-5">
-      
+
       {/* 1. TOP HEADER & PRIMARY ACTIONS */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -1323,11 +1309,10 @@ function SellerProductsContent() {
                   disabled={bookFormData.format === 'DIGITAL'}
                   value={bookFormData.format === 'DIGITAL' ? 0 : bookFormData.stock}
                   onChange={(e) => setBookFormData((prev) => ({ ...prev, stock: Number(e.target.value) }))}
-                  className={`w-full px-3 py-2 rounded-xl border text-xs font-bold ${
-                    bookFormData.format === 'DIGITAL'
+                  className={`w-full px-3 py-2 rounded-xl border text-xs font-bold ${bookFormData.format === 'DIGITAL'
                       ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
                       : 'bg-white text-slate-900 border-slate-200 focus:outline-none focus:border-amber-500'
-                  }`}
+                    }`}
                   placeholder="0"
                 />
               </div>

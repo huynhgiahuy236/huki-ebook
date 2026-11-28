@@ -33,6 +33,9 @@ export interface BestsellerItem {
   bookId: string;
   title?: string;
   storeName?: string;
+  coverImage?: string | null;
+  ordersCount?: number;
+  avgPrice?: number;
   metricValue: string;
   units: number;
   gmv: string;

@@ -2641,6 +2641,8 @@ export class OrdersService {
               customerPhone,
               bookId: item.bookId,
               bookTitle: item.bookTitle,
+              bookCoverImage: item.bookCoverUrl || null,
+              bookCoverUrl: item.bookCoverUrl || null,
               quantity: item.quantity,
               unitPrice: Number(item.unitPrice),
               subtotal,

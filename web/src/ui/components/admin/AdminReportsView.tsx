@@ -286,22 +286,29 @@ export function AdminReportsView() {
                 }
               });
             }
-            const bookMap = new Map<string, BestsellerItem & { storeName?: string }>();
+            const bookMap = new Map<string, BestsellerItem>();
             validItems.forEach((it: any) => {
               const bid = it.bookId || it.bookTitle || 'unknown';
               const qty = Number(it.quantity || 1);
               const amt = Number(it.effectiveSubtotal ?? it.subtotal ?? 0);
               const sName = storeNameMap.get(it.storeId) || it.storeName || 'Gian hàng đối tác';
+              const cover = it.bookCoverImage || it.bookCoverUrl || null;
               const cur = bookMap.get(bid) || {
                 bookId: bid,
                 title: it.bookTitle || 'Sách HuKi',
                 storeName: sName,
+                coverImage: cover,
+                ordersCount: 0,
+                avgPrice: 0,
                 metricValue: '0',
                 units: 0,
                 gmv: '0',
               };
+              if (!cur.coverImage && cover) cur.coverImage = cover;
+              cur.ordersCount = (cur.ordersCount || 0) + 1;
               cur.units += qty;
               cur.gmv = String(Number(cur.gmv) + amt);
+              cur.avgPrice = cur.units > 0 ? Math.round(Number(cur.gmv) / cur.units) : 0;
               cur.metricValue = bestsellerMode === 'GMV' ? cur.gmv : String(cur.units);
               bookMap.set(bid, cur);
             });
