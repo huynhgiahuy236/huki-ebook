@@ -22,12 +22,8 @@ import {
   ApiOperation,
   ApiTags,
   ApiParam,
-  ApiResponse,
-  ApiUnauthorizedResponse,
-  ApiNotFoundResponse,
-  ApiBadRequestResponse,
-  ApiForbiddenResponse,
 } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { CurrentActor } from '../../common/current-actor.decorator';
 import {
   AuthenticatedGuard,
@@ -37,7 +33,7 @@ import { CreateAddressDto, UpdateAddressDto } from './address.dto';
 import { AddressesService } from './addresses.service';
 
 @ApiTags('Addresses')
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 @UseGuards(AuthenticatedGuard)
 @Controller('shipping/address')
 export class AddressesController {
@@ -48,8 +44,8 @@ export class AddressesController {
     summary: 'List user shipping addresses',
     description: 'Returns all shipping addresses for the authenticated user.',
   })
-  @ApiResponse({ status: 200, description: 'List of addresses' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'List of addresses' })
+  @ApiStandardErrors(401)
   list(@CurrentActor() actor: ShippingActor) {
     return this.addresses.list(actor.sub);
   }
@@ -60,10 +56,8 @@ export class AddressesController {
     description: 'Returns a single shipping address by ID. Validates ownership.',
   })
   @ApiParam({ name: 'id', description: 'Address ID' })
-  @ApiResponse({ status: 200, description: 'Address details' })
-  @ApiNotFoundResponse({ description: 'Address not found' })
-  @ApiForbiddenResponse({ description: 'Address does not belong to user' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Address details' })
+  @ApiStandardErrors(401, 403, 404)
   findOne(
     @CurrentActor() actor: ShippingActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -77,9 +71,8 @@ export class AddressesController {
     summary: 'Create a new shipping address',
     description: 'Creates a new shipping address for the user.',
   })
-  @ApiResponse({ status: 201, description: 'Address created successfully' })
-  @ApiBadRequestResponse({ description: 'Invalid address data' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Address created successfully' })
+  @ApiStandardErrors(400, 401)
   create(
     @CurrentActor() actor: ShippingActor,
     @Body() dto: CreateAddressDto,
@@ -93,10 +86,8 @@ export class AddressesController {
     description: 'Updates an existing shipping address.',
   })
   @ApiParam({ name: 'id', description: 'Address ID' })
-  @ApiResponse({ status: 200, description: 'Address updated successfully' })
-  @ApiNotFoundResponse({ description: 'Address not found' })
-  @ApiForbiddenResponse({ description: 'Address does not belong to user' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Address updated successfully' })
+  @ApiStandardErrors(400, 401, 403, 404)
   update(
     @CurrentActor() actor: ShippingActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -111,10 +102,8 @@ export class AddressesController {
     description: 'Deletes a shipping address.',
   })
   @ApiParam({ name: 'id', description: 'Address ID' })
-  @ApiResponse({ status: 200, description: 'Address deleted successfully' })
-  @ApiNotFoundResponse({ description: 'Address not found' })
-  @ApiForbiddenResponse({ description: 'Address does not belong to user' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Address deleted successfully' })
+  @ApiStandardErrors(401, 403, 404)
   remove(
     @CurrentActor() actor: ShippingActor,
     @Param('id', ParseUUIDPipe) id: string,

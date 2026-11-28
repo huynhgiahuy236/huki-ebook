@@ -12,16 +12,14 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBadRequestResponse,
   ApiBearerAuth,
-  ApiForbiddenResponse,
-  ApiNotFoundResponse,
+  ApiBody,
   ApiOperation,
   ApiParam,
-  ApiResponse,
+  ApiQuery,
   ApiTags,
-  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { StaffStatus } from '../../../prisma/generated/client';
 import {
   AuthenticatedGuard,
@@ -37,7 +35,7 @@ import {
 } from './dto/delivery-staff.dto';
 
 @ApiTags('Delivery staff')
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 @UseGuards(AuthenticatedGuard)
 @Controller('delivery-staff')
 export class DeliveryStaffController {
@@ -46,26 +44,25 @@ export class DeliveryStaffController {
   @Post()
   @UseGuards(PlatformAdminGuard)
   @ApiOperation({ summary: 'Create delivery staff (platform admin)' })
-  @ApiResponse({ status: 201, description: 'Delivery staff created' })
-  @ApiBadRequestResponse({ description: 'Invalid or duplicate staff data' })
-  @ApiUnauthorizedResponse({ description: 'Authentication required' })
-  @ApiForbiddenResponse({ description: 'Platform administrator role required' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Delivery staff created' })
+  @ApiStandardErrors(400, 401, 403, 409)
   create(@Body() dto: CreateDeliveryStaffDto) {
     return this.staff.create(dto);
   }
 
   @Get('me')
   @ApiOperation({ summary: 'Get current delivery staff profile' })
-  @ApiResponse({ status: 200, description: 'Current delivery staff profile' })
-  @ApiUnauthorizedResponse({ description: 'Authentication required' })
+  @ApiSuccessResponse(undefined, { description: 'Current delivery staff profile' })
+  @ApiStandardErrors(401)
   getMe(@Req() req: ShippingRequest) {
     return this.staff.getOrCreateStaffProfile(req.user!);
   }
 
   @Patch('me/status')
   @ApiOperation({ summary: 'Update current delivery staff duty status' })
-  @ApiResponse({ status: 200, description: 'Status updated' })
-  @ApiUnauthorizedResponse({ description: 'Authentication required' })
+  @ApiBody({ schema: { type: 'object', required: ['status'], properties: { status: { type: 'string', enum: Object.values(StaffStatus) } } } })
+  @ApiSuccessResponse(undefined, { description: 'Status updated' })
+  @ApiStandardErrors(400, 401)
   updateMyStatus(
     @Req() req: ShippingRequest,
     @Body('status', new ParseEnumPipe(StaffStatus)) status: StaffStatus,
@@ -75,8 +72,9 @@ export class DeliveryStaffController {
 
   @Get()
   @ApiOperation({ summary: 'List delivery staff' })
-  @ApiResponse({ status: 200, description: 'Delivery staff list' })
-  @ApiUnauthorizedResponse({ description: 'Authentication required' })
+  @ApiQuery({ name: 'status', required: false, enum: StaffStatus })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Delivery staff list' })
+  @ApiStandardErrors(401)
   list(
     @Req() req: ShippingRequest,
     @Query('status', new ParseEnumPipe(StaffStatus, { optional: true }))
@@ -91,9 +89,8 @@ export class DeliveryStaffController {
   @Patch(':id')
   @ApiOperation({ summary: 'Update delivery staff' })
   @ApiParam({ name: 'id', description: 'Delivery staff UUID' })
-  @ApiResponse({ status: 200, description: 'Delivery staff updated' })
-  @ApiNotFoundResponse({ description: 'Delivery staff not found' })
-  @ApiUnauthorizedResponse({ description: 'Authentication required' })
+  @ApiSuccessResponse(undefined, { description: 'Delivery staff updated' })
+  @ApiStandardErrors(400, 401, 403, 404)
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateDeliveryStaffDto,
@@ -110,7 +107,7 @@ export class DeliveryStaffController {
 }
 
 @ApiTags('Shipment assignment')
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 @UseGuards(AuthenticatedGuard, PlatformAdminGuard)
 @Controller('shipments')
 export class ShipmentAssignmentController {
@@ -119,11 +116,8 @@ export class ShipmentAssignmentController {
   @Post(':id/assign')
   @ApiOperation({ summary: 'Assign delivery staff to a shipment (platform admin)' })
   @ApiParam({ name: 'id', description: 'Shipment UUID' })
-  @ApiResponse({ status: 201, description: 'Delivery staff assigned' })
-  @ApiNotFoundResponse({ description: 'Shipment or delivery staff not found' })
-  @ApiBadRequestResponse({ description: 'Shipment cannot be assigned' })
-  @ApiUnauthorizedResponse({ description: 'Authentication required' })
-  @ApiForbiddenResponse({ description: 'Platform administrator role required' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Delivery staff assigned' })
+  @ApiStandardErrors(400, 401, 403, 404)
   assign(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AssignDeliveryStaffDto,

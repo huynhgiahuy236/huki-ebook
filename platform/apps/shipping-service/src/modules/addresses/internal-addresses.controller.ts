@@ -19,9 +19,9 @@ import {
   ApiTags,
   ApiOperation,
   ApiParam,
-  ApiResponse,
   ApiHeader,
 } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { ConfigService } from '@nestjs/config';
 import { throwUnauthorized, throwNotFound, throwForbidden } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
@@ -63,9 +63,8 @@ export class InternalAddressesController {
   @ApiHeader({ name: 'x-internal-service-key', required: true, description: 'Internal service key' })
   @ApiHeader({ name: 'x-user-id', required: true, description: 'User ID to validate ownership' })
   @ApiParam({ name: 'id', description: 'Address ID' })
-  @ApiResponse({ status: 200, description: 'Address details' })
-  @ApiResponse({ status: 403, description: 'Forbidden: Invalid internal key' })
-  @ApiResponse({ status: 404, description: 'Address not found' })
+  @ApiSuccessResponse(undefined, { description: 'Address details' })
+  @ApiStandardErrors(401, 403, 404)
   async findOne(
     @Headers('x-internal-service-key') serviceKey: string,
     @Headers('x-user-id') userId: string,
@@ -97,8 +96,9 @@ export class InternalAddressesController {
     description: 'Returns all addresses for a user. Used by commerce-service.',
   })
   @ApiHeader({ name: 'x-internal-service-key', required: true, description: 'Internal service key' })
-  @ApiResponse({ status: 200, description: 'List of addresses' })
-  @ApiResponse({ status: 403, description: 'Forbidden: Invalid internal key' })
+  @ApiHeader({ name: 'x-user-id', required: true, description: 'User ID' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'List of addresses' })
+  @ApiStandardErrors(401, 403)
   async list(
     @Headers('x-internal-service-key') serviceKey: string,
     @Headers('x-user-id') userId: string,

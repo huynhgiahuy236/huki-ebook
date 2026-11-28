@@ -2928,7 +2928,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"recipientName\": \"Test User\",\n  \"phone\": \"0912345678\",\n  \"province\": \"Hồ Chí Minh\",\n  \"district\": \"Quận 1\",\n  \"ward\": \"Phường Bến Nghé\",\n  \"street\": \"123 Đường Nguyễn Huệ\",\n  \"isDefault\": true,\n  \"addressType\": \"HOME\"\n}"
+              "raw": "{\n  \"name\": \"Nguyễn Văn A\",\n  \"phone\": \"0912345678\",\n  \"address\": \"123 Nguyễn Huệ\",\n  \"province\": \"TP.HCM\",\n  \"district\": \"Quận 1\",\n  \"ward\": \"Phường Bến Nghé\",\n  \"isDefault\": true\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/shipping/address",
@@ -2971,7 +2971,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/shipping/fee?fromProvince=Hồ+Chí+Minh&toProvince=Hà+Nội",
+              "raw": "{{baseUrl}}/shipping/fee?province=TP.HCM&district=Quận 1&weight=500",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2981,12 +2981,16 @@
               ],
               "query": [
                 {
-                  "key": "fromProvince",
-                  "value": "Hồ Chí Minh"
+                  "key": "province",
+                  "value": "TP.HCM"
                 },
                 {
-                  "key": "toProvince",
-                  "value": "Hà Nội"
+                  "key": "district",
+                  "value": "Quận 1"
+                },
+                {
+                  "key": "weight",
+                  "value": "500"
                 }
               ]
             },
@@ -3017,7 +3021,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"recipientName\": \"Updated Recipient\"\n}",
+              "raw": "{\n  \"name\": \"Nguyễn Văn B\",\n  \"phone\": \"0912345678\",\n  \"address\": \"456 Lê Lợi\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5682,7 +5686,7 @@
             "description": "SYSTEM_ONLY: service-to-service contract.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"sellerOrders\": []\n}",
+              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"sellerOrders\": [],\n  \"userId\": \"{{userId}}\",\n  \"paymentMethod\": \"COD\",\n  \"paymentStatus\": \"PENDING\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -6025,7 +6029,7 @@
             "description": "CONTRACT_ONLY: requires a valid GHTK HMAC signature and is never called by browser clients.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"eventId\": \"local-event-id\",\n  \"trackingNumber\": \"{{trackingNumber}}\",\n  \"status\": \"IN_TRANSIT\",\n  \"signature\": \"replace-with-valid-signature\"\n}",
+              "raw": "{\n  \"eventId\": \"local-event-id\",\n  \"trackingNumber\": \"{{trackingNumber}}\",\n  \"status\": \"IN_TRANSIT\",\n  \"signature\": \"replace-with-valid-signature\",\n  \"occurredAt\": \"2026-11-28T09:00:00.000Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

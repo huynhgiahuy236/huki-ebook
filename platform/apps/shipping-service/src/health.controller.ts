@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiSuccessResponse } from '@huki/shared';
 import { PrismaService } from './prisma/prisma.service';
 
 interface HealthStatus {
@@ -18,6 +19,7 @@ export class HealthController {
 
   @Get()
   @ApiOperation({ summary: 'Health check with dependency status' })
+  @ApiSuccessResponse(undefined, { description: 'Shipping service health status' })
   async check(): Promise<HealthStatus> {
     let overallStatus: 'ok' | 'degraded' | 'error' = 'ok';
 

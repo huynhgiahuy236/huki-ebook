@@ -2,9 +2,9 @@ import { Controller, Get, Post, Query, Body, HttpCode, HttpStatus, Headers } fro
 import {
   ApiTags,
   ApiOperation,
-  ApiResponse,
   ApiHeader,
 } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { ConfigService } from '@nestjs/config';
 import { throwForbidden } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
@@ -37,8 +37,10 @@ export class ShippingController {
 
   @Get('fee')
   @ApiOperation({
-    summary: 'Calculate a deterministic GHTK mock shipping quote',
+    summary: 'Calculate a deterministic GHTK shipping quote',
   })
+  @ApiSuccessResponse(undefined, { description: 'Shipping fee calculation result' })
+  @ApiStandardErrors(400)
   fee(@Query() query: ShippingFeeQueryDto) {
     return this.shipping.calculateFee(query);
   }
@@ -49,7 +51,8 @@ export class ShippingController {
     summary: 'Calculate shipping fee (POST version)',
     description: 'Calculate shipping fee with POST body for internal service calls.',
   })
-  @ApiResponse({ status: 200, description: 'Shipping fee calculation result' })
+  @ApiSuccessResponse(undefined, { description: 'Shipping fee calculation result' })
+  @ApiStandardErrors(400)
   calculateFeePost(@Body() body: ShippingFeeBodyDto) {
     return this.shipping.calculateFee(body);
   }
@@ -61,8 +64,8 @@ export class ShippingController {
     description: 'Internal endpoint for commerce-service to calculate shipping fees.',
   })
   @ApiHeader({ name: 'x-internal-service-key', required: true })
-  @ApiResponse({ status: 200, description: 'Shipping fee calculation result' })
-  @ApiResponse({ status: 403, description: 'Forbidden: Invalid internal key' })
+  @ApiSuccessResponse(undefined, { description: 'Shipping fee calculation result' })
+  @ApiStandardErrors(400, 403)
   calculateFeeInternal(
     @Headers('x-internal-service-key') serviceKey: string,
     @Body() body: ShippingFeeBodyDto,
