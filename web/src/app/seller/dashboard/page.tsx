@@ -11,6 +11,8 @@ import { flashSaleApi, type FlashSaleSlot } from '@/ui/api/flashSaleApi';
 import { chatService, type ChatConversation } from '@/ui/services/chatService';
 import { useAuth } from '@/ui/context/AuthContext';
 import { can, PERMISSIONS } from '@/ui/utils/permissions';
+import GMVChart from '@/ui/components/analytics/GMVChart';
+import type { PlatformGmvTimelineItem } from '@/ui/api/analyticsApi';
 
 interface OrderItem {
   id?: string;
@@ -50,6 +52,7 @@ export default function SellerDashboardPage() {
     pendingOrders: number;
     totalRevenue: number;
     recentOrders: OrderItem[];
+    allOrders: OrderItem[];
     recentTransactions: WalletTransactionItem[];
     activeVouchers: Voucher[];
     activeFlashSales: FlashSaleSlot[];
@@ -70,6 +73,7 @@ export default function SellerDashboardPage() {
     pendingOrders: 0,
     totalRevenue: 0,
     recentOrders: [],
+    allOrders: [],
     recentTransactions: [],
     activeVouchers: [],
     activeFlashSales: [],
@@ -111,6 +115,7 @@ export default function SellerDashboardPage() {
       pendingOrders: 0,
       totalRevenue: 0,
       recentOrders: [] as OrderItem[],
+      allOrders: [] as OrderItem[],
       recentTransactions: [] as WalletTransactionItem[],
       activeVouchers: [] as Voucher[],
       activeFlashSales: [] as FlashSaleSlot[],
@@ -207,6 +212,7 @@ export default function SellerDashboardPage() {
         .filter(o => o.status !== 'CANCELLED' && o.status !== 'REFUNDED')
         .reduce((sum, o) => sum + Number(o.grandTotal || o.totalAmount || o.itemSubtotal || 0), 0);
       result.recentOrders = list.slice(0, 5);
+      result.allOrders = list;
     } catch { /* ignore */ }
 
     // 4. Fetch recent wallet transactions for real operations audit
@@ -624,69 +630,37 @@ export default function SellerDashboardPage() {
             </div>
           </div>
 
-          {/* 3.2 TĂNG TRƯỞNG ĐỘC GIẢ (12 THÁNG) */}
-          <div className="lg:col-span-7 bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="text-sm sm:text-base font-bold text-gray-900">Tăng Trưởng Độc Giả Mới (Khách Hàng)</h2>
-                <p className="text-[11px] text-gray-500 mt-0.5">Số lượng khách đặt mua &amp; tương tác với gian hàng (12 tháng)</p>
-              </div>
-              <select
-                value={acqPeriod}
-                onChange={(e) => setAcqPeriod(e.target.value as any)}
-                className="text-xs font-semibold text-gray-700 bg-gray-50 border border-gray-200 px-2.5 py-1.5 rounded-xl cursor-pointer focus:outline-none focus:border-emerald-500"
-              >
-                <option value="THIS_YEAR">12 tháng qua</option>
-                <option value="6_MONTHS">6 tháng qua</option>
-                <option value="ALL">Toàn thời gian</option>
-              </select>
-            </div>
-
-            <div className="relative pt-4 pb-1">
-              <div className="h-44 w-full relative">
-                {/* Y Axis Grid Lines */}
-                <div className="absolute inset-0 flex flex-col justify-between text-[10px] text-gray-400 pointer-events-none">
-                  <div className="border-b border-gray-100 w-full flex justify-between"><span>Độc giả</span></div>
-                  <div className="border-b border-gray-100 w-full flex justify-between"><span>{Math.max(stats.totalOrders * 2, 10)}</span></div>
-                  <div className="border-b border-gray-100 w-full flex justify-between"><span>{Math.max(stats.totalOrders, 5)}</span></div>
-                  <div className="border-b border-gray-100 w-full flex justify-between"><span>0</span></div>
-                </div>
-
-                {/* SVG Trend line */}
-                <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 600 150">
-                  <defs>
-                    <linearGradient id="sellerAcqGradientReal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#22C55E" stopOpacity="0.28" />
-                      <stop offset="100%" stopColor="#22C55E" stopOpacity="0.0" />
-                    </linearGradient>
-                  </defs>
-                  <path
-                    d="M 15 135 Q 110 128 200 112 T 360 82 T 585 28 L 585 150 L 15 150 Z"
-                    fill="url(#sellerAcqGradientReal)"
-                  />
-                  <path
-                    d="M 15 135 Q 110 128 200 112 T 360 82 T 585 28"
-                    fill="none"
-                    stroke="#16A34A"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                  />
-                  <circle cx="585" cy="28" r="4.5" fill="#16A34A" stroke="#FFFFFF" strokeWidth="2" />
-                </svg>
-
-                <div className="absolute top-2 right-4 bg-[#1E293B] text-white text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-lg flex flex-col items-center">
-                  <span className="font-mono">{stats.totalOrders} đơn hàng</span>
-                  <span className="text-[9px] text-gray-400 font-normal">Tăng trưởng ổn định</span>
-                </div>
-              </div>
-
-              {/* X Axis 12 Months */}
-              <div className="grid grid-cols-12 text-[10.5px] font-semibold text-gray-500 mt-2.5 text-center">
-                {['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'].map((m) => (
-                  <span key={m}>{m}</span>
-                ))}
-              </div>
-            </div>
+          {/* 3.2 BIỂU ĐỒ DIỄN BIẾN GMV & ĐƠN HÀNG (CHUẨN ADMIN - 7 CỘT) */}
+          <div className="lg:col-span-7">
+            <GMVChart
+              timeline={(() => {
+                const days = 25;
+                const map = new Map<string, { gmv: number; orders: number }>();
+                const now = new Date();
+                for (let i = days - 1; i >= 0; i--) {
+                  const d = new Date(now);
+                  d.setDate(now.getDate() - i);
+                  const key = d.toISOString().slice(0, 10);
+                  map.set(key, { gmv: 0, orders: 0 });
+                }
+                for (const o of stats.allOrders || []) {
+                  if (!o.createdAt || o.status === 'CANCELLED' || o.status === 'REFUNDED') continue;
+                  const key = new Date(o.createdAt).toISOString().slice(0, 10);
+                  const entry = map.get(key);
+                  if (entry) {
+                    entry.gmv += Number(o.grandTotal || o.totalAmount || o.itemSubtotal || 0);
+                    entry.orders += 1;
+                  }
+                }
+                const out: PlatformGmvTimelineItem[] = [];
+                map.forEach((v, k) => {
+                  out.push({ period: k, gmv: String(Math.round(v.gmv)), orders: v.orders });
+                });
+                return out;
+              })()}
+              interval="daily"
+              loading={loadingStats}
+            />
           </div>
         </div>
 
