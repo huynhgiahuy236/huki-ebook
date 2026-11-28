@@ -274,19 +274,19 @@ export default function AdminUsersView() {
         setLastLiveEvent(`${eventText} (${new Date(msg.timestamp).toLocaleTimeString('vi-VN')})`);
         showToast?.(eventText, 'info');
 
-        // Automatically refresh from DB
-        loadUsersRef.current();
+        // Automatically refresh silently from DB
+        void loadUsersRef.current(true);
       }
     });
 
-    // 2. Realtime sync on Window Focus & Tab Visibility change
+    // 2. Silent background sync on Window Focus & Tab Visibility change (no skeleton jitter)
     const onFocus = () => {
-      loadUsersRef.current();
+      void loadUsersRef.current(true);
     };
     window.addEventListener('focus', onFocus);
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
-        loadUsersRef.current();
+        void loadUsersRef.current(true);
       }
     };
     document.addEventListener('visibilitychange', onVisibility);
