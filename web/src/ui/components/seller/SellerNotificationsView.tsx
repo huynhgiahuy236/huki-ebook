@@ -516,26 +516,20 @@ export default function SellerNotificationsView() {
             setActiveTab('all');
             setCurrentPage(1);
           }}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
+          className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
             activeTab === 'all'
-              ? 'bg-[#003B2B] text-white border-[#003B2B] ring-2 ring-[#003B2B]/20'
-              : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
+              ? 'bg-emerald-50/25 text-slate-900 border-2 border-[#003B2B] ring-2 ring-[#003B2B]/15'
+              : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span
-              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${
-                activeTab === 'all'
-                  ? 'bg-white/15 text-[#94F5D6]'
-                  : 'bg-emerald-50 text-[#00875A] dark:bg-zinc-800 dark:text-emerald-400'
-              }`}
-            >
+            <span className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 bg-emerald-50 text-[#00875A] dark:bg-zinc-800 dark:text-emerald-400">
               <span className="material-symbols-outlined text-[20px]">all_inbox</span>
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-wider opacity-75">Hộp thư</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Hộp thư</span>
           </div>
-          <div className="text-2xl font-black tracking-tight">{stats.total}</div>
-          <p className="text-[11px] opacity-80 mt-0.5 truncate">Tất cả thông báo</p>
+          <div className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">{stats.total}</div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">Tất cả thông báo</p>
         </div>
 
         {/* Card 2: Chưa đọc (High Urgency) */}
@@ -544,32 +538,26 @@ export default function SellerNotificationsView() {
             setReadFilter(readFilter === 'unread' ? 'all' : 'unread');
             setCurrentPage(1);
           }}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
+          className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
             readFilter === 'unread'
-              ? 'bg-rose-700 text-white border-rose-700 ring-2 ring-rose-600/30'
-              : 'bg-white hover:bg-rose-50/50 text-slate-800 border-rose-200/80 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
+              ? 'bg-emerald-50/25 text-slate-900 border-2 border-[#003B2B] ring-2 ring-[#003B2B]/15'
+              : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span
-              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${
-                readFilter === 'unread'
-                  ? 'bg-white/15 text-rose-200'
-                  : 'bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400'
-              }`}
-            >
+            <span className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400">
               <span className="material-symbols-outlined text-[20px]">mark_email_unread</span>
             </span>
             {stats.unread > 0 && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-500 text-white animate-pulse">
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-rose-50 text-rose-700">
                 Cần xử lý
               </span>
             )}
           </div>
-          <div className={`text-2xl font-black ${readFilter === 'unread' ? 'text-white' : 'text-rose-600 dark:text-rose-400'}`}>
+          <div className="text-2xl font-black text-rose-600 dark:text-rose-400">
             {stats.unread}
           </div>
-          <p className={`text-[11px] mt-0.5 truncate ${readFilter === 'unread' ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}`}>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
             Tin chưa đọc
           </p>
         </div>
@@ -580,32 +568,26 @@ export default function SellerNotificationsView() {
             setActiveTab('sla');
             setCurrentPage(1);
           }}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
+          className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
             activeTab === 'sla'
-              ? 'bg-amber-600 text-white border-amber-600 ring-2 ring-amber-500/20'
-              : 'bg-white hover:bg-amber-50/50 text-slate-800 border-amber-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
+              ? 'bg-emerald-50/25 text-slate-900 border-2 border-[#003B2B] ring-2 ring-[#003B2B]/15'
+              : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span
-              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${
-                activeTab === 'sla'
-                  ? 'bg-white/15 text-amber-200'
-                  : 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400'
-              }`}
-            >
+            <span className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400">
               <span className="material-symbols-outlined text-[20px]">gavel</span>
             </span>
             {stats.unreadSla > 0 && (
-              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-500 text-white">
+              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700">
                 +{stats.unreadSla}
               </span>
             )}
           </div>
-          <div className={`text-2xl font-black ${activeTab === 'sla' ? 'text-white' : 'text-amber-600 dark:text-amber-400'}`}>
+          <div className="text-2xl font-black text-amber-600 dark:text-amber-400">
             {stats.slaCount}
           </div>
-          <p className={`text-[11px] mt-0.5 truncate ${activeTab === 'sla' ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}`}>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
             SLA &amp; Sao Quả Tạ
           </p>
         </div>
@@ -616,32 +598,26 @@ export default function SellerNotificationsView() {
             setActiveTab('orders');
             setCurrentPage(1);
           }}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
+          className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
             activeTab === 'orders'
-              ? 'bg-blue-600 text-white border-blue-600 ring-2 ring-blue-500/20'
-              : 'bg-white hover:bg-blue-50/50 text-slate-800 border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
+              ? 'bg-emerald-50/25 text-slate-900 border-2 border-[#003B2B] ring-2 ring-[#003B2B]/15'
+              : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span
-              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${
-                activeTab === 'orders'
-                  ? 'bg-white/15 text-blue-200'
-                  : 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400'
-              }`}
-            >
+            <span className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400">
               <span className="material-symbols-outlined text-[20px]">local_shipping</span>
             </span>
             {stats.unreadOrders > 0 && (
-              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-blue-500 text-white">
+              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700">
                 +{stats.unreadOrders}
               </span>
             )}
           </div>
-          <div className={`text-2xl font-black ${activeTab === 'orders' ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`}>
+          <div className="text-2xl font-black text-blue-600 dark:text-blue-400">
             {stats.orderCount}
           </div>
-          <p className={`text-[11px] mt-0.5 truncate ${activeTab === 'orders' ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}`}>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
             Đơn hàng &amp; Giao vận
           </p>
         </div>
@@ -652,32 +628,26 @@ export default function SellerNotificationsView() {
             setActiveTab('admin');
             setCurrentPage(1);
           }}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group shadow-2xs col-span-2 sm:col-span-1 ${
+          className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs col-span-2 sm:col-span-1 ${
             activeTab === 'admin'
-              ? 'bg-indigo-700 text-white border-indigo-700 ring-2 ring-indigo-500/20'
-              : 'bg-white hover:bg-indigo-50/50 text-slate-800 border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
+              ? 'bg-emerald-50/25 text-slate-900 border-2 border-[#003B2B] ring-2 ring-[#003B2B]/15'
+              : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span
-              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${
-                activeTab === 'admin'
-                  ? 'bg-white/15 text-indigo-200'
-                  : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-400'
-              }`}
-            >
+            <span className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-400">
               <span className="material-symbols-outlined text-[20px]">shield</span>
             </span>
             {stats.unreadAdmin > 0 && (
-              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500 text-white">
+              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700">
                 +{stats.unreadAdmin}
               </span>
             )}
           </div>
-          <div className={`text-2xl font-black ${activeTab === 'admin' ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'}`}>
+          <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
             {stats.adminCount}
           </div>
-          <p className={`text-[11px] mt-0.5 truncate ${activeTab === 'admin' ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}`}>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
             Chỉ đạo Ban Quản Trị
           </p>
         </div>
