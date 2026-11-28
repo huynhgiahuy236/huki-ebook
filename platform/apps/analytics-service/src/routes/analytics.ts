@@ -9,6 +9,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { AnalyticsQueryService } from '../services/AnalyticsQueryService';
 import { DailyRollupService } from '../services/DailyRollupService';
 import { DailyRollupRunner } from '../services/DailyRollupRunner';
@@ -36,6 +37,8 @@ export class AnalyticsController {
   @UseGuards(RolesGuard)
   @Roles('PLATFORM_ADMIN', 'ADMIN')
   @ApiOperation({ summary: 'Get platform-wide GMV overview (all-time, daily, weekly, monthly)' })
+  @ApiSuccessResponse(undefined, { description: 'Platform GMV overview retrieved' })
+  @ApiStandardErrors(401, 403)
   async getPlatformGmv(@Query() query: GmvQueryDto) {
     const data = await this.gmvService.getPlatformGMV(query.from, query.to, query.interval);
     return { data };
@@ -44,6 +47,8 @@ export class AnalyticsController {
   @Get('store/:storeId/gmv')
   @UseGuards(RolesGuard)
   @ApiOperation({ summary: 'Get store GMV overview (all-time, daily, weekly, monthly, by book)' })
+  @ApiSuccessResponse(undefined, { description: 'Store GMV overview retrieved' })
+  @ApiStandardErrors(401, 403)
   async getStoreGmv(
     @Param('storeId') storeId: string,
     @Query() query: GmvQueryDto,
@@ -62,6 +67,8 @@ export class AnalyticsController {
   @UseGuards(RolesGuard)
   @Roles('PLATFORM_ADMIN', 'ADMIN')
   @ApiOperation({ summary: 'Get platform-wide analytics summary' })
+  @ApiSuccessResponse(undefined, { description: 'Platform analytics summary retrieved' })
+  @ApiStandardErrors(401, 403)
   async getPlatformSummary(@Query() query: DateRangeQueryDto) {
     const data = await this.queryService.getPlatformSummary(query.from, query.to);
     return { data };
@@ -71,6 +78,8 @@ export class AnalyticsController {
   @UseGuards(RolesGuard)
   @Roles('PLATFORM_ADMIN', 'ADMIN')
   @ApiOperation({ summary: 'Get platform daily metrics time series' })
+  @ApiSuccessResponse(undefined, { description: 'Platform daily metrics retrieved' })
+  @ApiStandardErrors(401, 403)
   async getPlatformDaily(@Query() query: DateRangeQueryDto) {
     const data = await this.queryService.getPlatformDaily(query.from, query.to, query.metric);
     return { data };
@@ -80,6 +89,8 @@ export class AnalyticsController {
   @UseGuards(RolesGuard)
   @Roles('PLATFORM_ADMIN', 'ADMIN')
   @ApiOperation({ summary: 'Get platform-wide bestseller rankings' })
+  @ApiSuccessResponse(undefined, { description: 'Platform bestsellers retrieved' })
+  @ApiStandardErrors(401, 403)
   async getPlatformBestsellers(@Query() query: DateRangeQueryDto) {
     const data = await this.queryService.getPlatformBestsellers(
       query.from,
@@ -97,6 +108,8 @@ export class AnalyticsController {
   @Get('store/:storeId/summary')
   @UseGuards(RolesGuard)
   @ApiOperation({ summary: 'Get store analytics summary' })
+  @ApiSuccessResponse(undefined, { description: 'Store analytics summary retrieved' })
+  @ApiStandardErrors(401, 403)
   async getStoreSummary(
     @Param('storeId') storeId: string,
     @Query() query: DateRangeQueryDto,
@@ -110,6 +123,8 @@ export class AnalyticsController {
   @Get('store/:storeId/daily')
   @UseGuards(RolesGuard)
   @ApiOperation({ summary: 'Get store daily metrics time series' })
+  @ApiSuccessResponse(undefined, { description: 'Store daily metrics retrieved' })
+  @ApiStandardErrors(401, 403)
   async getStoreDaily(
     @Param('storeId') storeId: string,
     @Query() query: DateRangeQueryDto,
@@ -123,6 +138,8 @@ export class AnalyticsController {
   @Get('store/:storeId/bestsellers')
   @UseGuards(RolesGuard)
   @ApiOperation({ summary: 'Get store bestseller rankings' })
+  @ApiSuccessResponse(undefined, { description: 'Store bestsellers retrieved' })
+  @ApiStandardErrors(401, 403)
   async getStoreBestsellers(
     @Param('storeId') storeId: string,
     @Query() query: DateRangeQueryDto,
@@ -147,6 +164,8 @@ export class AnalyticsController {
   @UseGuards(RolesGuard)
   @Roles('PLATFORM_ADMIN', 'ADMIN')
   @ApiOperation({ summary: 'Trigger daily rollup aggregation for a specific date' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Daily rollup completed' })
+  @ApiStandardErrors(400, 401, 403)
   async triggerRollup(@Body() dto: RollupDayDto) {
     const data = await this.rollupRunner.executeRollup({
       date: dto.date,

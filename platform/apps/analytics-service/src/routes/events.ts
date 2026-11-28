@@ -1,8 +1,8 @@
 import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EventCollector } from '../services/EventCollector';
 import { CreateEventDto, CreateBatchEventsDto } from '../dto/events.dto';
-import { CurrentUser, Public } from '@huki/shared';
+import { CurrentUser, Public, ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 
 @ApiTags('Events')
 @Controller('events')
@@ -13,7 +13,8 @@ export class EventsController {
   @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Collect client telemetry event' })
-  @ApiResponse({ status: 200, description: 'Event accepted' })
+  @ApiSuccessResponse(undefined, { description: 'Event accepted' })
+  @ApiStandardErrors(400)
   async collectEvent(
     @Body() dto: CreateEventDto,
     @CurrentUser('id') authUserId?: string,
@@ -29,7 +30,8 @@ export class EventsController {
   @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Collect batch of client telemetry events (max 50)' })
-  @ApiResponse({ status: 200, description: 'Batch events accepted' })
+  @ApiSuccessResponse(undefined, { description: 'Batch events accepted' })
+  @ApiStandardErrors(400)
   async collectBatch(
     @Body() dto: CreateBatchEventsDto,
     @CurrentUser('id') authUserId?: string,

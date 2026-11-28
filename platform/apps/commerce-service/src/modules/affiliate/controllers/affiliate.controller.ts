@@ -9,6 +9,7 @@ import {
   UseGuards,
   Headers,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import {
   AuthenticatedGuard,
   BookRequest,
@@ -24,8 +25,9 @@ import {
 } from '../dto/affiliate-application.dto';
 import { SubmitKycDto, CreatePayoutRequestDto } from '../dto/affiliate-payout.dto';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { getConfiguredEscrowHoldSeconds } from '@huki/shared';
+import { getConfiguredEscrowHoldSeconds, ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 
+@ApiTags('Affiliate')
 @Controller('affiliate')
 export class AffiliateController {
   constructor(
@@ -41,6 +43,9 @@ export class AffiliateController {
    */
   @Get('program')
   @UseGuards(OptionalBookAuthGuard)
+  @ApiOperation({ summary: 'Get affiliate program overview and active terms' })
+  @ApiSuccessResponse(undefined, { description: 'Program overview retrieved' })
+  @ApiStandardErrors(500)
   async getProgramInfo() {
     const activePolicy = await this.prisma.affiliatePolicy.findFirst({
       where: { isActive: true },
@@ -71,6 +76,10 @@ export class AffiliateController {
    * Public: Check affiliateCode availability
    */
   @Get('code-availability')
+  @ApiOperation({ summary: 'Check affiliate code availability' })
+  @ApiQuery({ name: 'code', required: true, type: String })
+  @ApiSuccessResponse(undefined, { description: 'Code availability checked' })
+  @ApiStandardErrors(400)
   async checkCodeAvailability(@Query('code') code: string) {
     return this.applicationService.checkCodeAvailability(code);
   }
@@ -80,6 +89,10 @@ export class AffiliateController {
    */
   @Get('me')
   @UseGuards(AuthenticatedGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get my affiliate profile & current status' })
+  @ApiSuccessResponse(undefined, { description: 'Affiliate profile retrieved' })
+  @ApiStandardErrors(401, 404)
   async getMyProfile(@Req() req: BookRequest) {
     const userId = req.user!.sub;
     const userRole = req.user?.role;
@@ -91,6 +104,10 @@ export class AffiliateController {
    */
   @Post('applications')
   @UseGuards(AuthenticatedGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Submit affiliate partner application' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Application submitted' })
+  @ApiStandardErrors(400, 401, 409)
   async submitApplication(
     @Req() req: BookRequest,
     @Body() dto: SubmitAffiliateApplicationDto,
@@ -114,6 +131,10 @@ export class AffiliateController {
    */
   @Post('me/resubmit')
   @UseGuards(AuthenticatedGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Resubmit affiliate application after requested changes' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Application resubmitted' })
+  @ApiStandardErrors(400, 401, 404, 409)
   async resubmitApplication(
     @Req() req: BookRequest,
     @Body() dto: ResubmitAffiliateApplicationDto,
@@ -138,6 +159,10 @@ export class AffiliateController {
    */
   @Get('wallet')
   @UseGuards(AuthenticatedGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get my affiliate wallet balance' })
+  @ApiSuccessResponse(undefined, { description: 'Affiliate wallet balance retrieved' })
+  @ApiStandardErrors(401, 404)
   async getMyWallet(@Req() req: BookRequest) {
     const userId = req.user!.sub;
     return this.walletService.getWalletByUserId(userId);
@@ -148,6 +173,15 @@ export class AffiliateController {
    */
   @Get('wallet/transactions')
   @UseGuards(AuthenticatedGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get my affiliate wallet transaction history' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'type', required: false, type: String })
+  @ApiQuery({ name: 'fromDate', required: false, type: String })
+  @ApiQuery({ name: 'toDate', required: false, type: String })
+  @ApiSuccessResponse(undefined, { description: 'Wallet transactions retrieved' })
+  @ApiStandardErrors(401)
   async getMyWalletTransactions(
     @Req() req: BookRequest,
     @Query('page') page?: number,
@@ -171,6 +205,10 @@ export class AffiliateController {
    */
   @Get('dashboard')
   @UseGuards(AuthenticatedGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get CTV dashboard stats' })
+  @ApiSuccessResponse(undefined, { description: 'CTV dashboard stats retrieved' })
+  @ApiStandardErrors(401)
   async getMyDashboard(@Req() req: BookRequest) {
     const userId = req.user!.sub;
     return this.dashboardService.getCtvDashboardStats(userId);
@@ -181,6 +219,13 @@ export class AffiliateController {
    */
   @Get('reports/export')
   @UseGuards(AuthenticatedGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Export CTV commissions & clicks report' })
+  @ApiQuery({ name: 'format', required: false, enum: ['csv', 'xlsx'] })
+  @ApiQuery({ name: 'fromDate', required: false, type: String })
+  @ApiQuery({ name: 'toDate', required: false, type: String })
+  @ApiSuccessResponse(undefined, { description: 'CTV report exported' })
+  @ApiStandardErrors(401)
   async exportMyReport(
     @Req() req: BookRequest,
     @Query('format') format?: 'csv' | 'xlsx',
@@ -212,6 +257,10 @@ export class AffiliateController {
    */
   @Post('kyc')
   @UseGuards(AuthenticatedGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Submit CTV KYC identity documents & bank account' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'KYC submitted' })
+  @ApiStandardErrors(400, 401)
   async submitKyc(@Req() req: BookRequest, @Body() dto: SubmitKycDto) {
     const userId = req.user!.sub;
     return this.payoutService.submitKyc(userId, dto);
@@ -222,6 +271,10 @@ export class AffiliateController {
    */
   @Get('kyc')
   @UseGuards(AuthenticatedGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Check CTV KYC verification status' })
+  @ApiSuccessResponse(undefined, { description: 'KYC status retrieved' })
+  @ApiStandardErrors(401, 404)
   async getMyKycStatus(@Req() req: BookRequest) {
     const userId = req.user!.sub;
     return this.payoutService.getKycStatus(userId);
@@ -232,6 +285,10 @@ export class AffiliateController {
    */
   @Post('payouts')
   @UseGuards(AuthenticatedGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Create affiliate payout request' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Payout request created' })
+  @ApiStandardErrors(400, 401, 403, 422)
   async requestPayout(@Req() req: BookRequest, @Body() dto: CreatePayoutRequestDto) {
     const userId = req.user!.sub;
     return this.payoutService.createPayoutRequest(userId, dto);
@@ -242,6 +299,12 @@ export class AffiliateController {
    */
   @Get('payouts')
   @UseGuards(AuthenticatedGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'List my affiliate payout requests' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiSuccessResponse(undefined, { description: 'Payout requests retrieved' })
+  @ApiStandardErrors(401)
   async getMyPayouts(
     @Req() req: BookRequest,
     @Query('page') page?: number,

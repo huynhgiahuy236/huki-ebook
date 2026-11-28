@@ -7,6 +7,7 @@ const SERVICES = [
   ['Shipping', process.env.SHIPPING_SERVICE_URL || 'http://localhost:3004'],
   ['Community', process.env.COMMUNITY_SERVICE_URL || 'http://localhost:3005'],
   ['Promotion', process.env.PROMOTION_SERVICE_URL || 'http://localhost:3007'],
+  ['Analytics', process.env.ANALYTICS_SERVICE_URL || 'http://localhost:3008'],
 ] as const;
 
 function clone<T>(value: T): T {

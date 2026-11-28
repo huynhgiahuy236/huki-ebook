@@ -43,51 +43,67 @@ export class SettleRefundDto {
 }
 
 export class PayOSWebhookDataDto {
+  @ApiProperty({ example: 123456 })
   @Allow()
   orderCode: number;
 
+  @ApiProperty({ example: 150000 })
   @Allow()
   amount: number;
 
+  @ApiPropertyOptional({ example: 'Thanh toán đơn hàng' })
   @Allow()
   description?: string;
 
+  @ApiPropertyOptional()
   @Allow()
   accountNumber?: string;
 
+  @ApiPropertyOptional()
   @Allow()
   reference?: string;
 
+  @ApiPropertyOptional()
   @Allow()
   transactionDateTime?: string;
 
+  @ApiPropertyOptional({ example: 'VND' })
   @Allow()
   currency?: string;
 
+  @ApiPropertyOptional()
   @Allow()
   paymentLinkId?: string;
 
+  @ApiPropertyOptional()
   @Allow()
   code?: string;
 
+  @ApiPropertyOptional()
   @Allow()
   desc?: string;
 
+  @ApiPropertyOptional()
   @Allow()
   counterAccountBankId?: string;
 
+  @ApiPropertyOptional()
   @Allow()
   counterAccountBankName?: string;
 
+  @ApiPropertyOptional()
   @Allow()
   counterAccountName?: string;
 
+  @ApiPropertyOptional()
   @Allow()
   counterAccountNumber?: string;
 
+  @ApiPropertyOptional()
   @Allow()
   virtualAccountName?: string;
 
+  @ApiPropertyOptional()
   @Allow()
   virtualAccountNumber?: string;
 }

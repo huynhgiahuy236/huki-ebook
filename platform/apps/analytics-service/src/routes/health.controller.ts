@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { PrismaService } from '../prisma/prisma.service';
 
 interface HealthStatus {
@@ -18,6 +19,8 @@ export class HealthController {
 
   @Get('health')
   @ApiOperation({ summary: 'Health check with dependency status' })
+  @ApiSuccessResponse(undefined, { description: 'Analytics service health status' })
+  @ApiStandardErrors(503)
   async check(): Promise<HealthStatus> {
     try {
       const start = Date.now();
@@ -50,6 +53,7 @@ export class HealthController {
 
   @Get(['health/live', 'health/liveness'])
   @ApiOperation({ summary: 'Liveness probe - basic health check' })
+  @ApiSuccessResponse(undefined, { description: 'Analytics service liveness status' })
   liveness() {
     return {
       status: 'ok',
@@ -60,6 +64,8 @@ export class HealthController {
 
   @Get(['health/ready', 'health/readiness'])
   @ApiOperation({ summary: 'Readiness probe - checks all dependencies' })
+  @ApiSuccessResponse(undefined, { description: 'Analytics service readiness status' })
+  @ApiStandardErrors(503)
   async readiness(): Promise<HealthStatus> {
     return this.check();
   }

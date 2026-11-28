@@ -13,6 +13,8 @@ import {
   UseGuards,
   ForbiddenException,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { SellerAffiliateService } from '../services/seller-affiliate.service';
 import { AffiliateDashboardService } from '../services/affiliate-dashboard.service';
 import {
@@ -27,6 +29,8 @@ import { CurrentBookActor } from '../../../common/current-book-actor.decorator';
 import { getSellerScope } from '../../../common/seller-scope.util';
 import { throwForbidden, ErrorCode } from '@huki/shared/errors';
 
+@ApiTags('Seller - Affiliate')
+@ApiBearerAuth('JWT-auth')
 @Controller('seller/stores/:storeId/affiliate')
 @UseGuards(AuthenticatedGuard)
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
@@ -62,6 +66,9 @@ export class SellerAffiliateController {
    * Get store affiliate setting, platform policy, and effective rates
    */
   @Get('settings')
+  @ApiOperation({ summary: 'Get store affiliate setting, platform policy, and effective rates' })
+  @ApiSuccessResponse(undefined, { description: 'Store affiliate settings retrieved' })
+  @ApiStandardErrors(401, 403, 404)
   async getStoreSettings(
     @Param('storeId') storeId: string,
     @CurrentBookActor() actor?: BookActor,
@@ -78,6 +85,9 @@ export class SellerAffiliateController {
    * Update store affiliate setting
    */
   @Put('settings')
+  @ApiOperation({ summary: 'Update store affiliate setting' })
+  @ApiSuccessResponse(undefined, { description: 'Store affiliate settings updated' })
+  @ApiStandardErrors(400, 401, 403, 404)
   async updateStoreSettings(
     @Param('storeId') storeId: string,
     @Headers('x-user-id') userId: string,
@@ -102,6 +112,9 @@ export class SellerAffiliateController {
    * List store books with affiliate eligibility status & net preview
    */
   @Get('books')
+  @ApiOperation({ summary: 'List store books with affiliate eligibility & net preview' })
+  @ApiSuccessResponse(undefined, { description: 'Store affiliate books retrieved' })
+  @ApiStandardErrors(401, 403)
   async listStoreBooks(
     @Param('storeId') storeId: string,
     @Query() query: QueryStoreBooksAffiliateDto,
@@ -122,6 +135,9 @@ export class SellerAffiliateController {
    * Update single book affiliate setting (isEligible, customRate, notes)
    */
   @Put('books/:bookId')
+  @ApiOperation({ summary: 'Update single book affiliate setting' })
+  @ApiSuccessResponse(undefined, { description: 'Book affiliate setting updated' })
+  @ApiStandardErrors(400, 401, 403, 404)
   async updateBookSetting(
     @Param('storeId') storeId: string,
     @Param('bookId') bookId: string,
@@ -148,6 +164,9 @@ export class SellerAffiliateController {
    * Bulk update books affiliate eligibility & custom rate
    */
   @Post('books/bulk')
+  @ApiOperation({ summary: 'Bulk update books affiliate eligibility & custom rate' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Books affiliate settings bulk updated' })
+  @ApiStandardErrors(400, 401, 403)
   async bulkUpdateBooks(
     @Param('storeId') storeId: string,
     @Headers('x-user-id') userId: string,
@@ -172,6 +191,9 @@ export class SellerAffiliateController {
    * Calculate live Seller-Net revenue preview
    */
   @Get('preview-net')
+  @ApiOperation({ summary: 'Calculate live Seller-Net revenue preview' })
+  @ApiSuccessResponse(undefined, { description: 'Seller-Net preview calculated' })
+  @ApiStandardErrors(400, 401, 403)
   async previewSellerNet(
     @Param('storeId') storeId: string,
     @Query() query: SellerNetPreviewQueryDto,
@@ -193,6 +215,9 @@ export class SellerAffiliateController {
    * Get Seller Affiliate performance overview & top books stats
    */
   @Get('dashboard')
+  @ApiOperation({ summary: 'Get Seller Affiliate performance overview & top books stats' })
+  @ApiSuccessResponse(undefined, { description: 'Seller affiliate dashboard retrieved' })
+  @ApiStandardErrors(401, 403)
   async getSellerDashboard(
     @Param('storeId') storeId: string,
     @CurrentBookActor() actor?: BookActor,
@@ -209,6 +234,12 @@ export class SellerAffiliateController {
    * Export Seller affiliate commission orders report
    */
   @Get('reports/export')
+  @ApiOperation({ summary: 'Export Seller affiliate commission orders report' })
+  @ApiQuery({ name: 'format', required: false, enum: ['csv', 'xlsx'] })
+  @ApiQuery({ name: 'fromDate', required: false, type: String })
+  @ApiQuery({ name: 'toDate', required: false, type: String })
+  @ApiSuccessResponse(undefined, { description: 'Seller affiliate report exported' })
+  @ApiStandardErrors(401, 403)
   async exportSellerReport(
     @Param('storeId') storeId: string,
     @Query('format') format?: 'csv' | 'xlsx',

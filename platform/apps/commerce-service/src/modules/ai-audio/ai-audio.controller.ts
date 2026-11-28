@@ -9,6 +9,7 @@ import {
   Put,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { AiAudioService } from './ai-audio.service';
 import { CreateAiAudioPlanDto, UpdateAiAudioPlanDto } from './dto/ai-audio-plan.dto';
 import { RegisterSubscriptionDto } from './dto/register-subscription.dto';
@@ -23,30 +24,40 @@ export class AiAudioController {
   // ==========================================
   @Get('plans')
   @ApiOperation({ summary: 'Lấy danh sách các gói cước AI Voice từ Database' })
+  @ApiSuccessResponse(undefined, { description: 'AI Voice plans retrieved' })
+  @ApiStandardErrors(500)
   async getPlans() {
     return { data: await this.aiAudioService.getPlans() };
   }
 
   @Post('plans')
   @ApiOperation({ summary: 'Tạo gói cước AI Voice mới' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'AI Voice plan created' })
+  @ApiStandardErrors(400, 409)
   async createPlan(@Body() dto: CreateAiAudioPlanDto) {
     return { message: 'Đã tạo gói cước mới thành công', data: await this.aiAudioService.createPlan(dto) };
   }
 
   @Put('plans/:id')
   @ApiOperation({ summary: 'Cập nhật thông tin gói cước AI Voice' })
+  @ApiSuccessResponse(undefined, { description: 'AI Voice plan updated' })
+  @ApiStandardErrors(400, 404)
   async updatePlan(@Param('id') id: string, @Body() dto: UpdateAiAudioPlanDto) {
     return { message: 'Đã cập nhật gói cước thành công', data: await this.aiAudioService.updatePlan(id, dto) };
   }
 
   @Delete('plans/:id')
   @ApiOperation({ summary: 'Xóa gói cước AI Voice' })
+  @ApiSuccessResponse(undefined, { description: 'AI Voice plan deleted' })
+  @ApiStandardErrors(404)
   async deletePlan(@Param('id') id: string) {
     return await this.aiAudioService.deletePlan(id);
   }
 
   @Patch('plans/:id/toggle')
   @ApiOperation({ summary: 'Bật/tắt trạng thái hoạt động của gói cước' })
+  @ApiSuccessResponse(undefined, { description: 'AI Voice plan status toggled' })
+  @ApiStandardErrors(404)
   async togglePlan(@Param('id') id: string) {
     return { message: 'Đã thay đổi trạng thái gói cước', data: await this.aiAudioService.togglePlanStatus(id) };
   }
@@ -56,18 +67,24 @@ export class AiAudioController {
   // ==========================================
   @Get('subscriptions')
   @ApiOperation({ summary: 'Lấy danh sách sách đã kích hoạt AI Voice từ Database' })
+  @ApiSuccessResponse(undefined, { description: 'AI Voice subscriptions retrieved' })
+  @ApiStandardErrors(500)
   async getSubscriptions() {
     return { data: await this.aiAudioService.getSubscriptions() };
   }
 
   @Get('subscriptions/check/:bookId')
   @ApiOperation({ summary: 'Kiểm tra sách có quyền AI Voice còn hạn không' })
+  @ApiSuccessResponse(undefined, { description: 'Book AI Voice active status checked' })
+  @ApiStandardErrors(404)
   async checkBookActive(@Param('bookId') bookId: string) {
     return { data: await this.aiAudioService.isBookAiAudioActive(bookId) };
   }
 
   @Post('subscriptions')
   @ApiOperation({ summary: 'Seller đăng ký gói giọng đọc AI cho cuốn Ebook' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Book AI Voice subscription registered' })
+  @ApiStandardErrors(400, 404, 409)
   async registerSubscription(@Body() dto: RegisterSubscriptionDto) {
     const result = await this.aiAudioService.registerBookSubscription(dto);
     return { message: 'Đăng ký gói AI Voice cho Ebook thành công', data: result };
@@ -78,12 +95,16 @@ export class AiAudioController {
   // ==========================================
   @Get('transactions')
   @ApiOperation({ summary: 'Lấy lịch sử dòng tiền đăng ký AI chảy về Admin' })
+  @ApiSuccessResponse(undefined, { description: 'AI Voice transactions retrieved' })
+  @ApiStandardErrors(500)
   async getTransactions() {
     return { data: await this.aiAudioService.getTransactions() };
   }
 
   @Get('summary')
   @ApiOperation({ summary: 'Thống kê tổng quan tài chính và hoạt động AI' })
+  @ApiSuccessResponse(undefined, { description: 'AI Voice financial summary retrieved' })
+  @ApiStandardErrors(500)
   async getSummary() {
     return { data: await this.aiAudioService.getFinancialSummary() };
   }

@@ -4,8 +4,10 @@ Collection này dùng để phát triển frontend và kiểm thử API qua API 
 
 ## Files
 
-- `HUKI_EBOOK_API.postman_collection.json`: 145 requests, gồm API public, admin, internal, webhook và hai flow E2E.
-- `HUKI-Local.postman_environment.json`: biến môi trường local; không chứa secret thật.
+- `HUKI_EBOOK_API.postman_collection.json`: 136 requests (đã đồng bộ 100% route với OpenAPI Gateway), gồm API public, admin, internal, webhook và flow E2E.
+- `HUKI-Local.postman_environment.json`: biến môi trường local (`http://localhost:3000/api/v1`); không chứa secret thật.
+- `HUKI-UAT.postman_environment.json`: biến môi trường UAT/Staging (`https://staging.huki.ebook.com/api/v1`); không chứa secret thật.
+- `HUKI-Prod.postman_environment.json`: biến môi trường Production (`https://api.huki.ebook.com/api/v1`); không chứa secret thật.
 
 ## Chạy local
 
@@ -42,8 +44,7 @@ OpenAPI JSON: http://localhost:3000/api/openapi.json
 | Orders & Seller Orders | 12 |
 | Payments & Refunds | 4 |
 | Shipping & Addresses | 11 |
-| Forum | 10 |
-| Reviews | 9 |
+| Reviews | 10 |
 | Chat | 7 |
 | Notifications | 10 |
 | Promotion | 11 |
@@ -52,7 +53,7 @@ OpenAPI JSON: http://localhost:3000/api/openapi.json
 | Webhooks & Callbacks | 2 |
 | Complete E2E Flows | 10 |
 | Negative Tests | 3 |
-| **Tổng** | **145** |
+| **Tổng** | **136** |
 
 PayOS webhook và GHTK callback có request mẫu nhưng muốn nhận kết quả thành công cần chữ ký hợp lệ. Các request internal cần `internalApiKey`. Các trường hợp này được tách riêng để không làm hỏng smoke flow frontend.
 

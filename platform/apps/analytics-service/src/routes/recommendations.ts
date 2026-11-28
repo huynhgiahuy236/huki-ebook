@@ -10,7 +10,8 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { RecommendationService } from '../services/RecommendationService';
 import { FootprintService } from '../services/FootprintService';
 import { RecalculateAffinityJob } from '../jobs/RecalculateAffinityJob';
@@ -39,6 +40,8 @@ export class RecommendationController {
   @Get('for-you')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get personalized book recommendations for the current user' })
+  @ApiSuccessResponse(undefined, { description: 'Personalized recommendations retrieved' })
+  @ApiStandardErrors(401, 403)
   async getForYouRecommendations(
     @Query() query: GetForYouDto,
     @CurrentUser() user: any,
@@ -69,6 +72,8 @@ export class RecommendationController {
   @Get('similar/:bookId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get similar books based on category and author' })
+  @ApiSuccessResponse(undefined, { description: 'Similar books retrieved' })
+  @ApiStandardErrors(404)
   async getSimilarBooks(
     @Param('bookId') bookId: string,
     @Query() query: GetSimilarBooksDto,
@@ -94,6 +99,8 @@ export class RecommendationController {
   @Get('footprint/:userId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get user footprint summary' })
+  @ApiSuccessResponse(undefined, { description: 'Footprint summary retrieved' })
+  @ApiStandardErrors(401, 403, 404)
   async getFootprintSummary(
     @Param('userId') userId: string,
     @CurrentUser() user: any,
@@ -116,6 +123,8 @@ export class RecommendationController {
   @UseGuards(RolesGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete all footprint data for a user (GDPR compliance)' })
+  @ApiSuccessResponse(undefined, { description: 'Footprint data deleted' })
+  @ApiStandardErrors(401, 403, 404)
   async deleteUserFootprint(
     @Param('userId') userId: string,
     @CurrentUser() user: any,
@@ -146,6 +155,8 @@ export class RecommendationController {
   @Roles('PLATFORM_ADMIN', 'ADMIN')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Manually trigger affinity score recalculation' })
+  @ApiSuccessResponse(undefined, { description: 'Affinity recalculation completed' })
+  @ApiStandardErrors(401, 403)
   async triggerRecalculation() {
     const result = await this.recalculateJob.triggerManualRecalculation();
     return {
@@ -163,6 +174,10 @@ export class RecommendationController {
   @Roles('PLATFORM_ADMIN', 'ADMIN')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Manually trigger decay application for old interactions' })
+  @ApiQuery({ name: 'months', required: false, type: Number })
+  @ApiQuery({ name: 'decay', required: false, type: Number })
+  @ApiSuccessResponse(undefined, { description: 'Decay applied successfully' })
+  @ApiStandardErrors(401, 403)
   async triggerDecay(@Query('months') months: number = 1, @Query('decay') decay: number = 5) {
     const affectedCount = await this.recalculateJob.triggerManualDecay(months, decay);
     return {
