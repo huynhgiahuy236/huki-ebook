@@ -521,6 +521,13 @@ export function AdminAffiliatesView() {
                 groupLabel: 'Duyệt & Quản Lý CTV',
                 actions: [
                   { value: 'APPROVE_ALL', label: 'Duyệt & Kích hoạt CTV hàng loạt' },
+                  { value: 'ACTIVATE_ALL', label: 'Mở lại CTV hàng loạt (Đang tạm ngưng)' },
+                  {
+                    value: 'SUSPEND_ALL',
+                    label: 'Tạm ngưng CTV hàng loạt',
+                    isDanger: true,
+                    confirmMessage: 'Bạn có chắc chắn muốn tạm ngưng các đối tác CTV đã chọn? Link giới thiệu của họ sẽ tạm dừng ghi nhận hoa hồng.',
+                  },
                   { value: 'EXPORT_CSV', label: 'Xuất danh sách CTV (.csv)' },
                 ],
               },
@@ -542,6 +549,26 @@ export function AdminAffiliatesView() {
                     if (r.success) ok++;
                   }
                   showToast(`Đã duyệt kích hoạt ${ok}/${targets.length} hồ sơ CTV.`, ok > 0 ? 'success' : 'info');
+                  setSelectedIds([]);
+                  await fetchApplications();
+                } else if (actionVal === 'ACTIVATE_ALL') {
+                  const targets = applications.filter((a) => selectedIds.includes(a.id) && a.status === 'SUSPENDED');
+                  let ok = 0;
+                  for (const t of targets) {
+                    const r = await affiliateApi.adminActivate(t.id);
+                    if (r.success) ok++;
+                  }
+                  showToast(`Đã mở lại hoạt động cho ${ok}/${targets.length} CTV.`, ok > 0 ? 'success' : 'info');
+                  setSelectedIds([]);
+                  await fetchApplications();
+                } else if (actionVal === 'SUSPEND_ALL') {
+                  const targets = applications.filter((a) => selectedIds.includes(a.id) && a.status === 'ACTIVE');
+                  let ok = 0;
+                  for (const t of targets) {
+                    const r = await affiliateApi.adminSuspend(t.id, 'Tạm ngưng hàng loạt bởi Quản trị viên sàn');
+                    if (r.success) ok++;
+                  }
+                  showToast(`Đã tạm ngưng ${ok}/${targets.length} CTV.`, ok > 0 ? 'warning' : 'info');
                   setSelectedIds([]);
                   await fetchApplications();
                 } else if (actionVal === 'EXPORT_CSV') {
