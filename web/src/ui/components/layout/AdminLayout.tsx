@@ -404,13 +404,13 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
           {/* Logo & Portal Identity */}
           <Link href="/admin/dashboard" className="flex flex-col justify-center group select-none pl-1 pr-3">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <HukiLogo variant="dark" className="h-5 sm:h-[22px] w-auto" priority />
-              <span className="bg-[#003B2B] text-white text-[7.5px] sm:text-[8px] font-black uppercase px-1.5 py-0.5 rounded tracking-wider leading-none">
+              <span className="mt-0.5 bg-[#003B2B] text-white text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded tracking-wider leading-none">
                 ADMIN
               </span>
             </div>
-            <span className="text-[7.5px] sm:text-[8px] uppercase tracking-widest text-[#006953] font-bold mt-1 leading-none">
+            <span className="text-[7.5px] sm:text-[8px] uppercase tracking-widest text-[#006953] font-bold mt-0.5 leading-none whitespace-nowrap">
               Ban Quản Trị Hệ Thống
             </span>
           </Link>
@@ -446,25 +446,24 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           </form>
         </div>
 
-        {/* Right: Storefront link, Microservice Health, User info & Logout */}
-        <div className="flex items-center gap-2 sm:gap-3 z-10">
-          {/* Back to Storefront Link */}
+        {/* Right: Storefront link, Microservice Health, User info */}
+        <div className="flex items-center gap-2 sm:gap-2.5 z-10">
+          {/* Back to Storefront Link (Matched with SellerHeader) */}
           <Link
             href="/"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 hover:text-slate-900 transition-colors shadow-2xs hover:border-slate-300"
+            className="hidden sm:flex items-center gap-1 text-xs font-semibold text-[#006953] hover:bg-emerald-50/70 px-2.5 py-1.5 rounded-xl border border-[#E2E8F0] transition-colors shrink-0 whitespace-nowrap"
             title="Mở trang chủ Sàn HuKi trong tab mới"
           >
-            <span className="material-symbols-outlined text-[15px] text-slate-500">storefront</span>
-            <span className="hidden sm:inline">Xem Sàn</span>
-            <span className="material-symbols-outlined text-[13px] text-slate-400">arrow_outward</span>
+            <span className="material-symbols-outlined text-[15px]">open_in_new</span>
+            <span>Xem Sàn</span>
           </Link>
 
           {/* Health quick status badge */}
           <Link
             href="/admin/health"
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-gray-100 text-xs font-semibold text-gray-700 transition-colors shadow-2xs"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-gray-100 text-xs font-semibold text-gray-700 transition-colors"
           >
             <span className={`w-2 h-2 rounded-full ${stats.healthStatus === 'ok' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
             <span className="text-gray-500">Hệ Thống:</span>
@@ -480,7 +479,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               const newMuted = soundEffects.toggleMute();
               setIsMuted(newMuted);
             }}
-            className="flex items-center justify-center w-8 h-8 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-gray-100 text-gray-600 hover:text-[#003B2B] transition-colors relative shadow-2xs cursor-pointer"
+            className="flex items-center justify-center w-8 h-8 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-gray-100 text-gray-600 hover:text-[#003B2B] transition-colors relative cursor-pointer"
             title={isMuted ? "Bật âm thanh chuông thông báo" : "Tắt âm thanh chuông thông báo"}
             aria-label="Bật/Tắt âm thanh"
           >
@@ -503,15 +502,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 Super Admin
               </span>
             </div>
-
-            <button
-              onClick={handleLogout}
-              className="p-1 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-              title="Đăng xuất"
-              aria-label="Đăng xuất"
-            >
-              <span className="material-symbols-outlined text-[17px]">logout</span>
-            </button>
           </div>
         </div>
       </header>
@@ -657,7 +647,19 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           </div>
 
           {/* Sidebar Footer */}
-          <div className="p-2.5 border-t border-white/10 bg-black/15 flex flex-col gap-1 shrink-0">
+          <div className="p-2.5 border-t border-white/10 bg-black/15 flex flex-col gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={handleLogout}
+              title="Đăng xuất"
+              aria-label="Đăng xuất"
+              className={`w-full flex items-center rounded-lg text-xs font-semibold text-white/80 hover:text-white hover:bg-rose-500/20 transition-colors cursor-pointer ${
+                isSidebarCollapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[18px] shrink-0 text-rose-300">logout</span>
+              {!isSidebarCollapsed && <span>Đăng xuất</span>}
+            </button>
             {!isSidebarCollapsed ? (
               <div className="flex items-center justify-between text-[10px] text-white/60 px-1 py-0.5">
                 <span className="font-semibold text-white/80">HUKI v2.0 Platform</span>
@@ -759,6 +761,20 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                     </div>
                   );
                 })}
+              </div>
+
+              <div className="p-3 border-t border-white/10 bg-black/15 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-white/85 hover:text-white hover:bg-rose-500/20 transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px] text-rose-300">logout</span>
+                  <span>Đăng xuất</span>
+                </button>
               </div>
             </div>
           </div>

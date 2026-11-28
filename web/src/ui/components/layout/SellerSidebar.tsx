@@ -37,9 +37,10 @@ interface MenuGroup {
   items: MenuItem[];
 }
 
-export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, onClose }: SellerSidebarProps) {
+export default function SellerSidebar({ isCollapsed: _isCollapsed, toggleSidebar: _toggleSidebar, isMobile, onClose }: SellerSidebarProps) {
+  const isCollapsed = false;
   const pathname = usePathname() || '';
-  const { user, activeBusinessId, setActiveBusinessId } = useAuth();
+  const { user, activeBusinessId, setActiveBusinessId, logout } = useAuth();
   const [unreadAdminNotifs, setUnreadAdminNotifs] = useState(0);
   const [, setFeatureVersion] = useState(0);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -674,24 +675,16 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
   </div>
 
       {/* Sidebar Bottom Controls */}
-      <div className="p-2.5 border-t border-[#00875A]/15 bg-slate-50/70 flex flex-col gap-1 shrink-0 -mx-3 -mb-3 mt-auto">
-        {!isMobile && (
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            className={`w-full flex items-center rounded-xl text-xs font-semibold text-slate-600 hover:text-[#00875A] hover:bg-[#00875A]/10 transition-all cursor-pointer ${
-              isCollapsed ? 'justify-center p-2' : 'justify-between px-3 py-2'
-            }`}
-            title={isCollapsed ? "Mở rộng thanh bên" : "Thu gọn thanh bên"}
-          >
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[18px]">
-                {isCollapsed ? 'last_page' : 'first_page'}
-              </span>
-              {!isCollapsed && <span className="text-[12px]">Thu gọn thanh bên</span>}
-            </div>
-          </button>
-        )}
+      <div className="p-2.5 border-t border-[#00875A]/15 bg-slate-50/70 flex flex-col gap-1 shrink-0 -mx-2.5 -mb-2.5 mt-auto">
+        <button
+          type="button"
+          onClick={() => logout()}
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+          title="Đăng xuất khỏi Kênh Người Bán"
+        >
+          <span className="material-symbols-outlined text-[18px] text-rose-500">logout</span>
+          <span>Đăng xuất</span>
+        </button>
       </div>
     </aside>
   );

@@ -680,9 +680,9 @@ export default function ShopPage() {
         </nav>
 
         {/* Store Hero Header & Profile Card */}
-        <section className="relative rounded-3xl shadow-sm bg-theme-surface border border-theme-border mb-8 z-30">
+        <section className="relative rounded-2xl shadow-2xs bg-theme-surface border border-[#E2E8F0] mb-7 z-30">
           {/* Panoramic Banner */}
-          <div className="h-56 md:h-72 w-full relative rounded-t-3xl overflow-hidden bg-slate-900">
+          <div className="h-36 sm:h-44 md:h-48 w-full relative rounded-t-2xl overflow-hidden bg-slate-900">
             <StoreLogoImg
               src={bannerImg}
               fallbackSrc="https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1600&q=80"
@@ -691,31 +691,21 @@ export default function ShopPage() {
               className="absolute inset-0 w-full h-full object-cover"
               fallbackClassName="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-[#003b2b] to-[#006953] text-white/30 font-black text-4xl"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent"></div>
-            <div className="absolute bottom-6 left-6 right-6 text-white flex flex-col md:flex-row md:items-end justify-between gap-4 z-10">
-              <div>
-                <span className="px-3 py-1 bg-theme-accent text-white text-xs font-bold rounded-full uppercase tracking-wider mb-2 inline-block shadow-sm">
-                  Gian Hàng Đối Tác Chính Hãng
-                </span>
-                <h1 className="font-editorial text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-white leading-tight">
-                  {business?.name || 'Gian Hàng Sách Chính Hãng'}
-                </h1>
-                <p className="text-xs sm:text-sm text-white/80 mt-1 max-w-xl line-clamp-2">
-                  {business?.description || legacyProfile?.description || `Gian hàng phân phối sách chính hãng của ${business?.name || 'đối tác'} trên HUKI.`}
-                </p>
-              </div>
-              <div className="text-right hidden md:block shrink-0">
-                <span className="text-emerald-300 font-semibold text-sm flex items-center justify-end gap-1">
-                  <span className="material-symbols-outlined text-base">verified</span>
-                  HUKI DRM Verified Shop
-                </span>
-                <span className="text-stone-300 text-xs">Phân phối chính hãng toàn quốc</span>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/20 to-transparent"></div>
+            <div className="absolute bottom-4 left-6 right-6 text-white flex items-end justify-between gap-4 z-10">
+              <span className="px-2.5 py-1 bg-black/45 backdrop-blur-xs border border-white/15 text-white text-[11px] font-semibold rounded-lg inline-flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                Gian Hàng Đối Tác Chính Hãng
+              </span>
+              <div className="text-right hidden md:flex items-center gap-1.5 bg-black/45 backdrop-blur-xs border border-white/15 px-3 py-1 rounded-lg text-emerald-300 font-semibold text-xs shrink-0">
+                <span className="material-symbols-outlined text-[15px]">verified</span>
+                <span>HUKI DRM Verified Shop</span>
               </div>
             </div>
           </div>
 
           {/* Info & Stats Bar Below Banner */}
-          <div className="p-6 md:p-8 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 border-t border-theme-border/30 bg-theme-surface rounded-b-3xl relative">
+          <div className="p-5 sm:p-6 md:px-7 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 bg-white rounded-b-2xl relative">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border-2 border-white shadow-md -mt-10 lg:-mt-12 bg-white shrink-0 relative z-10 overflow-hidden">
                 <StoreLogoImg
@@ -729,11 +719,16 @@ export default function ShopPage() {
 
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="font-bold text-lg sm:text-xl text-theme-text">{business?.name}</h2>
-                <span className="material-symbols-outlined text-theme-primary text-[20px] fill-current" title="Chứng nhận Chính Hãng">
+                <h1 className="font-bold text-lg sm:text-xl text-slate-900">{business?.name}</h1>
+                <span className="material-symbols-outlined text-[#006953] text-[20px] fill-current" title="Chứng nhận Chính Hãng">
                   verified
                 </span>
               </div>
+              {(business?.description || legacyProfile?.description) && (
+                <p className="text-xs text-slate-500 mt-0.5 max-w-2xl line-clamp-1">
+                  {business?.description || legacyProfile?.description}
+                </p>
+              )}
               <div className="flex flex-wrap items-center gap-4 text-xs text-theme-text-muted mt-1">
                 <span className="flex items-center gap-1">
                   <span className="material-symbols-outlined text-amber-500 text-sm fill-current">star</span>
@@ -1053,26 +1048,19 @@ export default function ShopPage() {
               </div>
             )}
 
-            {/* Shop Vouchers Showcase Banner */}
+            {/* Shop Vouchers Showcase */}
             {shopVouchers.length > 0 && (
-              <section className="bg-gradient-to-r from-amber-500/10 via-pink-500/5 to-emerald-500/10 rounded-3xl p-5 border border-amber-500/20 mb-8 shadow-xs">
-                <div className="flex items-center justify-between mb-3.5">
+              <section className="bg-white rounded-2xl p-4 sm:p-5 border border-[#E2E8F0] mb-7">
+                <div className="flex items-center justify-between gap-2 mb-3.5">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-pink-600 text-white flex items-center justify-center shadow-xs">
-                      <span className="material-symbols-outlined text-lg">loyalty</span>
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-sm sm:text-base text-gray-900 flex items-center gap-2">
-                        <span>Mã Giảm Giá Gian Hàng</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-100 text-pink-700 font-bold uppercase">
-                          Độc Quyền
-                        </span>
-                      </h3>
-                      <p className="text-[11px] text-gray-500">
-                        Thu thập voucher ưu đãi từ {business.name} trước khi mua sách
-                      </p>
-                    </div>
+                    <span className="material-symbols-outlined text-[20px] text-[#006953]">confirmation_number</span>
+                    <h3 className="font-bold text-sm sm:text-base text-slate-900">
+                      Mã giảm giá của gian hàng
+                    </h3>
                   </div>
+                  <span className="hidden sm:inline text-xs text-slate-500">
+                    Lưu mã để áp dụng khi thanh toán
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1084,31 +1072,29 @@ export default function ShopPage() {
                     return (
                       <div
                         key={v.id || v.code}
-                        className={`bg-white rounded-2xl p-3.5 border border-dashed flex items-center justify-between gap-3 shadow-2xs transition-all hover:shadow-sm ${isFollowerVoucher ? 'border-pink-300 hover:border-pink-500' : 'border-amber-300 hover:border-amber-500'
-                          }`}
+                        className="bg-[#F8FAFC] hover:bg-white rounded-xl p-3.5 border border-[#E2E8F0] hover:border-[#006953]/40 flex items-center justify-between gap-3 transition-colors"
                       >
                         <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-bold text-sm text-[#006953]">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-sm text-[#003B2B]">
                               {v.type === 'PERCENTAGE' ? `Giảm ${v.value}%` : `Giảm ${Number(v.value).toLocaleString('vi-VN')}đ`}
                             </span>
-                            <span className="font-mono text-[10px] bg-gray-100 px-1.5 py-0.2 rounded font-bold text-gray-700 border border-gray-200">
+                            <span className="font-mono text-[11px] bg-white px-1.5 py-0.5 rounded font-semibold text-slate-700 border border-[#E2E8F0]">
                               {v.code}
                             </span>
                           </div>
 
-                          <p className="text-xs text-gray-800 font-medium truncate mt-0.5">
+                          <p className="text-xs text-slate-600 truncate mt-1">
                             {v.name || `Voucher ${v.code}`}
                           </p>
 
-                          <div className="flex items-center gap-1.5 mt-1 text-[10px] text-gray-500">
+                          <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-500 flex-wrap">
                             <span>Đơn từ {Number(v.minOrderAmount || 0).toLocaleString('vi-VN')}đ</span>
                             {isFollowerVoucher && (
                               <>
                                 <span>•</span>
-                                <span className="text-pink-600 font-bold flex items-center gap-0.5">
-                                  <span className="material-symbols-outlined text-[12px]">{req.icon}</span>
-                                  <span>{req.badge}</span>
+                                <span className="text-slate-600 font-medium">
+                                  {req.badge}
                                 </span>
                               </>
                             )}
@@ -1124,19 +1110,18 @@ export default function ShopPage() {
                                 await handleFollowStore();
                                 handleSaveShopVoucher(v);
                               }}
-                              className="px-3 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                              className="px-3 py-1.5 rounded-lg bg-[#006953] hover:bg-[#005240] text-white font-semibold text-xs transition-colors cursor-pointer whitespace-nowrap"
                               title="Theo dõi gian hàng để nhận mã ngay"
                             >
-                              <span className="material-symbols-outlined text-sm">favorite</span>
-                              <span>Theo dõi &amp; Lưu</span>
+                              Theo dõi &amp; Lưu
                             </button>
                           ) : (
                             <button
                               type="button"
                               onClick={() => handleSaveShopVoucher(v)}
-                              className={`px-3 py-2 rounded-xl font-bold text-[11px] transition-all cursor-pointer ${isSaved
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : 'bg-[#006953] hover:bg-[#005240] text-white shadow-xs'
+                              className={`px-3 py-1.5 rounded-lg font-semibold text-xs transition-colors cursor-pointer whitespace-nowrap ${isSaved
+                                ? 'bg-emerald-50 text-[#006953] border border-emerald-200'
+                                : 'bg-[#003B2B] hover:bg-[#00281D] text-white'
                                 }`}
                             >
                               {isSaved ? 'Đã lưu' : 'Lưu mã'}

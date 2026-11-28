@@ -168,28 +168,14 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-[#E2E8F0] pl-0 pr-3.5 sm:pr-5 lg:pr-6 flex items-center justify-between shadow-2xs min-h-[54px] h-[54px] gap-2 sm:gap-3">
-      {/* Left: Sidebar Toggle & Brand Identity */}
-      <div className="flex items-center min-w-0">
-        {/* Hamburger / Sidebar Toggle Container */}
-        <div className="w-10 sm:w-[60px] flex items-center justify-center shrink-0">
-          {/* Desktop Sidebar Collapse Toggle Button */}
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            className="hidden lg:flex w-9 h-9 items-center justify-center rounded-xl text-gray-500 hover:text-[#003B2B] hover:bg-gray-100 transition-all cursor-pointer border border-[#E2E8F0] hover:border-[#003B2B]/30 shadow-2xs active:scale-95"
-            title={isSidebarCollapsed ? 'Mở rộng thanh menu (Sidebar)' : 'Thu gọn thanh menu (Sidebar)'}
-            aria-label="Toggle Sidebar"
-          >
-            <span className="material-symbols-outlined text-[20px] text-[#003B2B] transition-transform duration-300">
-              {isSidebarCollapsed ? 'menu' : 'menu_open'}
-            </span>
-          </button>
-
-          {/* Mobile Menu Toggle */}
+      {/* Left: Mobile Toggle & Brand Identity */}
+      <div className="flex items-center min-w-0 pl-2 sm:pl-3 lg:pl-5">
+        {/* Mobile Menu Toggle */}
+        <div className="lg:hidden mr-2 flex items-center justify-center shrink-0">
           <button
             type="button"
             onClick={toggleMobileSidebar}
-            className="lg:hidden w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 border border-[#E2E8F0] cursor-pointer active:scale-95"
+            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 border border-[#E2E8F0] cursor-pointer active:scale-95"
             title="Mở menu"
             aria-label="Open Mobile Menu"
           >
@@ -198,10 +184,10 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
         </div>
 
         {/* Brand - Chuẩn nhận diện Home & Admin (Không icon thừa) */}
-        <Link href="/seller/dashboard" className="flex flex-col group select-none pl-1 pr-2 sm:pr-3 shrink-0">
-          <div className="flex items-center gap-1.5 sm:gap-2">
+        <Link href="/seller/dashboard" className="flex flex-col group select-none pr-2 sm:pr-3 shrink-0">
+          <div className="flex items-center gap-2">
             <HukiLogo variant="dark" className="h-5 sm:h-[22px] w-auto" priority />
-            <span className="bg-[#003B2B] text-white text-[7px] sm:text-[8px] font-black uppercase px-1 sm:px-1.5 py-0.5 rounded tracking-wider">
+            <span className="mt-0.5 bg-[#003B2B] text-white text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded tracking-wider leading-none">
               SELLER
             </span>
           </div>
