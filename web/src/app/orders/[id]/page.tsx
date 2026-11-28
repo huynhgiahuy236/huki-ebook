@@ -186,6 +186,11 @@ export default function OrderDetailPage() {
       const type = msg.type as string;
       const data = (msg.payload as any) || (msg as any).data || {};
 
+      if (type === 'BOOK_MODERATED') {
+        fetchOrderDetail(true);
+        return;
+      }
+
       if (type === 'RETURN_PICKED_UP') {
         playChatChimeSound();
         showToast(
@@ -1860,30 +1865,43 @@ export default function OrderDetailPage() {
                     </span>
                   </div>
                 ) : order.paymentMethod === 'ONLINE_PAYMENT' || order.paymentMethod === 'PAYOS' ? (
-                  <div className="mt-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-base shrink-0 text-emerald-600">
-                        {isPaid ? 'verified' : 'pending'}
-                      </span>
-                      <span>
-                        Phương thức: <b>VietQR PayOS {isPaid ? '(Đã thanh toán)' : '(Chờ thanh toán)'}</b>
-                      </span>
-                    </div>
-                    {isPaid ? (
-                      <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-bold text-[10px] shrink-0">
-                        Thành công
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => router.push(`/checkout/payment/${order.id}`)}
-                        className="px-2 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[10px] hover:bg-emerald-700 transition-all shrink-0 cursor-pointer shadow-xs inline-flex items-center gap-1"
-                      >
-                        <span className="material-symbols-outlined text-[12px]">qr_code_2</span>
-                        <span>Thanh toán ngay</span>
-                      </button>
-                    )}
-                  </div>
+                  (() => {
+                    const isOrderCancelled = order.status === 'CANCELLED' || order.paymentStatus === 'CANCELLED';
+                    return (
+                      <div className={`mt-4 p-3 rounded-xl border text-[11px] flex items-center justify-between gap-2 ${
+                        isOrderCancelled
+                          ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+                          : 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          <span className={`material-symbols-outlined text-base shrink-0 ${isOrderCancelled ? 'text-rose-600' : 'text-emerald-600'}`}>
+                            {isPaid ? 'verified' : isOrderCancelled ? 'cancel' : 'pending'}
+                          </span>
+                          <span>
+                            Phương thức: <b>VietQR PayOS {isPaid ? '(Đã thanh toán)' : isOrderCancelled ? '(Đã hủy)' : '(Chờ thanh toán)'}</b>
+                          </span>
+                        </div>
+                        {isPaid ? (
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-bold text-[10px] shrink-0">
+                            Thành công
+                          </span>
+                        ) : isOrderCancelled ? (
+                          <span className="px-2 py-0.5 rounded-md bg-rose-600 text-white font-bold text-[10px] shrink-0">
+                            Đã hủy
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/checkout/payment/${order.id}`)}
+                            className="px-2 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[10px] hover:bg-emerald-700 transition-all shrink-0 cursor-pointer shadow-xs inline-flex items-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-[12px]">qr_code_2</span>
+                            <span>Thanh toán ngay</span>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()
                 ) : (
                   <div className="mt-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-300 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">

@@ -34,6 +34,15 @@ export default function PayOSPaymentPage() {
         const orderData = orderRes.data;
         setOrder(orderData);
 
+        // If already cancelled, do NOT allow payment or render QR
+        if (orderData.status === 'CANCELLED' || orderData.paymentStatus === 'CANCELLED') {
+          showToast(
+            (orderData as any).cancelReason || 'Đơn hàng này đã bị hủy, không thể thanh toán.',
+            'error'
+          );
+          return;
+        }
+
         // If already paid or completed, redirect to success page
         if (
           orderData.paymentStatus === 'SUCCEEDED' ||
@@ -56,6 +65,14 @@ export default function PayOSPaymentPage() {
           if (initRes.success && initRes.data) {
             setPaymentData(initRes.data);
           } else {
+            const errCode = (initRes as any)?.error?.code;
+            const errMsg = (initRes as any)?.error?.message;
+            if (errCode === 'BOOK_SUSPENDED' || errCode === 'ORDER_CANNOT_CANCEL') {
+              const refreshed = await orderApi.getBuyerOrderDetail(orderId).catch(() => null);
+              if (refreshed?.success && refreshed.data) setOrder(refreshed.data);
+              showToast(errMsg || 'Đơn hàng đã tự động hủy do tác phẩm tạm khóa lưu hành.', 'error');
+              return;
+            }
             // Check status directly
             const statusRes = await paymentApi.getOrderPayment(orderId);
             if (statusRes.success && statusRes.data?.payments?.[0]) {
@@ -165,12 +182,52 @@ export default function PayOSPaymentPage() {
     if (!orderId || !order) return;
 
     // Realtime bus listener (triggers in <50ms without waiting for 4-sec poll)
-    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+    const unsubscribe = realtimeSyncBus.subscribe(async (msg) => {
       if (
         msg.type === 'ORDER_PAYMENT_SUCCEEDED' &&
         (msg.payload as any)?.orderId === orderId
       ) {
         navigateToSuccess((msg.payload as any)?.orderCode);
+      }
+      if (msg.type === 'BOOK_MODERATED' && (msg.payload as any)?.action === 'BLOCK') {
+        const blockedBookId = String((msg.payload as any)?.bookId || '');
+        const containsBlockedBook =
+          blockedBookId &&
+          ((order as any)?.sellerOrders?.some((so: any) =>
+            so.items?.some((it: any) => String(it.bookId || it.book?.id) === blockedBookId)
+          ) ||
+            (order as any)?.items?.some((it: any) => String(it.bookId || it.book?.id) === blockedBookId));
+
+        try {
+          const refreshed = await orderApi.getBuyerOrderDetail(orderId);
+          if (refreshed.success && refreshed.data) {
+            if (refreshed.data.status === 'CANCELLED' || refreshed.data.paymentStatus === 'CANCELLED') {
+              setOrder(refreshed.data);
+              clearInterval(pollInterval);
+              showToast(
+                (refreshed.data as any).cancelReason ||
+                  'Đơn hàng đã tự động hủy do tác phẩm vừa bị tạm khóa lưu hành.',
+                'error'
+              );
+              return;
+            }
+          }
+        } catch {}
+
+        if (containsBlockedBook) {
+          setOrder((prev: any) =>
+            prev
+              ? {
+                  ...prev,
+                  status: 'CANCELLED',
+                  paymentStatus: 'CANCELLED',
+                  cancelReason: 'Tác phẩm trong đơn hàng vừa bị Ban Quản Trị tạm khóa lưu hành.',
+                }
+              : prev
+          );
+          clearInterval(pollInterval);
+          showToast('Đơn hàng đã tự động hủy do tác phẩm vừa bị tạm khóa lưu hành.', 'error');
+        }
       }
     });
 
@@ -178,6 +235,16 @@ export default function PayOSPaymentPage() {
       try {
         const res = await paymentApi.getOrderPayment(orderId);
         if (res.success && res.data) {
+          if (res.data.paymentStatus === 'CANCELLED') {
+            const refreshed = await orderApi.getBuyerOrderDetail(orderId).catch(() => null);
+            if (refreshed?.success && refreshed.data) {
+              setOrder(refreshed.data);
+            } else {
+              setOrder((prev: any) => (prev ? { ...prev, status: 'CANCELLED', paymentStatus: 'CANCELLED' } : prev));
+            }
+            clearInterval(pollInterval);
+            return;
+          }
           const isPaid =
             res.data.paymentStatus === 'SUCCEEDED' ||
             res.data.paymentStatus === 'PAID' ||
@@ -285,6 +352,42 @@ export default function PayOSPaymentPage() {
 
   if (!order) {
     return null;
+  }
+
+  if (order.status === 'CANCELLED' || order.paymentStatus === 'CANCELLED') {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-3xl border border-rose-200 shadow-xl p-6 sm:p-8 text-center space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center mx-auto">
+            <span className="material-symbols-outlined text-4xl">cancel</span>
+          </div>
+          <h1 className="text-lg font-black text-slate-900">Đơn Hàng Đã Bị Hủy — Giao Dịch Đã Đóng</h1>
+          <p className="text-xs text-rose-800 bg-rose-50 border border-rose-100 rounded-xl p-3 leading-relaxed">
+            {(order as any).cancelReason ||
+              'Đơn hàng đã tự động hủy do tác phẩm trong đơn bị Ban Quản Trị tạm khóa lưu hành hoặc giao dịch đã hết hạn.'}
+          </p>
+          <p className="text-xs text-slate-500">
+            Mã QR thanh toán đã bị vô hiệu hóa để bảo vệ quyền lợi người mua. Vui lòng không chuyển khoản cho đơn hàng này.
+          </p>
+          <div className="flex items-center justify-center gap-2.5 pt-2">
+            <button
+              type="button"
+              onClick={() => router.push(`/orders/${order.id}`)}
+              className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer transition-colors"
+            >
+              Xem chi tiết đơn hủy
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/cart')}
+              className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer transition-colors"
+            >
+              Quay lại giỏ hàng
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const grandTotal = Number(order.grandTotal) || 0;
