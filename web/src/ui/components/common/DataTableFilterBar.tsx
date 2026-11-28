@@ -236,7 +236,7 @@ export function DataTableFilterBar<TStatus extends string = string>(props: DataT
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       onSearchChange?.(val);
-    }, 300);
+    }, 1000);
   };
 
   const handleClearSearch = () => {

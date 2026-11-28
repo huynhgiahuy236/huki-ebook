@@ -3,6 +3,7 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { normalizeSearchText } from '@/ui/utils/searchUtils';
 import { catalogApi, BookFormat } from '@/ui/api/catalogApi';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 import { businessApi } from '@/ui/api/businessApi';
@@ -482,16 +483,17 @@ function SellerProductsContent() {
   // Filtered books
   const filteredBooks = useMemo(() => {
     return books.filter(b => {
-      // Search filter
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchTitle = (b.title || '').toLowerCase().includes(q);
-        const matchSlug = (b.slug || '').toLowerCase().includes(q);
-        const matchId = (b.id || '').toLowerCase().includes(q);
-        const matchIsbn = (b.isbn || '').toLowerCase().includes(q);
+      // Search filter (normalized: accent-insensitive, lowercase, collapsed spaces)
+      const normQ = normalizeSearchText(searchQuery);
+      if (normQ) {
+        const matchTitle = normalizeSearchText(b.title).includes(normQ);
+        const matchSlug = normalizeSearchText(b.slug).includes(normQ);
+        const matchId = normalizeSearchText(b.id).includes(normQ);
+        const matchIsbn = normalizeSearchText(b.isbn).includes(normQ);
+        const matchSku = normalizeSearchText((b as any).sku).includes(normQ);
         const authorName = typeof b.author === 'string' ? b.author : (b.author as any)?.name || '';
-        const matchAuthor = authorName.toLowerCase().includes(q);
-        if (!matchTitle && !matchSlug && !matchId && !matchIsbn && !matchAuthor) return false;
+        const matchAuthor = normalizeSearchText(authorName).includes(normQ);
+        if (!matchTitle && !matchSlug && !matchId && !matchIsbn && !matchSku && !matchAuthor) return false;
       }
 
       // Format filter
@@ -1387,7 +1389,16 @@ function SellerProductsContent() {
         dateFilter={dateFilter}
         onDateFilterChange={setDateFilter}
         searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        onSearchChange={(val) => {
+          setSearchQuery(val);
+          if (!val.trim() && (searchParams?.get('search') || searchParams?.get('q'))) {
+            const params = new URLSearchParams(searchParams.toString());
+            params.delete('search');
+            params.delete('q');
+            const qs = params.toString();
+            router.replace(qs ? `/seller/products?${qs}` : '/seller/products', { scroll: false });
+          }
+        }}
         searchPlaceholder="Tìm tên sách, slug..."
         className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs"
         extraFilters={

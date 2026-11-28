@@ -4,6 +4,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useState, useRef } fr
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { normalizeSearchText } from '@/ui/utils/searchUtils';
 import { orderApi } from '@/ui/api/orderApi';
 import { businessApi } from '@/ui/api/businessApi';
 import { useAuth } from '@/ui/context/AuthContext';
@@ -394,30 +395,34 @@ function SellerOrdersContent() {
       if (activeTab === 'COMPLETED' && order.status !== 'COMPLETED' && order.status !== 'DELIVERED') return false;
       if (activeTab === 'CANCELLED' && order.status !== 'CANCELLED' && order.status !== 'REFUNDED') return false;
 
-      // Search query
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase().trim();
-        const codeMatch = order.code?.toLowerCase().includes(query) || order.id?.toLowerCase().includes(query);
+      // Search query (normalized: accent-insensitive, lowercase, collapsed spaces)
+      const normQuery = normalizeSearchText(searchQuery);
+      if (normQuery) {
+        const codeMatch =
+          normalizeSearchText(order.code).includes(normQuery) ||
+          normalizeSearchText(order.id).includes(normQuery);
         const address = order.order?.shippingAddress || order.shippingAddress || {};
-        const buyerName = (
+        const buyerName = normalizeSearchText(
           address.recipientName ||
-          address.fullName ||
-          address.name ||
-          order.order?.buyer?.fullName ||
-          order.order?.user?.fullName ||
-          order.buyerName ||
-          ''
-        ).toLowerCase();
-        const buyerPhone = (
+            address.fullName ||
+            address.name ||
+            order.order?.buyer?.fullName ||
+            order.order?.user?.fullName ||
+            order.buyerName ||
+            ''
+        );
+        const buyerPhone = normalizeSearchText(
           address.phone ||
-          address.phoneNumber ||
-          order.order?.buyer?.phone ||
-          order.order?.user?.phone ||
-          ''
-        ).toLowerCase();
-        const itemMatch = order.items?.some((it) => (it.title || it.bookTitle)?.toLowerCase().includes(query));
+            address.phoneNumber ||
+            order.order?.buyer?.phone ||
+            order.order?.user?.phone ||
+            ''
+        );
+        const itemMatch = order.items?.some((it) =>
+          normalizeSearchText(it.title || it.bookTitle).includes(normQuery)
+        );
 
-        if (!codeMatch && !buyerName.includes(query) && !buyerPhone.includes(query) && !itemMatch) {
+        if (!codeMatch && !buyerName.includes(normQuery) && !buyerPhone.includes(normQuery) && !itemMatch) {
           return false;
         }
       }
@@ -1300,7 +1305,17 @@ function SellerOrdersContent() {
         dateFilter={dateFilter}
         onDateFilterChange={setDateFilter}
         searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        onSearchChange={(val) => {
+          setSearchQuery(val);
+          if (!val.trim() && (searchParams.get('search') || searchParams.get('code') || searchParams.get('orderCode'))) {
+            const params = new URLSearchParams(searchParams.toString());
+            params.delete('search');
+            params.delete('code');
+            params.delete('orderCode');
+            const qs = params.toString();
+            router.replace(qs ? `/seller/orders?${qs}` : '/seller/orders', { scroll: false });
+          }
+        }}
         searchPlaceholder="Tìm mã đơn, SĐT, tên sách..."
         className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs"
         extraFilters={
