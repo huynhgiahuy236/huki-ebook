@@ -646,53 +646,63 @@ export function SellerReviewsView() {
         key: 'content',
         title: 'Nội Dung Nhận Xét',
         minWidth: 260,
-        render: (_val, rev) => (
-          <div className="py-1 text-xs space-y-1">
-            {rev.title && (
-              <span className="font-bold text-slate-900 block break-words line-clamp-1 text-xs">
-                {rev.title}
-              </span>
-            )}
-            <p className="text-slate-600 break-words line-clamp-2 leading-snug font-normal text-xs">
-              {rev.content || 'Độc giả không để lại nhận xét chi tiết.'}
-            </p>
-            {rev.images && rev.images.length > 0 && (
-              <div className="flex items-center gap-1 pt-0.5">
-                {rev.images.slice(0, 5).map((img: any, idx: number) => (
-                  <div
-                    key={idx}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPreviewImage(img.url);
-                    }}
-                    className="w-7 h-7 rounded border border-slate-200 overflow-hidden shrink-0 cursor-pointer hover:opacity-80"
-                  >
-                    <img src={img.url} alt="Review attachment" className="w-full h-full object-cover" />
-                  </div>
-                ))}
-                {rev.images.length > 5 && (
-                  <span className="text-[10px] text-slate-400 font-bold">+{rev.images.length - 5}</span>
-                )}
-              </div>
-            )}
-          </div>
-        ),
+        render: (_val, rev) => {
+          const validImages = (rev.images || []).filter(
+            (img: any) => img?.url && !String(img.url).includes('storage.huki.vn')
+          );
+          return (
+            <div className="py-1 text-xs space-y-1.5">
+              <p className="text-slate-700 break-words line-clamp-2 leading-snug font-normal text-xs">
+                {rev.content || rev.title || 'Độc giả không để lại nhận xét chi tiết.'}
+              </p>
+              {validImages.length > 0 && (
+                <div className="flex items-center gap-1 pt-0.5">
+                  {validImages.slice(0, 5).map((img: any, idx: number) => (
+                    <div
+                      key={idx}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPreviewImage(img.url);
+                      }}
+                      className="w-7 h-7 rounded border border-slate-200 overflow-hidden shrink-0 cursor-pointer hover:opacity-80"
+                    >
+                      <img
+                        src={img.url}
+                        alt="Review attachment"
+                        onError={(e) => {
+                          (e.currentTarget.parentElement as HTMLElement)?.remove();
+                        }}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))}
+                  {validImages.length > 5 && (
+                    <span className="text-[10px] text-slate-400 font-bold">+{validImages.length - 5}</span>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        },
       },
       {
         key: 'reply',
         title: 'Phản Hồi Shop',
         width: 140,
         align: 'center',
+        className: 'whitespace-nowrap',
         render: (_val, rev) => {
           const hasReplies = rev.replies && rev.replies.length > 0;
           return hasReplies ? (
-            <SellerStatusBadge variant="success" icon="check_circle">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-semibold whitespace-nowrap">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               Đã phản hồi
-            </SellerStatusBadge>
+            </span>
           ) : (
-            <SellerStatusBadge variant="warning" icon="hourglass_empty">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 text-[11px] font-semibold whitespace-nowrap">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
               Chưa phản hồi
-            </SellerStatusBadge>
+            </span>
           );
         },
       },
@@ -701,27 +711,26 @@ export function SellerReviewsView() {
         title: 'Thao Tác',
         width: 175,
         align: 'right',
+        className: 'whitespace-nowrap',
         render: (_val, rev) => {
           const hasReplies = rev.replies && rev.replies.length > 0;
           return (
-            <div className="flex items-center justify-end gap-1.5">
+            <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
               {!hasReplies && (
                 <button
                   type="button"
                   onClick={() => setSelectedReview(rev)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-[#00875A] hover:bg-[#00704A] text-white transition-colors cursor-pointer shadow-2xs"
+                  className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-[#00875A] hover:bg-[#00704A] text-white transition-colors cursor-pointer whitespace-nowrap"
                 >
-                  <span className="material-symbols-outlined text-[14px]">reply</span>
-                  <span>Phản Hồi</span>
+                  Phản hồi
                 </button>
               )}
               <button
                 type="button"
                 onClick={() => setSelectedReview(rev)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer"
+                className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer whitespace-nowrap"
               >
-                <span className="material-symbols-outlined text-[14px]">rate_review</span>
-                <span>Chi Tiết</span>
+                Chi tiết
               </button>
             </div>
           );
@@ -1104,59 +1113,61 @@ export function SellerReviewsView() {
                   </div>
                 </div>
 
-                {selectedReview.title && (
-                  <h5 className="font-bold text-sm text-slate-900 pt-1">
-                    {selectedReview.title}
-                  </h5>
-                )}
-
                 <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
-                  {selectedReview.content || 'Độc giả không để lại nhận xét nội dung.'}
+                  {selectedReview.content || selectedReview.title || 'Độc giả không để lại nhận xét nội dung.'}
                 </p>
 
                 {/* Review Images */}
-                {selectedReview.images && selectedReview.images.length > 0 && (
-                  <div className="pt-2">
-                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
-                      Hình ảnh độc giả đính kèm:
-                    </span>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {selectedReview.images.map((img, idx) => (
-                        <div
-                          key={idx}
-                          onClick={() => setPreviewImage(img.url)}
-                          className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 cursor-pointer hover:opacity-90 hover:scale-105 transition-all shadow-2xs"
-                        >
-                          <img
-                            src={img.url}
-                            alt="Attachment"
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ))}
+                {(() => {
+                  const validImgs = (selectedReview.images || []).filter(
+                    (img) => img?.url && !String(img.url).includes('storage.huki.vn')
+                  );
+                  if (validImgs.length === 0) return null;
+                  return (
+                    <div className="pt-2">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
+                        Hình ảnh độc giả đính kèm ({validImgs.length}):
+                      </span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {validImgs.slice(0, 5).map((img, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => setPreviewImage(img.url)}
+                            className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 cursor-pointer hover:opacity-90 hover:scale-105 transition-all shadow-2xs"
+                          >
+                            <img
+                              src={img.url}
+                              alt="Attachment"
+                              onError={(e) => {
+                                (e.currentTarget.parentElement as HTMLElement)?.remove();
+                              }}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
 
               {/* Existing Replies Thread */}
               {selectedReview.replies && selectedReview.replies.length > 0 && (
                 <div className="space-y-3">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-base text-[#00875A]">forum</span>
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                     Lịch Sử Phản Hồi Từ Gian Hàng ({selectedReview.replies.length}):
                   </span>
                   <div className="space-y-2.5">
                     {selectedReview.replies.map((rep) => (
                       <div
                         key={rep.id}
-                        className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-200/60 space-y-1.5"
+                        className="relative p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1"
                       >
+                        <span className="absolute -top-1.5 left-5 w-2.5 h-2.5 bg-slate-50 border-l border-t border-slate-200/80 rotate-45" />
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5 text-xs font-bold text-[#00875A]">
-                            <span className="material-symbols-outlined text-sm">storefront</span>
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800">
                             <span>{rep.business?.name || user?.business?.name || 'Gian Hàng Chính Thức'}</span>
-                            <span className="px-1.5 py-0.2 rounded bg-emerald-600 text-white text-[9.5px] font-black uppercase">
+                            <span className="px-1.5 py-0.2 rounded bg-slate-200 text-slate-700 text-[9.5px] font-bold uppercase">
                               Shop Phản Hồi
                             </span>
                           </div>
