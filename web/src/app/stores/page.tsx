@@ -26,6 +26,7 @@ interface AuthorItem {
   category: string;
   description: string;
   notableWorks: string[];
+  previewBooks: Array<{ id: string; title: string; coverUrl: string }>;
   isVerified: boolean;
   isMock: boolean;
 }
@@ -104,6 +105,11 @@ function StoresContent() {
 
           const worksCount = authorBooks.length;
           const notableWorks = authorBooks.slice(0, 3).map((b: any) => b.title);
+          const previewBooks = authorBooks.slice(0, 4).map((b: any) => ({
+            id: b.id,
+            title: b.title || 'Tác phẩm',
+            coverUrl: b.coverUrl || b.coverImage || b.cover || '',
+          }));
           const avgRating = worksCount > 0
             ? Number((authorBooks.reduce((sum: number, b: any) => sum + (Number(b.rating) || 5), 0) / worksCount).toFixed(1))
             : 5.0;
@@ -118,8 +124,9 @@ function StoresContent() {
             worksCount: worksCount,
             rating: avgRating,
             category: 'Văn học & Tri thức',
-            description: a.bio || (worksCount > 0 ? `Đã xuất bản ${worksCount} tác phẩm trên nền tảng HUKI.` : 'Tác giả tham gia xuất bản tác phẩm trên nền tảng HUKI.'),
+            description: a.bio || (worksCount > 0 ? `${worksCount} tác phẩm trên HUKI` : 'Tác giả trên HUKI'),
             notableWorks: notableWorks,
+            previewBooks,
             isVerified: true,
             isMock: false,
           };
@@ -791,7 +798,7 @@ function StoresContent() {
                   Danh Sách Tác Giả
                 </h2>
                 <p className="text-xs text-on-surface-variant mt-0.5">
-                  Theo dõi tác giả để cập nhật các ấn phẩm mới phát hành.
+                  Lưu tác giả yêu thích và bấm vào để xem toàn bộ sách của họ trên sàn.
                 </p>
               </div>
 
@@ -811,12 +818,12 @@ function StoresContent() {
                   type="button"
                   onClick={() => updateFilterFollowing(true)}
                   className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all cursor-pointer ${filterFollowing
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'text-on-surface-variant hover:text-amber-700'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'text-on-surface-variant hover:text-rose-600'
                     }`}
                 >
-                  <span>Đang theo dõi</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold ${filterFollowing ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-800'
+                  <span>Yêu thích</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold ${filterFollowing ? 'bg-white/25 text-white' : 'bg-rose-100 text-rose-700'
                     }`}>
                     {followedAuthorsCount}
                   </span>
@@ -844,87 +851,100 @@ function StoresContent() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {paginatedAuthors.map((author) => {
                     const isFavorited = Boolean(favoriteAuthors[author.id]);
+                    const authorBooksHref = `/books?author=${encodeURIComponent(author.name)}`;
 
                     return (
                       <article
                         key={author.id}
-                        className="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 p-5 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between text-center group"
+                        className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs hover:shadow-md hover:border-[#006953]/30 transition-all duration-200 flex flex-col justify-between gap-3.5 group"
                       >
+                        {/* Top Row: Avatar Left + Short Info Right + Favorite Heart */}
+                        <div className="flex items-start justify-between gap-3">
+                          <Link href={authorBooksHref} className="flex items-center gap-3 min-w-0 flex-1">
+                            {author.avatar ? (
+                              <img
+                                src={author.avatar}
+                                alt={author.name}
+                                className="w-11 h-11 rounded-full object-cover shrink-0 border border-slate-200"
+                              />
+                            ) : (
+                              <div className="w-11 h-11 rounded-full bg-[#003B2B] text-white font-bold text-base flex items-center justify-center shrink-0">
+                                {author.name.charAt(0).toUpperCase()}
+                              </div>
+                            )}
 
-                        <div>
-                          <div className="relative w-18 h-18 mx-auto mb-3">
-                            <div className={`w-full h-full rounded-full p-0.5 bg-gradient-to-tr ${author.coverBg} border border-primary/30 shadow-xs`}>
-                              {author.avatar ? (
-                                <img
-                                  src={author.avatar}
-                                  alt={author.name}
-                                  className="w-full h-full object-cover rounded-full"
-                                />
-                              ) : (
-                                <div className="w-full h-full rounded-full bg-primary text-on-primary font-bold text-lg flex items-center justify-center">
-                                  {author.name.charAt(0).toUpperCase()}
-                                </div>
-                              )}
+                            <div className="min-w-0">
+                              <h3 className="font-bold text-sm text-slate-900 group-hover:text-[#006953] transition-colors truncate">
+                                {author.name}
+                              </h3>
+                              <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                                {author.worksCount > 0 ? `${author.worksCount} tác phẩm` : author.title}
+                              </p>
                             </div>
-                          </div>
+                          </Link>
 
-                          <h3 className="font-editorial text-lg font-bold text-on-surface group-hover:text-primary transition-colors leading-tight">
-                            {author.name}
-                          </h3>
-                          <span className="text-[11px] text-primary font-semibold block mt-0.5 line-clamp-1">
-                            {author.title}
-                          </span>
-
-                          <p className="text-xs text-on-surface-variant line-clamp-2 mt-2 leading-relaxed">
-                            {author.description}
-                          </p>
-
-                          {/* Top notable works */}
-                          <div className="mt-3 pt-3 border-t border-outline-variant/20 text-left">
-                            <span className="text-[10px] font-bold text-outline uppercase tracking-wider block mb-1.5">
-                              Tác phẩm tiêu biểu:
-                            </span>
-                            <div className="space-y-1">
-                              {author.notableWorks.map((work, idx) => (
-                                <Link
-                                  key={idx}
-                                  href={`/books?q=${encodeURIComponent(work)}`}
-                                  className="text-xs text-on-surface hover:text-primary flex items-center gap-1 truncate"
-                                >
-                                  <span className="material-symbols-outlined text-[13px] text-on-surface-variant">auto_stories</span>
-                                  <span className="truncate">{work}</span>
-                                </Link>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Footer Actions */}
-                        <div className="mt-4 pt-3 border-t border-outline-variant/20 space-y-2">
                           <button
                             type="button"
                             onClick={() => toggleFavoriteAuthor(author)}
-                            className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${isFavorited
-                              ? 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100'
-                              : 'bg-primary/10 text-primary hover:bg-primary hover:text-on-primary'
+                            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors cursor-pointer ${isFavorited
+                              ? 'bg-rose-50 text-rose-600'
+                              : 'text-slate-400 hover:bg-slate-100 hover:text-rose-500'
                               }`}
+                            title={isFavorited ? 'Bỏ yêu thích' : 'Thêm vào yêu thích'}
+                            aria-label={isFavorited ? 'Bỏ yêu thích' : 'Yêu thích'}
                           >
-                            <span className="material-symbols-outlined text-sm">
+                            <span className="material-symbols-outlined text-[18px]">
                               {isFavorited ? 'favorite' : 'favorite_border'}
                             </span>
-                            {isFavorited ? 'Đã yêu thích' : 'Yêu thích'}
                           </button>
-
-                          <Link
-                            href={`/books?author=${encodeURIComponent(author.name)}`}
-                            className="block text-center text-xs font-semibold text-on-surface-variant hover:text-primary py-1 transition-colors"
-                          >
-                            Xem sách của tác giả →
-                          </Link>
                         </div>
+
+                        {/* 4 Small Book Covers with Hover Title */}
+                        {author.previewBooks.length > 0 ? (
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {author.previewBooks.map((book) => (
+                              <Link
+                                key={book.id}
+                                href={authorBooksHref}
+                                title={book.title}
+                                className="relative aspect-[2/3] rounded-lg overflow-hidden bg-slate-100 border border-slate-200/70 group/book block"
+                              >
+                                {book.coverUrl ? (
+                                  <img
+                                    src={book.coverUrl}
+                                    alt={book.title}
+                                    className="w-full h-full object-cover group-hover/book:scale-105 transition-transform duration-200"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                    <span className="material-symbols-outlined text-[18px]">menu_book</span>
+                                  </div>
+                                )}
+                                <div className="absolute inset-0 bg-black/70 opacity-0 group-hover/book:opacity-100 transition-opacity duration-150 p-1 flex items-end">
+                                  <span className="text-[9px] leading-tight font-medium text-white line-clamp-3">
+                                    {book.title}
+                                  </span>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="py-4 rounded-xl bg-slate-50 border border-slate-100 text-center text-[11px] text-slate-400">
+                            Đang cập nhật tác phẩm
+                          </div>
+                        )}
+
+                        {/* Compact Footer Link */}
+                        <Link
+                          href={authorBooksHref}
+                          className="text-xs font-semibold text-[#006953] hover:text-[#003B2B] flex items-center justify-between pt-2 border-t border-slate-100 transition-colors"
+                        >
+                          <span>Xem tất cả sách</span>
+                          <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+                        </Link>
                       </article>
                     );
                   })}
