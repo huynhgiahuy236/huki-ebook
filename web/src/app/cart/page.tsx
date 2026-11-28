@@ -219,7 +219,7 @@ export default function CartPage() {
         </div>
 
         {/* Benefits Banner */}
-        {!bannerDismissed && (
+        {/* {!bannerDismissed && (
           <div className="mb-4 p-3 rounded-xl bg-gradient-to-r from-[var(--theme-secondary-subtle,#e0f2fe)]/80 via-[var(--theme-surface,#ffffff)] to-[var(--theme-secondary-subtle,#e0f2fe)]/40 border border-[var(--theme-primary,#003B2B)]/20 flex items-center justify-between gap-2.5 shadow-2xs">
             <div className="flex items-center gap-2.5">
               <span className="w-8 h-8 rounded-lg bg-[var(--theme-primary,#003B2B)] text-white flex items-center justify-center shrink-0 shadow-2xs">
@@ -236,7 +236,7 @@ export default function CartPage() {
               <span className="material-symbols-outlined text-[16px]">close</span>
             </button>
           </div>
-        )}
+        )} */}
 
         {cartItems.length === 0 ? (
           <EmptyState
