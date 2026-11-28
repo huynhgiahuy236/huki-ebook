@@ -37,7 +37,7 @@ const staffBulkActionGroups: BulkActionGroup[] = [
     ],
   },
 ];
-import AuditHistoryTimeline, { AuditLogItem } from '../common/AuditHistoryTimeline';
+import AuditHistoryTimeline, { AuditLogItem, ROLE_LABEL_MAP } from '../common/AuditHistoryTimeline';
 import SecurityPinModal from '../common/SecurityPinModal';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
@@ -893,8 +893,8 @@ export function SellerStaffView() {
         width: 140,
         render: (_val, member) => (
           <div className="py-1">
-            <span className="px-2.5 py-0.5 rounded-full text-[10.5px] bg-slate-100 border border-slate-200 font-bold text-slate-700">
-              {member.role}
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] bg-slate-100 border border-slate-200 font-semibold text-slate-700 whitespace-nowrap">
+              {ROLE_LABEL_MAP[member.role] || member.role}
             </span>
           </div>
         ),
@@ -907,9 +907,9 @@ export function SellerStaffView() {
           const isOwner = member.role === 'OWNER';
           if (isOwner) {
             return (
-              <span className="text-emerald-700 font-bold text-xs flex items-center gap-1">
-                <span className="material-symbols-outlined text-sm">all_inclusive</span>
-                <span>Toàn quyền Master</span>
+              <span className="text-emerald-700 font-bold text-xs flex items-center gap-1 whitespace-nowrap">
+                <span className="material-symbols-outlined text-sm">verified_user</span>
+                <span>Toàn quyền gian hàng</span>
               </span>
             );
           }
@@ -1039,7 +1039,7 @@ export function SellerStaffView() {
             <div className="flex justify-between">
               <span className="text-slate-500">Tổng quyền được cấp:</span>
               <span className="font-bold text-slate-900">
-                {isOwner ? 'Toàn quyền Master (100%)' : `${member.permissions?.length || 0} chức năng`}
+                {isOwner ? 'Toàn quyền gian hàng (100%)' : `${member.permissions?.length || 0} chức năng`}
               </span>
             </div>
             <div className="flex justify-between">

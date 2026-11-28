@@ -164,6 +164,7 @@ export const PERMISSION_LABEL_MAP: Record<string, string> = {
 
 export const ROLE_LABEL_MAP: Record<string, string> = {
   OWNER: 'Chủ sở hữu gian hàng',
+  BUSINESS: 'Chủ gian hàng',
   ADMIN: 'Quản trị viên',
   MANAGER: 'Quản lý toàn quyền gian hàng',
   ORDER_STAFF: 'Nhân viên xử lý đơn hàng',
@@ -351,9 +352,9 @@ function resolveActorInfo(item: AuditLogItem, currentUser: any, staffList?: Audi
   }
 
   if (!displayName) {
-    if (item.actorRole === 'OWNER') displayName = 'Chủ sở hữu gian hàng';
+    if (item.actorRole === 'OWNER' || item.actorRole === 'BUSINESS') displayName = 'Chủ sở hữu gian hàng';
     else if (item.actorRole === 'ADMIN') displayName = 'Quản trị viên';
-    else displayName = item.actorRole ? `Nhân sự (${item.actorRole})` : 'Nhân sự hệ thống';
+    else displayName = item.actorRole ? `Nhân sự (${ROLE_LABEL_MAP[item.actorRole] || item.actorRole})` : 'Nhân sự hệ thống';
   }
 
   const roleRaw = item.actorRole || 'STAFF';
@@ -383,7 +384,8 @@ function resolveTargetInfo(item: AuditLogItem): { targetLabel: string; targetSub
   if (resource === 'ORDER' || item.resource === 'Order') {
     const orderCode = item.metadata?.orderCode || item.resourceId?.slice(0, 8);
     return {
-      targetLabel: `Đơn hàng #${orderCode}`,
+      targetLabel: 'Đơn hàng',
+      targetSub: orderCode ? `#${orderCode}` : undefined,
     };
   }
 
