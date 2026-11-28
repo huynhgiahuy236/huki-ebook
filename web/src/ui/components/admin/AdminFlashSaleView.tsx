@@ -944,25 +944,28 @@ export function AdminFlashSaleView() {
         align: 'right',
         render: (_val, slot) => {
           const isScheduled = slot.status === 'SCHEDULED';
+          const isEndedOrCancelled = slot.status === 'ENDED' || slot.status === 'CANCELLED';
           const isStudioOpen = studioSlotId === slot.id;
 
           return (
             <div className="flex items-center justify-end gap-1.5 flex-wrap">
               <SlotStatusBadge slot={slot} />
-              <button
-                type="button"
-                onClick={() => handleOpenStudio(slot)}
-                className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs ${
-                  isStudioOpen
-                    ? 'bg-emerald-700 text-white hover:bg-emerald-800'
-                    : 'bg-gray-900 hover:bg-gray-800 text-white'
-                }`}
-              >
-                <span className="material-symbols-outlined text-sm">
-                  {isStudioOpen ? 'expand_less' : 'library_add'}
-                </span>
-                <span>{isStudioOpen ? 'Đóng Studio' : `Studio Sách (${slot.items?.length || 0})`}</span>
-              </button>
+              {!isEndedOrCancelled && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenStudio(slot)}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs ${
+                    isStudioOpen
+                      ? 'bg-emerald-700 text-white hover:bg-emerald-800'
+                      : 'bg-gray-900 hover:bg-gray-800 text-white'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">
+                    {isStudioOpen ? 'expand_less' : 'library_add'}
+                  </span>
+                  <span>{isStudioOpen ? 'Đóng Studio' : `Studio Sách (${slot.items?.length || 0})`}</span>
+                </button>
+              )}
               <SlotCountdownBadge slot={slot} onEndEarlyClick={setEndEarlyModalSlot} />
               {isScheduled && (
                 <button
@@ -1571,17 +1574,17 @@ export function AdminFlashSaleView() {
 
             {/* Filter Search Bar */}
             <div className="flex flex-wrap items-center gap-2.5 pb-3">
-              <div className="relative flex-1 min-w-[200px]">
+              <div className="flex items-center gap-2 flex-1 min-w-[200px] px-3 py-1.5 rounded-xl bg-white border border-gray-300 focus-within:border-[#00875A]">
+                <span className="material-symbols-outlined text-gray-400 text-sm shrink-0">
+                  search
+                </span>
                 <input
                   type="text"
                   placeholder="Tìm theo tên sách, tác giả..."
                   value={bookSearchQuery}
                   onChange={(e) => setBookSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-gray-300 text-xs focus:outline-none focus:border-[#00875A]"
+                  className="w-full bg-transparent text-xs focus:outline-none text-gray-900 placeholder:text-gray-400"
                 />
-                <span className="material-symbols-outlined absolute left-2.5 top-2 text-gray-400 text-sm">
-                  search
-                </span>
               </div>
 
               <select

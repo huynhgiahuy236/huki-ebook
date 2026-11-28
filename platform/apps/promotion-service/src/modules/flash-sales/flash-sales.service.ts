@@ -392,6 +392,17 @@ export class FlashSalesService
       );
     const campaign = flashSale!;
 
+    if (
+      campaign.status === FlashSaleStatus.ENDED ||
+      campaign.status === FlashSaleStatus.CANCELLED ||
+      new Date(campaign.endsAt).getTime() <= Date.now()
+    ) {
+      throwBadRequest(
+        ErrorCode.BOOK_PRICE_INVALID,
+        "Phiên Flash Sale đã kết thúc hoặc đã bị hủy, không thể thêm hoặc chỉnh sửa sản phẩm",
+      );
+    }
+
     if (dto.salePrice >= dto.originalPrice) {
       throwBadRequest(
         ErrorCode.BOOK_PRICE_INVALID,
