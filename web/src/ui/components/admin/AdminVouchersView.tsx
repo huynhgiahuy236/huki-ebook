@@ -5,6 +5,7 @@ import { useToast } from "../../context/ToastContext";
 import { voucherApi, Voucher } from "../../api/voucherApi";
 import { AdminStatusBadge, AdminPagination } from './AdminUI';
 import DataTableFilterBar, { DateFilterValue, matchesDateFilter, BulkActionGroup } from '../common/DataTableFilterBar';
+import CountdownConfirmModal from '../common/CountdownConfirmModal';
 
 export function AdminVouchersView() {
   const { showToast } = useToast();
@@ -316,8 +317,16 @@ export function AdminVouchersView() {
     }
   };
 
-  const handleDeleteVoucher = async (v: any) => {
-    if (!window.confirm(`Bạn có chắc muốn xóa voucher ${v.code}?`)) return;
+  const [deleteVoucherTarget, setDeleteVoucherTarget] = useState<any | null>(null);
+
+  const handleDeleteVoucher = (v: any) => {
+    setDeleteVoucherTarget(v);
+  };
+
+  const executeDeleteVoucher = async () => {
+    if (!deleteVoucherTarget) return;
+    const v = deleteVoucherTarget;
+    setDeleteVoucherTarget(null);
     try {
       const res = await voucherApi.deleteAdminVoucher(v.id);
       if (res.success) {
@@ -1442,6 +1451,15 @@ export function AdminVouchersView() {
           />
         </div>
       )}
+      <CountdownConfirmModal
+        isOpen={Boolean(deleteVoucherTarget)}
+        title="Xác nhận xóa voucher"
+        description={`Bạn có chắc chắn muốn xóa voucher "${deleteVoucherTarget?.code || ''}" khỏi hệ thống?`}
+        countdownSeconds={5}
+        confirmLabel="Xác nhận xóa"
+        onCancel={() => setDeleteVoucherTarget(null)}
+        onConfirm={executeDeleteVoucher}
+      />
     </div>
   );
 }

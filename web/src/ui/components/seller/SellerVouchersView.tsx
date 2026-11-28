@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { businessApi, type StoreData } from '@/ui/api/businessApi';
+import CountdownConfirmModal from '@/ui/components/common/CountdownConfirmModal';
 import {
   getSellerVouchers,
   createSellerVoucher,
@@ -460,15 +461,21 @@ export function SellerVouchersView() {
     }
   };
 
+  const [deleteVoucherTarget, setDeleteVoucherTarget] = useState<Voucher | null>(null);
+
   // Delete Voucher
-  const handleDeleteVoucher = async (voucher: Voucher) => {
+  const handleDeleteVoucher = (voucher: Voucher) => {
     if (voucher.currentUsage > 0) {
       showToast({ title: 'Không thể xóa', message: 'Voucher đã có lượt sử dụng thực tế. Bạn chỉ có thể Tạm Tắt voucher.' }, 'warning');
       return;
     }
-    if (!window.confirm(`Bạn có chắc muốn xóa mã voucher "${voucher.code}" không?`)) {
-      return;
-    }
+    setDeleteVoucherTarget(voucher);
+  };
+
+  const executeDeleteVoucher = async () => {
+    if (!deleteVoucherTarget) return;
+    const voucher = deleteVoucherTarget;
+    setDeleteVoucherTarget(null);
 
     setActionLoadingId(voucher.id);
     try {
@@ -1885,6 +1892,16 @@ export function SellerVouchersView() {
           itemLabel: 'voucher',
         }}
         className="w-full"
+      />
+      <CountdownConfirmModal
+        isOpen={Boolean(deleteVoucherTarget)}
+        title="Xác nhận xóa mã voucher"
+        description={`Bạn có chắc chắn muốn xóa mã voucher "${deleteVoucherTarget?.code || ''}" không? Hành động này không thể hoàn tác.`}
+        countdownSeconds={5}
+        confirmLabel="Xác nhận xóa"
+        loading={Boolean(deleteVoucherTarget && actionLoadingId === deleteVoucherTarget.id)}
+        onCancel={() => setDeleteVoucherTarget(null)}
+        onConfirm={executeDeleteVoucher}
       />
     </div>
   );

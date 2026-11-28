@@ -9,6 +9,7 @@ import {
   AdminTableContainer,
 } from './AdminUI';
 import DataTableFilterBar, { DateFilterValue, matchesDateFilter, BulkActionGroup } from '../common/DataTableFilterBar';
+import CountdownConfirmModal from '../common/CountdownConfirmModal';
 import {
   adminDrmApi,
   type DrmOverviewData,
@@ -33,6 +34,7 @@ export function AdminDrmVaultView() {
   const [isRevokingId, setIsRevokingId] = useState<string | null>(null);
   const [isRestoringId, setIsRestoringId] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState<DrmLicenseItem | null>(null);
   const [expandedDrmIds, setExpandedDrmIds] = useState<Set<string>>(new Set());
   const [hasActiveReadersPulse, setHasActiveReadersPulse] = useState(false);
   const previousActiveReadersRef = useRef<number | null>(null);
@@ -188,12 +190,15 @@ export function AdminDrmVaultView() {
   };
 
   // Xử lý thu hồi giấy phép DRM tức thì (Instant Kill-Switch chống đọc lậu)
-  const handleRevokeLicense = async (item: DrmLicenseItem) => {
+  const handleRevokeLicense = (item: DrmLicenseItem) => {
     if (isRevokingId) return;
-    const confirmed = window.confirm(
-      `Xác nhận THU HỒI giấy phép DRM của tác phẩm "${item.bookTitle}" (${item.id})?\n\nMọi thiết bị đọc lậu đang mở tác phẩm này sẽ bị ngắt kết nối và khóa nội dung tức thì (POL-04)!`
-    );
-    if (!confirmed) return;
+    setRevokeTarget(item);
+  };
+
+  const executeRevokeLicense = async () => {
+    if (!revokeTarget || isRevokingId) return;
+    const item = revokeTarget;
+    setRevokeTarget(null);
 
     setIsRevokingId(item.id);
     try {
@@ -878,6 +883,16 @@ export function AdminDrmVaultView() {
           itemLabel="giấy phép DRM"
         />
       </AdminTableContainer>
+      <CountdownConfirmModal
+        isOpen={Boolean(revokeTarget)}
+        title="Xác nhận thu hồi giấy phép DRM"
+        description={`Xác nhận THU HỒI giấy phép DRM của tác phẩm "${revokeTarget?.bookTitle || ''}" (${revokeTarget?.id || ''})? Mọi thiết bị đọc lậu đang mở tác phẩm này sẽ bị ngắt kết nối và khóa nội dung tức thì (POL-04).`}
+        countdownSeconds={5}
+        confirmLabel="Thu hồi giấy phép"
+        loading={Boolean(revokeTarget && isRevokingId === revokeTarget.id)}
+        onCancel={() => setRevokeTarget(null)}
+        onConfirm={executeRevokeLicense}
+      />
     </div>
   );
 }

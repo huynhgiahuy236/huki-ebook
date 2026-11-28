@@ -13,6 +13,7 @@ import {
   SellerActionButton,
 } from '@/ui/components/seller/SellerUI';
 import { getFlashSaleFormatStyle } from '@/ui/utils/flashSaleFormat';
+import CountdownConfirmModal from '@/ui/components/common/CountdownConfirmModal';
 import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 import { DataTableBulkActionBar, BulkActionGroup } from '@/ui/components/common';
 
@@ -214,12 +215,16 @@ export default function SellerCorrectionView() {
     }
   };
 
+  const [deleteDraftTarget, setDeleteDraftTarget] = useState<{ bookId: string; title: string } | null>(null);
+
   // Thao tác xóa bản nháp
   const handleDeleteDraft = (bookId: string, title: string) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa bản nháp "${title}" không? Hành động này không thể hoàn tác.`)) {
-      return;
-    }
+    setDeleteDraftTarget({ bookId, title });
+  };
 
+  const executeDeleteDraft = () => {
+    if (!deleteDraftTarget) return;
+    const { bookId, title } = deleteDraftTarget;
     setDraftBooks((prev) => prev.filter((b) => b.id !== bookId));
     try {
       const stored = localStorage.getItem('huki_seller_draft_books');
@@ -230,6 +235,7 @@ export default function SellerCorrectionView() {
       }
     } catch { /* ignore */ }
 
+    setDeleteDraftTarget(null);
     showToast?.(`Đã xóa bản nháp "${title}".`, 'info');
   };
 
@@ -653,6 +659,15 @@ export default function SellerCorrectionView() {
           itemLabel: 'sách nháp',
         }}
         className="w-full"
+      />
+      <CountdownConfirmModal
+        isOpen={Boolean(deleteDraftTarget)}
+        title="Xác nhận xóa bản nháp sách"
+        description={`Bạn có chắc chắn muốn xóa bản nháp "${deleteDraftTarget?.title || ''}" không? Hành động này không thể hoàn tác.`}
+        countdownSeconds={5}
+        confirmLabel="Xác nhận xóa"
+        onCancel={() => setDeleteDraftTarget(null)}
+        onConfirm={executeDeleteDraft}
       />
     </div>
   );

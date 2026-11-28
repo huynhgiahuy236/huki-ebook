@@ -6,6 +6,7 @@ import { useAuth } from '@/ui/context/AuthContext';
 import { libraryApi, type UserLibraryBook } from '@/ui/api/libraryApi';
 import { catalogApi, type BookData } from '@/ui/api/catalogApi';
 import BookCover from '@/ui/components/common/BookCover';
+import CountdownConfirmModal from '@/ui/components/common/CountdownConfirmModal';
 
 import { userApi } from '@/ui/api/userApi';
 
@@ -18,6 +19,8 @@ export default function LibraryPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeTab, setActiveTabState] = useState<FilterTab>('all');
+  const [removeTarget, setRemoveTarget] = useState<{ bookId: string; title: string } | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
   const setActiveTab = (tab: FilterTab) => {
     setActiveTabState(tab);
     if (typeof window !== 'undefined') {
@@ -184,15 +187,23 @@ export default function LibraryPage() {
   }, [user?.id, isAuthLoading]);
 
   // 3. Toggle yêu thích trực tiếp trong tủ sách
-  const handleRemoveBook = async (bookId: string, title: string, e: React.MouseEvent) => {
+  const handleRemoveBook = (bookId: string, title: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!window.confirm(`Bạn có chắc chắn muốn bỏ cuốn sách "${title}" khỏi Tủ Sách cá nhân?`)) {
-      return;
+    setRemoveTarget({ bookId, title });
+  };
+
+  const executeRemoveBook = async () => {
+    if (!removeTarget) return;
+    setIsRemoving(true);
+    try {
+      await libraryApi.removeBookFromLibrary(removeTarget.bookId);
+      setBooks((prev) => prev.filter((b) => (b.bookId || b.id) !== removeTarget.bookId));
+      setExternalWishlistBooks((prev) => prev.filter((b) => (b.bookId || b.id) !== removeTarget.bookId));
+      setRemoveTarget(null);
+    } finally {
+      setIsRemoving(false);
     }
-    const success = await libraryApi.removeBookFromLibrary(bookId);
-    setBooks((prev) => prev.filter((b) => (b.bookId || b.id) !== bookId));
-    setExternalWishlistBooks((prev) => prev.filter((b) => (b.bookId || b.id) !== bookId));
   };
 
   const handleToggleFavorite = (bookId: string, e: React.MouseEvent) => {
@@ -721,6 +732,16 @@ export default function LibraryPage() {
           )}
         </section>
       </div>
+      <CountdownConfirmModal
+        isOpen={Boolean(removeTarget)}
+        title="Bỏ sách khỏi Tủ Sách"
+        description={`Bạn có chắc chắn muốn bỏ cuốn sách "${removeTarget?.title || ''}" khỏi Tủ Sách cá nhân?`}
+        countdownSeconds={5}
+        confirmLabel="Xác nhận bỏ sách"
+        loading={isRemoving}
+        onCancel={() => setRemoveTarget(null)}
+        onConfirm={executeRemoveBook}
+      />
     </div>
   );
 }

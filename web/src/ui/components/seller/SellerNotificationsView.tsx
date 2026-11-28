@@ -6,6 +6,7 @@ import { useRealtimeNotifications, RealtimeNotification } from '@/ui/hooks/useRe
 import { useAuth } from '@/ui/context/AuthContext';
 import { adminNotificationService, AdminBroadcastNotification } from '@/ui/services/adminNotificationService';
 import { SellerPagination } from './SellerUI';
+import CountdownConfirmModal from '@/ui/components/common/CountdownConfirmModal';
 
 export type NotificationCategoryTab =
   | 'all'
@@ -411,9 +412,15 @@ export default function SellerNotificationsView() {
     }
   };
 
+  const [confirmMarkAllRead, setConfirmMarkAllRead] = useState(false);
+
   // Đánh dấu đã đọc tất cả
-  const handleMarkAllUnified = async () => {
-    if (!window.confirm('Bạn có chắc muốn đánh dấu TẤT CẢ thông báo là ĐÃ ĐỌC?')) return;
+  const handleMarkAllUnified = () => {
+    setConfirmMarkAllRead(true);
+  };
+
+  const executeMarkAllUnified = async () => {
+    setConfirmMarkAllRead(false);
     adminNotificationService.markAllAsRead(currentBizId);
     setLocalReadIds(new Set(allMergedNotifications.map((n) => n.id)));
     await markAllAsRead();
@@ -517,11 +524,10 @@ export default function SellerNotificationsView() {
             setReadFilter('all');
             setCurrentPage(1);
           }}
-          className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
-            activeTab === 'all' && readFilter === 'all'
-              ? 'border border-[#003B2B] ring-1 ring-[#003B2B] bg-emerald-50/20'
-              : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
-          }`}
+          className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${activeTab === 'all' && readFilter === 'all'
+            ? 'border border-[#003B2B] ring-1 ring-[#003B2B] bg-emerald-50/20'
+            : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
+            }`}
         >
           <div className="flex items-center justify-between mb-2">
             <span className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 bg-emerald-50 text-[#00875A] dark:bg-zinc-800 dark:text-emerald-400">
@@ -574,11 +580,10 @@ export default function SellerNotificationsView() {
             setReadFilter('all');
             setCurrentPage(1);
           }}
-          className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
-            activeTab === 'sla' && readFilter === 'all'
-              ? 'border border-[#003B2B] ring-1 ring-[#003B2B] bg-emerald-50/20'
-              : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
-          }`}
+          className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${activeTab === 'sla' && readFilter === 'all'
+            ? 'border border-[#003B2B] ring-1 ring-[#003B2B] bg-emerald-50/20'
+            : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
+            }`}
         >
           <div className="flex items-center justify-between mb-2">
             <span className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400">
@@ -605,11 +610,10 @@ export default function SellerNotificationsView() {
             setReadFilter('all');
             setCurrentPage(1);
           }}
-          className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
-            activeTab === 'orders' && readFilter === 'all'
-              ? 'border border-[#003B2B] ring-1 ring-[#003B2B] bg-emerald-50/20'
-              : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
-          }`}
+          className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${activeTab === 'orders' && readFilter === 'all'
+            ? 'border border-[#003B2B] ring-1 ring-[#003B2B] bg-emerald-50/20'
+            : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
+            }`}
         >
           <div className="flex items-center justify-between mb-2">
             <span className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400">
@@ -636,11 +640,10 @@ export default function SellerNotificationsView() {
             setReadFilter('all');
             setCurrentPage(1);
           }}
-          className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs col-span-2 sm:col-span-1 ${
-            activeTab === 'admin' && readFilter === 'all'
-              ? 'border border-[#003B2B] ring-1 ring-[#003B2B] bg-emerald-50/20'
-              : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
-          }`}
+          className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs col-span-2 sm:col-span-1 ${activeTab === 'admin' && readFilter === 'all'
+            ? 'border border-[#003B2B] ring-1 ring-[#003B2B] bg-emerald-50/20'
+            : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
+            }`}
         >
           <div className="flex items-center justify-between mb-2">
             <span className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-400">
@@ -1356,6 +1359,15 @@ export default function SellerNotificationsView() {
           </div>
         </div>
       )}
+      <CountdownConfirmModal
+        isOpen={confirmMarkAllRead}
+        title="Đánh dấu tất cả đã đọc"
+        description="Bạn có chắc chắn muốn đánh dấu toàn bộ thông báo hiện tại là đã đọc?"
+        countdownSeconds={5}
+        confirmLabel="Xác nhận"
+        onCancel={() => setConfirmMarkAllRead(false)}
+        onConfirm={executeMarkAllUnified}
+      />
     </div>
   );
 }

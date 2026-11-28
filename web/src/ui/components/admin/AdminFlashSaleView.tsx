@@ -223,8 +223,8 @@ export function AdminFlashSaleView() {
         const list = Array.isArray(res.data)
           ? res.data
           : Array.isArray((res.data as any)?.items)
-          ? (res.data as any).items
-          : [];
+            ? (res.data as any).items
+            : [];
         const normalized = list
           .filter((s: FlashSaleSlot) => (s.scope === 'PLATFORM' || !s.storeId))
           .map((s: FlashSaleSlot) => {
@@ -1020,11 +1020,10 @@ export function AdminFlashSaleView() {
 
           <button
             onClick={() => setIsCreateFormOpen(!isCreateFormOpen)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-xs shrink-0 cursor-pointer ${
-              isCreateFormOpen
-                ? "bg-gray-800 text-white hover:bg-gray-700"
-                : "bg-[#00875A] hover:bg-[#00734c] text-white"
-            }`}
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-xs shrink-0 cursor-pointer ${isCreateFormOpen
+              ? "bg-gray-800 text-white hover:bg-gray-700"
+              : "bg-[#00875A] hover:bg-[#00734c] text-white"
+              }`}
           >
             <span className="material-symbols-outlined text-[17px]">
               {isCreateFormOpen ? "expand_less" : "add_circle"}
@@ -1042,11 +1041,10 @@ export function AdminFlashSaleView() {
       <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
         <button
           onClick={() => setPrimaryViewMode('SLOTS')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-            primaryViewMode === 'SLOTS'
-              ? 'bg-[#00875A] text-white shadow-xs'
-              : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-          }`}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${primaryViewMode === 'SLOTS'
+            ? 'bg-[#00875A] text-white shadow-xs'
+            : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+            }`}
         >
           <span className="material-symbols-outlined text-[17px]">bolt</span>
           <span>Khung Giờ Flash Sale Toàn Sàn</span>
@@ -1054,11 +1052,10 @@ export function AdminFlashSaleView() {
 
         <button
           onClick={() => setPrimaryViewMode('PENALTY_ARBITRATION')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-            primaryViewMode === 'PENALTY_ARBITRATION'
-              ? 'bg-purple-700 text-white shadow-xs'
-              : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-          }`}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${primaryViewMode === 'PENALTY_ARBITRATION'
+            ? 'bg-purple-700 text-white shadow-xs'
+            : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+            }`}
         >
           <span className="material-symbols-outlined text-[17px]">stars</span>
           <span>Kiểm Soát Sao Quả Tạ & Thẩm Định Kháng Nghị</span>
@@ -1075,598 +1072,597 @@ export function AdminFlashSaleView() {
       ) : (
         <>
           {/* 2. 4 TOP KPI METRIC CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
-            <span className="material-symbols-outlined text-2xl">local_fire_department</span>
-          </div>
-          <div>
-            <span className="text-[11px] text-gray-500 font-medium">Phiên Đang Live</span>
-            <div className="text-xl font-black text-rose-600 font-mono mt-0.5">{stats.liveSessions}</div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-100">
-            <span className="material-symbols-outlined text-2xl">auto_stories</span>
-          </div>
-          <div>
-            <span className="text-[11px] text-gray-500 font-medium">Tổng Sách Khuyến Mãi</span>
-            <div className="text-xl font-black text-gray-900 font-mono mt-0.5">{stats.totalItems}</div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
-            <span className="material-symbols-outlined text-2xl">trending_up</span>
-          </div>
-          <div>
-            <span className="text-[11px] text-gray-500 font-medium">Số Cuốn Đã Bán</span>
-            <div className="text-xl font-black text-emerald-700 font-mono mt-0.5">{stats.totalSold.toLocaleString('vi-VN')}</div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 border border-blue-100">
-            <span className="material-symbols-outlined text-2xl">schedule</span>
-          </div>
-          <div>
-            <span className="text-[11px] text-gray-500 font-medium">Phiên Đã Lên Lịch</span>
-            <div className="text-xl font-black text-blue-700 font-mono mt-0.5">{stats.scheduledSessions}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. IN-PAGE CREATE FLASH SALE SLOT FORM (100% IN-PAGE, ZERO MODAL) */}
-      {isCreateFormOpen && (
-        <div className="bg-white rounded-3xl p-6 border-2 border-emerald-500/40 shadow-xl animate-in slide-in-from-top-4 duration-200">
-          <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold border border-rose-200">
-                <span className="material-symbols-outlined text-xl">bolt</span>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
+                <span className="material-symbols-outlined text-2xl">local_fire_department</span>
               </div>
               <div>
-                <h3 className="font-extrabold text-gray-900 text-base">
-                  Thiết Lập Khung Giờ Flash Sale Mới Toàn Sàn
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Khởi tạo phiên giờ vàng toàn sàn với bộ 4 mốc thời gian chuẩn và giới hạn số lượng Shop tham gia
-                </p>
+                <span className="text-[11px] text-gray-500 font-medium">Phiên Đang Live</span>
+                <div className="text-xl font-black text-rose-600 font-mono mt-0.5">{stats.liveSessions}</div>
               </div>
             </div>
 
-            <button
-              onClick={() => setIsCreateFormOpen(false)}
-              className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-lg">close</span>
-            </button>
+            <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-100">
+                <span className="material-symbols-outlined text-2xl">auto_stories</span>
+              </div>
+              <div>
+                <span className="text-[11px] text-gray-500 font-medium">Tổng Sách Khuyến Mãi</span>
+                <div className="text-xl font-black text-gray-900 font-mono mt-0.5">{stats.totalItems}</div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
+                <span className="material-symbols-outlined text-2xl">trending_up</span>
+              </div>
+              <div>
+                <span className="text-[11px] text-gray-500 font-medium">Số Cuốn Đã Bán</span>
+                <div className="text-xl font-black text-emerald-700 font-mono mt-0.5">{stats.totalSold.toLocaleString('vi-VN')}</div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 border border-blue-100">
+                <span className="material-symbols-outlined text-2xl">schedule</span>
+              </div>
+              <div>
+                <span className="text-[11px] text-gray-500 font-medium">Phiên Đã Lên Lịch</span>
+                <div className="text-xl font-black text-blue-700 font-mono mt-0.5">{stats.scheduledSessions}</div>
+              </div>
+            </div>
           </div>
 
-          <form onSubmit={handleCreateCampaign} className="space-y-4 pt-4 text-xs">
-            {/* Thông tin cơ bản */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-gray-700 font-bold mb-1">
-                  Tên Chương Trình / Sự Kiện <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="VD: Flash Sale Toàn Sàn Giờ Vàng 20:00 - 24:00"
-                  value={createForm.name}
-                  onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-bold text-xs focus:border-[#00875A] focus:outline-none"
-                />
-                {createErrors.name && (
-                  <p className="text-red-500 text-[10.5px] mt-1">{createErrors.name}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-bold mb-1">Mô Tả Chương Trình</label>
-                <input
-                  type="text"
-                  placeholder="VD: Săn sale sách best-seller giảm sâu tới 50%"
-                  value={createForm.description}
-                  onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 text-xs focus:border-[#00875A] focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-gray-700 font-bold">Ảnh Banner Khung Giờ</label>
-                  <button
-                    type="button"
-                    onClick={() => bannerFileInputRef.current?.click()}
-                    className="text-[11px] font-bold text-[#00875A] hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-sm">cloud_upload</span>
-                    <span>Tải ảnh từ máy</span>
-                  </button>
+          {/* 3. IN-PAGE CREATE FLASH SALE SLOT FORM (100% IN-PAGE, ZERO MODAL) */}
+          {isCreateFormOpen && (
+            <div className="bg-white rounded-3xl p-6 border-2 border-emerald-500/40 shadow-xl animate-in slide-in-from-top-4 duration-200">
+              <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold border border-rose-200">
+                    <span className="material-symbols-outlined text-xl">bolt</span>
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-gray-900 text-base">
+                      Thiết Lập Khung Giờ Flash Sale Mới Toàn Sàn
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Khởi tạo phiên giờ vàng toàn sàn với bộ 4 mốc thời gian chuẩn và giới hạn số lượng Shop tham gia
+                    </p>
+                  </div>
                 </div>
 
-                <input
-                  type="file"
-                  ref={bannerFileInputRef}
-                  accept="image/*"
-                  onChange={handleBannerFileUpload}
-                  className="hidden"
-                />
+                <button
+                  onClick={() => setIsCreateFormOpen(false)}
+                  className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
 
-                <div className="relative flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="https://... hoặc tải từ máy"
-                    value={createForm.bannerUrl}
-                    onChange={(e) => setCreateForm({ ...createForm, bannerUrl: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
-                  />
-                  {createForm.bannerUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setCreateForm({ ...createForm, bannerUrl: "" })}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-                      title="Xóa ảnh"
-                    >
-                      <span className="material-symbols-outlined text-sm">close</span>
-                    </button>
-                  )}
-                </div>
-
-                {createForm.bannerUrl && (
-                  <div className="mt-2 relative w-full h-20 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 shadow-2xs group">
-                    <img
-                      src={createForm.bannerUrl}
-                      alt="Banner Preview"
-                      className="w-full h-full object-cover"
+              <form onSubmit={handleCreateCampaign} className="space-y-4 pt-4 text-xs">
+                {/* Thông tin cơ bản */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">
+                      Tên Chương Trình / Sự Kiện <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="VD: Flash Sale Toàn Sàn Giờ Vàng 20:00 - 24:00"
+                      value={createForm.name}
+                      onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-bold text-xs focus:border-[#00875A] focus:outline-none"
                     />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white">
+                    {createErrors.name && (
+                      <p className="text-red-500 text-[10.5px] mt-1">{createErrors.name}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1">Mô Tả Chương Trình</label>
+                    <input
+                      type="text"
+                      placeholder="VD: Săn sale sách best-seller giảm sâu tới 50%"
+                      value={createForm.description}
+                      onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 text-xs focus:border-[#00875A] focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-gray-700 font-bold">Ảnh Banner Khung Giờ</label>
                       <button
                         type="button"
                         onClick={() => bannerFileInputRef.current?.click()}
-                        className="px-2 py-1 rounded bg-white/30 backdrop-blur-md text-[10.5px] font-bold hover:bg-white/50 cursor-pointer"
+                        className="text-[11px] font-bold text-[#00875A] hover:underline flex items-center gap-1 cursor-pointer"
                       >
-                        Đổi ảnh khác
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCreateForm({ ...createForm, bannerUrl: "" })}
-                        className="px-2 py-1 rounded bg-red-600/80 backdrop-blur-md text-[10.5px] font-bold hover:bg-red-600 cursor-pointer"
-                      >
-                        Gỡ ảnh
+                        <span className="material-symbols-outlined text-sm">cloud_upload</span>
+                        <span>Tải ảnh từ máy</span>
                       </button>
                     </div>
-                  </div>
-                )}
 
-                {createErrors.bannerUrl && (
-                  <p className="text-red-500 text-[10.5px] mt-1">{createErrors.bannerUrl}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Cấu hình Trợ Giá Sàn & Giới hạn mua mỗi khách hàng */}
-            <div className="p-3.5 bg-blue-50/60 rounded-2xl border border-blue-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-lg">percent</span>
-                </div>
-                <div>
-                  <h4 className="font-bold text-gray-900 text-xs">Mức Trợ Giá Sàn & Giới Hạn Mua / Khách</h4>
-                  <p className="text-[11px] text-gray-500">
-                    Sàn quy định % giảm (20% - 80%) và số lượng tối đa mỗi khách được mua cho toàn bộ sách trong đợt
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 shrink-0">
-                <div>
-                  <label className="block text-[11px] text-gray-600 font-bold mb-0.5">% Trợ Giá Sàn (20-80%)</label>
-                  <div className="relative">
                     <input
-                      type="number"
-                      min={20}
-                      max={80}
-                      value={createForm.discountPercent}
-                      onChange={(e) => setCreateForm({ ...createForm, discountPercent: Number(e.target.value) })}
-                      className="w-24 px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white font-mono font-bold text-xs text-center focus:border-[#00875A] focus:outline-none"
+                      type="file"
+                      ref={bannerFileInputRef}
+                      accept="image/*"
+                      onChange={handleBannerFileUpload}
+                      className="hidden"
                     />
-                    <span className="absolute right-2 top-1.5 text-gray-400 text-xs pointer-events-none">%</span>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[11px] text-gray-600 font-bold mb-0.5">Max/Khách (Tối thiểu 1)</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min={1}
-                      value={createForm.maxPerUser}
-                      onChange={(e) => setCreateForm({ ...createForm, maxPerUser: Number(e.target.value) })}
-                      className="w-24 px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white font-mono font-bold text-xs text-center focus:border-[#00875A] focus:outline-none"
-                    />
-                    <span className="absolute right-2 top-1.5 text-gray-400 text-[10px] pointer-events-none">cuốn</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            {(createErrors.discountPercent || createErrors.maxPerUser) && (
-              <p className="text-red-500 text-[10.5px]">{createErrors.discountPercent || createErrors.maxPerUser}</p>
-            )}
 
-            {/* Giới hạn số lượng cửa hàng tham gia */}
-            <div className="p-3.5 bg-emerald-50/60 rounded-2xl border border-emerald-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-lg">storefront</span>
-                </div>
-                <div>
-                  <h4 className="font-bold text-gray-900 text-xs">Giới Hạn Số Lượng Cửa Hàng Tham Gia (Shop Quota)</h4>
-                  <p className="text-[11px] text-gray-500">
-                    Quy chuẩn sàn: Tối thiểu 1 Shop, tối đa 10 Shop tham gia vào đợt Flash Sale này
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 shrink-0">
-                <div>
-                  <label className="block text-[11px] text-gray-600 font-bold mb-0.5">Tối thiểu (Shop)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={10}
-                    value={createForm.minStores}
-                    onChange={(e) => setCreateForm({ ...createForm, minStores: Number(e.target.value) })}
-                    className="w-20 px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white font-mono font-bold text-xs text-center focus:border-[#00875A] focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-gray-600 font-bold mb-0.5">Tối đa (Shop)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={10}
-                    value={createForm.maxStores}
-                    onChange={(e) => setCreateForm({ ...createForm, maxStores: Number(e.target.value) })}
-                    className="w-20 px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white font-mono font-bold text-xs text-center focus:border-[#00875A] focus:outline-none"
-                  />
-                </div>
-              </div>
-            </div>
-            {(createErrors.minStores || createErrors.maxStores) && (
-              <p className="text-red-500 text-[10.5px]">{createErrors.minStores || createErrors.maxStores}</p>
-            )}
-
-            {/* Bộ 4 mốc thời gian */}
-            <div className="p-4 bg-gray-50/80 rounded-2xl border border-gray-200/80 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-gray-800 text-xs flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-sm text-[#00875A]">schedule</span>
-                  <span>Thiết Lập Bộ 4 Mốc Thời Gian Chuẩn Cho Sàn</span>
-                </span>
-                <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200/60 font-medium">
-                   2 phút đệm công bố teaser cho khách hàng giữa Đóng ĐK & Mở Bán
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-gray-700 font-bold mb-1">
-                    1. Mở Đăng Ký Cho Shop <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={createForm.registrationStartsAt}
-                    onChange={(e) => setCreateForm({ ...createForm, registrationStartsAt: e.target.value })}
-                    className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
-                  />
-                  {createErrors.registrationStartsAt && (
-                    <p className="text-red-500 text-[10px] mt-0.5">{createErrors.registrationStartsAt}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-gray-700 font-bold mb-1">
-                    2. Đóng Cổng Đăng Ký <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={createForm.registrationEndsAt}
-                    onChange={(e) => {
-                      const newRegEnd = e.target.value;
-                      const regEndTime = new Date(newRegEnd).getTime();
-                      const currentStartTime = new Date(createForm.startsAt).getTime();
-                      let updatedStartsAt = createForm.startsAt;
-                      if (currentStartTime < regEndTime + 120000) {
-                        updatedStartsAt = new Date(regEndTime + 120000).toISOString().slice(0, 16);
-                      }
-                      setCreateForm({
-                        ...createForm,
-                        registrationEndsAt: newRegEnd,
-                        startsAt: updatedStartsAt,
-                      });
-                    }}
-                    className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
-                  />
-                  {createErrors.registrationEndsAt && (
-                    <p className="text-red-500 text-[10px] mt-0.5">{createErrors.registrationEndsAt}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-gray-700 font-bold mb-1">
-                    3. Bắt Đầu Mở Bán <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={createForm.startsAt}
-                    onChange={(e) => setCreateForm({ ...createForm, startsAt: e.target.value })}
-                    className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
-                  />
-                  {createErrors.startsAt && (
-                    <p className="text-red-500 text-[10px] mt-0.5">{createErrors.startsAt}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-gray-700 font-bold mb-1">
-                    4. Kết Thúc Flash Sale <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={createForm.endsAt}
-                    onChange={(e) => setCreateForm({ ...createForm, endsAt: e.target.value })}
-                    className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
-                  />
-                  {createErrors.endsAt && (
-                    <p className="text-red-500 text-[10px] mt-0.5">{createErrors.endsAt}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setIsCreateFormOpen(false)}
-                className="px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold text-xs cursor-pointer"
-              >
-                Hủy Bỏ
-              </button>
-              <button
-                type="submit"
-                disabled={submittingCreate}
-                className="px-5 py-2 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
-              >
-                {submittingCreate ? (
-                  <>
-                    <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-                    <span>Đang Khởi Tạo...</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-sm">bolt</span>
-                    <span>Tạo Khung Giờ Flash Sale Sàn</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* 4. FILTER & SEARCH TOOLBAR */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-[#E2E8F0] shadow-2xs">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-          {[
-            { id: 'ALL', label: 'Tất Cả Phiên', count: flashSales.length },
-            { id: 'ACTIVE', label: 'Đang Diễn Ra (Live)', count: stats.liveSessions },
-            { id: 'SCHEDULED', label: 'Sắp Diễn Ra', count: stats.scheduledSessions },
-            { id: 'ENDED', label: 'Đã Kết Thúc', count: flashSales.filter((s) => s.status === 'ENDED').length },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === tab.id
-                  ? "bg-[#00875A] text-white shadow-xs"
-                  : "bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200"
-              }`}
-            >
-              <span>{tab.label}</span>
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700'}`}>
-                {tab.count}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <div className="relative w-full sm:w-64">
-          <input
-            type="text"
-            placeholder="Tìm theo tên khung giờ..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-gray-200 text-xs focus:outline-none focus:border-[#00875A]"
-          />
-          <span className="material-symbols-outlined absolute left-2.5 top-2 text-gray-400 text-sm">
-            search
-          </span>
-        </div>
-      </div>
-
-
-      {/* 6. STANDARDIZED GROUPED DATA TABLE (1-1 SYNC WITH SELLER FLASH SALE) */}
-      <div className="w-full max-w-full min-w-0">
-        <GroupedDataTable<FlashSaleSlot>
-          columns={sessionColumns}
-          data={sortedFlashSales}
-          keyField="id"
-          loading={loading}
-          emptyTitle="Chưa có khung giờ Flash Sale nào trong mục này"
-          emptyMessage='Bấm "+ Thiết Lập Khung Giờ Mới Toàn Sàn" để mở phiên giờ vàng đầu tiên!'
-          emptyIcon="bolt"
-          pagination={{
-            currentPage,
-            totalItems: sortedFlashSales.length,
-            pageSize,
-            onPageChange: setCurrentPage,
-            itemLabel: 'phiên Flash Sale',
-          }}
-          expandable={true}
-          expandedRowKeys={expandedRowKeys}
-          onExpandedRowsChange={setExpandedRowKeys}
-          expandedRowRender={(slot) => {
-            const items = slot.items || [];
-            if (items.length === 0) {
-              return (
-                <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-200/70 text-xs text-slate-500">
-                  Chưa có gian hàng nào đăng ký sách vào khung giờ này. Seller sẽ tự chọn sách tham gia tại Kênh Người Bán trước hạn chót đăng ký.
-                </div>
-              );
-            }
-
-            return (
-              <div className="bg-white rounded-2xl border border-slate-200/80 overflow-x-auto shadow-2xs">
-                <table className="w-full text-left text-xs border-collapse min-w-[920px]">
-                  <thead className="bg-[#003B2B] text-[10.5px] font-bold text-white uppercase tracking-wider border-b border-[#00281D]">
-                    <tr>
-                      <th className="py-2.5 px-3 whitespace-nowrap w-12 text-center">STT</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap">Tác phẩm &amp; Mã</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap text-right">Giá Gốc</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap text-right">Giá Flash Sale</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap text-center">Giảm Giá</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap text-center">Tồn kho KM</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap">Tiến Độ Bán</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap text-center">Hạn Mức/Khách</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap text-right">Thao tác</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {items.map((item: any, idx: number) => {
-                      const isEditing = editingRowId === item.id;
-                      const displayTitle = item.bookTitle || item.book?.title || `Sách #${String(item.bookId || '').slice(0, 8)}`;
-                      return (
-                        <tr
-                          key={item.id}
-                          className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}
+                    <div className="relative flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="https://... hoặc tải từ máy"
+                        value={createForm.bannerUrl}
+                        onChange={(e) => setCreateForm({ ...createForm, bannerUrl: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
+                      />
+                      {createForm.bannerUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setCreateForm({ ...createForm, bannerUrl: "" })}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                          title="Xóa ảnh"
                         >
-                          <td className="py-2.5 px-3 whitespace-nowrap text-center font-mono text-[11px] text-gray-400">
-                            {idx + 1}
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <span className="font-bold text-gray-900 block break-words line-clamp-2 leading-snug">
-                              {displayTitle}
-                            </span>
-                            <span className="font-mono text-[10px] text-gray-400">
-                              Mã: #{String(item.bookId || '').slice(0, 8)}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-3 whitespace-nowrap text-right text-gray-400 line-through font-mono">
-                            {Number(item.originalPrice || 0).toLocaleString("vi-VN")}₫
-                          </td>
-                          <td className="py-2.5 px-3 whitespace-nowrap text-right font-extrabold text-rose-600 font-mono">
-                            {Number(item.salePrice || 0).toLocaleString("vi-VN")}₫
-                          </td>
-                          <td className="py-2.5 px-3 whitespace-nowrap text-center font-bold text-emerald-600">
-                            -{item.discountPercent ?? slot.discountPercent ?? 0}%
-                          </td>
-                          <td className="py-2.5 px-3 whitespace-nowrap text-center font-semibold text-gray-800">
-                            {isEditing ? (
-                              <input
-                                type="number"
-                                value={editingRowData?.stock ?? 0}
-                                onChange={(e) =>
-                                  setEditingRowData((prev) =>
-                                    prev ? { ...prev, stock: Number(e.target.value) } : null,
-                                  )
-                                }
-                                className="w-20 px-2 py-1 rounded border border-emerald-500 font-mono font-bold text-center"
-                              />
-                            ) : (
-                              <span>{item.stock} cuốn</span>
-                            )}
-                          </td>
-                          <td className="py-2.5 px-3 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <div className="w-20 bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                                <div
-                                  className="bg-rose-500 h-full rounded-full"
-                                  style={{ width: `${item.soldPercent || 0}%` }}
-                                ></div>
-                              </div>
-                              <span className="text-[11px] font-bold text-gray-700">
-                                {item.sold || 0} đã bán
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-2.5 px-3 whitespace-nowrap text-center">
-                            <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold text-[10.5px] border border-amber-200">
-                              Max {item.maxPerUser || 1} cuốn
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-3 whitespace-nowrap text-right">
-                            {isEditing ? (
-                              <div className="flex items-center justify-end gap-1">
-                                <button
-                                  type="button"
-                                  disabled={savingRowId === item.id}
-                                  onClick={() => handleSaveInlineEdit(item.id)}
-                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded text-[11px] font-bold cursor-pointer inline-flex items-center gap-1"
-                                >
-                                  {savingRowId === item.id ? "Đang lưu..." : "Lưu"}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingRowId(null);
-                                    setEditingRowData(null);
-                                  }}
-                                  className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-[11px] cursor-pointer"
-                                >
-                                  Hủy
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-end gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingRowId(item.id);
-                                    setEditingRowData({
-                                      salePrice: item.salePrice,
-                                      stock: item.stock,
-                                      maxPerUser: item.maxPerUser,
-                                    });
-                                  }}
-                                  className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold cursor-pointer"
-                                >
-                                  Sửa Tồn
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveItem(item.id, displayTitle)}
-                                  title="Xóa sách này khỏi khung giờ Flash Sale (Trả về nguyên bản)"
-                                  className="px-2 py-1 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold cursor-pointer transition-colors inline-flex items-center gap-0.5"
-                                >
-                                  <span className="material-symbols-outlined text-[13px]">delete</span>
-                                  <span>Xóa</span>
-                                </button>
-                              </div>
-                            )}
-                          </td>
+                          <span className="material-symbols-outlined text-sm">close</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {createForm.bannerUrl && (
+                      <div className="mt-2 relative w-full h-20 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 shadow-2xs group">
+                        <img
+                          src={createForm.bannerUrl}
+                          alt="Banner Preview"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white">
+                          <button
+                            type="button"
+                            onClick={() => bannerFileInputRef.current?.click()}
+                            className="px-2 py-1 rounded bg-white/30 backdrop-blur-md text-[10.5px] font-bold hover:bg-white/50 cursor-pointer"
+                          >
+                            Đổi ảnh khác
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCreateForm({ ...createForm, bannerUrl: "" })}
+                            className="px-2 py-1 rounded bg-red-600/80 backdrop-blur-md text-[10.5px] font-bold hover:bg-red-600 cursor-pointer"
+                          >
+                            Gỡ ảnh
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {createErrors.bannerUrl && (
+                      <p className="text-red-500 text-[10.5px] mt-1">{createErrors.bannerUrl}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Cấu hình Trợ Giá Sàn & Giới hạn mua mỗi khách hàng */}
+                <div className="p-3.5 bg-blue-50/60 rounded-2xl border border-blue-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
+                      <span className="material-symbols-outlined text-lg">percent</span>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900 text-xs">Mức Trợ Giá Sàn & Giới Hạn Mua / Khách</h4>
+                      <p className="text-[11px] text-gray-500">
+                        Sàn quy định % giảm (20% - 80%) và số lượng tối đa mỗi khách được mua cho toàn bộ sách trong đợt
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div>
+                      <label className="block text-[11px] text-gray-600 font-bold mb-0.5">% Trợ Giá Sàn (20-80%)</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={20}
+                          max={80}
+                          value={createForm.discountPercent}
+                          onChange={(e) => setCreateForm({ ...createForm, discountPercent: Number(e.target.value) })}
+                          className="w-24 px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white font-mono font-bold text-xs text-center focus:border-[#00875A] focus:outline-none"
+                        />
+                        <span className="absolute right-2 top-1.5 text-gray-400 text-xs pointer-events-none">%</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-gray-600 font-bold mb-0.5">Max/Khách (Tối thiểu 1)</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={1}
+                          value={createForm.maxPerUser}
+                          onChange={(e) => setCreateForm({ ...createForm, maxPerUser: Number(e.target.value) })}
+                          className="w-24 px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white font-mono font-bold text-xs text-center focus:border-[#00875A] focus:outline-none"
+                        />
+                        <span className="absolute right-2 top-1.5 text-gray-400 text-[10px] pointer-events-none">cuốn</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {(createErrors.discountPercent || createErrors.maxPerUser) && (
+                  <p className="text-red-500 text-[10.5px]">{createErrors.discountPercent || createErrors.maxPerUser}</p>
+                )}
+
+                {/* Giới hạn số lượng cửa hàng tham gia */}
+                <div className="p-3.5 bg-emerald-50/60 rounded-2xl border border-emerald-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                      <span className="material-symbols-outlined text-lg">storefront</span>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900 text-xs">Giới Hạn Số Lượng Cửa Hàng Tham Gia (Shop Quota)</h4>
+                      <p className="text-[11px] text-gray-500">
+                        Quy chuẩn sàn: Tối thiểu 1 Shop, tối đa 10 Shop tham gia vào đợt Flash Sale này
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div>
+                      <label className="block text-[11px] text-gray-600 font-bold mb-0.5">Tối thiểu (Shop)</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={createForm.minStores}
+                        onChange={(e) => setCreateForm({ ...createForm, minStores: Number(e.target.value) })}
+                        className="w-20 px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white font-mono font-bold text-xs text-center focus:border-[#00875A] focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-gray-600 font-bold mb-0.5">Tối đa (Shop)</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={createForm.maxStores}
+                        onChange={(e) => setCreateForm({ ...createForm, maxStores: Number(e.target.value) })}
+                        className="w-20 px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white font-mono font-bold text-xs text-center focus:border-[#00875A] focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+                {(createErrors.minStores || createErrors.maxStores) && (
+                  <p className="text-red-500 text-[10.5px]">{createErrors.minStores || createErrors.maxStores}</p>
+                )}
+
+                {/* Bộ 4 mốc thời gian */}
+                <div className="p-4 bg-gray-50/80 rounded-2xl border border-gray-200/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-gray-800 text-xs flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-sm text-[#00875A]">schedule</span>
+                      <span>Thiết Lập Bộ 4 Mốc Thời Gian Chuẩn Cho Sàn</span>
+                    </span>
+                    <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200/60 font-medium">
+                      2 phút đệm công bố teaser cho khách hàng giữa Đóng ĐK & Mở Bán
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-gray-700 font-bold mb-1">
+                        1. Mở Đăng Ký Cho Shop <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={createForm.registrationStartsAt}
+                        onChange={(e) => setCreateForm({ ...createForm, registrationStartsAt: e.target.value })}
+                        className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
+                      />
+                      {createErrors.registrationStartsAt && (
+                        <p className="text-red-500 text-[10px] mt-0.5">{createErrors.registrationStartsAt}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-700 font-bold mb-1">
+                        2. Đóng Cổng Đăng Ký <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={createForm.registrationEndsAt}
+                        onChange={(e) => {
+                          const newRegEnd = e.target.value;
+                          const regEndTime = new Date(newRegEnd).getTime();
+                          const currentStartTime = new Date(createForm.startsAt).getTime();
+                          let updatedStartsAt = createForm.startsAt;
+                          if (currentStartTime < regEndTime + 120000) {
+                            updatedStartsAt = new Date(regEndTime + 120000).toISOString().slice(0, 16);
+                          }
+                          setCreateForm({
+                            ...createForm,
+                            registrationEndsAt: newRegEnd,
+                            startsAt: updatedStartsAt,
+                          });
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
+                      />
+                      {createErrors.registrationEndsAt && (
+                        <p className="text-red-500 text-[10px] mt-0.5">{createErrors.registrationEndsAt}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-700 font-bold mb-1">
+                        3. Bắt Đầu Mở Bán <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={createForm.startsAt}
+                        onChange={(e) => setCreateForm({ ...createForm, startsAt: e.target.value })}
+                        className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
+                      />
+                      {createErrors.startsAt && (
+                        <p className="text-red-500 text-[10px] mt-0.5">{createErrors.startsAt}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-700 font-bold mb-1">
+                        4. Kết Thúc Flash Sale <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={createForm.endsAt}
+                        onChange={(e) => setCreateForm({ ...createForm, endsAt: e.target.value })}
+                        className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
+                      />
+                      {createErrors.endsAt && (
+                        <p className="text-red-500 text-[10px] mt-0.5">{createErrors.endsAt}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateFormOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold text-xs cursor-pointer"
+                  >
+                    Hủy Bỏ
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingCreate}
+                    className="px-5 py-2 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                  >
+                    {submittingCreate ? (
+                      <>
+                        <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                        <span>Đang Khởi Tạo...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-sm">bolt</span>
+                        <span>Tạo Khung Giờ Flash Sale Sàn</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* 4. FILTER & SEARCH TOOLBAR */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-[#E2E8F0] shadow-2xs">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+              {[
+                { id: 'ALL', label: 'Tất Cả Phiên', count: flashSales.length },
+                { id: 'ACTIVE', label: 'Đang Diễn Ra (Live)', count: stats.liveSessions },
+                { id: 'SCHEDULED', label: 'Sắp Diễn Ra', count: stats.scheduledSessions },
+                { id: 'ENDED', label: 'Đã Kết Thúc', count: flashSales.filter((s) => s.status === 'ENDED').length },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === tab.id
+                    ? "bg-[#00875A] text-white shadow-xs"
+                    : "bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200"
+                    }`}
+                >
+                  <span>{tab.label}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700'}`}>
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-full sm:w-64">
+              <input
+                type="text"
+                placeholder="Tìm theo tên khung giờ..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-gray-200 text-xs focus:outline-none focus:border-[#00875A]"
+              />
+              <span className="material-symbols-outlined absolute left-2.5 top-2 text-gray-400 text-sm">
+                search
+              </span>
+            </div>
+          </div>
+
+
+          {/* 6. STANDARDIZED GROUPED DATA TABLE (1-1 SYNC WITH SELLER FLASH SALE) */}
+          <div className="w-full max-w-full min-w-0">
+            <GroupedDataTable<FlashSaleSlot>
+              columns={sessionColumns}
+              data={sortedFlashSales}
+              keyField="id"
+              loading={loading}
+              emptyTitle="Chưa có khung giờ Flash Sale nào trong mục này"
+              emptyMessage='Bấm "+ Thiết Lập Khung Giờ Mới Toàn Sàn" để mở phiên giờ vàng đầu tiên!'
+              emptyIcon="bolt"
+              pagination={{
+                currentPage,
+                totalItems: sortedFlashSales.length,
+                pageSize,
+                onPageChange: setCurrentPage,
+                itemLabel: 'phiên Flash Sale',
+              }}
+              expandable={true}
+              expandedRowKeys={expandedRowKeys}
+              onExpandedRowsChange={setExpandedRowKeys}
+              expandedRowRender={(slot) => {
+                const items = slot.items || [];
+                if (items.length === 0) {
+                  return (
+                    <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-200/70 text-xs text-slate-500">
+                      Chưa có gian hàng nào đăng ký sách vào khung giờ này. Seller sẽ tự chọn sách tham gia tại Kênh Người Bán trước hạn chót đăng ký.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="bg-white rounded-2xl border border-slate-200/80 overflow-x-auto shadow-2xs">
+                    <table className="w-full text-left text-xs border-collapse min-w-[920px]">
+                      <thead className="bg-[#003B2B] text-[10.5px] font-bold text-white uppercase tracking-wider border-b border-[#00281D]">
+                        <tr>
+                          <th className="py-2.5 px-3 whitespace-nowrap w-12 text-center">STT</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap">Tác phẩm &amp; Mã</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap text-right">Giá Gốc</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap text-right">Giá Flash Sale</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap text-center">Giảm Giá</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap text-center">Tồn kho KM</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap">Tiến Độ Bán</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap text-center">Hạn Mức/Khách</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap text-right">Thao tác</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            );
-          }}
-        />
-      </div>
-    </>
-  )}
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {items.map((item: any, idx: number) => {
+                          const isEditing = editingRowId === item.id;
+                          const displayTitle = item.bookTitle || item.book?.title || `Sách #${String(item.bookId || '').slice(0, 8)}`;
+                          return (
+                            <tr
+                              key={item.id}
+                              className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}
+                            >
+                              <td className="py-2.5 px-3 whitespace-nowrap text-center font-mono text-[11px] text-gray-400">
+                                {idx + 1}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <span className="font-bold text-gray-900 block break-words line-clamp-2 leading-snug">
+                                  {displayTitle}
+                                </span>
+                                <span className="font-mono text-[10px] text-gray-400">
+                                  Mã: #{String(item.bookId || '').slice(0, 8)}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 whitespace-nowrap text-right text-gray-400 line-through font-mono">
+                                {Number(item.originalPrice || 0).toLocaleString("vi-VN")}₫
+                              </td>
+                              <td className="py-2.5 px-3 whitespace-nowrap text-right font-extrabold text-rose-600 font-mono">
+                                {Number(item.salePrice || 0).toLocaleString("vi-VN")}₫
+                              </td>
+                              <td className="py-2.5 px-3 whitespace-nowrap text-center font-bold text-emerald-600">
+                                -{item.discountPercent ?? slot.discountPercent ?? 0}%
+                              </td>
+                              <td className="py-2.5 px-3 whitespace-nowrap text-center font-semibold text-gray-800">
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    value={editingRowData?.stock ?? 0}
+                                    onChange={(e) =>
+                                      setEditingRowData((prev) =>
+                                        prev ? { ...prev, stock: Number(e.target.value) } : null,
+                                      )
+                                    }
+                                    className="w-20 px-2 py-1 rounded border border-emerald-500 font-mono font-bold text-center"
+                                  />
+                                ) : (
+                                  <span>{item.stock} cuốn</span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-20 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                    <div
+                                      className="bg-rose-500 h-full rounded-full"
+                                      style={{ width: `${item.soldPercent || 0}%` }}
+                                    ></div>
+                                  </div>
+                                  <span className="text-[11px] font-bold text-gray-700">
+                                    {item.sold || 0} đã bán
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3 whitespace-nowrap text-center">
+                                <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold text-[10.5px] border border-amber-200">
+                                  Max {item.maxPerUser || 1} cuốn
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 whitespace-nowrap text-right">
+                                {isEditing ? (
+                                  <div className="flex items-center justify-end gap-1">
+                                    <button
+                                      type="button"
+                                      disabled={savingRowId === item.id}
+                                      onClick={() => handleSaveInlineEdit(item.id)}
+                                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded text-[11px] font-bold cursor-pointer inline-flex items-center gap-1"
+                                    >
+                                      {savingRowId === item.id ? "Đang lưu..." : "Lưu"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingRowId(null);
+                                        setEditingRowData(null);
+                                      }}
+                                      className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-[11px] cursor-pointer"
+                                    >
+                                      Hủy
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingRowId(item.id);
+                                        setEditingRowData({
+                                          salePrice: item.salePrice,
+                                          stock: item.stock,
+                                          maxPerUser: item.maxPerUser,
+                                        });
+                                      }}
+                                      className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold cursor-pointer"
+                                    >
+                                      Sửa Tồn
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveItem(item.id, displayTitle)}
+                                      title="Xóa sách này khỏi khung giờ Flash Sale (Trả về nguyên bản)"
+                                      className="px-2 py-1 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold cursor-pointer transition-colors inline-flex items-center gap-0.5"
+                                    >
+                                      <span className="material-symbols-outlined text-[13px]">delete</span>
+                                      <span>Xóa</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              }}
+            />
+          </div>
+        </>
+      )}
       {/* MODAL XÁC NHẬN KẾT THÚC SỚM (5 PHÚT) */}
       {endEarlyModalSlot && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
@@ -1699,8 +1695,8 @@ export function AdminFlashSaleView() {
                   <span>Quy trình đóng phiên an toàn (Chuẩn TMĐT)</span>
                 </div>
                 <p className="text-[11px] text-gray-600 leading-relaxed">
-                  • <strong>Người mua</strong>: Nhận thông báo đếm ngược 5 phút để hoàn tất thanh toán giỏ hàng.<br/>
-                  • <strong>Shop tham gia</strong>: Nhận thông báo phiên sắp đóng để chốt các đơn hàng phát sinh.<br/>
+                  • <strong>Người mua</strong>: Nhận thông báo đếm ngược 5 phút để hoàn tất thanh toán giỏ hàng.<br />
+                  • <strong>Shop tham gia</strong>: Nhận thông báo phiên sắp đóng để chốt các đơn hàng phát sinh.<br />
                   • <strong>Sau 5 phút</strong>: Khung giờ tự động kết thúc vĩnh viễn (ĐÃ KẾT THÚC), giá sách quay về niêm yết.
                 </p>
               </div>

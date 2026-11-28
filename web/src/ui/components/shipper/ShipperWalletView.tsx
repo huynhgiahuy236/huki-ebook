@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useShipper, WalletTransaction } from '@/ui/context/ShipperContext';
+import { useToast } from '@/ui/context/ToastContext';
 import {
   DataTableFilterBar,
   DataTableBulkActionBar,
@@ -13,6 +14,7 @@ import {
 import GroupedDataTable, { Column, StandardPaginationBar } from '../common/GroupedDataTable';
 
 export default function ShipperWalletView() {
+  const { showToast } = useToast();
   const { wallet, transactions, requestWithdrawal } = useShipper();
 
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -119,7 +121,7 @@ export default function ShipperWalletView() {
     setBulkLoading(true);
     try {
       if (action === 'EXPORT_EXCEL') {
-        alert(`Đã xuất sao kê ${selectedCount} giao dịch sang Excel thành công!`);
+        showToast(`Đã xuất sao kê ${selectedCount} giao dịch sang Excel thành công!`, 'success');
       } else if (action === 'PRINT_REPORTS') {
         window.print();
       }

@@ -516,9 +516,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                     <button
                       type="button"
                       onClick={() => toggleSection(sec.group)}
-                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer select-none ${
-                        hasActiveChild ? 'text-white bg-white/10' : 'text-white/60 hover:text-white hover:bg-white/5'
-                      }`}
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer select-none ${hasActiveChild ? 'text-white bg-white/10' : 'text-white/60 hover:text-white hover:bg-white/5'
+                        }`}
                       title={`Bấm để ${isSectionOpen ? 'thu gọn' : 'mở rộng'} ${sec.group}`}
                     >
                       <div className="flex items-center gap-1.5 truncate">
@@ -572,11 +571,10 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                               <div className="flex items-center justify-center py-0.5">
                                 <Link
                                   href={item.to}
-                                  className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150 relative shrink-0 ${
-                                    isActive
-                                      ? 'bg-white text-[#003B2B] shadow-sm font-bold border border-white/40'
-                                      : 'text-white/80 hover:bg-white/15 hover:text-white border border-transparent'
-                                  }`}
+                                  className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150 relative shrink-0 ${isActive
+                                    ? 'bg-white text-[#003B2B] shadow-sm font-bold border border-white/40'
+                                    : 'text-white/80 hover:bg-white/15 hover:text-white border border-transparent'
+                                    }`}
                                 >
                                   <span className="material-symbols-outlined text-[19px] shrink-0">{item.icon}</span>
                                   {item.count && (
@@ -597,17 +595,15 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                               /* Expanded Clean Item View */
                               <Link
                                 href={item.to}
-                                className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-all duration-150 shrink-0 ${
-                                  isActive
-                                    ? 'bg-white text-[#003B2B] font-bold shadow-sm border border-white/40'
-                                    : 'text-white/85 font-medium hover:bg-white/15 hover:text-white border border-transparent'
-                                }`}
+                                className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-all duration-150 shrink-0 ${isActive
+                                  ? 'bg-white text-[#003B2B] font-bold shadow-sm border border-white/40'
+                                  : 'text-white/85 font-medium hover:bg-white/15 hover:text-white border border-transparent'
+                                  }`}
                               >
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
                                   <span
-                                    className={`material-symbols-outlined text-[18px] shrink-0 ${
-                                      isActive ? 'text-[#003B2B] font-bold' : 'text-white/75 group-hover:text-white'
-                                    }`}
+                                    className={`material-symbols-outlined text-[18px] shrink-0 ${isActive ? 'text-[#003B2B] font-bold' : 'text-white/75 group-hover:text-white'
+                                      }`}
                                   >
                                     {item.icon}
                                   </span>
@@ -615,9 +611,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                                 </div>
                                 {item.count && (
                                   <span
-                                    className={`text-[9px] px-1.5 py-0.2 rounded-full font-black whitespace-nowrap shrink-0 ${
-                                      item.badgeColor || (isActive ? 'bg-[#003B2B]/15 text-[#003B2B]' : 'bg-rose-500 text-white animate-pulse')
-                                    }`}
+                                    className={`text-[9px] px-1.5 py-0.2 rounded-full font-black whitespace-nowrap shrink-0 ${item.badgeColor || (isActive ? 'bg-[#003B2B]/15 text-[#003B2B]' : 'bg-rose-500 text-white animate-pulse')
+                                      }`}
                                   >
                                     {item.count}
                                   </span>
@@ -641,9 +636,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               target="_blank"
               rel="noopener noreferrer"
               title="Mở trang chủ Sàn HuKi trong tab mới"
-              className={`w-full flex items-center rounded-lg text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 transition-colors ${
-                isSidebarCollapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2'
-              }`}
+              className={`w-full flex items-center rounded-lg text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 transition-colors ${isSidebarCollapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2'
+                }`}
             >
               <span className="material-symbols-outlined text-[18px] shrink-0 text-white/75">storefront</span>
               {!isSidebarCollapsed && <span>Xem Sàn</span>}
@@ -653,9 +647,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               onClick={handleLogout}
               title="Đăng xuất"
               aria-label="Đăng xuất"
-              className={`w-full flex items-center rounded-lg text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer ${
-                isSidebarCollapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2'
-              }`}
+              className={`w-full flex items-center rounded-lg text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer ${isSidebarCollapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2'
+                }`}
             >
               <span className="material-symbols-outlined text-[18px] shrink-0 text-white/75">logout</span>
               {!isSidebarCollapsed && <span>Đăng xuất</span>}
@@ -714,9 +707,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                       <button
                         type="button"
                         onClick={() => toggleSection(sec.group)}
-                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[9px] font-extrabold uppercase tracking-widest text-left ${
-                          hasActiveChild ? 'text-white bg-white/15' : 'text-white/60 hover:text-white'
-                        }`}
+                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[9px] font-extrabold uppercase tracking-widest text-left ${hasActiveChild ? 'text-white bg-white/15' : 'text-white/60 hover:text-white'
+                          }`}
                       >
                         <div className="flex items-center gap-1.5">
                           <span className="material-symbols-outlined text-[14px]">{sec.icon}</span>
@@ -736,11 +728,10 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                                 key={iIdx}
                                 href={item.to}
                                 onClick={() => setIsMobileMenuOpen(false)}
-                                className={`flex items-center justify-between px-2.5 h-9 rounded-xl text-xs font-semibold transition-all ${
-                                  isActive
-                                    ? 'bg-white text-[#003B2B] shadow-xs font-bold'
-                                    : 'text-white/80 hover:bg-white/10 hover:text-white'
-                                }`}
+                                className={`flex items-center justify-between px-2.5 h-9 rounded-xl text-xs font-semibold transition-all ${isActive
+                                  ? 'bg-white text-[#003B2B] shadow-xs font-bold'
+                                  : 'text-white/80 hover:bg-white/10 hover:text-white'
+                                  }`}
                               >
                                 <div className="flex items-center gap-2">
                                   <span className={`material-symbols-outlined text-[17px] ${isActive ? 'text-[#003B2B]' : 'text-white/70'}`}>

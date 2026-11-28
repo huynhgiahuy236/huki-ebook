@@ -5,6 +5,7 @@ import { useToast } from "../../context/ToastContext";
 import { AdminStatusBadge } from './AdminUI';
 import { bannerApi, BannerData } from '@/ui/api/bannerApi';
 import { compressImageToDataUrl, sanitizeImageUrl } from '@/ui/utils/imageUtils';
+import CountdownConfirmModal from '../common/CountdownConfirmModal';
 
 export type BannerSlot = 'HERO_SLIDER' | 'SUB_TOP' | 'SUB_BOTTOM';
 
@@ -448,17 +449,30 @@ export function AdminMarketingView() {
       const existingConflict = banners.find(
         (b) => b.order === finalPosition && b.id !== editingBannerId && b.status === 'active'
       );
+      if (existingConflict && !skipConflictConfirmRef.current) {
+        setMarketingConfirm({
+          type: 'REPLACE',
+          title: 'Xác nhận thay thế banner đang kích hoạt',
+          description: `Vị trí "${slotLabel}" hiện đã có banner "${existingConflict.title}". Thay thế sẽ tự động chuyển banner cũ sang trạng thái Ẩn.`,
+          confirmLabel: 'Thay thế banner',
+          onConfirm: () => {
+            skipConflictConfirmRef.current = true;
+            setMarketingConfirm(null);
+            const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+            handleSubmitBanner(fakeEvent);
+          },
+        });
+        return;
+      }
       if (existingConflict) {
-        const replaceOk = window.confirm(
-          `Vị trí "${slotLabel}" hiện đã có banner đang kích hoạt: "${existingConflict.title}".\n\nBạn có muốn thay thế banner cũ bằng banner này không? (Banner cũ sẽ tự động được chuyển sang trạng thái Ẩn để tránh chồng đè)`
-        );
-        if (!replaceOk) return;
+        skipConflictConfirmRef.current = false;
         updatedList = updatedList.map((b) =>
           b.id === existingConflict.id ? { ...b, status: 'hidden' as const } : b
         );
         bannerApi.updateBanner(existingConflict.id, { isActive: false }).catch(() => {});
       }
     }
+    skipConflictConfirmRef.current = false;
 
     setIsSubmittingBanner(true);
     try {
@@ -552,25 +566,42 @@ export function AdminMarketingView() {
     }
   };
 
+  const skipConflictConfirmRef = useRef(false);
+  const [marketingConfirm, setMarketingConfirm] = useState<{
+    type: 'REPLACE' | 'DELETE';
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
+
   // Xóa banner (Persist Database & Realtime Broadcast)
   const handleDeleteBanner = (id: string) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa vĩnh viễn banner này?")) return;
-    bannerApi.deleteBanner(id).catch((err) => {
-      console.warn("[AdminMarketing] Delete API warning:", err);
+    setMarketingConfirm({
+      type: 'DELETE',
+      title: 'Xác nhận xóa vĩnh viễn banner',
+      description: 'Bạn có chắc chắn muốn xóa vĩnh viễn banner này khỏi hệ thống?',
+      confirmLabel: 'Xóa vĩnh viễn',
+      onConfirm: () => {
+        setMarketingConfirm(null);
+        bannerApi.deleteBanner(id).catch((err) => {
+          console.warn("[AdminMarketing] Delete API warning:", err);
+        });
+        const updated = banners.filter((b) => b.id !== id);
+        setBanners(updated);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("huki_admin_marketing_banners", JSON.stringify(updated));
+          } catch {}
+        }
+        broadcastMarketingUpdate(updated);
+        if (editingBannerId === id) {
+          setIsAddFormOpen(false);
+          setEditingBannerId(null);
+        }
+        showToast?.("Đã xóa banner khỏi hệ thống.", "success");
+      },
     });
-    const updated = banners.filter((b) => b.id !== id);
-    setBanners(updated);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("huki_admin_marketing_banners", JSON.stringify(updated));
-      } catch {}
-    }
-    broadcastMarketingUpdate(updated);
-    if (editingBannerId === id) {
-      setIsAddFormOpen(false);
-      setEditingBannerId(null);
-    }
-    showToast?.("Đã xóa banner khỏi hệ thống.", "success");
   };
 
   return (
@@ -1195,6 +1226,18 @@ export function AdminMarketingView() {
           </div>
         ))}
       </div>
+      <CountdownConfirmModal
+        isOpen={Boolean(marketingConfirm)}
+        title={marketingConfirm?.title || ''}
+        description={marketingConfirm?.description || ''}
+        countdownSeconds={5}
+        confirmLabel={marketingConfirm?.confirmLabel || 'Xác nhận'}
+        onCancel={() => {
+          skipConflictConfirmRef.current = false;
+          setMarketingConfirm(null);
+        }}
+        onConfirm={() => marketingConfirm?.onConfirm()}
+      />
     </div>
   );
 }

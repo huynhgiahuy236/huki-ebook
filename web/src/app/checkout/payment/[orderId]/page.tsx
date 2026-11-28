@@ -8,6 +8,7 @@ import { paymentApi, PaymentView } from '@/ui/api/paymentApi';
 import { useToast } from '@/ui/context/ToastContext';
 import { useAuth } from '@/ui/context/AuthContext';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+import CountdownConfirmModal from '@/ui/components/common/CountdownConfirmModal';
 
 export default function PayOSPaymentPage() {
   const params = useParams();
@@ -18,6 +19,7 @@ export default function PayOSPaymentPage() {
 
   const [order, setOrder] = useState<BuyerOrder | null>(null);
   const [paymentData, setPaymentData] = useState<any>(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isLoadingOrder, setIsLoadingOrder] = useState(true);
   const [isSimulating, setIsSimulating] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -310,12 +312,14 @@ export default function PayOSPaymentPage() {
   };
 
   // 6. Action 2: Cancel Payment & Cancel Order cleanly (Prevents clutter on Seller dashboard)
-  const handleCancelPayment = async () => {
+  const handleCancelPayment = () => {
     if (!orderId || !order) return;
-    const confirmed = window.confirm(
-      'Bạn có chắc chắn muốn hủy thanh toán và hủy đơn hàng này không?\nĐơn hàng sẽ được hủy để giải phóng sản phẩm trong kho.'
-    );
-    if (!confirmed) return;
+    setShowCancelConfirm(true);
+  };
+
+  const executeCancelPayment = async () => {
+    if (!orderId || !order) return;
+    setShowCancelConfirm(false);
 
     setIsCancelling(true);
     try {
@@ -679,6 +683,16 @@ export default function PayOSPaymentPage() {
           </div>
         </div>
       </main>
+      <CountdownConfirmModal
+        isOpen={showCancelConfirm}
+        title="Xác nhận hủy thanh toán & đơn hàng"
+        description="Bạn có chắc chắn muốn hủy thanh toán và hủy đơn hàng này không? Đơn hàng sẽ được hủy để giải phóng sản phẩm trong kho."
+        countdownSeconds={5}
+        confirmLabel="Xác nhận hủy đơn"
+        loading={isCancelling}
+        onCancel={() => setShowCancelConfirm(false)}
+        onConfirm={executeCancelPayment}
+      />
     </div>
   );
 }

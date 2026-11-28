@@ -80,14 +80,14 @@ export default function HierarchicalSidebar({
   const sellerTargetUrl = user?.business?.status === 'PENDING_APPROVAL'
     ? '/seller/pending'
     : !isSetupCompleted
-    ? '/seller/stores/setup'
-    : '/seller/dashboard';
+      ? '/seller/stores/setup'
+      : '/seller/dashboard';
 
   const sellerTargetTitle = user?.business?.status === 'PENDING_APPROVAL'
     ? 'Hồ Sơ Chờ Duyệt'
     : !isSetupCompleted
-    ? 'Cài Đặt Ngân Hàng'
-    : 'Kênh Người Bán';
+      ? 'Cài Đặt Ngân Hàng'
+      : 'Kênh Người Bán';
 
   // Close mobile drawer automatically on route change
   useEffect(() => {
@@ -224,21 +224,21 @@ export default function HierarchicalSidebar({
     },
     ...(isShipper
       ? [
-          {
-            id: 'shipper',
-            title: 'GIAO HÀNG',
-            items: [
-              {
-                id: 'shipper-portal',
-                title: 'Cổng Bưu Tá HuKi',
-                to: '/shipper',
-                icon: 'local_shipping',
-                badge: 'SHIPPER',
-                badgeColor: 'bg-blue-600 text-white font-bold',
-              },
-            ],
-          },
-        ]
+        {
+          id: 'shipper',
+          title: 'GIAO HÀNG',
+          items: [
+            {
+              id: 'shipper-portal',
+              title: 'Cổng Bưu Tá HuKi',
+              to: '/shipper',
+              icon: 'local_shipping',
+              badge: 'SHIPPER',
+              badgeColor: 'bg-blue-600 text-white font-bold',
+            },
+          ],
+        },
+      ]
       : []),
   ];
 
@@ -282,11 +282,10 @@ export default function HierarchicalSidebar({
           bg-[var(--theme-header-top,#003b2b)] border-r border-white/15
           flex flex-col text-white
           transition-[width,transform] duration-300 ease-in-out shadow-2xl
-          ${
-            isMobileOpen
-              ? 'top-0 z-50 w-[270px] sm:w-[280px] translate-x-0'
-              : '-translate-x-full lg:translate-x-0 lg:top-[78px] lg:z-30 ' +
-                (isCollapsed ? 'lg:w-[68px]' : 'lg:w-[230px]')
+          ${isMobileOpen
+            ? 'top-0 z-50 w-[270px] sm:w-[280px] translate-x-0'
+            : '-translate-x-full lg:translate-x-0 lg:top-[78px] lg:z-30 ' +
+            (isCollapsed ? 'lg:w-[68px]' : 'lg:w-[230px]')
           }
         `}
       >
@@ -335,10 +334,10 @@ export default function HierarchicalSidebar({
                     itemPath === '/'
                       ? pathname === '/'
                       : itemTab
-                      ? pathname === itemPath && currentTab === itemTab
-                      : itemPath === '/library'
-                      ? pathname === '/library' && (!currentTab || currentTab === 'all')
-                      : pathname.startsWith(itemPath);
+                        ? pathname === itemPath && currentTab === itemTab
+                        : itemPath === '/library'
+                          ? pathname === '/library' && (!currentTab || currentTab === 'all')
+                          : pathname.startsWith(itemPath);
 
                   return (
                     <div key={item.id} className="relative group">
@@ -351,11 +350,10 @@ export default function HierarchicalSidebar({
                             target={item.targetBlank || item.id === 'web-reader' ? '_blank' : undefined}
                             rel={item.targetBlank || item.id === 'web-reader' ? 'noopener noreferrer' : undefined}
                             onClick={closeMobile}
-                            className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 relative shrink-0 active:scale-95 ${
-                              isActive
-                                ? 'bg-white text-[var(--theme-primary,#003b2b)] shadow-sm font-bold border border-white/40'
-                                : 'text-white/80 hover:bg-white/15 hover:text-white border border-transparent'
-                            }`}
+                            className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 relative shrink-0 active:scale-95 ${isActive
+                              ? 'bg-white text-[var(--theme-primary,#003b2b)] shadow-sm font-bold border border-white/40'
+                              : 'text-white/80 hover:bg-white/15 hover:text-white border border-transparent'
+                              }`}
                           >
                             <span className="material-symbols-outlined text-[20px] shrink-0">{item.icon}</span>
                             {item.badge && (
@@ -376,20 +374,18 @@ export default function HierarchicalSidebar({
                           target={item.targetBlank || item.id === 'web-reader' ? '_blank' : undefined}
                           rel={item.targetBlank || item.id === 'web-reader' ? 'noopener noreferrer' : undefined}
                           onClick={closeMobile}
-                          className={`flex items-center justify-between gap-2 px-3 h-10 rounded-xl text-[12.5px] transition-all duration-200 shrink-0 ${
-                            isActive
-                              ? 'bg-white text-[var(--theme-primary,#003b2b)] font-bold shadow-sm border border-white/40'
-                              : 'text-white/85 font-medium hover:bg-white/15 hover:text-white border border-transparent'
-                          }`}
+                          className={`flex items-center justify-between gap-2 px-3 h-10 rounded-xl text-[12.5px] transition-all duration-200 shrink-0 ${isActive
+                            ? 'bg-white text-[var(--theme-primary,#003b2b)] font-bold shadow-sm border border-white/40'
+                            : 'text-white/85 font-medium hover:bg-white/15 hover:text-white border border-transparent'
+                            }`}
                           title={item.title}
                         >
                           <div className="flex items-center gap-2.5 min-w-0 flex-1">
                             <span
-                              className={`material-symbols-outlined text-[19px] shrink-0 transition-colors ${
-                                isActive
-                                  ? 'text-[var(--theme-primary,#003b2b)] font-bold'
-                                  : 'text-white/75 group-hover:text-white'
-                              }`}
+                              className={`material-symbols-outlined text-[19px] shrink-0 transition-colors ${isActive
+                                ? 'text-[var(--theme-primary,#003b2b)] font-bold'
+                                : 'text-white/75 group-hover:text-white'
+                                }`}
                             >
                               {item.icon}
                             </span>
@@ -398,9 +394,8 @@ export default function HierarchicalSidebar({
 
                           {item.badge && (
                             <span
-                              className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold shrink-0 whitespace-nowrap leading-none ${
-                                item.badgeColor || (isActive ? 'bg-[#006953] text-white' : 'bg-white/20 text-white')
-                              }`}
+                              className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold shrink-0 whitespace-nowrap leading-none ${item.badgeColor || (isActive ? 'bg-[#006953] text-white' : 'bg-white/20 text-white')
+                                }`}
                             >
                               {item.badge}
                             </span>

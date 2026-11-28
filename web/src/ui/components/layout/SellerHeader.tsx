@@ -269,11 +269,10 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
           href="/seller/chat"
           target={pathname.startsWith('/seller/chat') ? '_self' : '_blank'}
           rel="noopener noreferrer"
-          className={`relative flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border transition-colors shrink-0 group ${
-            pathname.startsWith('/seller/chat')
-              ? 'bg-emerald-50 border-emerald-400 text-emerald-900 font-bold'
-              : 'border-theme-border text-on-surface hover:text-[#003B2B] hover:bg-theme-secondary-subtle'
-          }`}
+          className={`relative flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border transition-colors shrink-0 group ${pathname.startsWith('/seller/chat')
+            ? 'bg-emerald-50 border-emerald-400 text-emerald-900 font-bold'
+            : 'border-theme-border text-on-surface hover:text-[#003B2B] hover:bg-theme-secondary-subtle'
+            }`}
           title="Mở cửa sổ Chat & Tin nhắn chăm sóc khách hàng"
           aria-label="Tin nhắn"
         >

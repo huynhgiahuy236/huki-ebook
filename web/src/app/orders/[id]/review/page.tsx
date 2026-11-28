@@ -182,26 +182,13 @@ export default function OrderReviewPage() {
       }
 
       let uploadedUrl: string | null = null;
-      if (rawId) {
-        try {
-          const res = await orderApi.uploadDisputeEvidence(rawId, file);
-          if (res?.success && res.data?.url && !res.data.url.includes('storage.huki.vn')) {
-            uploadedUrl = res.data.url.startsWith('/')
-              ? `${window.location.origin}${res.data.url}`
-              : res.data.url;
-          }
-        } catch {
-          // Upload service unavailable
-        }
-      }
-
-      if (!uploadedUrl) {
+      try {
         uploadedUrl = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => {
             const img = new Image();
             img.onload = () => {
-              const maxDim = 900;
+              const maxDim = 800;
               let { width, height } = img;
               if (width > maxDim || height > maxDim) {
                 if (width > height) {
@@ -217,7 +204,7 @@ export default function OrderReviewPage() {
               canvas.height = height;
               const ctx = canvas.getContext('2d');
               ctx?.drawImage(img, 0, 0, width, height);
-              resolve(canvas.toDataURL('image/jpeg', 0.78));
+              resolve(canvas.toDataURL('image/jpeg', 0.72));
             };
             img.onerror = () => resolve(String(reader.result || ''));
             img.src = String(reader.result || '');
@@ -225,6 +212,8 @@ export default function OrderReviewPage() {
           reader.onerror = () => reject(new Error('Failed to read image'));
           reader.readAsDataURL(file);
         });
+      } catch {
+        showToast(`Không thể đọc tệp ảnh ${file.name}.`, 'error');
       }
       if (uploadedUrl) {
         uploadedUrls.push(uploadedUrl);

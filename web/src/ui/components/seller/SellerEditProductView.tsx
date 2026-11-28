@@ -1,11 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { useToast } from '@/ui/context/ToastContext';
 import { useAuth } from '@/ui/context/AuthContext';
 import { catalogApi, CategoryData, BookFormat, CatalogEntity, BookData } from '@/ui/api/catalogApi';
+import { memberApi } from '@/ui/api/memberApi';
+import { realtimeSyncBus } from '@/ui/utils/realtimeSyncBus';
+import SecurityPinModal from '@/ui/components/common/SecurityPinModal';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 import { can, PERMISSIONS, PermissionKey } from '@/ui/utils/permissions';
 import { validateBookPricing } from '@/ui/utils/bookPricingValidation';
@@ -30,6 +33,18 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeSection, setActiveSection] = useState('sec-basic');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const initialSnapshotRef = useRef<Record<string, any> | null>(null);
+  const [pinModalConfig, setPinModalConfig] = useState<{
+    isOpen: boolean;
+    actionName: string;
+    description: string;
+    onSuccess: (pin: string) => Promise<void> | void;
+  }>({
+    isOpen: false,
+    actionName: '',
+    description: '',
+    onSuccess: () => {},
+  });
 
   const [categories, setCategories] = useState<CategoryData[]>([]);
   const [authors, setAuthors] = useState<CatalogEntity[]>([]);
@@ -442,6 +457,21 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
               ? String((book as any).comboPrice)
               : basePrice));
 
+        const stockVal = book.physicalDetails?.stock != null ? String(book.physicalDetails.stock) : (book.stock != null ? String(book.stock) : '0');
+        initialSnapshotRef.current = {
+          title: book.title || '',
+          description: descVal,
+          status: (book.status as any) || 'PUBLISHED',
+          format: fmt,
+          price: basePrice ? Number(basePrice) : 0,
+          originalPrice: origPrice ? Number(origPrice) : undefined,
+          pricePaper: physPrice ? Number(physPrice) : undefined,
+          priceEbook: ebPrice ? Number(ebPrice) : undefined,
+          priceCombo: cbPrice ? Number(cbPrice) : undefined,
+          stock: Number(stockVal || 0),
+          isbn: book.isbn || '',
+        };
+
         setForm({
           title: book.title || '',
           teaser: teaserVal,
@@ -732,45 +762,152 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
         enableAffiliate: form.enableAffiliate,
       };
 
-      const res = await catalogApi.updateBook(bookId, payload);
-
-      if (res.success) {
-        if (isDigital && newEbookFile) {
-          const uploadRes = await catalogApi.uploadBookFile(bookId, newEbookFile);
-          if (!uploadRes.success) {
-            showToast?.(
-              uploadRes.error?.message || 'Đã cập nhật sách nhưng tải tệp PDF lên chưa thành công.',
-              'warning',
-            );
-          } else {
-            setExistingPdfAvailable(true);
-            setNewEbookFile(null);
-          }
-        }
-        // Also sync store-level affiliate book setting
-        if (currentBizId) {
-          try {
-            await affiliateApi.updateBookAffiliateSetting(currentBizId, bookId, {
-              isEligible: form.enableAffiliate,
-            });
-          } catch { /* ignore fallback */ }
-        }
-
-        // Also sync inventory if stock changed
-        if (isPhysical && form.stock !== '') {
-          try {
-            await catalogApi.updateInventory(bookId, Number(form.stock));
-          } catch { /* ignore inventory log error */ }
-        }
-
-        showToast?.(`Cập nhật sách "${form.title}" thành công!`, 'success');
-        router.push('/seller/products');
-      } else {
-        showToast?.(res.error?.message || 'Có lỗi khi cập nhật thông tin sách.', 'error');
+      const prevSnap = initialSnapshotRef.current || {};
+      const trackedFields: Array<{ key: string; nextVal: any }> = [
+        { key: 'title', nextVal: payload.title },
+        { key: 'description', nextVal: payload.description },
+        { key: 'status', nextVal: payload.status },
+        { key: 'format', nextVal: payload.format },
+        { key: 'price', nextVal: payload.price },
+        { key: 'originalPrice', nextVal: payload.originalPrice },
+        { key: 'pricePaper', nextVal: payload.pricePaper },
+        { key: 'priceEbook', nextVal: payload.priceEbook },
+        { key: 'priceCombo', nextVal: payload.priceCombo },
+        { key: 'isbn', nextVal: payload.isbn || '' },
+      ];
+      if (isPhysical) {
+        trackedFields.push({ key: 'stock', nextVal: Number(form.stock || 0) });
       }
+
+      const changedFields: string[] = [];
+      const beforeState: Record<string, any> = {};
+      const afterState: Record<string, any> = {};
+      for (const f of trackedFields) {
+        const prevVal = prevSnap[f.key];
+        if (String(prevVal ?? '') !== String(f.nextVal ?? '')) {
+          changedFields.push(f.key);
+          beforeState[f.key] = prevVal ?? null;
+          afterState[f.key] = f.nextVal ?? null;
+        }
+      }
+
+      const sensitiveKeys = new Set(['price', 'originalPrice', 'pricePaper', 'priceEbook', 'priceCombo', 'stock', 'status']);
+      const needsPin = changedFields.some((k) => sensitiveKeys.has(k));
+
+      const executeBookUpdate = async (pinVerified = false) => {
+        setIsSubmitting(true);
+        try {
+          const res = await catalogApi.updateBook(bookId, payload);
+
+          if (res.success) {
+            if (isDigital && newEbookFile) {
+              const uploadRes = await catalogApi.uploadBookFile(bookId, newEbookFile);
+              if (!uploadRes.success) {
+                showToast?.(
+                  uploadRes.error?.message || 'Đã cập nhật sách nhưng tải tệp PDF lên chưa thành công.',
+                  'warning',
+                );
+              } else {
+                setExistingPdfAvailable(true);
+                setNewEbookFile(null);
+              }
+            }
+            if (currentBizId) {
+              try {
+                await affiliateApi.updateBookAffiliateSetting(currentBizId, bookId, {
+                  isEligible: form.enableAffiliate,
+                });
+              } catch { /* ignore fallback */ }
+            }
+
+            if (isPhysical && form.stock !== '') {
+              try {
+                await catalogApi.updateInventory(bookId, Number(form.stock));
+              } catch { /* ignore inventory log error */ }
+            }
+
+            // Record audit log for product/price/stock changes
+            if (currentBizId) {
+              const actorName = user?.fullName || user?.name || user?.email || 'Chủ gian hàng';
+              const actorRole = user?.role || 'BUSINESS';
+              const auditPayload = {
+                action: 'UPDATE',
+                resource: 'Product',
+                resourceId: bookId,
+                actorName,
+                actorEmail: user?.email,
+                actorRole,
+                beforeState: Object.keys(beforeState).length > 0 ? beforeState : { title: form.title.trim() },
+                afterState: Object.keys(afterState).length > 0 ? afterState : { title: form.title.trim() },
+                changedFields: changedFields.length > 0 ? changedFields : ['title'],
+                metadata: {
+                  bookId,
+                  bookTitle: form.title.trim(),
+                  staffName: actorName,
+                  staffEmail: user?.email,
+                  staffRole: actorRole,
+                  pinVerified,
+                },
+              };
+              const localLog = {
+                id: `log-book-${Date.now()}`,
+                timestamp: new Date().toISOString(),
+                actorId: user?.id || 'seller',
+                actorName,
+                actorEmail: user?.email,
+                actorRole,
+                action: 'UPDATE',
+                resource: 'Product',
+                resourceId: bookId,
+                storeId: currentBizId,
+                changedFields: auditPayload.changedFields,
+                stateBefore: auditPayload.beforeState,
+                stateAfter: auditPayload.afterState,
+                metadata: auditPayload.metadata,
+              };
+              realtimeSyncBus.publish('STAFF_AUDIT_LOG_CREATED', {
+                log: localLog,
+                businessId: currentBizId,
+              });
+              try {
+                const cacheKey = `huki_seller_audit_logs_${currentBizId}`;
+                const existing = localStorage.getItem(cacheKey);
+                const list = existing ? JSON.parse(existing) : [];
+                list.unshift(localLog);
+                localStorage.setItem(cacheKey, JSON.stringify(list.slice(0, 100)));
+              } catch {}
+              memberApi.recordMemberAuditLog(currentBizId, auditPayload).catch(() => {});
+            }
+
+            showToast?.(`Cập nhật sách "${form.title}" thành công!`, 'success');
+            router.push('/seller/products');
+          } else {
+            showToast?.(res.error?.message || 'Có lỗi khi cập nhật thông tin sách.', 'error');
+          }
+        } catch (err: any) {
+          showToast?.(err?.message || 'Không thể kết nối đến máy chủ.', 'error');
+        } finally {
+          setIsSubmitting(false);
+        }
+      };
+
+      if (needsPin) {
+        setIsSubmitting(false);
+        setPinModalConfig({
+          isOpen: true,
+          actionName: `Xác nhận thay đổi thông tin quan trọng (${form.title.trim()})`,
+          description:
+            'Bạn đang thay đổi giá bán, tồn kho hoặc trạng thái hiển thị sách. Vui lòng nhập mã PIN 6 số để xác thực và ghi nhật ký.',
+          onSuccess: async () => {
+            await executeBookUpdate(true);
+          },
+        });
+        return;
+      }
+
+      await executeBookUpdate(false);
     } catch (err: any) {
       showToast?.(err?.message || 'Không thể kết nối đến máy chủ.', 'error');
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -2084,6 +2221,14 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
           </div>
         </form>
       </div>
+      <SecurityPinModal
+        isOpen={pinModalConfig.isOpen}
+        actionName={pinModalConfig.actionName}
+        description={pinModalConfig.description}
+        storeId={currentBizId || 'store-default'}
+        onSuccess={pinModalConfig.onSuccess}
+        onClose={() => setPinModalConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

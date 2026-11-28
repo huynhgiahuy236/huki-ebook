@@ -13,6 +13,7 @@ import {
   ScheduleType,
   RecurringFrequency,
 } from '@/ui/services/adminNotificationService';
+import CountdownConfirmModal from '@/ui/components/common/CountdownConfirmModal';
 import { businessApi, BusinessData } from '@/ui/api/businessApi';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { useToast } from '@/ui/context/ToastContext';
@@ -195,12 +196,18 @@ export default function AdminNotificationsView() {
     showToast('Đã cập nhật trạng thái ghim đầu trang', 'success');
   };
 
+  const [deleteNotifId, setDeleteNotifId] = useState<string | null>(null);
+
   const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm('Bạn có chắc chắn muốn thu hồi/xóa thông báo này không?')) {
-      adminNotificationService.deleteNotification(id);
-      showToast('Đã thu hồi thông báo', 'info');
-    }
+    setDeleteNotifId(id);
+  };
+
+  const executeDeleteNotif = () => {
+    if (!deleteNotifId) return;
+    adminNotificationService.deleteNotification(deleteNotifId);
+    setDeleteNotifId(null);
+    showToast('Đã thu hồi thông báo', 'info');
   };
 
   const getCategoryMeta = (cat: NotificationCategory) => {
@@ -1023,6 +1030,15 @@ export default function AdminNotificationsView() {
           </div>
         </div>
       )}
+      <CountdownConfirmModal
+        isOpen={Boolean(deleteNotifId)}
+        title="Xác nhận thu hồi / xóa thông báo"
+        description="Bạn có chắc chắn muốn thu hồi và xóa thông báo này khỏi hệ thống?"
+        countdownSeconds={5}
+        confirmLabel="Thu hồi thông báo"
+        onCancel={() => setDeleteNotifId(null)}
+        onConfirm={executeDeleteNotif}
+      />
     </div>
   );
 }

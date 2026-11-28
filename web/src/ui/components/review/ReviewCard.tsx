@@ -53,6 +53,8 @@ export default function ReviewCard({
   const [isHelpful, setIsHelpful] = useState(Boolean(review.isHelpful));
   const [helpfulCount, setHelpfulCount] = useState(review.helpfulCount || 0);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [brokenImages, setBrokenImages] = useState<Record<number, boolean>>({});
+  const [lightboxError, setLightboxError] = useState(false);
   const [replies, setReplies] = useState(review.replies || []);
   const [isReplying, setIsReplying] = useState(false);
   const [replyText, setReplyText] = useState('');
@@ -319,29 +321,47 @@ export default function ReviewCard({
         );
       })()}
 
-      {/* Images Gallery with safe fallback against 403 / broken links */}
+      {/* Images Gallery with black "Ảnh lỗi" fallback & lightbox viewer */}
       {imageList.length > 0 && (
         <div className="flex items-center gap-2.5 overflow-x-auto pb-1 pt-1 scrollbar-none">
-          {imageList.map((img, idx) => (
-            <div
-              key={idx}
-              onClick={() => setSelectedImage(img)}
-              className="relative w-18 h-18 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border border-slate-200/80 dark:border-zinc-700/80 shadow-2xs shrink-0 cursor-pointer hover:opacity-95 hover:scale-[1.04] transition-all bg-slate-50 dark:bg-zinc-800 group/img"
-            >
-              <img
-                src={img}
-                referrerPolicy="no-referrer"
-                alt="Ảnh chụp thực tế từ độc giả"
-                className="w-full h-full object-cover transition-transform duration-300 group-hover/img:scale-105"
-                onError={(e) => {
-                  (e.currentTarget.parentElement as HTMLElement)?.remove();
+          {imageList.map((img, idx) => {
+            const isBroken = !img || img.includes('storage.huki.vn') || Boolean(brokenImages[idx]);
+            if (isBroken) {
+              return (
+                <div
+                  key={idx}
+                  title="Ảnh đánh giá không tải được"
+                  className="relative w-18 h-18 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border border-neutral-800 shrink-0 bg-neutral-950 text-white flex flex-col items-center justify-center gap-1 select-none"
+                >
+                  <span className="material-symbols-outlined text-base text-neutral-400">broken_image</span>
+                  <span className="text-[10px] font-semibold tracking-tight text-neutral-200">Ảnh lỗi</span>
+                </div>
+              );
+            }
+            return (
+              <div
+                key={idx}
+                onClick={() => {
+                  setLightboxError(false);
+                  setSelectedImage(img);
                 }}
-              />
-              <div className="absolute inset-0 bg-black/10 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white">
-                <span className="material-symbols-outlined text-sm">zoom_in</span>
+                className="relative w-18 h-18 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border border-slate-200/80 dark:border-zinc-700/80 shadow-2xs shrink-0 cursor-pointer hover:opacity-95 hover:scale-[1.04] transition-all bg-slate-50 dark:bg-zinc-800 group/img"
+              >
+                <img
+                  src={img}
+                  referrerPolicy="no-referrer"
+                  alt="Ảnh chụp thực tế từ độc giả"
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover/img:scale-105"
+                  onError={() => {
+                    setBrokenImages((prev) => ({ ...prev, [idx]: true }));
+                  }}
+                />
+                <div className="absolute inset-0 bg-black/10 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white">
+                  <span className="material-symbols-outlined text-sm">zoom_in</span>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -469,17 +489,30 @@ export default function ReviewCard({
       {selectedImage && (
         <div
           onClick={() => setSelectedImage(null)}
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 cursor-zoom-out animate-fade-in"
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4 cursor-zoom-out animate-fade-in"
         >
-          <div className="relative max-w-2xl max-h-[85vh] bg-theme-surface rounded-2xl overflow-hidden shadow-2xl p-2">
-            <img
-              src={selectedImage}
-              alt="Ảnh phóng to"
-              className="max-h-[75vh] w-auto mx-auto object-contain rounded-xl"
-            />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-3xl w-full max-h-[88vh] bg-neutral-950 rounded-2xl overflow-hidden shadow-2xl p-3 flex items-center justify-center"
+          >
+            {lightboxError ? (
+              <div className="w-full h-64 bg-neutral-950 text-white flex flex-col items-center justify-center gap-2 rounded-xl">
+                <span className="material-symbols-outlined text-4xl text-neutral-400">broken_image</span>
+                <span className="text-sm font-semibold text-neutral-200">Ảnh lỗi</span>
+              </div>
+            ) : (
+              <img
+                src={selectedImage}
+                alt="Ảnh phóng to"
+                onError={() => setLightboxError(true)}
+                className="max-h-[78vh] w-auto mx-auto object-contain rounded-xl"
+              />
+            )}
             <button
+              type="button"
               onClick={() => setSelectedImage(null)}
-              className="absolute top-4 right-4 bg-black/60 text-white rounded-full p-1.5 hover:bg-black transition-colors"
+              className="absolute top-3 right-3 bg-black/70 text-white rounded-full p-1.5 hover:bg-black transition-colors cursor-pointer"
+              aria-label="Đóng ảnh"
             >
               <span className="material-symbols-outlined text-lg">close</span>
             </button>

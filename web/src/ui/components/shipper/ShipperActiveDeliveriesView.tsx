@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useShipper, ShipperOrder } from '@/ui/context/ShipperContext';
+import { useToast } from '@/ui/context/ToastContext';
 import {
   DataTableFilterBar,
   DataTableBulkActionBar,
@@ -17,6 +18,7 @@ import QuickDispatchNotificationModal from '../common/QuickDispatchNotificationM
 type GroupByMode = 'SHOP' | 'STATUS' | 'ZONE' | 'NONE';
 
 export default function ShipperActiveDeliveriesView() {
+  const { showToast } = useToast();
   const { activeDeliveries, confirmPickup, completeDelivery, failDelivery, offlineQueueCount, syncOfflineDeliveries } = useShipper();
 
   const [isNetworkOnline, setIsNetworkOnline] = useState(true);
@@ -110,7 +112,7 @@ export default function ShipperActiveDeliveriesView() {
   const handleConfirmPodDelivery = async () => {
     if (!podModalOrder) return;
     if (!podImagePreview) {
-      alert('Vui lòng chụp hoặc tải ảnh bằng chứng giao hàng (POD) trước khi hoàn tất!');
+      showToast('Vui lòng chụp hoặc tải ảnh bằng chứng giao hàng (POD) trước khi hoàn tất!', 'warning');
       return;
     }
     setPodSubmitting(true);

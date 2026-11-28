@@ -987,21 +987,21 @@ export function AdminFinanceView() {
                       latestEodRun.status === 'COMPLETED_PASS'
                         ? 'success'
                         : latestEodRun.status === 'COMPLETED_WARNING' || latestEodRun.status === 'COMPLETED_FAIL'
-                        ? 'warning'
-                        : latestEodRun.status === 'RUNNING'
-                        ? 'info'
-                        : 'danger'
+                          ? 'warning'
+                          : latestEodRun.status === 'RUNNING'
+                            ? 'info'
+                            : 'danger'
                     }
                     label={
                       latestEodRun.status === 'COMPLETED_PASS'
                         ? 'Đạt chuẩn'
                         : latestEodRun.status === 'COMPLETED_WARNING'
-                        ? 'Có cảnh báo'
-                        : latestEodRun.status === 'COMPLETED_FAIL'
-                        ? 'Có sai lệch'
-                        : latestEodRun.status === 'RUNNING'
-                        ? 'Đang chạy'
-                        : 'Lỗi chạy'
+                          ? 'Có cảnh báo'
+                          : latestEodRun.status === 'COMPLETED_FAIL'
+                            ? 'Có sai lệch'
+                            : latestEodRun.status === 'RUNNING'
+                              ? 'Đang chạy'
+                              : 'Lỗi chạy'
                     }
                     className="rounded-md border-0"
                   />
@@ -1222,19 +1222,18 @@ export function AdminFinanceView() {
                           <div className="flex items-center justify-between">
                             <span className="font-mono font-bold text-gray-900">{disc.type}</span>
                             <span
-                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                                disc.severity === 'CRITICAL' || disc.severity === 'ERROR'
-                                  ? 'bg-rose-100 text-rose-800'
-                                  : 'bg-amber-100 text-amber-800'
-                              }`}
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${disc.severity === 'CRITICAL' || disc.severity === 'ERROR'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-amber-100 text-amber-800'
+                                }`}
                             >
                               {disc.severity === 'CRITICAL'
                                 ? 'Nghiêm trọng'
                                 : disc.severity === 'ERROR'
-                                ? 'Lỗi'
-                                : disc.severity === 'WARNING'
-                                ? 'Cảnh báo'
-                                : 'Thông tin'}
+                                  ? 'Lỗi'
+                                  : disc.severity === 'WARNING'
+                                    ? 'Cảnh báo'
+                                    : 'Thông tin'}
                             </span>
                           </div>
                           <div className="text-gray-600">{disc.details}</div>

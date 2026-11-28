@@ -11,6 +11,7 @@ import {
 import { realtimeSyncBus } from '../../services/realtimeSyncBus';
 import { useToast } from '../../context/ToastContext';
 import { adminApi } from '../../api/adminApi';
+import CountdownConfirmModal from '../common/CountdownConfirmModal';
 
 export function AdminPenaltyArbitrationView() {
   const { showToast } = useToast();
@@ -109,10 +110,18 @@ export function AdminPenaltyArbitrationView() {
     });
   }, [appeals, searchQuery]);
 
+  const [resetQuarterTarget, setResetQuarterTarget] = useState<{ storeId: string; storeName: string } | null>(null);
+
   // Handlers
   const handleResetStoreQuarter = (storeId: string, storeName: string) => {
-    if (!window.confirm(`Bạn có chắc muốn đặt lại điểm Sao Quả Tạ về 0 cho gian hàng "${storeName}" theo chu kỳ Quý?`)) return;
-    const updated = sellerPenaltyService.resetQuarterly(storeId);
+    setResetQuarterTarget({ storeId, storeName });
+  };
+
+  const executeResetStoreQuarter = () => {
+    if (!resetQuarterTarget) return;
+    const { storeId, storeName } = resetQuarterTarget;
+    setResetQuarterTarget(null);
+    sellerPenaltyService.resetQuarterly(storeId);
     showToast(`Đã reset điểm Sao Quả Tạ về 0 cho "${storeName}". Quyền lợi tham gia Sàn đã được khôi phục!`, 'success');
     loadData();
   };
@@ -746,6 +755,15 @@ export function AdminPenaltyArbitrationView() {
           </div>
         </div>
       )}
+      <CountdownConfirmModal
+        isOpen={Boolean(resetQuarterTarget)}
+        title="Xác nhận đặt lại điểm Sao Quả Tạ"
+        description={`Bạn có chắc chắn muốn đặt lại điểm Sao Quả Tạ về 0 cho gian hàng "${resetQuarterTarget?.storeName || ''}" theo chu kỳ Quý?`}
+        countdownSeconds={5}
+        confirmLabel="Xác nhận đặt lại"
+        onCancel={() => setResetQuarterTarget(null)}
+        onConfirm={executeResetStoreQuarter}
+      />
     </div>
   );
 }

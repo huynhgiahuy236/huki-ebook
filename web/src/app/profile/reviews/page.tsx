@@ -9,6 +9,7 @@ import { orderApi } from '@/ui/api/orderApi';
 import { reviewApi, ReviewItemData } from '@/ui/api/reviewApi';
 import VerifiedPurchaseBadge from '@/ui/components/review/VerifiedPurchaseBadge';
 import ReviewFormModal from '@/ui/components/review/ReviewFormModal';
+import CountdownConfirmModal from '@/ui/components/common/CountdownConfirmModal';
 import { StandardPaginationBar } from '@/ui/components/common/GroupedDataTable';
 
 export default function MyReviewsPage() {
@@ -695,48 +696,17 @@ export default function MyReviewsPage() {
         />
       )}
 
-      {/* ================= 5. CONFIRM DELETE MODAL ================= */}
-      {confirmDeleteId && (
-        <div
-          onClick={() => !isDeleting && setConfirmDeleteId(null)}
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[1px] flex items-center justify-center p-4"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl border border-gray-200 shadow-xl max-w-md w-full p-6 space-y-4"
-          >
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-xl">delete_outline</span>
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-base font-bold text-gray-900">Xác nhận xóa đánh giá</h3>
-                <p className="text-xs text-gray-600 leading-relaxed">
-                  Bạn có chắc chắn muốn xóa bài đánh giá này? Sau khi xóa, đơn hàng sẽ quay lại mục Chưa Đánh Giá để bạn có thể gửi đánh giá mới.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-2.5 pt-2">
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={() => setConfirmDeleteId(null)}
-                className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                Hủy bỏ
-              </button>
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={executeDeleteReview}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer inline-flex items-center gap-1.5"
-              >
-                {isDeleting ? 'Đang xóa...' : 'Xóa đánh giá'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ================= 5. CONFIRM DELETE MODAL (5s Countdown) ================= */}
+      <CountdownConfirmModal
+        isOpen={Boolean(confirmDeleteId)}
+        title="Xác nhận xóa đánh giá"
+        description="Bạn có chắc chắn muốn xóa bài đánh giá này? Sau khi xóa, đơn hàng sẽ quay lại mục Chưa Đánh Giá để bạn có thể gửi đánh giá mới."
+        countdownSeconds={5}
+        confirmLabel="Xóa đánh giá"
+        loading={isDeleting}
+        onCancel={() => !isDeleting && setConfirmDeleteId(null)}
+        onConfirm={executeDeleteReview}
+      />
     </AccountLayout>
   );
 }

@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useShipper, ShipperOrder } from '@/ui/context/ShipperContext';
+import { useToast } from '@/ui/context/ToastContext';
 import {
   DataTableFilterBar,
   DataTableBulkActionBar,
@@ -12,6 +13,7 @@ import {
 import GroupedDataTable, { Column, StandardPaginationBar } from '../common/GroupedDataTable';
 
 export default function ShipperHistoryView() {
+  const { showToast } = useToast();
   const { historyOrders } = useShipper();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'DELIVERED' | 'FAILED'>('ALL');
@@ -76,7 +78,7 @@ export default function ShipperHistoryView() {
     setBulkLoading(true);
     try {
       if (action === 'EXPORT_EXCEL') {
-        alert(`Đã xuất báo cáo ${selectedCount} chuyến giao thành công!`);
+        showToast(`Đã xuất báo cáo ${selectedCount} chuyến giao thành công!`, 'success');
       } else if (action === 'PRINT_STATEMENT') {
         window.print();
       }

@@ -664,10 +664,10 @@ export default function AdminUsersView() {
             user.role === 'PLATFORM_ADMIN'
               ? { wrap: 'bg-rose-50 text-rose-700', dot: 'bg-rose-500' }
               : user.role === 'BUSINESS' || user.role === 'SELLER_ADMIN'
-              ? { wrap: 'bg-amber-50 text-amber-700', dot: 'bg-amber-500' }
-              : user.role === 'DELIVERY_STAFF'
-              ? { wrap: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' }
-              : { wrap: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500' };
+                ? { wrap: 'bg-amber-50 text-amber-700', dot: 'bg-amber-500' }
+                : user.role === 'DELIVERY_STAFF'
+                  ? { wrap: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' }
+                  : { wrap: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500' };
           return (
             <span
               className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold whitespace-nowrap ${roleStyles.wrap}`}

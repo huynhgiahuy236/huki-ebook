@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ShipperProvider, useShipper } from '@/ui/context/ShipperContext';
 import { useAuth } from '@/ui/context/AuthContext';
+import { useToast } from '@/ui/context/ToastContext';
 import UniversalNotificationBell from '@/ui/components/common/UniversalNotificationBell';
 
 export interface ShipperMenuItem {
@@ -23,6 +24,7 @@ export interface ShipperMenuSection {
 function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '';
   const router = useRouter();
+  const { showToast } = useToast();
   const { user, logout, isLoggedIn, isLoading } = useAuth();
   const { isOnline, setIsOnline, profile, availableOrders, activeDeliveries, wallet, resetDemoData } = useShipper();
 
@@ -419,7 +421,7 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
                 type="button"
                 onClick={() => {
                   resetDemoData();
-                  alert('Đã khôi phục dữ liệu mẫu bưu tá thành công!');
+                  showToast('Đã khôi phục dữ liệu mẫu bưu tá thành công!', 'success');
                 }}
                 className="w-full py-1.5 px-2 bg-white/10 hover:bg-white/20 text-white/80 rounded-lg text-[11px] font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
@@ -431,7 +433,7 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
                 type="button"
                 onClick={() => {
                   resetDemoData();
-                  alert('Đã khôi phục dữ liệu mẫu bưu tá thành công!');
+                  showToast('Đã khôi phục dữ liệu mẫu bưu tá thành công!', 'success');
                 }}
                 className="w-full flex items-center justify-center p-1 text-white/70 hover:text-white cursor-pointer"
                 title="Khôi Phục Dữ Liệu"

@@ -720,9 +720,9 @@ export default function AuditHistoryTimeline({
     {
       key: 'timestamp',
       title: 'Thời gian',
-      width: '150px',
+      width: '130px',
       render: (_, item) => (
-        <div className="flex flex-col">
+        <div className="flex flex-col whitespace-nowrap">
           <span className="font-semibold text-xs text-slate-800">
             {formatAuditDateOnly(item.timestamp)}
           </span>
@@ -735,7 +735,7 @@ export default function AuditHistoryTimeline({
     {
       key: 'actor',
       title: 'Người thực hiện',
-      width: '230px',
+      width: '215px',
       render: (_, item) => {
         const actor = resolveActorInfo(item, currentUser, staffList);
         return (
@@ -768,10 +768,17 @@ export default function AuditHistoryTimeline({
       render: (_, item) => {
         const actor = resolveActorInfo(item, currentUser, staffList);
         const { badge, sentence } = renderActionSummary(item, actor);
+        const changed = (item.changedFields || []).filter((f) => f && f !== 'status');
         return (
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
+          <div className="space-y-1 max-w-xl">
+            <div className="flex items-center flex-wrap gap-1.5">
               {badge}
+              {changed.length > 0 && (
+                <span className="text-[10.5px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                  Trường sửa: {changed.map((f) => FIELD_LABEL_MAP[f] || f).slice(0, 3).join(', ')}
+                  {changed.length > 3 ? ` (+${changed.length - 3})` : ''}
+                </span>
+              )}
             </div>
             <div className="text-xs text-slate-700 leading-relaxed">
               {sentence}
@@ -783,16 +790,16 @@ export default function AuditHistoryTimeline({
     {
       key: 'resource',
       title: 'Đối tượng',
-      width: '200px',
+      width: '260px',
       render: (_, item) => {
         const { targetLabel, targetSub } = resolveTargetInfo(item);
         return (
           <div className="min-w-0">
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/80">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/80 whitespace-nowrap">
               {targetLabel}
             </span>
             {targetSub && (
-              <div className="text-[10.5px] text-slate-400 mt-0.5 truncate max-w-[180px]">
+              <div className="text-[11px] font-mono text-slate-500 mt-0.5 truncate max-w-[240px]" title={targetSub}>
                 {targetSub}
               </div>
             )}
