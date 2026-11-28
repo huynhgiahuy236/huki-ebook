@@ -1466,7 +1466,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"storeId\": \"{{storeId}}\",\n  \"title\": \"Sách Demo HuKi {{}}\",\n  \"description\": \"Mô tả sách demo\",\n  \"price\": 120000,\n  \"format\": \"PHYSICAL\",\n  \"categoryIds\": [\n    \"{{categoryId}}\"\n  ]\n}"
+              "raw": "{\n  \"storeId\": \"{{storeId}}\",\n  \"title\": \"Sách Demo HuKi {{}}\",\n  \"description\": \"Mô tả sách demo\",\n  \"price\": 120000,\n  \"format\": \"PHYSICAL\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/books",
@@ -2827,7 +2827,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"succeeded\": true,\n  \"providerRef\": \"PAYOS-REF-{{}}\"\n}",
+              "raw": "{\n  \"succeeded\": true,\n  \"providerReference\": \"PAYOS-REF-{{}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3398,7 +3398,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"rating\": 5,\n  \"format\": \"PHYSICAL\",\n  \"comment\": \"Sách đóng gói cẩn thận, nội dung rất hay.\"\n}"
+              "raw": "{\n  \"rating\": 5,\n  \"format\": \"PHYSICAL\",\n  \"title\": \"Sách rất hay và hữu ích\",\n  \"content\": \"Sách đóng gói cẩn thận, nội dung rất hay.\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/books/{{bookId}}/reviews",
@@ -4316,7 +4316,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"emailOrders\": true,\n  \"pushOrders\": true\n}",
+              "raw": "{\n  \"orderUpdates\": true,\n  \"emailNotifications\": true,\n  \"pushNotifications\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -4602,7 +4602,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"HUKI{{}}\",\n  \"name\": \"Giảm 10% đơn hàng\",\n  \"type\": \"PERCENTAGE\",\n  \"value\": 10,\n  \"scope\": \"PLATFORM\",\n  \"minOrderAmount\": 100000,\n  \"maxDiscountAmount\": 50000\n}",
+              "raw": "{\n  \"code\": \"HUKI{{}}\",\n  \"name\": \"Giảm 10% đơn hàng\",\n  \"type\": \"PERCENTAGE\",\n  \"value\": 10,\n  \"scope\": \"PLATFORM\",\n  \"minOrderAmount\": 100000,\n  \"maxDiscountAmount\": 50000,\n  \"startsAt\": \"2026-01-01T00:00:00.000Z\",\n  \"expiresAt\": \"2026-12-31T23:59:59.000Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
