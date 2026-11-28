@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import AccountLayout from '@/ui/components/layout/AccountLayout';
-import { voucherApi, type VoucherItem } from '@/ui/api/voucherApi';
+import { voucherApi, type Voucher } from '@/ui/api/voucherApi';
 import { useToast } from '@/ui/context/ToastContext';
 
 type WalletTab = 'ALL' | 'FREESHIP' | 'DISCOUNT' | 'SHOP';
@@ -13,8 +13,8 @@ export default function ProfileVouchersPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<WalletTab>('ALL');
   const [walletData, setWalletData] = useState<{
-    platform: { freeship: VoucherItem[]; discount: VoucherItem[] };
-    shop: VoucherItem[];
+    platform: { freeship: Voucher[]; discount: Voucher[] };
+    shop: Voucher[];
   }>({
     platform: { freeship: [], discount: [] },
     shop: [],
@@ -26,12 +26,15 @@ export default function ProfileVouchersPage() {
       .getWalletVouchers()
       .then((res) => {
         if (mounted && res.success && res.data) {
+          const shopVouchers = Array.isArray(res.data.stores)
+            ? res.data.stores.flatMap((s) => s.vouchers || [])
+            : [];
           setWalletData({
             platform: {
               freeship: res.data.platform?.freeship || [],
               discount: res.data.platform?.discount || [],
             },
-            shop: res.data.shop || [],
+            shop: shopVouchers,
           });
         }
       })
