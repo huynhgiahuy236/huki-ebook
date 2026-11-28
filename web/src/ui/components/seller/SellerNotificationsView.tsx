@@ -1012,12 +1012,12 @@ export default function SellerNotificationsView() {
                       handleOpenDetailByIndex(globalIndex);
                     }
                   }}
-                  className={`bg-white dark:bg-neutral-900 rounded-xl border transition-all px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 cursor-pointer hover:border-slate-300 hover:shadow-xs relative overflow-hidden group ${
+                  className={`bg-white dark:bg-neutral-900 rounded-xl border transition-all p-4 sm:px-5 mb-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 cursor-pointer hover:border-slate-300 hover:shadow-xs relative overflow-hidden group ${
                     isSelected
                       ? 'border-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/30 ring-1 ring-emerald-500/30'
                       : !n.isRead
-                      ? 'border-slate-200 bg-slate-50/40 dark:bg-neutral-900'
-                      : 'border-slate-200/80 dark:border-neutral-800'
+                      ? 'border-slate-200 bg-white dark:bg-neutral-900 shadow-2xs'
+                      : 'border-slate-200/70 bg-slate-50/60 opacity-75 dark:border-neutral-800'
                   }`}
                 >
                   {/* Clean subtle Left Indicator for unread (no harsh pulsing) */}
@@ -1117,11 +1117,15 @@ export default function SellerNotificationsView() {
                           • {formatTime(n.createdAt)}
                         </span>
 
-                        {!n.isRead && (
-                          <span
-                            className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"
-                            title="Tin mới chưa đọc"
-                          />
+                        {!n.isRead ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                            <span>Chưa đọc</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-500">
+                            Đã đọc
+                          </span>
                         )}
                       </div>
 
@@ -1175,7 +1179,7 @@ export default function SellerNotificationsView() {
                       </button>
                     )}
 
-                    {/* Toggle Read button on hover */}
+                    {/* Toggle Read button */}
                     <button
                       type="button"
                       onClick={(e) => {
@@ -1190,12 +1194,17 @@ export default function SellerNotificationsView() {
                           handleMarkSingleAsRead(n.id);
                         }
                       }}
-                      className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                        n.isRead
+                          ? 'text-slate-500 bg-slate-100 hover:bg-slate-200'
+                          : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+                      }`}
                       title={n.isRead ? 'Đánh dấu chưa đọc' : 'Đánh dấu đã đọc'}
                     >
-                      <span className="material-symbols-outlined text-[18px]">
+                      <span className="material-symbols-outlined text-[15px]">
                         {n.isRead ? 'mark_chat_unread' : 'done'}
                       </span>
+                      <span>{n.isRead ? 'Đánh dấu chưa đọc' : 'Đánh dấu đã đọc'}</span>
                     </button>
 
                     {/* Detail button */}
