@@ -291,103 +291,11 @@ export default function AdminUsersView() {
     };
     document.addEventListener('visibilitychange', onVisibility);
 
-    // 3. Heartbeat background polling every 3 seconds for guaranteed real-time across different browsers
+    // 3. Silent background sync every 5 seconds when tab is visible (preserves order stats & works across browsers)
     const pollInterval = window.setInterval(() => {
-      adminApi.getUsers().then((res) => {
-        if (res.success && Array.isArray(res.data)) {
-          const rawUsers = res.data;
-          const mapped: AdminUser[] = rawUsers.map((u: any) => {
-            const rawStatus = (u.status || '').toUpperCase();
-            const isPendingDeletion = rawStatus === 'PENDING_DELETION';
-            const isDeleted = rawStatus === 'DELETED' || Boolean(u.deletedAt);
-            const isLocked = rawStatus === 'LOCKED' || rawStatus === 'BLOCKED';
-            const isPending = rawStatus === 'PENDING';
-
-            const rawRole = String(u.role || 'CUSTOMER').toUpperCase();
-            const isRegularBuyer = rawRole === 'CUSTOMER' || rawRole === 'BUYER' || rawRole === 'USER';
-            let status: 'active' | 'warning' | 'locked' | 'pending' | 'pending_deletion' | 'deleted' = 'active';
-            let statusLabel = 'Hoạt động tốt';
-
-            if (isPendingDeletion) {
-              status = 'pending_deletion';
-              statusLabel = `Chờ xóa (${u.remainingDays ?? 7} ngày)`;
-            } else if (isDeleted) {
-              status = 'deleted';
-              statusLabel = 'Đã xóa tài khoản';
-            } else if (isLocked) {
-              status = 'locked';
-              statusLabel = 'Đã bị khóa tài khoản';
-            } else if (isPending && !isRegularBuyer) {
-              status = 'warning';
-              statusLabel = 'Chờ xác thực';
-            } else if (isPending) {
-              status = 'active';
-              statusLabel = 'Hoạt động tốt';
-            }
-
-            const role = u.role || 'CUSTOMER';
-            let tier: 'diamond' | 'gold' | 'silver' | 'bronze' = 'bronze';
-            let tierLabel = 'Đồng';
-            if (role === 'PLATFORM_ADMIN') {
-              tier = 'diamond';
-              tierLabel = 'Quản Trị';
-            } else if (role === 'BUSINESS' || role === 'SELLER_ADMIN') {
-              tier = 'gold';
-              tierLabel = 'Đối Tác NXB';
-            } else if (role === 'DELIVERY_STAFF') {
-              tier = 'silver';
-              tierLabel = 'Bưu Tá';
-            }
-
-            const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.fullName || 'User')}&background=00875A&color=fff&size=120`;
-
-            return {
-              id: u.id,
-              name: u.fullName || 'Độc Giả Chưa Đặt Tên',
-              email: u.email || 'N/A',
-              phone: u.phone || 'Chưa cập nhật',
-              avatar: u.avatar || defaultAvatar,
-              role,
-              roleLabel: u.roleLabel || (role === 'CUSTOMER' ? 'Khách hàng' : role),
-              tier,
-              tierLabel,
-              spent: 0,
-              booksOwned: 0,
-              ebooksCount: 0,
-              physicalCount: 0,
-              devicesCount: 1,
-              devicesList: [
-                {
-                  id: `DEV-${u.id.substring(0, 4)}`,
-                  name: 'Trình duyệt Web (HUKI Desktop)',
-                  type: 'Windows Web',
-                  lastActive: 'Hôm nay',
-                },
-              ],
-              points: 100,
-              joinedDate: formatVietnamDate(u.createdAt),
-              status,
-              statusLabel,
-              storeName: u.storeName,
-              rawStatus,
-              deletionScheduledAt: u.deletionScheduledAt,
-              deletionRequestedAt: u.deletionRequestedAt,
-              deletionCount: u.deletionCount || 0,
-              remainingDays: u.remainingDays,
-              deletedAt: u.deletedAt,
-              originalEmail: u.originalEmail,
-            };
-          });
-
-          // Check if data changed to avoid re-rendering unnecessarily
-          setUsers((prev) => {
-            const prevStr = JSON.stringify(prev.map(p => ({ id: p.id, status: p.status, remainingDays: p.remainingDays })));
-            const nextStr = JSON.stringify(mapped.map(m => ({ id: m.id, status: m.status, remainingDays: m.remainingDays })));
-            return prevStr !== nextStr ? mapped : prev;
-          });
-        }
-      }).catch(() => {});
-    }, 30000);
+      if (typeof document !== 'undefined' && document.hidden) return;
+      void loadUsersRef.current(true);
+    }, 5000);
 
     return () => {
       unsubscribe();
@@ -453,10 +361,10 @@ export default function AdminUsersView() {
           setInspectingUser((prev) =>
             prev
               ? {
-                  ...prev,
-                  status: nextStatus,
-                  statusLabel: nextStatus === 'locked' ? 'Đã bị khóa tài khoản' : 'Hoạt động tốt',
-                }
+                ...prev,
+                status: nextStatus,
+                statusLabel: nextStatus === 'locked' ? 'Đã bị khóa tài khoản' : 'Hoạt động tốt',
+              }
               : null
           );
         }
@@ -728,7 +636,7 @@ export default function AdminUsersView() {
               <span className="font-bold text-gray-900 group-hover:text-[#00875A] transition-colors">
                 {user.name}
               </span>
-              
+
             </div>
           </div>
         ),
@@ -843,11 +751,10 @@ export default function AdminUsersView() {
             ) : (
               <button
                 onClick={() => handleToggleLock(user.id)}
-                className={`px-2 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer border ${
-                  user.status === 'locked'
-                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
-                    : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
-                }`}
+                className={`px-2 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer border ${user.status === 'locked'
+                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                  : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                  }`}
                 title={user.status === 'locked' ? 'Mở khóa tài khoản' : 'Khóa tài khoản trong CSDL'}
               >
                 {user.status === 'locked' ? 'Mở Khóa' : 'Khóa'}
@@ -1167,22 +1074,20 @@ export default function AdminUsersView() {
             <button
               type="button"
               onClick={() => setUserTab('info')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                userTab === 'info'
-                  ? 'bg-[#00875A] text-white shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${userTab === 'info'
+                ? 'bg-[#00875A] text-white shadow-xs'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
             >
               Thông Tin Tài Khoản Thực Tế
             </button>
             <button
               type="button"
               onClick={() => setUserTab('history')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                userTab === 'history'
-                  ? 'bg-[#00875A] text-white shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${userTab === 'history'
+                ? 'bg-[#00875A] text-white shadow-xs'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
             >
               Lịch Sử Kiểm Toán (Governance Audit)
             </button>
@@ -1222,11 +1127,10 @@ export default function AdminUsersView() {
                   {inspectingUser.status !== 'deleted' && inspectingUser.status !== 'pending_deletion' && (
                     <button
                       onClick={() => handleToggleLock(inspectingUser.id)}
-                      className={`px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer flex items-center gap-1 shadow-2xs ${
-                        inspectingUser.status === 'locked'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                          : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
-                      }`}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer flex items-center gap-1 shadow-2xs ${inspectingUser.status === 'locked'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                        : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+                        }`}
                     >
                       <span className="material-symbols-outlined text-[15px]">
                         {inspectingUser.status === 'locked' ? 'lock_open' : 'lock'}
