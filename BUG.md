@@ -2390,6 +2390,68 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
    - **Mock cứng số liệu Phễu:** `interactions: 1280`, `addToCart: 69`, `checkouts: 60` không hề fetch từ API/DB, đồng thời dùng fallback `completedOrders || 32` và `totalGmv || 5743194`.
 4. **Tab 4 — `Sổ Cái Doanh Thu & Dòng Tiền Sàn` ([`AdminLedgerView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminLedgerView.tsx#L172-L197)):**
    - `loadEscrowItems` tạo `storeMap` từ state `stores` nhưng không chờ `stores` load xong và không đưa `stores` vào dependency, khiến `storeMap.get(item.storeId)` bị `undefined` và hiển thị UUID thô (`1079fc76-...`) từ `item.storeName`.
-   - Giao diện 4 tab còn rối, thanh banner đen `PostgreSQL Real Data` thô, cột `TRẠNG THÁI` bị rớt 2 dòng.
+   - Giao diện **nội dung bên trong 4 tab** còn rối, thừa badge/ID UUID/icon copy, Tab 4 có thanh banner đen `PostgreSQL Real Data` thô và cột `TRẠNG THÁI` rớt 2 dòng, Tab 3 dòng `TỔNG CỘNG` bị rớt 2 dòng. *(Lưu ý: Giữ nguyên thanh 4 nút chuyển tab trên cùng vì đang ổn, chỉ chuẩn hóa UI nội dung bên trong từng tab).*
 
-- **Trạng thái Bước 2 (Toàn bộ 17 bug `BUG-39` → `BUG-55`):** **HOÀN TẤT 100%**. Sẵn sàng chuyển sang **Bước 3 — Giai đoạn 1 (`BUG-39`, `BUG-40`, `BUG-41`)**.
+- **Trạng thái Bước 2 (Toàn bộ 17 bug `BUG-39` → `BUG-55`):** **HOÀN TẤT 100%**.
+
+---
+
+### Bước 3 — Giai đoạn 1 (`BUG-39`, `BUG-40`, `BUG-41`): Phương Án Kiến Trúc & Tiêu Chuẩn Nghiệm Thu (Đã Phê Duyệt)
+
+1. **`BUG-39` (`/seller/products` & `/seller/correction`):**
+   - **Giải pháp đã duyệt:** Thay nền đen ở `DataTableFilterBar` & `DataTableBulkActionBar` bằng **nền trắng tinh tế (`bg-white`), viền xanh ngọc nhẹ (`border-emerald-200`), điểm nhấn xanh HuKi (`#00875A`), bố cục thoáng rộng (`px-4 py-2 gap-3`)**; thêm tab lọc **"Đang Ẩn"** (`HIDDEN`) vào `/seller/products`; gỡ `PUBLISH_ALL` khỏi `/seller/products` và đưa vào thanh Bulk Action của `/seller/correction` (Sách nháp).
+   - **AC (`Given/When/Then`):** Given Seller chọn >= 1 sách, When thanh thao tác hàng loạt hiện ra, Then hiển thị nền trắng/xanh HuKi thoáng rộng; `/seller/products` lọc được sách Đang Ẩn; `/seller/correction` xuất bản hàng loạt sách nháp thành công (HTTP 200, DB cập nhật `PUBLISHED`).
+2. **`BUG-40` (`/seller/returns`):**
+   - **Giải pháp đã duyệt:** Tính số đếm (`count`) độc lập cho mọi tab từ toàn bộ dữ liệu thực tế của Shop (không bị ghi đè theo tab đang bấm), đồng thời nhóm đầy đủ các trạng thái đổi trả (`PICKUP_SCHEDULED`, `IN_TRANSIT`, `RETURNED_TO_SELLER` vào nhóm Đã Đồng Ý / Đang Thu Hồi; `COMPLETED`, `ARBITRATED_*`, `REJECTED`, `CANCELLED` vào nhóm Đã Giải Quyết).
+   - **AC:** Given Seller chuyển qua lại giữa các tab (kể cả tab có `0` đơn), When tải xong, Then số đếm trên tất cả các tab khác giữ nguyên chính xác theo DB.
+3. **`BUG-41` (`/admin/accounts` & `/admin/users`):**
+   - **Giải pháp đã duyệt:** Gộp thành **1 mục menu duy nhất "Quản Lý Người Dùng"** tại `/admin/users` (redirect `/admin/accounts` ➔ `/admin/users`); bỏ nút/form "Thêm Khách Hàng / Bạn Đọc"; bổ sung lọc Vai trò (Khách hàng, Gian hàng, Bưu tá, Admin) + lọc "Khách chưa mua hàng" + giữ các thao tác quản trị tài khoản (đổi role, khóa/mở, xem chi tiết).
+   - **AC:** Admin Sidebar chỉ còn 1 mục quản lý người dùng; 0 nút thêm khách hàng/bạn đọc; lọc đúng khách chưa mua hàng & từng vai trò từ DB.
+
+### Bước 3 — Giai đoạn 2 (`BUG-42`, `BUG-43`, `BUG-44`): Phương Án Kiến Trúc & Tiêu Chuẩn Nghiệm Thu (Đã Phê Duyệt)
+
+1. **`BUG-42` (Sidebar `NXB & Tác Giả`):**
+   - **Giải pháp:** Đổi nhãn menu trong `HierarchicalSidebar.tsx` từ `NXB & Tác Giả` thành **`Gian Hàng & Tác Giả`**.
+   - **AC:** Sidebar hiển thị `Gian Hàng & Tác Giả` khớp 100% với tiêu đề trang `/stores`.
+2. **`BUG-43` (`/admin/drm-vault`):**
+   - **Giải pháp đã duyệt:** Bỏ hardcode `4ms` và `SG1 & HN02`; đo latency DB thật (`ms`), hiển thị đúng engine thực tế, tự động cộng `issuedLicenses` khi mua Ebook thành công, phát Socket realtime khi mở/đóng phiên đọc, và tự backfill `DrmLicense` cho sách số còn thiếu khi chạy `Integrity Scan`.
+   - **AC:** Mọi số liệu KPI và bảng DRM Vault phản ánh 100% dữ liệu thật từ DB, có test E2E xác nhận quy trình cấp/đọc/thu hồi hoạt động.
+3. **`BUG-44` (`/admin/shippers`):**
+   - **Giải pháp đã duyệt:** Xóa toàn bộ shipper giả hardcode trong `orders.service.ts`; gọi Internal API sang `identity-service` lấy đúng danh sách user `DELIVERY_STAFF` thật từ DB (khớp 100% `/admin/users`); lưu DB khi khóa/mở shipper; phát & nhận Socket realtime khi Shipper nộp tiền COD về sàn.
+   - **AC:** Số lượng `Tổng số bưu tá` & `Đang trực tiếp` khớp 100% DB thật (UAT = 1 shipper); khi Shipper nộp tiền COD, Admin thấy cập nhật realtime không cần F5.
+
+### Bước 3 — Giai đoạn 3 (`BUG-45`, `BUG-46`, `BUG-47`): Phương Án Kiến Trúc & Tiêu Chuẩn Nghiệm Thu (Đã Phê Duyệt)
+
+1. **`BUG-45` (`/admin/return-requests` & `/admin/disputes`):**
+   - **Giải pháp:** Tính số đếm (`count`) độc lập trên mọi tab từ tổng dữ liệu DB (không bị ăn theo tab đang bấm); bổ sung route alias `/admin/returnrequests` ➔ `/admin/return-requests`.
+   - **AC:** Chuyển qua lại bất kỳ tab nào (kể cả tab có `0` item), số đếm các tab còn lại giữ nguyên chính xác theo DB.
+2. **`BUG-46` (`/admin/moderation`):**
+   - **Giải pháp đã duyệt:** Giữ `/admin/book-moderation` chuyên duyệt Sách; chuyển `/admin/moderation` thành **"Kiểm Duyệt Bình Luận & Đánh Giá"** (chỉ lọc & hiển thị `REVIEW`/`COMMENT`, tách hẳn báo cáo sách).
+   - **AC:** `/admin/moderation` chỉ hiển thị khiếu nại đánh giá/bình luận, không trộn lẫn sách.
+3. **`BUG-47` (`/admin/marketing`):**
+   - **Giải pháp đã duyệt:** Xóa nút thử nghiệm click (icon bàn tay); thêm endpoint `POST /banners/:id/click` ghi nhận lượt click thật vào PostgreSQL khi Buyer bấm banner; chuẩn hóa 3 nút `Sửa`, `Ẩn`/`Hiện`, `Xóa` đồng bộ kiểu dáng tinh tế chuẩn hệ thống (bo góc nhẹ, icon + chữ cân đối, 1 hàng ngang).
+   - **AC:** Bấm banner ở Buyer tăng +1 click thật trong DB & hiển thị ở Admin; cụm 3 nút đều hàng, không màu mè lệch tông.
+
+### Bước 3 — Giai đoạn 4 (`BUG-48`, `BUG-49`, `BUG-50`): Phương Án Kiến Trúc & Tiêu Chuẩn Nghiệm Thu (Đã Phê Duyệt)
+
+1. **`BUG-48` (`/admin/affiliates`):**
+   - **Giải pháp đã duyệt:** Chuyển cả 3 tab (`Hồ sơ CTV`, `Hàng đợi rút tiền`, `Giám sát gian lận`) sang `GroupedDataTable` + `DataTableFilterBar` có đầy đủ số đếm `count` và xác thực 100% dữ liệu thật từ DB.
+   - **AC:** Cả 3 tab dùng `GroupedDataTable`, bộ lọc hiển thị count chính xác, 0 mock data.
+2. **`BUG-49` (Banner Realtime & Hẹn giờ):**
+   - **Giải pháp đã duyệt:** `Promotion Service` phát Outbox/RabbitMQ event `BANNER_UPDATED` khi tạo/sửa/xóa + dùng Smart Next-Due Timer tự kích hoạt banner hẹn giờ; Buyer Homepage lắng nghe `realtimeSyncBus` tự cập nhật ngay không cần F5.
+   - **AC:** Tạo banner ngay hoặc đến giờ hẹn ở Admin, Buyer Homepage tự hiển thị trong < 2 giây không cần reload.
+3. **`BUG-50` (`/admin/seller-features`):**
+   - **Giải pháp đã duyệt:** Đồng bộ toàn bộ API contract giữa `featureFlagsService.ts` và `business-service` (hỗ trợ `TOGGLE_GLOBAL`, `SCHEDULE_TIMER`, `TOGGLE_BUSINESS`, tự upsert DB, gắn `@Roles('PLATFORM_ADMIN')`); bỏ `localStorage` làm nguồn chính, phát Socket `FEATURE_FLAGS_UPDATED` realtime tới Seller.
+   - **AC:** Admin bấm tắt tính năng trên UAT trả về HTTP 200, lưu DB thật, Seller bị khóa tính năng ngay lập tức.
+
+### Bước 3 — Giai đoạn 5 (`BUG-51`, `BUG-52`, `BUG-53`): Phương Án Kiến Trúc & Tiêu Chuẩn Nghiệm Thu (Đã Phê Duyệt)
+
+1. **`BUG-51` (`/admin/maintenance`):**
+   - **Giải pháp đã duyệt:** Đồng bộ payload & `UpdateMaintenanceDto` (nhận đủ thông số bảo trì/hẹn giờ/bypass), `await` API `POST /api/v1/system/maintenance` & báo lỗi rõ nếu fail, lưu DB `identity-service` và phát Socket `SYSTEM_MAINTENANCE_CHANGED` chặn/mở realtime toàn sàn.
+   - **AC:** Bật/tắt bảo trì trên UAT trả về HTTP 200, lưu DB và có hiệu lực toàn sàn ngay lập tức.
+2. **`BUG-52` (Header Search Bar Seller & Admin):**
+   - **Giải pháp:** Chuyển Header Search ở `AdminLayout` sang `flex items-center` (triệt tiêu đè chữ lên icon kính lúp) và tinh chỉnh mềm mại, đồng bộ kích thước/nút xóa nhanh cho cả `SellerHeader` & `AdminLayout`.
+   - **AC:** 0 lỗi đè chữ ở mọi độ phân giải, kiểu dáng tinh tế đồng bộ.
+3. **`BUG-53` (Báo động đỏ giả Microservices trên UAT):**
+   - **Giải pháp đã duyệt:** Đọc URL nội bộ từng microservice qua biến môi trường (tên container Docker trên UAT, fallback `127.0.0.1` ở Local), thêm retry 2–3 lần trước khi báo động đỏ và ghi rõ mã/chi tiết lỗi (không để rỗng).
+   - **AC:** 0 cảnh báo giả khi tất cả container đang chạy bình thường trên UAT.
