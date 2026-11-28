@@ -77,6 +77,8 @@ export function AdminFinanceView() {
   const [isLoadingEod, setIsLoadingEod] = useState(false);
   const [isRunningEod, setIsRunningEod] = useState(false);
   const [selectedEodRun, setSelectedEodRun] = useState<EodReconciliationRunView | null>(null);
+  const [discPage, setDiscPage] = useState(1);
+  const discPageSize = 10;
   const [eodDateInput, setEodDateInput] = useState('');
 
   // Review Modal State (Approve / Reject)
@@ -682,8 +684,9 @@ export function AdminFinanceView() {
         render: (status: string) => {
           if (status === 'COMPLETED_PASS') return <AdminStatusBadge status="success" label="Đạt chuẩn" className="rounded-md border-0" />;
           if (status === 'COMPLETED_WARNING') return <AdminStatusBadge status="warning" label="Có cảnh báo" className="rounded-md border-0" />;
+          if (status === 'COMPLETED_FAIL') return <AdminStatusBadge status="warning" label="Có sai lệch" className="rounded-md border-0" />;
           if (status === 'RUNNING') return <AdminStatusBadge status="info" label="Đang chạy" className="rounded-md border-0" />;
-          return <AdminStatusBadge status="danger" label="Thất bại" className="rounded-md border-0" />;
+          return <AdminStatusBadge status="danger" label="Lỗi chạy" className="rounded-md border-0" />;
         },
       },
       {
@@ -702,6 +705,9 @@ export function AdminFinanceView() {
         title: 'Sai Lệch',
         className: 'whitespace-nowrap',
         render: (_val, run) => {
+          if (run.status === 'FAILED') {
+            return <span className="text-gray-400">—</span>;
+          }
           if (run.counts?.totalDiscrepancies) {
             return (
               <span className="inline-flex items-center gap-1 font-bold text-amber-700">
@@ -734,7 +740,10 @@ export function AdminFinanceView() {
         render: (_val, run) => (
           <button
             type="button"
-            onClick={() => setSelectedEodRun(run)}
+            onClick={() => {
+              setSelectedEodRun(run);
+              setDiscPage(1);
+            }}
             className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[11px] cursor-pointer"
           >
             Xem Chi Tiết
@@ -1202,36 +1211,75 @@ export function AdminFinanceView() {
                   <span className="material-symbols-outlined text-[18px]">check_circle</span>
                   <span>Tuyệt vời! Không phát hiện bất kỳ sai lệch nào trên toàn hệ thống kế toán kép &amp; ví seller.</span>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  {selectedEodRun.discrepancies.map((disc, idx) => (
-                    <div key={idx} className="p-3 rounded-xl bg-gray-50 border border-gray-200 text-xs space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono font-bold text-gray-900">{disc.type}</span>
-                        <span
-                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                            disc.severity === 'CRITICAL' || disc.severity === 'ERROR'
-                              ? 'bg-rose-100 text-rose-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          {disc.severity === 'CRITICAL'
-                            ? 'Nghiêm trọng'
-                            : disc.severity === 'ERROR'
-                            ? 'Lỗi'
-                            : disc.severity === 'WARNING'
-                            ? 'Cảnh báo'
-                            : 'Thông tin'}
-                        </span>
-                      </div>
-                      <div className="text-gray-600">{disc.details}</div>
-                      <div className="text-[11px] text-gray-500 font-mono">
-                        Kỳ vọng: {disc.expected} | Thực tế: {disc.actual}
-                      </div>
+              ) : (() => {
+                const totalDisc = selectedEodRun.discrepancies.length;
+                const totalDiscPages = Math.ceil(totalDisc / discPageSize) || 1;
+                const safeDiscPage = Math.min(discPage, totalDiscPages);
+                const startIdx = (safeDiscPage - 1) * discPageSize;
+                const pageItems = selectedEodRun.discrepancies.slice(startIdx, startIdx + discPageSize);
+
+                return (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      {pageItems.map((disc, idx) => (
+                        <div key={startIdx + idx} className="p-3 rounded-xl bg-gray-50 border border-gray-200 text-xs space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono font-bold text-gray-900">{disc.type}</span>
+                            <span
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                disc.severity === 'CRITICAL' || disc.severity === 'ERROR'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {disc.severity === 'CRITICAL'
+                                ? 'Nghiêm trọng'
+                                : disc.severity === 'ERROR'
+                                ? 'Lỗi'
+                                : disc.severity === 'WARNING'
+                                ? 'Cảnh báo'
+                                : 'Thông tin'}
+                            </span>
+                          </div>
+                          <div className="text-gray-600">{disc.details}</div>
+                          <div className="text-[11px] text-gray-500 font-mono">
+                            Kỳ vọng: {disc.expected} | Thực tế: {disc.actual}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
+
+                    {totalDiscPages > 1 && (
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs">
+                        <span className="text-gray-500">
+                          Hiển thị <strong>{startIdx + 1} - {Math.min(startIdx + discPageSize, totalDisc)}</strong> / {totalDisc} mục
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={safeDiscPage <= 1}
+                            onClick={() => setDiscPage((p) => Math.max(1, p - 1))}
+                            className="px-2.5 py-1 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 cursor-pointer font-semibold"
+                          >
+                            Trang trước
+                          </button>
+                          <span className="px-2.5 py-1 rounded-lg bg-[#00875A] text-white font-bold">
+                            {safeDiscPage} / {totalDiscPages}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={safeDiscPage >= totalDiscPages}
+                            onClick={() => setDiscPage((p) => Math.min(totalDiscPages, p + 1))}
+                            className="px-2.5 py-1 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 cursor-pointer font-semibold"
+                          >
+                            Trang sau
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
