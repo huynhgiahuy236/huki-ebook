@@ -11,6 +11,7 @@ import { soundEffects } from '@/ui/utils/soundEffects';
 import UniversalNotificationBell from '@/ui/components/common/UniversalNotificationBell';
 import { useToast } from '@/ui/context/ToastContext';
 import { realtimeSyncBus, playRoleNotificationChime } from '@/ui/services/realtimeSyncBus';
+import { HukiLogo } from '@/components/brand/HukiLogo';
 
 export interface AdminLayoutProps {
   children?: React.ReactNode;
@@ -375,9 +376,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <div className="admin-portal h-screen w-full bg-white text-[#1E293B] flex flex-col font-sans antialiased overflow-hidden selection:bg-[#00875A] selection:text-white">
       {/* 1. TOP APP BAR / HEADER */}
-      <header className="h-[54px] min-h-[54px] border-b border-[#E2E8F0] pl-0 pr-3.5 sm:pr-5 lg:pr-6 flex items-center justify-between gap-3 shrink-0 bg-white z-30 relative">
+      <header className="h-14 min-h-14 border-b border-[#E2E8F0] pl-0 pr-3.5 sm:pr-5 lg:pr-6 flex items-center justify-between gap-3 shrink-0 bg-white z-30 relative">
         {/* Left: Sidebar Toggle & Brand Identity */}
-        <div className="flex items-center z-10">
+        <div className="flex items-center h-full z-10">
           {/* Hamburger / Sidebar Toggle Container - exactly w-[60px] to align perfectly with collapsed sidebar */}
           <div className="w-[64px] flex items-center justify-center shrink-0">
             {/* Desktop Sidebar Collapse Toggle Button */}
@@ -402,17 +403,15 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             </button>
           </div>
 
-          {/* Logo & Portal Identity - Chuẩn nhận diện Home (Không dùng logo icon chữ H) */}
-          <Link href="/admin/dashboard" className="flex flex-col group select-none pl-1 pr-3">
+          {/* Logo & Portal Identity */}
+          <Link href="/admin/dashboard" className="flex flex-col justify-center group select-none pl-1 pr-3">
             <div className="flex items-center gap-1.5">
-              <span className="font-editorial text-base sm:text-lg font-black tracking-tight text-[#003B2B] leading-none">
-                HUKI EBOOK
-              </span>
-              <span className="bg-[#003B2B] text-white text-[7.5px] sm:text-[8px] font-black uppercase px-1.5 py-0.5 rounded tracking-wider">
+              <HukiLogo variant="dark" className="h-5 sm:h-[22px] w-auto" priority />
+              <span className="bg-[#003B2B] text-white text-[7.5px] sm:text-[8px] font-black uppercase px-1.5 py-0.5 rounded tracking-wider leading-none">
                 ADMIN
               </span>
             </div>
-            <span className="text-[7.5px] sm:text-[8px] uppercase tracking-widest text-[#006953] font-bold mt-0.5">
+            <span className="text-[7.5px] sm:text-[8px] uppercase tracking-widest text-[#006953] font-bold mt-1 leading-none">
               Ban Quản Trị Hệ Thống
             </span>
           </Link>
@@ -429,7 +428,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               placeholder="Tìm sách, doanh nghiệp, ISBN..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-9 pl-10.5 pr-12 rounded-full bg-[#F8FAFC] hover:bg-[#F1F5F9] focus:bg-white border border-[#E2E8F0] focus:border-[#003B2B] text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none transition-all shadow-2xs focus:shadow-xs"
+              className="w-full h-9 pl-11 pr-14 rounded-full bg-[#F8FAFC] hover:bg-[#F1F5F9] focus:bg-white border border-[#E2E8F0] focus:border-[#003B2B] text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none transition-all shadow-2xs focus:shadow-xs"
             />
             {searchQuery ? (
               <button
@@ -687,14 +686,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               <div className="p-3.5 border-b border-white/10 flex items-center justify-between bg-black/10">
                 <div className="flex flex-col select-none">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-editorial text-base font-black tracking-tight text-white leading-none">
-                      HUKI EBOOK
-                    </span>
-                    <span className="bg-white/20 text-white text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded">
+                    <HukiLogo variant="mint" className="h-5 w-auto" />
+                    <span className="bg-white/20 text-white text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded leading-none">
                       ADMIN
                     </span>
                   </div>
-                  <span className="text-[7.5px] uppercase tracking-widest text-emerald-300 font-bold mt-0.5">
+                  <span className="text-[7.5px] uppercase tracking-widest text-emerald-300 font-bold mt-1">
                     Ban Quản Trị Hệ Thống
                   </span>
                 </div>
