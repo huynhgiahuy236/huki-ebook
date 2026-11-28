@@ -107,8 +107,8 @@ export default function ProfilePage() {
     user?.role === 'PLATFORM_ADMIN'
       ? 'Quản Trị Viên (Admin)'
       : user?.role === 'BUSINESS'
-      ? 'Chủ Doanh Nghiệp / Nhà Xuất Bản'
-      : 'Độc Giả Cá Nhân';
+        ? 'Chủ Doanh Nghiệp / Nhà Xuất Bản'
+        : 'Độc Giả Cá Nhân';
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -181,10 +181,10 @@ export default function ProfilePage() {
         )}
 
         <form onSubmit={handleSaveProfile} className="grid grid-cols-1 lg:grid-cols-12 gap-8 pb-8">
-          
+
           {/* Left Column: Form Fields (8 cols) */}
           <div className="lg:col-span-8 space-y-5 text-xs">
-            
+
             {/* Họ và tên */}
             <div className="space-y-1.5">
               <label className="font-bold text-gray-700 block">
@@ -196,11 +196,10 @@ export default function ProfilePage() {
                 onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                 disabled={!isEditing}
                 placeholder="Nhập họ và tên đầy đủ"
-                className={`w-full px-3.5 py-2.5 border rounded-xl text-xs transition-all font-medium ${
-                  isEditing
-                    ? 'bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-[#003B2B] focus:ring-1 focus:ring-[#003B2B]'
-                    : 'bg-gray-50 border-gray-200 text-gray-700 cursor-default'
-                }`}
+                className={`w-full px-3.5 py-2.5 border rounded-xl text-xs transition-all font-medium ${isEditing
+                  ? 'bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-[#003B2B] focus:ring-1 focus:ring-[#003B2B]'
+                  : 'bg-gray-50 border-gray-200 text-gray-700 cursor-default'
+                  }`}
                 required
               />
             </div>
@@ -230,11 +229,10 @@ export default function ProfilePage() {
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 disabled={!isEditing}
                 placeholder="Ví dụ: 0988123456"
-                className={`w-full px-3.5 py-2.5 border rounded-xl text-xs transition-all font-medium ${
-                  isEditing
-                    ? 'bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-[#003B2B] focus:ring-1 focus:ring-[#003B2B]'
-                    : 'bg-gray-50 border-gray-200 text-gray-700 cursor-default'
-                }`}
+                className={`w-full px-3.5 py-2.5 border rounded-xl text-xs transition-all font-medium ${isEditing
+                  ? 'bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-[#003B2B] focus:ring-1 focus:ring-[#003B2B]'
+                  : 'bg-gray-50 border-gray-200 text-gray-700 cursor-default'
+                  }`}
               />
             </div>
 
@@ -393,7 +391,7 @@ export default function ProfilePage() {
           {/* Right Column: Avatar Preview (4 cols) */}
           <div className="lg:col-span-4 flex flex-col items-center justify-center p-6 bg-gray-50/70 border border-gray-200/80 rounded-2xl text-center space-y-4">
             <UserAvatar user={user} size="xl" className="w-24 h-24 shadow-sm" />
-            
+
             <div>
               <span className="font-bold text-sm text-gray-900 block">{displayName}</span>
               <span className="text-[11px] text-gray-400 block mt-0.5">{displayEmail}</span>
@@ -439,6 +437,7 @@ export default function ProfilePage() {
 }
 
 function FollowedStoresAndAuthorsSection() {
+  const [activeTab, setActiveTab] = useState<'stores' | 'authors'>('stores');
   const [favorites, setFavorites] = useState<Array<{ id: string; name: string; title?: string; avatar?: string }>>([]);
   const [followedStores, setFollowedStores] = useState<Array<{ id: string; name: string; slug?: string; logo?: string }>>([]);
 
@@ -517,29 +516,55 @@ function FollowedStoresAndAuthorsSection() {
     } catch { }
   };
 
+  const visibleStores = followedStores.slice(0, 6);
+  const visibleAuthors = favorites.slice(0, 6);
+
   return (
-    <div className="pt-6 border-t border-gray-100 space-y-6">
-      {/* Gian hàng đang theo dõi */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#006953] text-[20px]">storefront</span>
-              <span>Gian Hàng Đang Theo Dõi ({followedStores.length})</span>
-            </h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Sách từ các gian hàng bạn theo dõi sẽ được ưu tiên hiển thị trong mục Gợi ý cho bạn
-            </p>
-          </div>
-          <Link
-            href="/stores"
-            className="text-xs font-semibold text-[#006953] hover:underline whitespace-nowrap"
+    <div className="pt-6 border-t border-gray-100 space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200/70 self-start">
+          <button
+            type="button"
+            onClick={() => setActiveTab('stores')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+              activeTab === 'stores'
+                ? 'bg-[#003B2B] text-white shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
           >
-            Xem gian hàng →
-          </Link>
+            <span>Gian hàng theo dõi</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'stores' ? 'bg-white/20 text-white' : 'bg-white text-slate-700'}`}>
+              {followedStores.length}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('authors')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+              activeTab === 'authors'
+                ? 'bg-[#003B2B] text-white shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <span>Tác giả yêu thích</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'authors' ? 'bg-white/20 text-white' : 'bg-white text-slate-700'}`}>
+              {favorites.length}
+            </span>
+          </button>
         </div>
 
-        {followedStores.length === 0 ? (
+        <Link
+          href={activeTab === 'stores' ? '/stores?filter=following' : '/stores?tab=authors&filter=following'}
+          className="text-xs font-semibold text-[#006953] hover:underline whitespace-nowrap"
+        >
+          {activeTab === 'stores'
+            ? `Xem tất cả gian hàng (${followedStores.length}) →`
+            : `Xem tất cả tác giả (${favorites.length}) →`}
+        </Link>
+      </div>
+
+      {activeTab === 'stores' ? (
+        followedStores.length === 0 ? (
           <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200/80 text-center space-y-2">
             <p className="text-xs text-gray-500">Bạn chưa theo dõi gian hàng nào.</p>
             <Link
@@ -551,7 +576,7 @@ function FollowedStoresAndAuthorsSection() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {followedStores.map((store) => (
+            {visibleStores.map((store) => (
               <div
                 key={store.id}
                 className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200 bg-white hover:border-[#006953]/40 transition-colors"
@@ -588,84 +613,61 @@ function FollowedStoresAndAuthorsSection() {
               </div>
             ))}
           </div>
-        )}
-      </div>
-
-      {/* Tác giả yêu thích */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <span className="material-symbols-outlined text-rose-500 text-[20px]">favorite</span>
-              <span>Tác Giả Yêu Thích ({favorites.length})</span>
-            </h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Bấm vào tác giả để lọc nhanh toàn bộ sách của họ và ưu tiên hiện trong mục Gợi ý cho bạn
-            </p>
-          </div>
+        )
+      ) : favorites.length === 0 ? (
+        <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200/80 text-center space-y-2">
+          <p className="text-xs text-gray-500">Bạn chưa lưu tác giả yêu thích nào.</p>
           <Link
             href="/stores?tab=authors"
-            className="text-xs font-semibold text-[#006953] hover:underline whitespace-nowrap"
+            className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-[#003B2B] text-white text-xs font-semibold hover:bg-[#00281d] transition-colors"
           >
-            Khám phá tác giả →
+            <span>Tìm tác giả yêu thích</span>
           </Link>
         </div>
-
-        {favorites.length === 0 ? (
-          <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200/80 text-center space-y-2">
-            <p className="text-xs text-gray-500">Bạn chưa lưu tác giả yêu thích nào.</p>
-            <Link
-              href="/stores?tab=authors"
-              className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-[#003B2B] text-white text-xs font-semibold hover:bg-[#00281d] transition-colors"
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {visibleAuthors.map((author) => (
+            <div
+              key={author.id}
+              className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200 bg-white hover:border-[#006953]/40 transition-colors"
             >
-              <span>Tìm tác giả yêu thích</span>
-            </Link>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {favorites.map((author) => (
-              <div
-                key={author.id}
-                className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200 bg-white hover:border-[#006953]/40 transition-colors"
+              <Link
+                href={`/books?author=${encodeURIComponent(author.name)}`}
+                className="flex items-center gap-3 min-w-0 flex-1 group"
               >
-                <Link
-                  href={`/books?author=${encodeURIComponent(author.name)}`}
-                  className="flex items-center gap-3 min-w-0 flex-1 group"
-                >
-                  {author.avatar ? (
-                    <img
-                      src={author.avatar}
-                      alt={author.name}
-                      className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-200"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-[#003B2B] text-white font-bold text-sm flex items-center justify-center shrink-0">
-                      {author.name.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-gray-900 group-hover:text-[#006953] truncate">
-                      {author.name}
-                    </div>
-                    <div className="text-[11px] text-gray-500 truncate">
-                      {author.title || 'Xem sách của tác giả'}
-                    </div>
+                {author.avatar ? (
+                  <img
+                    src={author.avatar}
+                    alt={author.name}
+                    className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-200"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-[#003B2B] text-white font-bold text-sm flex items-center justify-center shrink-0">
+                    {author.name.charAt(0).toUpperCase()}
                   </div>
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => removeFavoriteAuthor(author.id)}
-                  className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
-                  title="Bỏ khỏi danh sách yêu thích"
-                  aria-label={`Bỏ thích ${author.name}`}
-                >
-                  <span className="material-symbols-outlined text-[18px]">heart_minus</span>
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+                )}
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-gray-900 group-hover:text-[#006953] truncate">
+                    {author.name}
+                  </div>
+                  <div className="text-[11px] text-gray-500 truncate">
+                    {author.title || 'Xem sách của tác giả'}
+                  </div>
+                </div>
+              </Link>
+              <button
+                type="button"
+                onClick={() => removeFavoriteAuthor(author.id)}
+                className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
+                title="Bỏ khỏi danh sách yêu thích"
+                aria-label={`Bỏ thích ${author.name}`}
+              >
+                <span className="material-symbols-outlined text-[18px]">heart_minus</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
