@@ -6,7 +6,9 @@ import {
 } from "@nestjs/common";
 import { randomBytes } from "crypto";
 import {
+  BookStatus,
   CartItemFormat,
+  OrderStatus,
   PaymentMethod,
   PaymentStatus,
   RefundStatus,
@@ -81,6 +83,17 @@ export class PaymentsService
     await this.expirePendingPayments();
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
+      include: {
+        sellerOrders: {
+          include: {
+            items: {
+              include: {
+                book: { select: { id: true, title: true, status: true } },
+              },
+            },
+          },
+        },
+      },
     });
     if (!order) throwNotFound(ErrorCode.ORDER_NOT_FOUND);
     const o = order!;
@@ -92,6 +105,47 @@ export class PaymentsService
     }
     if (["CANCELLED", "REFUNDED"].includes(o.status)) {
       throwConflict(ErrorCode.ORDER_CANNOT_CANCEL);
+    }
+
+    // Kiểm tra sách trong đơn có đang bị tạm khóa (SUSPENDED) không:
+    // Nếu bị khóa -> tự động hủy đơn chưa thanh toán ngay lập tức với lý do bị khóa
+    const suspendedBook = o.sellerOrders
+      ?.flatMap((so) => so.items || [])
+      .find((item) => item.book?.status === BookStatus.SUSPENDED)?.book;
+
+    if (suspendedBook) {
+      const now = new Date();
+      const cancelReason = `Tác phẩm "${suspendedBook.title}" đã bị Ban Quản Trị tạm khóa lưu hành để kiểm duyệt.`;
+      await this.prisma.$transaction(async (tx) => {
+        await tx.order.update({
+          where: { id: orderId },
+          data: {
+            status: OrderStatus.CANCELLED,
+            paymentStatus: PaymentStatus.CANCELLED,
+            cancelledAt: now,
+            cancelReason,
+          },
+        });
+        await tx.sellerOrder.updateMany({
+          where: { orderId, status: SellerOrderStatus.PENDING_PAYMENT },
+          data: {
+            status: SellerOrderStatus.CANCELLED,
+            cancelledAt: now,
+            cancelReason,
+          },
+        });
+        await tx.payment.updateMany({
+          where: {
+            orderId,
+            status: { in: [PaymentStatus.PENDING, PaymentStatus.PROCESSING] },
+          },
+          data: { status: PaymentStatus.CANCELLED },
+        });
+      });
+      throwConflict(
+        ErrorCode.BOOK_SUSPENDED,
+        `Đơn hàng đã tự động hủy do tác phẩm "${suspendedBook.title}" đang bị tạm khóa lưu hành.`,
+      );
     }
 
     const active = await this.prisma.payment.findFirst({

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { paymentApi } from '../../api/paymentApi';
 import { orderApi } from '../../api/orderApi';
 import { useToast } from '../../context/ToastContext';
+import { realtimeSyncBus } from '../../services/realtimeSyncBus';
 
 const VIETNAM_BANKS_BIN_MAP: Record<string, string> = {
   '970416': 'ACB (Ngân hàng TMCP Á Châu)',
@@ -59,6 +60,7 @@ export default function PaymentCountdownModal({
   const [mounted, setMounted] = useState(false);
   const [timeLeft, setTimeLeft] = useState(120); // 2 minutes (120 seconds) default
   const [isExpired, setIsExpired] = useState(false);
+  const [cancelledReason, setCancelledReason] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [currentPayment, setCurrentPayment] = useState(paymentData);
@@ -160,7 +162,14 @@ export default function PaymentCountdownModal({
                 router.push(`/order-success?orderId=${orderId}&code=${orderCode || o.code}&paymentMethod=ONLINE_PAYMENT`);
               }
             }, 1200);
-          } else if (o.status === 'CANCELLED' || o.paymentStatus === 'EXPIRED') {
+          } else if (o.status === 'CANCELLED') {
+            setCancelledReason(
+              (o as any).cancelReason ||
+                'Đơn hàng đã bị hủy tự động (tác phẩm tạm khóa lưu hành hoặc hết hạn).'
+            );
+            setIsExpired(true);
+            clearInterval(pollInterval);
+          } else if (o.paymentStatus === 'EXPIRED') {
             setIsExpired(true);
             clearInterval(pollInterval);
           }
@@ -170,7 +179,26 @@ export default function PaymentCountdownModal({
       }
     }, 2000);
 
-    return () => clearInterval(pollInterval);
+    const unsub = realtimeSyncBus.subscribe(async (event: any) => {
+      if (event?.type === 'BOOK_MODERATED' && (event.payload as any)?.action === 'BLOCK') {
+        try {
+          const res = await orderApi.getBuyerOrderDetail(orderId);
+          if (res.success && res.data && res.data.status === 'CANCELLED') {
+            setCancelledReason(
+              (res.data as any).cancelReason ||
+                'Tác phẩm trong đơn hàng vừa bị Ban Quản Trị tạm khóa lưu hành.'
+            );
+            setIsExpired(true);
+            clearInterval(pollInterval);
+          }
+        } catch {}
+      }
+    });
+
+    return () => {
+      clearInterval(pollInterval);
+      unsub();
+    };
   }, [isOpen, orderId, orderCode, isSuccess, onSuccess, router, showToast]);
 
   const handleCopy = (text: string, fieldName: string) => {
@@ -275,23 +303,41 @@ export default function PaymentCountdownModal({
               </div>
             </div>
 
-            {/* Expired Overlay on QR */}
+            {/* Expired / Cancelled Overlay on QR */}
             {isExpired && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-neutral-900/80 rounded-2xl text-white text-center animate-in fade-in">
-                <span className="material-symbols-outlined text-4xl text-rose-400 mb-1">timer_off</span>
-                <p className="font-bold text-base text-rose-300">Mã QR Đã Hết Hạn (2 phút)</p>
-                <p className="text-xs text-neutral-300 mt-1 max-w-xs leading-relaxed">
-                  Đơn hàng đã được hệ thống tự động hủy và giải phóng tồn kho về trạng thái ban đầu.
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-neutral-900/85 rounded-2xl text-white text-center animate-in fade-in">
+                <span className="material-symbols-outlined text-4xl text-rose-400 mb-1">
+                  {cancelledReason ? 'cancel' : 'timer_off'}
+                </span>
+                <p className="font-bold text-base text-rose-300">
+                  {cancelledReason ? 'Đơn Hàng Đã Tự Động Hủy' : 'Mã QR Đã Hết Hạn (2 phút)'}
                 </p>
-                <button
-                  onClick={() => {
-                    onClose();
-                    router.push('/cart');
-                  }}
-                  className="mt-3 px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-md cursor-pointer transition-all"
-                >
-                  Tạo lại đơn hàng mới
-                </button>
+                <p className="text-xs text-neutral-200 mt-1 max-w-xs leading-relaxed">
+                  {cancelledReason ||
+                    'Đơn hàng đã được hệ thống tự động hủy và giải phóng tồn kho về trạng thái ban đầu.'}
+                </p>
+                <div className="flex items-center gap-2 mt-3">
+                  {cancelledReason && orderId && (
+                    <button
+                      onClick={() => {
+                        onClose();
+                        router.push(`/orders/${orderId}`);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 shadow-md cursor-pointer transition-all"
+                    >
+                      Xem đơn đã hủy
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      onClose();
+                      router.push('/cart');
+                    }}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-md cursor-pointer transition-all"
+                  >
+                    Quay lại giỏ hàng
+                  </button>
+                </div>
               </div>
             )}
 

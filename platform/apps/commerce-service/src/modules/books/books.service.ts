@@ -104,7 +104,7 @@ import { paginate } from '../../common/pagination.util';
 import { CreateBookDto } from './dto/create-book.dto';
 import { UpdateBookDto } from './dto/update-book.dto';
 import { BookListQueryDto, BookSortBy } from './dto/book-list-query.dto';
-import { BookFormat, BookStatus } from '../../../prisma/generated/client';
+import { BookFormat, BookStatus, OrderStatus, PaymentStatus, SellerOrderStatus } from '../../../prisma/generated/client';
 import { throwConflict, throwNotFound, throwForbidden, throwBadRequest } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
 import { SanctionsService } from '../sanctions/sanctions.service';
@@ -1062,7 +1062,87 @@ export class BooksService implements OnModuleInit {
       return book;
     });
 
+    if (dto.status === BookStatus.SUSPENDED && existing!.status !== BookStatus.SUSPENDED) {
+      await this.cancelUnpaidOrdersForSuspendedBook(id, title);
+    }
+
     return this.findOne(updated.id, actor);
+  }
+
+  private async cancelUnpaidOrdersForSuspendedBook(bookId: string, bookTitle: string) {
+    const unpaidOrders = await this.prisma.order.findMany({
+      where: {
+        status: OrderStatus.PENDING_PAYMENT,
+        paymentStatus: { not: PaymentStatus.SUCCEEDED },
+        sellerOrders: {
+          some: {
+            items: {
+              some: { bookId },
+            },
+          },
+        },
+      },
+      select: { id: true },
+    });
+
+    if (unpaidOrders.length === 0) return;
+
+    const now = new Date();
+    const reason = `Tác phẩm "${bookTitle}" đã bị Ban Quản Trị tạm khóa lưu hành để kiểm duyệt.`;
+
+    for (const order of unpaidOrders) {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.order.updateMany({
+          where: {
+            id: order.id,
+            status: OrderStatus.PENDING_PAYMENT,
+            paymentStatus: { not: PaymentStatus.SUCCEEDED },
+          },
+          data: {
+            status: OrderStatus.CANCELLED,
+            paymentStatus: PaymentStatus.CANCELLED,
+            cancelledAt: now,
+            cancelReason: reason,
+          },
+        });
+
+        await tx.sellerOrder.updateMany({
+          where: {
+            orderId: order.id,
+            status: SellerOrderStatus.PENDING_PAYMENT,
+          },
+          data: {
+            status: SellerOrderStatus.CANCELLED,
+            cancelledAt: now,
+            cancelReason: reason,
+          },
+        });
+
+        await tx.payment.updateMany({
+          where: {
+            orderId: order.id,
+            status: { in: [PaymentStatus.PENDING, PaymentStatus.PROCESSING] },
+          },
+          data: { status: PaymentStatus.CANCELLED },
+        });
+
+        const activeRes = await tx.inventoryReservation.findMany({
+          where: { orderId: order.id, status: 'ACTIVE' },
+        });
+        if (activeRes.length > 0) {
+          await tx.inventoryReservation.updateMany({
+            where: { orderId: order.id, status: 'ACTIVE' },
+            data: { status: 'RELEASED', releasedAt: now },
+          });
+          for (const res of activeRes) {
+            await tx.physicalBookDetails.updateMany({
+              where: { bookId: res.bookId, reserved: { gte: res.quantity } },
+              data: { reserved: { decrement: res.quantity } },
+            });
+          }
+        }
+      }).catch(() => null);
+    }
   }
 
   async findForWrite(id: string, actor: BookActor) {
