@@ -2192,11 +2192,11 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 
 ---
 
-## 19. ĐỢT XỬ LÝ BUG-39 ĐẾN BUG-54 (UAT STAGING) — UI/UX, BỘ LỌC, ADMIN, REALTIME & DỮ LIỆU THẬT
+## 19. ĐỢT XỬ LÝ BUG-39 ĐẾN BUG-55 (UAT & LOCAL) — UI/UX, BỘ LỌC, ADMIN, BÁO CÁO, REALTIME & DỮ LIỆU THẬT
 
 > **Nhánh làm việc:** `feat/auth-left-panel-design` (hoặc tách nhánh mới theo chỉ đạo)
-> **Môi trường phát hiện:** **UAT (`https://huki-uat.duckdns.org`)**
-> **Quy trình áp dụng:** [`readme-bug.md`](file:///e:/HuKi/readme-bug.md) (Tuân thủ chặt chẽ 12 bước tuần tự & phân chặng nội bộ tối đa 3 bug/giai đoạn: **GĐ1:** `BUG-39..41` | **GĐ2:** `BUG-42..44` | **GĐ3:** `BUG-45..47` | **GĐ4:** `BUG-48..50` | **GĐ5:** `BUG-51..53` | **GĐ6:** `BUG-54`).
+> **Môi trường phát hiện:** **UAT (`https://huki-uat.duckdns.org`)** và **Local (`http://localhost:3100`)**
+> **Quy trình áp dụng:** [`readme-bug.md`](file:///e:/HuKi/readme-bug.md) (Tuân thủ chặt chẽ 12 bước tuần tự & phân chặng nội bộ tối đa 3 bug/giai đoạn: **GĐ1:** `BUG-39..41` | **GĐ2:** `BUG-42..44` | **GĐ3:** `BUG-45..47` | **GĐ4:** `BUG-48..50` | **GĐ5:** `BUG-51..53` | **GĐ6:** `BUG-54..55`).
 
 ### Bước 1: Thu thập & Chuẩn hóa Hồ sơ Lỗi (28/11/2026)
 
@@ -2218,6 +2218,7 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 | **`BUG-52`** | `SELLER` & `PLATFORM_ADMIN` / Header Search Bar | **Expected:** Thanh tìm kiếm (Header Search) ở cả **Seller** và **Admin** phải tinh tế, mềm mại, đồng bộ thiết kế chuẩn hệ thống; icon kính lúp và text placeholder không được đè lên nhau (`padding-left` chuẩn), hỗ trợ `Ctrl+K` / focus mượt mà. <br>**Actual:** <br>1. Thanh Search của Seller còn hơi thô, thiếu độ mềm mại/tinh tế. <br>2. Thanh Search trên Header Admin bị lỗi CSS: chữ `"Tìm sách, doanh nghiệp, ISBN..."` bị đè trực tiếp lên icon kính lúp. | Ảnh chụp màn hình Header Admin trên UAT (`media_1795878106680_6a14c5d0.png`) đối chiếu với Search Buyer. | Trung bình (UI/CSS Bug) |
 | **`BUG-53`** | `PLATFORM_ADMIN` / Healthcheck & Cảnh báo Microservices (Notification Drawer) | **Expected:** Cơ chế healthcheck giữa các microservices phải có retry/grace period, cooldown chống spam, ghi rõ chi tiết lỗi thực tế (không để rỗng) và chỉ bắn cảnh báo khi dịch vụ thực sự gián đoạn; bấm `Xem chi tiết` mở đúng thông tin kiểm tra trạng thái. <br>**Actual:** Các dịch vụ (`promotion:3007`, `shipping:3004`, `commerce:3003`, `business:3002`, `identity:3001`) lâu lâu bắn hàng loạt thông báo `"Báo động đỏ: Microservice ... Chi tiết lỗi: ."` lên Admin (tới 49-50 cảnh báo), nhưng vào kiểm tra thực tế thì dịch vụ vẫn bình thường (false-positive / spam). | Ảnh chụp màn hình Notification Drawer Admin trên UAT (`media_1795878151334_0db18967.png`). | Cao (Monitoring & Alert Spam) |
 | **`BUG-54`** | `PLATFORM_ADMIN` / Quản lý Người dùng (`/admin/users` & `/admin/accounts` sau gộp `BUG-41`) | **Expected:** <br>1. Tài khoản User/Khách hàng thông thường không có trạng thái **"Chờ duyệt"** (chỉ hiển thị chờ duyệt nếu tài khoản đang đăng ký/chờ duyệt lên **Seller**). <br>2. UI cột **Vai trò** & **Trạng thái** tinh tế, gọn gàng: bỏ các khung/ô viền màu cam/xanh/đỏ bao quanh, chỉ dùng **chữ có màu** (hoặc chấm tròn nhỏ + chữ màu) khớp thẳng hàng ngang trên 1 dòng. <br>**Actual:** <br>1. Tài khoản khách hàng (`Test User`) bị hiện trạng thái `Chờ duyệt` bất hợp lý. <br>2. Cột Vai trò & Trạng thái đang bọc badge ô màu cam/xanh cồng kềnh, thiếu tinh tế. | Ảnh chụp màn hình bảng quản lý tài khoản trên UAT (`media_1795879340442_b3945377.png`). | Trung bình - Cao (Nghiệp vụ & UI) |
+| **`BUG-55`** | `PLATFORM_ADMIN` / `/admin/reports` (4 Tab Báo Cáo Thống Kê) | **Expected:** Toàn bộ 4 tab (`Báo Cáo Doanh Số & GMV`, `Hiệu Quả & Doanh Thu Flash Sale`, `Phễu Chuyển Đổi & Hiệu Quả Danh Mục`, `Sổ Cái Doanh Thu & Dòng Tiền Sàn`) phải tính toán **100% từ đơn hàng thật / DB thật** (tuyệt đối không mock/fallback số giả; Flash Sale chỉ tính doanh thu & giảm giá trên số lượng thực bán theo đơn hàng hợp lệ); hiển thị tên Shop đầy đủ (không hiện UUID thô); thiết kế UI tinh tế, đồng bộ chuẩn Admin/Seller (không rớt dòng trạng thái, bỏ banner đen thô). <br>**Actual:** <br>1. Tab 1 hiện `0 ₫` dù Sổ Cái có `7.475.550 ₫` đã quyết toán. <br>2. Tab 2 cần kiểm chứng logic `item.sold` có tính đúng theo đơn hàng thật hay tính theo slot chưa mua. <br>3. Tab 3 đang mock cứng số liệu Phễu (`1280`, `69`, `60`, fallback `32` / `5.743.194`). <br>4. Tab 4 cột `SHOP / NXB` hiện UUID `1079fc76-...`, cột `TRẠNG THÁI` rớt 2 dòng, UI 4 tab rối & thô. | 6 ảnh chụp màn hình `/admin/reports` trên Local (`localhost:3100/admin/reports`). | Nghiêm trọng (Logic tài chính, Mock & UI) |
 
 - **Trạng thái Bước 1:** Đã chuẩn hóa hồ sơ **15 bug trên UAT (`BUG-39` → `BUG-53`)** vào [`BUG.md`](file:///e:/HuKi/BUG.md).
 
@@ -2373,4 +2374,22 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
   - Tại [`AdminUsersView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminUsersView.tsx#L765-L766), cột Trạng thái & Vai trò dùng `AdminStatusBadge` dạng viên thuốc `rounded-full` kèm icon to (`warning`, `check_circle`, `person`) và hiển thị nhãn `"Chờ duyệt"` cho tài khoản User/Khách hàng thông thường.
   - Chuẩn UI tổng quan của hệ thống (như mẫu `• Sách Giấy`) sử dụng dạng **chấm tròn nhỏ `•` + chữ màu thanh thoát** hoặc badge bo góc nhẹ (`rounded-md`), gọn gàng trên 1 hàng ngang.
 
-- **Trạng thái Bước 2 (Toàn bộ 5 Giai đoạn `BUG-39` → `BUG-54`):** **HOÀN TẤT 100%**. Sẵn sàng chuyển sang **Bước 3 — Giai đoạn 1 (`BUG-39`, `BUG-40`, `BUG-41`)** để lập phương án kiến trúc & bộ câu hỏi tương tác phê duyệt giải pháp.
+- **Trạng thái Bước 2 (Toàn bộ 5 Giai đoạn `BUG-39` → `BUG-54`):** **HOÀN TẤT 100%**.
+
+---
+
+### Bước 2 — Giai đoạn 6 (`BUG-55`): Phân tích Nguyên nhân Gốc rễ 4 Tab `/admin/reports` (28/11/2026)
+
+> **Phạm vi kiểm chứng môi trường:** Nằm trực tiếp trong mã nguồn nên **xảy ra trên cả Local và UAT**.
+
+1. **Tab 1 — `Báo Cáo Doanh Số & GMV` ([`GMVService.ts`](file:///e:/HuKi/platform/apps/analytics-service/src/services/GMVService.ts#L130-L150)):**
+   - Chỉ đọc từ bảng `DailyAggregate` trong `analytics-service`. Nếu `DailyRollupJob` chưa chạy hoặc `EventProcessor` bỏ sót event `ORDER_COMPLETED`, toàn bộ KPI & biểu đồ trả về `0 ₫` dù `commerce-service` đã có đơn hoàn tất & quyết toán.
+2. **Tab 2 — `Hiệu Quả & Doanh Thu Flash Sale` ([`FlashSaleAnalyticsView.tsx`](file:///e:/HuKi/web/src/ui/components/analytics/FlashSaleAnalyticsView.tsx#L136-L148)):**
+   - Tính `revenue = sold * salePrice` và `subsidy = sold * (originalPrice - salePrice)` dựa trên `item.sold` của `FlashSaleItem` (`promotion-service`). Cần kiểm toán đối chiếu với đơn hàng thật trong `commerce-service` xem `item.sold` có đang cộng cả đơn chưa thanh toán/đã hủy/seed giả hay không (tránh trường hợp không mua vẫn tính giảm giá tài trợ).
+3. **Tab 3 — `Phễu Chuyển Đổi & Hiệu Quả Danh Mục` ([`ConversionAndCategoryView.tsx`](file:///e:/HuKi/web/src/ui/components/analytics/ConversionAndCategoryView.tsx#L93-L139)):**
+   - **Mock cứng số liệu Phễu:** `interactions: 1280`, `addToCart: 69`, `checkouts: 60` không hề fetch từ API/DB, đồng thời dùng fallback `completedOrders || 32` và `totalGmv || 5743194`.
+4. **Tab 4 — `Sổ Cái Doanh Thu & Dòng Tiền Sàn` ([`AdminLedgerView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminLedgerView.tsx#L172-L197)):**
+   - `loadEscrowItems` tạo `storeMap` từ state `stores` nhưng không chờ `stores` load xong và không đưa `stores` vào dependency, khiến `storeMap.get(item.storeId)` bị `undefined` và hiển thị UUID thô (`1079fc76-...`) từ `item.storeName`.
+   - Giao diện 4 tab còn rối, thanh banner đen `PostgreSQL Real Data` thô, cột `TRẠNG THÁI` bị rớt 2 dòng.
+
+- **Trạng thái Bước 2 (Toàn bộ 17 bug `BUG-39` → `BUG-55`):** **HOÀN TẤT 100%**. Sẵn sàng chuyển sang **Bước 3 — Giai đoạn 1 (`BUG-39`, `BUG-40`, `BUG-41`)**.
