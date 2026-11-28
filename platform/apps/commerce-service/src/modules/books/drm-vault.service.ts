@@ -85,17 +85,22 @@ export class DrmVaultService {
   }
 
   /**
-   * Thống kê tổng quan từ CSDL thực tế (không có thì hiển thị 0)
+   * Thống kê tổng quan từ CSDL thực tế (không dùng số seed ảo)
    */
   async getOverview(): Promise<DrmOverviewStats> {
     const t0 = Date.now();
-    const [totalEncryptedBooks, licenses, revokedDevicesCount] = await Promise.all([
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+    const [totalEncryptedBooks, activeReadersCount, revokedDevicesCount] = await Promise.all([
       this.prisma.drmLicense.count(),
-      this.prisma.drmLicense.findMany({ select: { activeReaders: true } }),
+      this.prisma.drmDevice.count({
+        where: {
+          isRevoked: false,
+          lastActiveAt: { gte: fifteenMinutesAgo },
+        },
+      }),
       this.prisma.drmDevice.count({ where: { isRevoked: true } }),
     ]);
     const kmsLatencyMs = totalEncryptedBooks > 0 ? Math.max(1, Date.now() - t0) : 0;
-    const activeReadersCount = licenses.reduce((sum, lic) => sum + (lic.activeReaders || 0), 0);
 
     return {
       totalEncryptedBooks,
@@ -152,6 +157,16 @@ export class DrmVaultService {
       }),
     ]);
 
+    const bookIds = items.map((lic) => lic.bookId);
+    const accessCounts = bookIds.length
+      ? await this.prisma.bookAccess.groupBy({
+          by: ['bookId'],
+          where: { bookId: { in: bookIds }, status: 'ACTIVE' },
+          _count: { _all: true },
+        })
+      : [];
+    const accessMap = new Map(accessCounts.map((a) => [a.bookId, a._count._all]));
+
     const formatted = items.map((lic) => ({
       id: lic.licenseCode,
       licenseId: lic.id,
@@ -160,8 +175,8 @@ export class DrmVaultService {
       publisher: lic.book?.publisher?.name || 'Chưa xác định',
       isbn: lic.book?.isbn || '-',
       algorithm: lic.algorithm,
-      issuedLicenses: lic.issuedLicenses,
-      activeReaders: lic.activeReaders,
+      issuedLicenses: accessMap.get(lic.bookId) ?? 0,
+      activeReaders: lic.licenseCode.startsWith('LIC-S') && lic.activeReaders === 12 ? 0 : lic.activeReaders,
       encryptionCluster: lic.encryptionCluster,
       keyFingerprint: lic.keyFingerprint,
       watermarkEngine: lic.watermarkEngine,
@@ -247,6 +262,12 @@ export class DrmVaultService {
     for (const b of missingBooks) {
       await this.provisionLicenseForBook(b.id);
     }
+
+    // Dọn dẹp số liệu seed giả cũ (LIC-S... với activeReaders=12) về 0
+    await this.prisma.drmLicense.updateMany({
+      where: { licenseCode: { startsWith: 'LIC-S' }, activeReaders: 12 },
+      data: { activeReaders: 0 },
+    });
 
     const total = await this.prisma.drmLicense.count();
 
