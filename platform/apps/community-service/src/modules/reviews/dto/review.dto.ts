@@ -11,6 +11,7 @@ import {
   IsUrl,
   IsUUID,
   Length,
+  Matches,
   Max,
   Min,
 } from "class-validator";
@@ -73,7 +74,8 @@ export class ReviewContentDto {
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(5)
-  @IsUrl({ require_protocol: true }, { each: true })
+  @IsString({ each: true })
+  @Matches(/^(https?:\/\/|data:image\/)/i, { each: true })
   images?: string[];
 }
 

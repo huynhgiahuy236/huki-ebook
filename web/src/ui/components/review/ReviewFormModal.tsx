@@ -88,17 +88,48 @@ export default function ReviewFormModal({
       if (orderId) {
         try {
           const res = await orderApi.uploadDisputeEvidence(orderId, file);
-          if (res?.success && res.data?.url) {
-            uploadedUrl = res.data.url;
+          if (res?.success && res.data?.url && !res.data.url.includes('storage.huki.vn')) {
+            uploadedUrl = res.data.url.startsWith('/')
+              ? `${window.location.origin}${res.data.url}`
+              : res.data.url;
           }
         } catch { /* ignore */ }
       }
 
       if (!uploadedUrl) {
-        // Safe CDN/storage placeholder URL avoiding huge Base64 strings that exceed body limits and fail URL validation
-        uploadedUrl = `https://storage.huki.vn/reviews/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+        uploadedUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+              const maxDim = 900;
+              let { width, height } = img;
+              if (width > maxDim || height > maxDim) {
+                if (width > height) {
+                  height = Math.round((height * maxDim) / width);
+                  width = maxDim;
+                } else {
+                  width = Math.round((width * maxDim) / height);
+                  height = maxDim;
+                }
+              }
+              const canvas = document.createElement('canvas');
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx?.drawImage(img, 0, 0, width, height);
+              resolve(canvas.toDataURL('image/jpeg', 0.78));
+            };
+            img.onerror = () => resolve(String(reader.result || ''));
+            img.src = String(reader.result || '');
+          };
+          reader.onerror = () => reject(new Error('Failed to read image'));
+          reader.readAsDataURL(file);
+        });
       }
-      uploadedUrls.push(uploadedUrl);
+      if (uploadedUrl) {
+        uploadedUrls.push(uploadedUrl);
+      }
     }
 
     setImages((prev) => [...prev, ...uploadedUrls].slice(0, 5));
