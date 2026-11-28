@@ -24,12 +24,17 @@ interface ReturnItem {
   sellerEvidenceVideos?: string[];
   sellerDisputeReason?: string | null;
   status:
+    | 'PENDING_REVIEW'
     | 'WAITING_FORWARD'
     | 'FORWARDED_TO_SELLER'
     | 'SELLER_ACCEPTED'
     | 'SELLER_DISPUTED'
     | 'ARBITRATED_BUYER_WINS'
     | 'ARBITRATED_SELLER_WINS'
+    | 'REFUNDED'
+    | 'REPLACED'
+    | 'REJECTED'
+    | 'CANCELLED'
     | 'COMPLETED';
   forwardedToSellerAt?: string | null;
   sellerRespondedAt?: string | null;
@@ -226,11 +231,13 @@ export default function AdminReturnRequestsView() {
   };
 
   const ACCEPTED_GROUP_STATUSES = ['SELLER_ACCEPTED', 'PICKUP_SCHEDULED', 'IN_TRANSIT', 'RETURNED_TO_SELLER', 'APPROVED'];
-  const RESOLVED_GROUP_STATUSES = ['COMPLETED', 'ARBITRATED_BUYER_WINS', 'ARBITRATED_SELLER_WINS', 'REJECTED', 'CANCELLED'];
+  const RESOLVED_GROUP_STATUSES = ['COMPLETED', 'REFUNDED', 'REPLACED', 'ARBITRATED_BUYER_WINS', 'ARBITRATED_SELLER_WINS', 'REJECTED', 'CANCELLED'];
 
   const filteredItems = useMemo(() => {
     return items.filter((it) => {
-      if (activeTab === 'SELLER_ACCEPTED') {
+      if (activeTab === 'PENDING_REVIEW') {
+        if (it.status !== 'PENDING_REVIEW' && it.status !== 'WAITING_FORWARD') return false;
+      } else if (activeTab === 'SELLER_ACCEPTED') {
         if (!ACCEPTED_GROUP_STATUSES.includes(it.status)) return false;
       } else if (activeTab === 'RESOLVED') {
         if (!RESOLVED_GROUP_STATUSES.includes(it.status)) return false;
@@ -267,7 +274,7 @@ export default function AdminReturnRequestsView() {
   const tabCounts = useMemo(() => {
     return {
       all: items.length,
-      waiting: items.filter((i) => i.status === 'WAITING_FORWARD').length,
+      waiting: items.filter((i) => i.status === 'PENDING_REVIEW' || i.status === 'WAITING_FORWARD').length,
       forwarded: items.filter((i) => i.status === 'FORWARDED_TO_SELLER').length,
       accepted: items.filter((i) => ACCEPTED_GROUP_STATUSES.includes(i.status)).length,
       disputed: items.filter((i) => i.status === 'SELLER_DISPUTED').length,
@@ -290,6 +297,7 @@ export default function AdminReturnRequestsView() {
 
   const renderStatusBadge = (status: string) => {
     switch (status) {
+      case 'PENDING_REVIEW':
       case 'WAITING_FORWARD':
         return <AdminStatusBadge status="warning" label="Chờ gửi Shop" icon="hourglass_top" />;
       case 'FORWARDED_TO_SELLER':
@@ -304,6 +312,10 @@ export default function AdminReturnRequestsView() {
         return <AdminStatusBadge status="neutral" label="Shop thắng" icon="store" />;
       case 'COMPLETED':
         return <AdminStatusBadge status="success" label="Hoàn tất" icon="task_alt" />;
+      case 'REFUNDED':
+        return <AdminStatusBadge status="success" label="Đã hoàn tiền" icon="payments" />;
+      case 'REPLACED':
+        return <AdminStatusBadge status="success" label="Đã đổi hàng" icon="autorenew" />;
       default:
         return <AdminStatusBadge status="neutral" label={status} />;
     }
@@ -407,7 +419,7 @@ export default function AdminReturnRequestsView() {
         title: 'Thao tác',
         align: 'right',
         render: (_val, item) => {
-          const isWaitingForward = item.status === 'WAITING_FORWARD';
+          const isWaitingForward = item.status === 'PENDING_REVIEW' || item.status === 'WAITING_FORWARD';
           return (
             <div className="flex items-center justify-end gap-1.5">
               <AdminActionButton
@@ -470,7 +482,7 @@ export default function AdminReturnRequestsView() {
           }}
           filterTabs={[
             { key: 'ALL', label: 'Tất Cả', count: tabCounts.all },
-            { key: 'WAITING_FORWARD', label: 'Chờ Gửi Shop', count: tabCounts.waiting },
+            { key: 'PENDING_REVIEW', label: 'Chờ Gửi Shop', count: tabCounts.waiting },
             { key: 'FORWARDED_TO_SELLER', label: 'Đã Gửi Shop', count: tabCounts.forwarded },
             { key: 'SELLER_ACCEPTED', label: 'Shop Đồng Ý', count: tabCounts.accepted },
             { key: 'SELLER_DISPUTED', label: 'Shop Phản Biện', count: tabCounts.disputed },
@@ -507,7 +519,7 @@ export default function AdminReturnRequestsView() {
         expandedRowRender={(item) => {
           const reasonLabel = getReasonLabel(item.reason);
           const orderCode = item.order?.code || item.orderId;
-          const isWaitingForward = item.status === 'WAITING_FORWARD';
+          const isWaitingForward = item.status === 'PENDING_REVIEW' || item.status === 'WAITING_FORWARD';
 
           return (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 p-4 bg-slate-50/80 rounded-2xl border border-slate-200">
@@ -753,7 +765,7 @@ export default function AdminReturnRequestsView() {
               Đóng
             </button>
 
-            {selectedItem.status === 'WAITING_FORWARD' && (
+            {(selectedItem.status === 'PENDING_REVIEW' || selectedItem.status === 'WAITING_FORWARD') && (
               <button
                 type="button"
                 disabled={forwardingId === selectedItem.id}
