@@ -57,6 +57,7 @@ export default function ReviewCard({
   const [isReplying, setIsReplying] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [isContentExpanded, setIsContentExpanded] = useState(false);
 
   useEffect(() => {
     setReplies(review.replies || []);
@@ -293,13 +294,30 @@ export default function ReviewCard({
           <span className="material-symbols-outlined text-base shrink-0">visibility_off</span>
           <span>Nội dung đánh giá này đang được đội ngũ kiểm duyệt xem xét và tạm hạn chế hiển thị.</span>
         </div>
-      ) : (
-        <div className="pt-0.5">
-          <p className="text-xs sm:text-sm text-slate-700 dark:text-zinc-200 leading-relaxed whitespace-pre-line font-normal">
-            {review.content || review.title}
-          </p>
-        </div>
-      )}
+      ) : (() => {
+        const text = review.content || review.title || '';
+        const isLongText = text.length > 180 || text.split('\n').length > 3;
+        return (
+          <div className="pt-0.5 space-y-1">
+            <p
+              className={`text-xs sm:text-sm text-slate-700 dark:text-zinc-200 leading-relaxed whitespace-pre-line font-normal ${
+                !isContentExpanded && isLongText ? 'line-clamp-3' : ''
+              }`}
+            >
+              {text}
+            </p>
+            {isLongText && (
+              <button
+                type="button"
+                onClick={() => setIsContentExpanded((prev) => !prev)}
+                className="text-[11px] font-semibold text-[#006953] hover:underline cursor-pointer"
+              >
+                {isContentExpanded ? 'Thu gọn' : 'Xem thêm'}
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Images Gallery with safe fallback against 403 / broken links */}
       {imageList.length > 0 && (

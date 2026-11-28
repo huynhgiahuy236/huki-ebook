@@ -369,32 +369,27 @@ export default function MyReviewsPage() {
                       className="p-4 sm:p-5 rounded-2xl border border-gray-200 bg-white hover:border-gray-300 transition-all space-y-3.5 shadow-2xs"
                     >
                       {/* Top: Target Book Info + Actions */}
-                      <div className="flex items-start justify-between gap-3 pb-3 border-b border-gray-100">
-                        <div className="min-w-0">
-                          <span className="font-bold text-xs sm:text-sm text-gray-900 line-clamp-1">
-                            {rev.title || 'Đánh giá sản phẩm sách HUKI'}
+                      <div className="flex items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          <span className="text-[11px] text-gray-500">
+                            Định dạng: <strong>{rev.format === 'DIGITAL' ? 'Ebook' : 'Sách In'}</strong>
                           </span>
-                          <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            <span className="text-[11px] text-gray-500">
-                              Định dạng: <strong>{rev.format === 'DIGITAL' ? 'Ebook' : 'Sách In'}</strong>
+                          <span className="text-gray-300">•</span>
+                          <VerifiedPurchaseBadge variant="compact" />
+                          {rev.status === 'HIDDEN' ? (
+                            <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[11px] font-semibold inline-flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                              Đã bị ẩn
                             </span>
-                            <span className="text-gray-300">•</span>
-                            <VerifiedPurchaseBadge variant="compact" />
-                            {rev.status === 'HIDDEN' ? (
-                              <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[11px] font-semibold inline-flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                                Đã bị ẩn
-                              </span>
-                            ) : (rev.isReported || rev.status === 'FLAGGED') ? (
-                              <span
-                                className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[11px] font-semibold inline-flex items-center gap-1.5"
-                                title="Đánh giá vẫn hiển thị bình thường cho tới khi Admin quyết định"
-                              >
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                Đang bị báo cáo
-                              </span>
-                            ) : null}
-                          </div>
+                          ) : (rev.isReported || rev.status === 'FLAGGED') ? (
+                            <span
+                              className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[11px] font-semibold inline-flex items-center gap-1.5"
+                              title="Đánh giá vẫn hiển thị bình thường cho tới khi Admin quyết định"
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                              Đang bị báo cáo
+                            </span>
+                          ) : null}
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">

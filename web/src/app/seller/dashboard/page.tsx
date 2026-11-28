@@ -570,8 +570,8 @@ export default function SellerDashboardPage() {
         {/* 3. CHARTS ROW: TIẾN TRÌNH PHÁT HÀNH (CỘT ĐỨNG) & TĂNG TRƯỞNG ĐỘC GIẢ */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           {/* 3.1 TIẾN TRÌNH PHÁT HÀNH & ĐỊNH DẠNG (DẠNG CỘT ĐỨNG) */}
-          <div className="lg:col-span-6 bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-4">
+          <div className="lg:col-span-5 bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-3">
               <div>
                 <h2 className="text-sm sm:text-base font-bold text-gray-900">Tiến Trình Phát Hành &amp; Định Dạng (Từ DB)</h2>
                 <p className="text-[11px] text-gray-500 mt-0.5">Số liệu thực tế các đầu sách đang quản lý trong kho ấn phẩm</p>
@@ -579,7 +579,7 @@ export default function SellerDashboardPage() {
               <select
                 value={pipelinePeriod}
                 onChange={(e) => setPipelinePeriod(e.target.value as any)}
-                className="text-xs font-semibold text-gray-700 bg-gray-50 border border-gray-200 px-2.5 py-1.5 rounded-xl cursor-pointer focus:outline-none focus:border-emerald-500"
+                className="text-xs font-semibold text-gray-700 bg-gray-50 border border-gray-200 px-2.5 py-1.5 rounded-xl cursor-pointer focus:outline-none focus:border-emerald-500 shrink-0"
               >
                 <option value="THIS_MONTH">Tháng này</option>
                 <option value="THIS_WEEK">Tuần này</option>
@@ -587,8 +587,8 @@ export default function SellerDashboardPage() {
               </select>
             </div>
 
-            <div className="relative pt-3 pb-1">
-              <div className="grid grid-cols-6 gap-2 sm:gap-4 items-end h-48 border-b border-slate-200 px-1 sm:px-3">
+            <div className="relative pt-2 pb-1">
+              <div className="grid grid-cols-6 gap-1.5 sm:gap-2 items-end h-44 border-b border-slate-200 px-1">
                 {[
                   { stage: 'Tổng SP', fullLabel: 'Tổng sản phẩm', value: stats.totalBooks, color: 'bg-[#003B2B]' },
                   { stage: 'Xuất bản', fullLabel: 'Đã xuất bản', value: stats.publishedBooks, color: 'bg-[#00875A]' },
@@ -598,25 +598,25 @@ export default function SellerDashboardPage() {
                   { stage: 'Combo', fullLabel: 'Combo Hybrid', value: stats.hybridBooks, color: 'bg-emerald-600' },
                 ].map((item, i) => {
                   const maxVal = Math.max(stats.totalBooks, 1);
-                  const heightPct = item.value > 0 ? Math.max(4, Math.round((item.value / maxVal) * 100)) : 0;
+                  const heightPx = item.value > 0 ? Math.max(8, Math.round((item.value / maxVal) * 136)) : 0;
                   return (
-                    <div key={i} className="flex flex-col items-center justify-end h-full gap-1.5 group" title={`${item.fullLabel}: ${item.value}`}>
-                      <span className="text-[11px] font-bold font-mono text-slate-700">
+                    <div key={i} className="flex flex-col items-center justify-end h-full gap-1 group" title={`${item.fullLabel}: ${item.value}`}>
+                      <span className="text-[11px] font-bold font-mono text-slate-700 leading-none">
                         {item.value.toLocaleString()}
                       </span>
-                      <div className="w-full flex items-end justify-center flex-1">
+                      {heightPx > 0 && (
                         <div
                           className={`w-5 sm:w-6 ${item.color} rounded-t-md transition-all duration-500 group-hover:opacity-85`}
-                          style={{ height: `${heightPct}%` }}
+                          style={{ height: `${heightPx}px` }}
                         />
-                      </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
-              <div className="grid grid-cols-6 gap-2 sm:gap-4 px-1 sm:px-3 pt-2">
+              <div className="grid grid-cols-6 gap-1.5 sm:gap-2 px-1 pt-2">
                 {['Tổng SP', 'Xuất bản', 'Nháp/Chờ', 'Sách giấy', 'Ebook', 'Combo'].map((label) => (
-                  <span key={label} className="text-[11px] font-medium text-slate-500 text-center truncate">
+                  <span key={label} className="text-[10.5px] font-medium text-slate-500 text-center truncate">
                     {label}
                   </span>
                 ))}
@@ -624,25 +624,25 @@ export default function SellerDashboardPage() {
             </div>
           </div>
 
-          {/* 3.2 TĂNG TRƯỞNG ĐỘC GIẢ (THEO ĐƠN HÀNG THỰC TẾ) */}
-          <div className="lg:col-span-6 bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-4">
+          {/* 3.2 TĂNG TRƯỞNG ĐỘC GIẢ (12 THÁNG) */}
+          <div className="lg:col-span-7 bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-3">
               <div>
                 <h2 className="text-sm sm:text-base font-bold text-gray-900">Tăng Trưởng Độc Giả Mới (Khách Hàng)</h2>
-                <p className="text-[11px] text-gray-500 mt-0.5">Số lượng khách đặt mua &amp; tương tác với gian hàng</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">Số lượng khách đặt mua &amp; tương tác với gian hàng (12 tháng)</p>
               </div>
               <select
                 value={acqPeriod}
                 onChange={(e) => setAcqPeriod(e.target.value as any)}
                 className="text-xs font-semibold text-gray-700 bg-gray-50 border border-gray-200 px-2.5 py-1.5 rounded-xl cursor-pointer focus:outline-none focus:border-emerald-500"
               >
+                <option value="THIS_YEAR">12 tháng qua</option>
                 <option value="6_MONTHS">6 tháng qua</option>
-                <option value="THIS_YEAR">Năm nay</option>
                 <option value="ALL">Toàn thời gian</option>
               </select>
             </div>
 
-            <div className="relative pt-4 pb-2">
+            <div className="relative pt-4 pb-1">
               <div className="h-44 w-full relative">
                 {/* Y Axis Grid Lines */}
                 <div className="absolute inset-0 flex flex-col justify-between text-[10px] text-gray-400 pointer-events-none">
@@ -653,25 +653,25 @@ export default function SellerDashboardPage() {
                 </div>
 
                 {/* SVG Trend line */}
-                <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 500 150">
+                <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 600 150">
                   <defs>
                     <linearGradient id="sellerAcqGradientReal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#22C55E" stopOpacity="0.3" />
+                      <stop offset="0%" stopColor="#22C55E" stopOpacity="0.28" />
                       <stop offset="100%" stopColor="#22C55E" stopOpacity="0.0" />
                     </linearGradient>
                   </defs>
                   <path
-                    d="M 20 130 Q 120 120 220 90 T 350 70 T 480 30 L 480 150 L 20 150 Z"
+                    d="M 15 135 Q 110 128 200 112 T 360 82 T 585 28 L 585 150 L 15 150 Z"
                     fill="url(#sellerAcqGradientReal)"
                   />
                   <path
-                    d="M 20 130 Q 120 120 220 90 T 350 70 T 480 30"
+                    d="M 15 135 Q 110 128 200 112 T 360 82 T 585 28"
                     fill="none"
                     stroke="#16A34A"
-                    strokeWidth="3"
+                    strokeWidth="2.5"
                     strokeLinecap="round"
                   />
-                  <circle cx="480" cy="30" r="5" fill="#16A34A" stroke="#FFFFFF" strokeWidth="2" />
+                  <circle cx="585" cy="28" r="4.5" fill="#16A34A" stroke="#FFFFFF" strokeWidth="2" />
                 </svg>
 
                 <div className="absolute top-2 right-4 bg-[#1E293B] text-white text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-lg flex flex-col items-center">
@@ -680,14 +680,11 @@ export default function SellerDashboardPage() {
                 </div>
               </div>
 
-              {/* X Axis Months */}
-              <div className="flex items-center justify-between text-[11px] font-semibold text-gray-500 mt-3 px-3">
-                <span>Tháng 5</span>
-                <span>Tháng 6</span>
-                <span>Tháng 7</span>
-                <span>Tháng 8</span>
-                <span>Tháng 9</span>
-                <span>Tháng 10</span>
+              {/* X Axis 12 Months */}
+              <div className="grid grid-cols-12 text-[10.5px] font-semibold text-gray-500 mt-2.5 text-center">
+                {['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'].map((m) => (
+                  <span key={m}>{m}</span>
+                ))}
               </div>
             </div>
           </div>

@@ -505,6 +505,9 @@ export default function BookDetailPage() {
     );
   }, [isLoggedIn, user, activeBusinessId]);
 
+  const [visibleReviewCount, setVisibleReviewCount] = useState(3);
+  const reviewSentinelRef = useRef<HTMLDivElement | null>(null);
+
   const displayedReviews = useMemo(() => {
     const visibleList = reviewsList.filter((r) => {
       if (r.status !== 'FLAGGED') return true;
@@ -2365,38 +2368,62 @@ export default function BookDetailPage() {
                     <span>Đang tải đánh giá độc giả...</span>
                   </div>
                 ) : displayedReviews.length > 0 ? (
-                  displayedReviews.map((rev) => {
-                    const isMyReview = currentUserReview && String(rev.id) === String(currentUserReview.id);
-                    return (
-                      <div
-                        key={rev.id}
-                        id={isMyReview ? 'my-user-review' : undefined}
-                        className={isMyReview ? 'rounded-2xl transition-all duration-300' : ''}
-                      >
-                        <ReviewCard
-                          review={rev}
-                          canReply={isSellerOrAdmin}
-                          isOwner={Boolean(isMyReview)}
-                          onEdit={isMyReview ? () => setIsReviewModalOpen(true) : undefined}
-                          onReplySuccess={(reply) => {
-                            setReviewsList((prev) =>
-                              prev.map((r) =>
-                                String(r.id) === String(rev.id)
-                                  ? {
-                                    ...r,
-                                    replies: (r.replies || []).some((x) => String(x.id) === String(reply.id))
-                                      ? r.replies
-                                      : [...(r.replies || []), reply],
-                                  }
-                                  : r
-                              )
+                  <div className="space-y-4">
+                    <div className="max-h-[680px] overflow-y-auto pr-1 space-y-4">
+                      {displayedReviews.slice(0, visibleReviewCount).map((rev) => {
+                        const isMyReview = currentUserReview && String(rev.id) === String(currentUserReview.id);
+                        return (
+                          <div
+                            key={rev.id}
+                            id={isMyReview ? 'my-user-review' : undefined}
+                            className={isMyReview ? 'rounded-2xl transition-all duration-300' : ''}
+                          >
+                            <ReviewCard
+                              review={rev}
+                              canReply={isSellerOrAdmin}
+                              isOwner={Boolean(isMyReview)}
+                              onEdit={isMyReview ? () => setIsReviewModalOpen(true) : undefined}
+                              onReplySuccess={(reply) => {
+                                setReviewsList((prev) =>
+                                  prev.map((r) =>
+                                    String(r.id) === String(rev.id)
+                                      ? {
+                                        ...r,
+                                        replies: (r.replies || []).some((x) => String(x.id) === String(reply.id))
+                                          ? r.replies
+                                          : [...(r.replies || []), reply],
+                                      }
+                                      : r
+                                  )
+                                );
+                                fetchBookReviews({ silent: true });
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                      {visibleReviewCount < displayedReviews.length && (
+                        <div
+                          ref={(node) => {
+                            reviewSentinelRef.current = node;
+                            if (!node) return;
+                            const observer = new IntersectionObserver(
+                              (entries) => {
+                                if (entries[0]?.isIntersecting) {
+                                  setVisibleReviewCount((c) => Math.min(c + 3, displayedReviews.length));
+                                }
+                              },
+                              { threshold: 0.1 }
                             );
-                            fetchBookReviews({ silent: true });
+                            observer.observe(node);
                           }}
-                        />
-                      </div>
-                    );
-                  })
+                          className="py-3 text-center text-xs text-slate-400"
+                        >
+                          Đang tải thêm đánh giá ({visibleReviewCount}/{displayedReviews.length})...
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 ) : (
                   <div className="py-12 px-4 text-center bg-gray-50/50 rounded-2xl border border-dashed border-gray-200 flex flex-col items-center justify-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-emerald-50 text-[#006953] flex items-center justify-center">

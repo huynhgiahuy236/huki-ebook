@@ -658,7 +658,7 @@ export function SellerReviewsView() {
             </p>
             {rev.images && rev.images.length > 0 && (
               <div className="flex items-center gap-1 pt-0.5">
-                {rev.images.slice(0, 3).map((img: any, idx: number) => (
+                {rev.images.slice(0, 5).map((img: any, idx: number) => (
                   <div
                     key={idx}
                     onClick={(e) => {
@@ -670,8 +670,8 @@ export function SellerReviewsView() {
                     <img src={img.url} alt="Review attachment" className="w-full h-full object-cover" />
                   </div>
                 ))}
-                {rev.images.length > 3 && (
-                  <span className="text-[10px] text-slate-400 font-bold">+{rev.images.length - 3}</span>
+                {rev.images.length > 5 && (
+                  <span className="text-[10px] text-slate-400 font-bold">+{rev.images.length - 5}</span>
                 )}
               </div>
             )}
