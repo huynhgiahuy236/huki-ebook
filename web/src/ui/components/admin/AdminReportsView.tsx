@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import { adminApi } from '../../api/adminApi';
 import {
   analyticsApi,
   type PlatformGmvResponse,
@@ -191,9 +192,58 @@ export function AdminReportsView() {
           }),
         ]);
 
-        // Process GMV Response
+        // Process GMV Response (nếu DailyAggregate chưa rollup ra 0, tự tổng hợp từ đơn hàng thật trong Escrow/Commerce)
         if (gmvRes.status === 'fulfilled' && gmvRes.value.success && gmvRes.value.data) {
-          setGmvData(gmvRes.value.data);
+          let resolvedGmv = gmvRes.value.data;
+          if (Number(resolvedGmv.totalGmv || 0) === 0 && (resolvedGmv.completedOrders || 0) === 0) {
+            try {
+              const escrowRes = await adminApi.getEscrowItems();
+              if (escrowRes.success && Array.isArray(escrowRes.data) && escrowRes.data.length > 0) {
+                const validItems = escrowRes.data.filter((it: any) => {
+                  if (it.escrowStatus === 'REFUNDED') return false;
+                  const dt = (it.orderCreatedAt || '').slice(0, 10);
+                  if (fromDate && dt && dt < fromDate) return false;
+                  if (toDate && dt && dt > toDate) return false;
+                  return true;
+                });
+                const totalAmt = validItems.reduce((s: number, it: any) => s + Number(it.effectiveSubtotal ?? it.subtotal ?? 0), 0);
+                const orderIds = new Set(validItems.map((it: any) => it.orderId));
+                const dayMap = new Map<string, { gmv: number; orders: Set<string> }>();
+                const storeMap = new Map<string, { gmv: number; orders: Set<string> }>();
+                validItems.forEach((it: any) => {
+                  const day = (it.orderCreatedAt || new Date().toISOString()).slice(0, 10);
+                  const dEntry = dayMap.get(day) || { gmv: 0, orders: new Set<string>() };
+                  dEntry.gmv += Number(it.effectiveSubtotal ?? it.subtotal ?? 0);
+                  if (it.orderId) dEntry.orders.add(it.orderId);
+                  dayMap.set(day, dEntry);
+
+                  const sid = it.storeId || 'unknown';
+                  const sEntry = storeMap.get(sid) || { gmv: 0, orders: new Set<string>() };
+                  sEntry.gmv += Number(it.effectiveSubtotal ?? it.subtotal ?? 0);
+                  if (it.orderId) sEntry.orders.add(it.orderId);
+                  storeMap.set(sid, sEntry);
+                });
+                if (totalAmt > 0) {
+                  resolvedGmv = {
+                    ...resolvedGmv,
+                    totalGmv: String(totalAmt),
+                    completedOrders: orderIds.size,
+                    timeline: Array.from(dayMap.entries()).map(([period, v]) => ({
+                      period,
+                      gmv: String(v.gmv),
+                      orders: v.orders.size,
+                    })),
+                    byStore: Array.from(storeMap.entries()).map(([storeId, v]) => ({
+                      storeId,
+                      gmv: String(v.gmv),
+                      orders: v.orders.size,
+                    })),
+                  };
+                }
+              }
+            } catch { /* ignore fallback error */ }
+          }
+          setGmvData(resolvedGmv);
         } else if (gmvRes.status === 'fulfilled' && !gmvRes.value.success) {
           setError(gmvRes.value.error?.message || 'Không thể tải báo cáo GMV');
         } else if (gmvRes.status === 'rejected') {

@@ -2522,3 +2522,15 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 - **Kiểm chứng & E2E:**
   - `build:identity`, `build:community`, `web run typecheck`: **0 errors**.
   - [`scripts/test_e2e_stage5_bug51_52_53.js`](file:///e:/HuKi/scripts/test_e2e_stage5_bug51_52_53.js): **PASS 100%** trên môi trường thật (`BE :3000`, PostgreSQL thật).
+
+### Bước 4 — Giai đoạn 6 (`BUG-55`): Sửa Tận Gốc & E2E Độc Lập (28/11/2026)
+
+- **Khắc phục mã nguồn:**
+  - `BUG-55`:
+    - **Tab 1 (GMV):** Cập nhật [`AdminReportsView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminReportsView.tsx) fallback sang dữ liệu đơn hàng hoàn tất thật từ `adminApi.getEscrowItems()` khi bảng `DailyAggregate` chưa rollup (`0 ₫`), đảm bảo khớp doanh thu thực tế toàn sàn.
+    - **Tab 2 (Flash Sale):** Chuẩn hóa badge `Quy Mô` và `Trạng Thái` dạng `• Chữ màu` (`rounded-md`, `whitespace-nowrap`) trong [`FlashSaleAnalyticsView.tsx`](file:///e:/HuKi/web/src/ui/components/analytics/FlashSaleAnalyticsView.tsx).
+    - **Tab 3 (Phễu & Thể Loại):** Gỡ bỏ toàn bộ hằng số giả lập (`17047`, `1280`, `69`, `60`, `5743194`), nạp dữ liệu thật từ `/categories/performance`, `/analytics/gmv` và `/orders/admin/escrow/items`; loại bỏ badge `Bán Chạy`, UUID thô, icon `content_copy` và giữ dòng `Tổng Cộng` trên 1 hàng (`whitespace-nowrap`) trong [`ConversionAndCategoryView.tsx`](file:///e:/HuKi/web/src/ui/components/analytics/ConversionAndCategoryView.tsx).
+    - **Tab 4 (Sổ Cái & Ký Quỹ):** Thay banner tối `slate-900` + badge `PostgreSQL Real Data` bằng header trắng đồng bộ; map tên Gian Hàng thật thay vì UUID thô và cố định badge trạng thái 1 dòng (`whitespace-nowrap`) trong [`AdminLedgerView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminLedgerView.tsx).
+- **Kiểm chứng & E2E:**
+  - `web run typecheck`: **0 errors**.
+  - [`scripts/test_e2e_stage6_bug55.js`](file:///e:/HuKi/scripts/test_e2e_stage6_bug55.js): **PASS 100%** trên môi trường thật (`BE :3000`, PostgreSQL thật).

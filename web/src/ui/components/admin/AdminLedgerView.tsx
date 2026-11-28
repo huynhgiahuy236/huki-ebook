@@ -608,14 +608,22 @@ export function AdminLedgerView() {
       {
         key: 'storeName',
         title: 'Shop / NXB',
-        render: (_, row) => (
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-800">
-            <span className="material-symbols-outlined text-[14px] text-emerald-600">storefront</span>
-            <span className="break-words line-clamp-1" title={row.storeName}>
-              {row.storeName}
-            </span>
-          </div>
-        ),
+        render: (_, row) => {
+          const matchedStore = stores.find((s) => s.id === row.storeId)?.name;
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            String(row.storeName || '')
+          );
+          const displayName =
+            matchedStore || (!isUuid && row.storeName) || `Gian hàng #${String(row.storeId || '').slice(0, 6)}`;
+          return (
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-800 whitespace-nowrap">
+              <span className="material-symbols-outlined text-[14px] text-emerald-600 shrink-0">storefront</span>
+              <span className="truncate max-w-[160px]" title={displayName}>
+                {displayName}
+              </span>
+            </div>
+          );
+        },
       },
       {
         key: 'customerName',
@@ -661,33 +669,35 @@ export function AdminLedgerView() {
         key: 'escrowStatus',
         title: 'Trạng Thái',
         align: 'center',
+        width: 140,
         render: (_, row) => {
           if (row.escrowStatus === 'RELEASED') {
             return (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
                 <span>Đã Giải Phóng</span>
               </span>
             );
           }
           if (row.escrowStatus === 'FROZEN') {
             return (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 animate-pulse">
-                <span className="material-symbols-outlined text-[12px]">lock</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
                 <span>Đóng Băng</span>
               </span>
             );
           }
           if (row.escrowStatus === 'REFUNDED') {
             return (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-purple-50 text-purple-700 whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0"></span>
                 <span>Đã Hoàn Tiền</span>
               </span>
             );
           }
           return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 whitespace-nowrap">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
               <span>Đang Giữ Hộ</span>
             </span>
           );
@@ -1085,27 +1095,24 @@ export function AdminLedgerView() {
 
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-200">
-      {/* 1. REALTIME STATUS BAR */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 rounded-2xl shadow-sm border border-slate-700">
+      {/* 1. CLEAN HEADER ACTION BAR */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl shadow-2xs border border-gray-200">
         <div className="flex items-center gap-3">
-          <div className="relative flex items-center justify-center">
-            <span className={`w-3.5 h-3.5 rounded-full ${isLivePulsing ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`}></span>
-            <span className={`absolute w-2 h-2 rounded-full ${isLivePulsing ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-emerald-600 text-[20px]">account_balance_wallet</span>
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold tracking-wider uppercase text-emerald-400">
-                Hệ Thống Quản Trị Ký Quỹ Escrow &amp; Sổ Cái Kép Toàn Sàn
+              <span className="text-sm font-bold text-gray-900">
+                Quản Trị Ký Quỹ Escrow &amp; Sổ Cái Kép
               </span>
-              <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full font-mono">
-                PostgreSQL Real Data
-              </span>
+              <span className={`w-2 h-2 rounded-full ${isLivePulsing ? 'bg-amber-400 animate-ping' : 'bg-emerald-500'}`} title="Kết nối thời gian thực" />
             </div>
-            <p className="text-xs text-slate-300 mt-0.5">
+            <p className="text-xs text-gray-500 mt-0.5">
               {lastLiveEvent ? (
-                <span className="text-amber-300 font-medium"> Sự kiện mới: {lastLiveEvent}</span>
+                <span className="text-amber-600 font-medium">Sự kiện mới: {lastLiveEvent}</span>
               ) : (
-                'Giám sát quỹ bảo lưu Escrow 7 ngày, giải phóng ký quỹ sang ví người bán và đối soát kế toán kép cân bằng.'
+                'Giám sát quỹ bảo lưu Escrow 7 ngày, giải phóng ký quỹ sang ví người bán và đối soát kế toán kép.'
               )}
             </p>
           </div>
@@ -1120,7 +1127,7 @@ export function AdminLedgerView() {
               loadLedgerSummaries();
               showToast('Đã làm mới dữ liệu ký quỹ & sổ cái', 'success');
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-xs font-semibold text-white transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-semibold text-gray-700 transition-all cursor-pointer"
           >
             <span className="material-symbols-outlined text-[16px]">refresh</span>
             <span>Làm Mới</span>

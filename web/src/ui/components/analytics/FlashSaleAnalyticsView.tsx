@@ -290,15 +290,16 @@ export function FlashSaleAnalyticsView() {
         key: 'scope',
         title: 'Quy Mô',
         align: 'center',
-        width: 110,
+        width: 120,
         render: (_, row) => (
           <span
-            className={`px-2 py-0.5 rounded-full text-[10.5px] font-bold border ${
+            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold whitespace-nowrap ${
               row.scope === 'PLATFORM'
-                ? 'bg-blue-50 text-blue-700 border-blue-200'
-                : 'bg-purple-50 text-purple-700 border-purple-200'
+                ? 'bg-blue-50 text-blue-700'
+                : 'bg-purple-50 text-purple-700'
             }`}
           >
+            <span className={`w-1.5 h-1.5 rounded-full ${row.scope === 'PLATFORM' ? 'bg-blue-500' : 'bg-purple-500'}`} />
             {row.scope === 'PLATFORM' ? 'Toàn Sàn' : 'Shop Riêng'}
           </span>
         ),
@@ -307,11 +308,11 @@ export function FlashSaleAnalyticsView() {
         key: 'status',
         title: 'Trạng Thái',
         align: 'center',
-        width: 130,
+        width: 140,
         render: (_, row) => {
           if (row.status === 'ACTIVE') {
             return (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10.5px] font-bold border border-emerald-200">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-xs font-semibold whitespace-nowrap">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
                 Đang Diễn Ra
               </span>
@@ -319,14 +320,15 @@ export function FlashSaleAnalyticsView() {
           }
           if (row.status === 'SCHEDULED') {
             return (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10.5px] font-bold border border-amber-200">
-                <span className="material-symbols-outlined text-[13px]">alarm</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-700 text-xs font-semibold whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                 Sắp Bắt Đầu
               </span>
             );
           }
           return (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[10.5px] font-bold border border-gray-200">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-gray-100 text-gray-600 text-xs font-semibold whitespace-nowrap">
+              <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
               Đã Kết Thúc
             </span>
           );
