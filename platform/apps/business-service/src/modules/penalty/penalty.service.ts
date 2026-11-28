@@ -11,59 +11,85 @@ export class PenaltyService {
   ) {}
 
   private calculateTier(points: number) {
-    if (points >= 18) {
+    if (points >= 9) {
       return {
         tier: 'TIER_4_SUSPENDED' as const,
-        tierLabel: '🔴 Hạng 4 (Tạm Đình Chỉ Gian Hàng)',
-        tierDescription: 'Gian hàng tích lũy 18+ điểm phạt trong quý. Tài khoản tạm ngưng giao dịch kinh doanh.',
-        badgeColor: 'rose',
+        tierLabel: 'Chế Tài Cấp 3 (≥9 điểm)',
+        tierDescription: 'Gian hàng vi phạm nghiêm trọng quy chuẩn sàn, tạm dừng giao dịch.',
+        badgeColor: 'slate',
         canJoinPlatformFlashSale: false,
         maxBooksPerPlatformSlot: 0,
-        activeSanctionMessage: 'Gian hàng tạm khóa kinh doanh do vượt ngưỡng điểm phạt sàn (18 điểm). Vui lòng gửi kháng nghị để được xem xét.',
-      };
-    }
-    if (points >= 12) {
-      return {
-        tier: 'TIER_3_CRITICAL' as const,
-        tierLabel: '🟠 Hạng 3 (Hạn Chế Nghiêm Ngặt)',
-        tierDescription: 'Gian hàng có nhiều vi phạm nghiêm trọng. Không được duyệt Flash Sale, giới hạn tải sách mới.',
-        badgeColor: 'amber',
-        canJoinPlatformFlashSale: false,
-        maxBooksPerPlatformSlot: 5,
-        activeSanctionMessage: 'Hạn chế xuất bản sách mới và ngắt tham gia mọi chiến dịch Mega Sale toàn sàn.',
+        activeSanctionMessage: 'TẠM KHÓA GIAN HÀNG & ĐÓNG BĂNG RÚT TIỀN.',
       };
     }
     if (points >= 6) {
       return {
-        tier: 'TIER_2_RESTRICTED' as const,
-        tierLabel: '🟡 Hạng 2 (Cảnh Cáo & Hạn Chế Flash Sale)',
-        tierDescription: 'Gian hàng có vi phạm vận hành hoặc chất lượng đơn hàng. Bị tạm khóa đăng ký Flash Sale sàn.',
-        badgeColor: 'yellow',
+        tier: 'TIER_3_CRITICAL' as const,
+        tierLabel: 'Chế Tài Cấp 2 (6-8 điểm)',
+        tierDescription: 'Tước quyền Flash Sale Sàn và giảm độ ưu tiên hiển thị trên trang tìm kiếm.',
+        badgeColor: 'purple',
         canJoinPlatformFlashSale: false,
-        maxBooksPerPlatformSlot: 10,
-        activeSanctionMessage: 'Tạm khóa quyền tự động duyệt tham gia các khung giờ Flash Sale của Sàn.',
+        maxBooksPerPlatformSlot: 0,
+        activeSanctionMessage: 'CẤM FLASH SALE SÀN & GIẢM HIỂN THỊ TÌM KIẾM.',
       };
     }
     if (points >= 3) {
       return {
+        tier: 'TIER_2_RESTRICTED' as const,
+        tierLabel: 'Chế Tài Cấp 1 (3-5 điểm)',
+        tierDescription: 'Bị tước quyền đăng ký Flash Sale của Sàn trong 28 ngày do điểm Sao Quả Tạ đạt từ 3 điểm.',
+        badgeColor: 'rose',
+        canJoinPlatformFlashSale: false,
+        maxBooksPerPlatformSlot: 0,
+        activeSanctionMessage: 'BỊ KHÓA QUYỀN THAM GIA FLASH SALE SÀN TRONG 28 NGÀY. (Vẫn được tạo Flash Sale riêng của Shop).',
+      };
+    }
+    if (points === 2) {
+      return {
         tier: 'TIER_1_WARNING' as const,
-        tierLabel: '🔵 Hạng 1 (Nhắc Nhở Vi Phạm Nhẹ)',
-        tierDescription: 'Gian hàng có vi phạm nhẹ. Cần cải thiện tỷ lệ vận hành để tránh tăng hạng phạt.',
-        badgeColor: 'blue',
+        tierLabel: 'Cảnh Báo Nhẹ (2 điểm)',
+        tierDescription: 'Gian hàng có vi phạm nhỏ. Giới hạn tối đa 3 cuốn sách cho mỗi slot Flash Sale Sàn.',
+        badgeColor: 'amber',
         canJoinPlatformFlashSale: true,
-        maxBooksPerPlatformSlot: 15,
-        activeSanctionMessage: 'Vui lòng cải thiện thời gian đóng gói và tỷ lệ hủy đơn để giữ uy tín gian hàng.',
+        maxBooksPerPlatformSlot: 3,
+        activeSanctionMessage: 'Hạn chế số lượng: Tối đa 3 sách / slot Flash Sale của Sàn.',
       };
     }
     return {
       tier: 'TIER_0_GOOD' as const,
-      tierLabel: '🟢 Hạng Tốt (Uy Tín)',
+      tierLabel: 'Hạng Tốt (Uy Tín)',
       tierDescription: 'Gian hàng tuân thủ quy chuẩn chất lượng, đủ điều kiện tham gia Flash Sale của Sàn.',
       badgeColor: 'emerald',
       canJoinPlatformFlashSale: true,
       maxBooksPerPlatformSlot: 20,
       activeSanctionMessage: null,
     };
+  }
+
+  private formatProfile(profile: any) {
+    return {
+      ...profile,
+      history: profile.records || [],
+      violationHistory: profile.records || [],
+      metrics: {
+        nonFulfillmentRate: profile.nonFulfillmentRate,
+        lateShipmentRate: profile.lateShipmentRate,
+        responseRate: profile.responseRate,
+        rating: profile.rating,
+      },
+    };
+  }
+
+  async getAllProfiles() {
+    const profiles = await this.prisma.storePenaltyProfile.findMany({
+      include: {
+        records: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+      orderBy: { totalPoints: 'desc' },
+    });
+    return profiles.map((p) => this.formatProfile(p));
   }
 
   async getProfile(rawStoreId?: string) {
@@ -79,11 +105,12 @@ export class PenaltyService {
     });
 
     if (!profile) {
+      const realStore = await this.prisma.store.findUnique({ where: { id: storeId } }).catch(() => null);
       const tierInfo = this.calculateTier(0);
-      profile = await this.prisma.storePenaltyProfile.create({
+      const created = await this.prisma.storePenaltyProfile.create({
         data: {
           storeId,
-          storeName: storeId === 'default-store' ? 'Nhà Sách Tri Thức HuKi' : `Gian Hàng ${storeId}`,
+          storeName: realStore?.name || (storeId === 'default-store' ? 'Nhà Sách Tri Thức HuKi' : `Gian Hàng ${storeId}`),
           totalPoints: 0,
           penaltyPoints: 0,
           tier: tierInfo.tier,
@@ -94,38 +121,36 @@ export class PenaltyService {
           maxBooksPerPlatformSlot: tierInfo.maxBooksPerPlatformSlot,
           activeSanctionMessage: tierInfo.activeSanctionMessage,
           quarterCycle: 'Q4-2026',
-          nonFulfillmentRate: 0.8,
-          lateShipmentRate: 1.2,
-          responseRate: 98.0,
-          rating: 4.9,
+          nonFulfillmentRate: 0,
+          lateShipmentRate: 0,
+          responseRate: 100,
+          rating: 5.0,
           checklist: [],
         },
         include: {
           records: true,
         },
       });
+      return this.formatProfile(created);
     }
 
-    return {
-      ...profile,
-      history: profile.records,
-      violationHistory: profile.records,
-      metrics: {
-        nonFulfillmentRate: profile.nonFulfillmentRate,
-        lateShipmentRate: profile.lateShipmentRate,
-        responseRate: profile.responseRate,
-        rating: profile.rating,
-      },
-    };
+    return this.formatProfile(profile);
   }
 
   async handleAction(dto: PenaltyActionDto) {
     const storeId = dto.storeId || 'default-store';
-    const profile = await this.prisma.storePenaltyProfile.findUnique({
+    let profile = await this.prisma.storePenaltyProfile.findUnique({
       where: { storeId },
       include: { records: true },
     });
 
+    if (!profile) {
+      await this.getProfile(storeId);
+      profile = await this.prisma.storePenaltyProfile.findUnique({
+        where: { storeId },
+        include: { records: true },
+      });
+    }
     if (!profile) {
       throw new NotFoundException(`Store penalty profile for ${storeId} not found`);
     }

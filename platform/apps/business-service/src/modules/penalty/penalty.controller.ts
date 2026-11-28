@@ -18,10 +18,14 @@ export class PenaltyController {
 
   @Public()
   @Get()
-  @ApiOperation({ summary: 'Get seller penalty profile by storeId' })
+  @ApiOperation({ summary: 'Get seller penalty profile by storeId or all profiles for Admin' })
   @ApiQuery({ name: 'storeId', required: false, type: String })
-  @ApiSuccessResponse(undefined, { description: 'Seller penalty profile' })
+  @ApiSuccessResponse(undefined, { description: 'Seller penalty profile(s)' })
   async getProfile(@Query('storeId') storeId?: string) {
+    if (!storeId) {
+      const profiles = await this.penaltyService.getAllProfiles();
+      return { success: true, data: profiles };
+    }
     const profile = await this.penaltyService.getProfile(storeId);
     return { success: true, data: profile };
   }

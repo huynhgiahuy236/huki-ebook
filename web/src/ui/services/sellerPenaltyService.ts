@@ -18,8 +18,11 @@ export type PenaltyTier =
   | 'TIER_0_GOOD'               // 0 - 1 điểm: Rất tốt, đủ điều kiện Flash Sale Sàn 100%
   | 'TIER_1_WARNING'            // 2 điểm: Cảnh báo, giới hạn tối đa 3 sách / Slot Sàn
   | 'TIER_2_BLOCKED_FLASH_SALE' // 3 - 5 điểm: Chế tài Cấp 1: CẤM Flash Sale Sàn 28 ngày
+  | 'TIER_2_RESTRICTED'         // Alias DB enum
   | 'TIER_3_SEARCH_DEBOOST'     // 6 - 8 điểm: Chế tài Cấp 2: Cấm Flash Sale Sàn + Giảm hiển thị tìm kiếm
-  | 'TIER_4_FROZEN';            // >= 9 điểm: Chế tài Cấp 3: Tạm khóa gian hàng
+  | 'TIER_3_CRITICAL'           // Alias DB enum
+  | 'TIER_4_FROZEN'             // >= 9 điểm: Chế tài Cấp 3: Tạm khóa gian hàng
+  | 'TIER_4_SUSPENDED';         // Alias DB enum
 
 export interface PenaltyRecord {
   id: string;
@@ -75,13 +78,31 @@ export const PENALTY_TIER_CONFIG: Record<PenaltyTier, { name: string; points: st
     color: 'rose',
     description: 'Bị tước quyền đăng ký Flash Sale của Sàn trong 28 ngày do điểm Sao Quả Tạ đạt từ 3 điểm.',
   },
+  TIER_2_RESTRICTED: {
+    name: 'Khóa Flash Sale Sàn',
+    points: '3-5 điểm',
+    color: 'rose',
+    description: 'Bị tước quyền đăng ký Flash Sale của Sàn trong 28 ngày do điểm Sao Quả Tạ đạt từ 3 điểm.',
+  },
   TIER_3_SEARCH_DEBOOST: {
     name: 'Giảm Hiển Thị',
     points: '6-8 điểm',
     color: 'purple',
     description: 'Tước quyền Flash Sale Sàn và giảm độ ưu tiên hiển thị trên trang tìm kiếm.',
   },
+  TIER_3_CRITICAL: {
+    name: 'Giảm Hiển Thị',
+    points: '6-8 điểm',
+    color: 'purple',
+    description: 'Tước quyền Flash Sale Sàn và giảm độ ưu tiên hiển thị trên trang tìm kiếm.',
+  },
   TIER_4_FROZEN: {
+    name: 'Đóng Băng',
+    points: '≥9 điểm',
+    color: 'slate',
+    description: 'Gian hàng vi phạm nghiêm trọng quy chuẩn sàn, tạm dừng giao dịch.',
+  },
+  TIER_4_SUSPENDED: {
     name: 'Đóng Băng',
     points: '≥9 điểm',
     color: 'slate',
@@ -314,8 +335,16 @@ class SellerPenaltyService {
   constructor() {
     this.loadFromStorage();
     if (typeof window !== 'undefined') {
-      this.syncFromServer();
-      window.addEventListener('focus', () => this.syncFromServer());
+      void this.syncFromServer();
+      window.addEventListener('focus', () => void this.syncFromServer());
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) void this.syncFromServer();
+      });
+      setInterval(() => {
+        if (typeof document !== 'undefined' && !document.hidden) {
+          void this.syncFromServer();
+        }
+      }, 4000);
     }
   }
 
@@ -368,21 +397,51 @@ class SellerPenaltyService {
     }
   }
 
-  public async syncFromServer(): Promise<void> {
+  public async syncFromServer(storeId?: string): Promise<void> {
     if (typeof window === 'undefined' || this.isSyncing) return;
     this.isSyncing = true;
     try {
       const token = tokenStorage.getAccessToken();
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch('/api/v1/seller/penalties', { headers, cache: 'no-store' });
+      const query = storeId ? `?storeId=${encodeURIComponent(storeId)}` : '';
+      const res = await fetch(`/api/v1/seller/penalties${query}`, { headers, cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
-        if (json.success && json.data && typeof json.data === 'object') {
-          this.profiles = { ...DEFAULT_SEED_PROFILES, ...json.data };
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(this.profiles));
-          } catch { }
+        if (json.success && json.data) {
+          let changed = false;
+          if (Array.isArray(json.data)) {
+            for (const p of json.data as StorePenaltyProfile[]) {
+              if (p && p.storeId) {
+                const existing = this.profiles[p.storeId];
+                this.profiles[p.storeId] = {
+                  ...p,
+                  storeName:
+                    p.storeName && !p.storeName.startsWith('Gian Hàng ')
+                      ? p.storeName
+                      : existing?.storeName || p.storeName,
+                };
+                changed = true;
+              }
+            }
+          } else if (typeof json.data === 'object' && (json.data as StorePenaltyProfile).storeId) {
+            const p = json.data as StorePenaltyProfile;
+            const existing = this.profiles[p.storeId];
+            this.profiles[p.storeId] = {
+              ...p,
+              storeName:
+                p.storeName && !p.storeName.startsWith('Gian Hàng ')
+                  ? p.storeName
+                  : existing?.storeName || p.storeName,
+            };
+            changed = true;
+          }
+          if (changed) {
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(this.profiles));
+            } catch {}
+            window.dispatchEvent(new CustomEvent('huki_seller_penalty_updated', { detail: { storeId } }));
+          }
         }
       }
     } catch {
@@ -420,17 +479,37 @@ class SellerPenaltyService {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.profiles));
     } catch { }
+  }
 
-    // Persist to server if running in real browser with origin
-    if (typeof window !== 'undefined' && window.location?.origin && window.location.origin.startsWith('http')) {
+  private async persistAction(payload: Record<string, any>): Promise<void> {
+    if (typeof window === 'undefined' || !window.location?.origin?.startsWith('http')) return;
+    try {
       const token = tokenStorage.getAccessToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      fetch('/api/v1/seller/penalties', {
+      const res = await fetch('/api/v1/seller/penalties', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ profiles: this.profiles }),
-      }).catch(() => { });
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const json = await res.json().catch(() => ({}));
+        const p = json?.data as StorePenaltyProfile | undefined;
+        if (p && p.storeId) {
+          const existing = this.profiles[p.storeId];
+          this.profiles[p.storeId] = {
+            ...p,
+            storeName:
+              p.storeName && !p.storeName.startsWith('Gian Hàng ')
+                ? p.storeName
+                : existing?.storeName || p.storeName,
+          };
+          this.saveToStorage();
+          window.dispatchEvent(new CustomEvent('huki_seller_penalty_updated', { detail: { storeId: p.storeId } }));
+        }
+      }
+    } catch {
+      // ignore offline error
     }
   }
 
@@ -617,6 +696,16 @@ class SellerPenaltyService {
 
     this.profiles[storeId] = profile;
     this.saveToStorage();
+    void this.persistAction({
+      action: 'ADD_POINTS',
+      storeId,
+      violationType,
+      violationName: newRecord.violationName,
+      points,
+      reason,
+      relatedOrderId: metadata?.orderId,
+      relatedBookTitle: metadata?.bookTitle,
+    });
 
     // Broadcast Realtime Event
     realtimeSyncBus.publish('SELLER_PENALTY_UPDATED', {
@@ -656,6 +745,13 @@ class SellerPenaltyService {
 
     this.profiles[storeId] = profile;
     this.saveToStorage();
+    void this.persistAction({
+      action: 'APPEAL_VIOLATION',
+      storeId,
+      recordId,
+      reason: appealReason,
+      proof: evidenceNotes || '',
+    });
 
     realtimeSyncBus.publish('SELLER_PENALTY_UPDATED', {
       storeId,
@@ -700,6 +796,13 @@ class SellerPenaltyService {
 
     this.profiles[storeId] = profile;
     this.saveToStorage();
+    void this.persistAction({
+      action: 'ADMIN_REVIEW_APPEAL',
+      storeId,
+      recordId,
+      decision: isApproved ? 'APPROVED' : 'REJECTED',
+      adminNote: adminNote || '',
+    });
 
     realtimeSyncBus.publish('SELLER_PENALTY_UPDATED', {
       storeId,
@@ -729,6 +832,10 @@ class SellerPenaltyService {
 
     this.profiles[storeId] = profile;
     this.saveToStorage();
+    void this.persistAction({
+      action: 'RESET_POINTS',
+      storeId,
+    });
 
     realtimeSyncBus.publish('SELLER_PENALTY_UPDATED', {
       storeId,
