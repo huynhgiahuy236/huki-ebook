@@ -566,10 +566,10 @@ export default function SellerNotificationsView() {
               </span>
             )}
           </div>
-          <div className="text-2xl font-black text-rose-600 dark:text-rose-400">
+          <div className={`text-2xl font-black ${readFilter === 'unread' ? 'text-white' : 'text-rose-600 dark:text-rose-400'}`}>
             {stats.unread}
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+          <p className={`text-[11px] mt-0.5 truncate ${readFilter === 'unread' ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}`}>
             Tin chưa đọc
           </p>
         </div>
@@ -602,10 +602,10 @@ export default function SellerNotificationsView() {
               </span>
             )}
           </div>
-          <div className="text-2xl font-black text-amber-600 dark:text-amber-400">
+          <div className={`text-2xl font-black ${activeTab === 'sla' ? 'text-white' : 'text-amber-600 dark:text-amber-400'}`}>
             {stats.slaCount}
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+          <p className={`text-[11px] mt-0.5 truncate ${activeTab === 'sla' ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}`}>
             SLA &amp; Sao Quả Tạ
           </p>
         </div>
@@ -638,10 +638,10 @@ export default function SellerNotificationsView() {
               </span>
             )}
           </div>
-          <div className="text-2xl font-black text-blue-600 dark:text-blue-400">
+          <div className={`text-2xl font-black ${activeTab === 'orders' ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`}>
             {stats.orderCount}
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+          <p className={`text-[11px] mt-0.5 truncate ${activeTab === 'orders' ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}`}>
             Đơn hàng &amp; Giao vận
           </p>
         </div>
@@ -674,10 +674,10 @@ export default function SellerNotificationsView() {
               </span>
             )}
           </div>
-          <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
+          <div className={`text-2xl font-black ${activeTab === 'admin' ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'}`}>
             {stats.adminCount}
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+          <p className={`text-[11px] mt-0.5 truncate ${activeTab === 'admin' ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}`}>
             Chỉ đạo Ban Quản Trị
           </p>
         </div>
