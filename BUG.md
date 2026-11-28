@@ -2307,4 +2307,35 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
   - [`banners.controller.ts`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/banners/banners.controller.ts) hiện có `POST`, `GET`, `GET active`, `GET :id`, `PATCH :id`, `DELETE :id` — **chưa có endpoint công khai `POST /banners/:id/click`** để tăng bộ đếm click thật trong PostgreSQL.
 - **Ma trận Rủi ro Domino:** Endpoint `POST /banners/:id/click` là public endpoint cho Buyer click banner, cần đảm bảo atomic increment trong DB (`clicks: { increment: 1 }`) và có kiểm soát chống spam/lỗi.
 
-- **Trạng thái Bước 2 — Giai đoạn 3:** Hoàn tất phân tích 3 bug (`BUG-45`, `BUG-46`, `BUG-47`). **DỪNG LẠI** theo quy chế phân chặng để báo cáo Người dùng trước khi sang Giai đoạn 4 (`BUG-48`, `BUG-49`, `BUG-50`).
+- **Trạng thái Bước 2 — Giai đoạn 3:** Hoàn tất phân tích 3 bug (`BUG-45`, `BUG-46`, `BUG-47`).
+
+---
+
+### Bước 2 — Giai đoạn 4 (`BUG-48`, `BUG-49`, `BUG-50`): Phân tích Nguyên nhân Gốc rễ & Ma trận Domino (28/11/2026)
+
+> **Phạm vi kiểm chứng môi trường:** Cả **3 lỗi (`BUG-48`, `BUG-49`, `BUG-50`)** đều bắt nguồn trực tiếp từ mã nguồn hiện tại trong `web/` và `platform/`, nên **xảy ra trên cả Local lẫn UAT**.
+
+#### 1. `BUG-48` — `/admin/affiliates` (Sai thiết kế Grouped Data Table, Bộ lọc & Kiểm tra Zero Mock)
+- **Tầng 4 (Frontend Client):**
+  - Trong [`AdminAffiliatesView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminAffiliatesView.tsx#L536-L790):
+    - Tab 1 (`APPLICATIONS`) dùng `GroupedDataTable`, nhưng cụm bộ lọc phía trên tự viết thủ công bằng thẻ `<button>` + `<input>` rời rạc (dòng 505–534), thiếu `DataTableFilterBar`, thiếu số đếm `count` theo từng trạng thái, thiếu `dateFilter` và `bulkActions`.
+    - Tab 2 (`PAYOUTS`, dòng 594) và Tab 3 (`FRAUD`, dòng 710) vẫn dùng thẻ **`<table>` HTML thuần** thay vì `GroupedDataTable` và `DataTableFilterBar` chuẩn hệ thống.
+- **Ma trận Rủi ro Domino:** Đồng bộ cả 3 tab về `DataTableFilterBar` + `GroupedDataTable` và đối chiếu Backend `affiliate` đảm bảo 100% dữ liệu thật từ PostgreSQL, không ảnh hưởng API contract hiện có.
+
+#### 2. `BUG-49` — Banner chưa Realtime (Tạo ngay không tự lên & Hẹn giờ không tự bật)
+- **Tầng 2 (Backend Promotion Service):**
+  - Trong [`banners.service.ts`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/banners/banners.service.ts#L22-L108), các hàm `create`, `update`, `delete` chỉ thao tác DB mà **không phát Outbox / RabbitMQ event** (`BANNER_UPDATED`) để thông báo cho Frontend Buyer.
+  - Hệ thống **chưa có Scheduler / Smart Timer** kiểm tra thời điểm `startDate` / `endDate` của banner hẹn giờ để tự động phát sự kiện broadcast khi đến giờ kích hoạt hoặc hết hạn.
+- **Tầng 4 (Frontend Client):**
+  - Trong [`web/src/app/page.tsx`](file:///e:/HuKi/web/src/app/page.tsx#L448-L456), trang chủ Buyer chỉ lắng nghe `window.addEventListener("storage")` và `window.addEventListener("huki_admin_marketing_updated")` (chỉ có tác dụng trên cùng trình duyệt/máy), **không subscribe `realtimeSyncBus`** (Socket.IO) để nhận cập nhật banner realtime từ server.
+- **Ma trận Rủi ro Domino:** Cần tuân thủ kiến trúc Event-Driven (Promotion Service ➔ Outbox/RabbitMQ `huki.events` ➔ Community Service NotificationGateway ➔ Broadcast Socket.IO tới Buyer), không dùng polling dày đặc.
+
+#### 3. `BUG-50` — `/admin/seller-features` (Tắt tính năng không hoạt động)
+- **Tầng 4 vs Tầng 2 (Lệch hoàn toàn Contract DTO & Nuốt lỗi):**
+  - Frontend [`featureFlagsService.ts`](file:///e:/HuKi/web/src/ui/services/featureFlagsService.ts#L449-L458) gửi `POST /api/v1/seller/feature-flags` với payload:
+    `{ action: 'TOGGLE_GLOBAL', featureId, isEnabled, maintenanceReason }` và **nuốt lỗi bằng `.catch(() => {})`**, đồng thời lưu tạm vào `localStorage`.
+  - Backend [`UpdateFeatureDto`](file:///e:/HuKi/platform/apps/business-service/src/modules/feature/feature.dto.ts#L4-L44) lại yêu cầu **`id`** (không phải `featureId`), **`isEnabledGlobally`** (không phải `isEnabled`), và không khai báo `action` ➔ `ValidationPipe` từ chối ngay với `400 Bad Request`! Ngoài ra nếu DB bảng `seller_features` chưa có sẵn record cho feature mới, `FeatureService.updateFeature` ném `404 Not Found`.
+  - Lỗ hổng bảo mật: `FeatureController` (`feature.controller.ts:41`) đang gắn `@Public()` cho `POST`, cần siết lại `@Roles('PLATFORM_ADMIN')`.
+- **Ma trận Rủi ro Domino:** Sửa đồng bộ `FeatureController` / `FeatureService` (hỗ trợ upsert + RBAC `PLATFORM_ADMIN` + phát event realtime `FEATURE_FLAGS_UPDATED`) và `featureFlagsService.ts` (bỏ `localStorage` làm nguồn chính, await API thật và báo lỗi rõ ràng) sẽ giúp toàn bộ Seller trên UAT nhận trạng thái khóa/mở tính năng ngay lập tức.
+
+- **Trạng thái Bước 2 — Giai đoạn 4:** Hoàn tất phân tích 3 bug (`BUG-48`, `BUG-49`, `BUG-50`). **DỪNG LẠI** theo quy chế phân chặng để báo cáo Người dùng trước khi sang Giai đoạn 5 (`BUG-51`, `BUG-52`, `BUG-53`).
