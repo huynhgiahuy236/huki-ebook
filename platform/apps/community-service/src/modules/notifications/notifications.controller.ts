@@ -22,10 +22,8 @@ import {
   ApiOperation,
   ApiTags,
   ApiParam,
-  ApiResponse,
-  ApiUnauthorizedResponse,
-  ApiNotFoundResponse,
 } from "@nestjs/swagger";
+import { ApiSuccessResponse, ApiStandardErrors } from "@huki/shared";
 import {
   AuthenticatedCommunityGuard,
   CommunityActor,
@@ -48,7 +46,7 @@ import {
 import { throwForbidden, ErrorCode } from "@huki/shared/errors";
 
 @ApiTags("Notifications")
-@ApiBearerAuth()
+@ApiBearerAuth("JWT-auth")
 @UseGuards(AuthenticatedCommunityGuard)
 @Controller("notifications")
 export class NotificationsController {
@@ -63,7 +61,8 @@ export class NotificationsController {
     summary: "Trigger Auto Watchdog anomaly scan",
     description: "Scans for Order SLA violations, shipping delays, low stock, payment risks, and microservice downtime.",
   })
-  @ApiResponse({ status: 200, description: "Watchdog scan completed" })
+  @ApiSuccessResponse(undefined, { description: "Watchdog scan completed" })
+  @ApiStandardErrors(401, 403)
   async scanWatchdog(
     @CurrentCommunityActor() actor: CommunityActor,
     @Body() body?: WatchdogScanInput,
@@ -88,8 +87,8 @@ export class NotificationsController {
     summary: "List user's notifications",
     description: "Returns a paginated list of user notifications.",
   })
-  @ApiResponse({ status: 200, description: "Paginated notifications" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { isArray: true, description: "Paginated notifications" })
+  @ApiStandardErrors(401)
   list(
     @CurrentCommunityActor() actor: CommunityActor,
     @Query() query: NotificationListQueryDto,
@@ -102,8 +101,8 @@ export class NotificationsController {
     summary: "Get unread notifications count",
     description: "Returns unread notifications count for the authenticated actor.",
   })
-  @ApiResponse({ status: 200, description: "Unread count" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { description: "Unread count" })
+  @ApiStandardErrors(401)
   unreadCount(
     @CurrentCommunityActor() actor: CommunityActor,
     @Query() query: NotificationUnreadCountQueryDto,
@@ -116,8 +115,8 @@ export class NotificationsController {
     summary: "Dispatch a notification across roles (Any-to-Any or Broadcast)",
     description: "Allows users, sellers, shippers, and admins to dispatch notifications with role-based checks.",
   })
-  @ApiResponse({ status: 201, description: "Notification dispatched successfully" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Notification dispatched successfully" })
+  @ApiStandardErrors(400, 401, 403)
   dispatch(
     @CurrentCommunityActor() actor: CommunityActor,
     @Body() dto: DispatchNotificationDto,
@@ -131,8 +130,8 @@ export class NotificationsController {
     summary: "Mark all notifications as read",
     description: "Marks all notifications as read for the current user.",
   })
-  @ApiResponse({ status: 200, description: "All notifications marked as read" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { description: "All notifications marked as read" })
+  @ApiStandardErrors(401)
   readAll(
     @CurrentCommunityActor() actor: CommunityActor,
     @Body() body?: NotificationReadAllDto,
@@ -148,8 +147,8 @@ export class NotificationsController {
     summary: "Clear all notifications",
     description: "Deletes all notifications for the current user.",
   })
-  @ApiResponse({ status: 200, description: "All notifications cleared" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { description: "All notifications cleared" })
+  @ApiStandardErrors(401)
   clear(@CurrentCommunityActor() actor: CommunityActor) {
     return this.notifications.clear(actor);
   }
@@ -159,8 +158,8 @@ export class NotificationsController {
     summary: "Get notification settings",
     description: "Returns the user's notification preferences.",
   })
-  @ApiResponse({ status: 200, description: "Notification settings" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { description: "Notification settings" })
+  @ApiStandardErrors(401)
   settings(@CurrentCommunityActor() actor: CommunityActor) {
     return this.notifications.settings(actor);
   }
@@ -170,8 +169,8 @@ export class NotificationsController {
     summary: "Update notification settings",
     description: "Updates the user's notification preferences.",
   })
-  @ApiResponse({ status: 200, description: "Settings updated" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { description: "Settings updated" })
+  @ApiStandardErrors(400, 401)
   updateSettings(
     @CurrentCommunityActor() actor: CommunityActor,
     @Body() dto: UpdateNotificationPreferenceDto,
@@ -184,8 +183,8 @@ export class NotificationsController {
     summary: "Register notification device",
     description: "Registers a device for push notifications.",
   })
-  @ApiResponse({ status: 201, description: "Device registered" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Device registered" })
+  @ApiStandardErrors(400, 401)
   registerDevice(
     @CurrentCommunityActor() actor: CommunityActor,
     @Body() dto: RegisterNotificationDeviceDto,
@@ -199,8 +198,8 @@ export class NotificationsController {
     description: "Removes a device from push notifications.",
   })
   @ApiParam({ name: "token", description: "Device FCM token" })
-  @ApiResponse({ status: 200, description: "Device unregistered" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { description: "Device unregistered" })
+  @ApiStandardErrors(401, 404)
   unregisterDevice(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param("token") token: string,
@@ -214,9 +213,8 @@ export class NotificationsController {
     description: "Returns details of a specific notification.",
   })
   @ApiParam({ name: "id", description: "Notification ID" })
-  @ApiResponse({ status: 200, description: "Notification details" })
-  @ApiNotFoundResponse({ description: "Notification not found" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { description: "Notification details" })
+  @ApiStandardErrors(401, 404)
   detail(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: NotificationIdParamDto,
@@ -230,9 +228,8 @@ export class NotificationsController {
     description: "Marks a specific notification as read.",
   })
   @ApiParam({ name: "id", description: "Notification ID" })
-  @ApiResponse({ status: 200, description: "Notification marked as read" })
-  @ApiNotFoundResponse({ description: "Notification not found" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { description: "Notification marked as read" })
+  @ApiStandardErrors(401, 404)
   read(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: NotificationIdParamDto,
@@ -246,9 +243,8 @@ export class NotificationsController {
     description: "Deletes a specific notification.",
   })
   @ApiParam({ name: "id", description: "Notification ID" })
-  @ApiResponse({ status: 200, description: "Notification deleted" })
-  @ApiNotFoundResponse({ description: "Notification not found" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { description: "Notification deleted" })
+  @ApiStandardErrors(401, 404)
   remove(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: NotificationIdParamDto,

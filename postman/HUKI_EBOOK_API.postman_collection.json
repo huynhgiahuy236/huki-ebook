@@ -3325,450 +3325,6 @@
       ]
     },
     {
-      "name": "11 Forum",
-      "item": [
-        {
-          "name": "List Posts",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status code is 200', function() {",
-                  "  pm.response.to.have.status(200);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/forum/posts?page=1&limit=20",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "forum",
-                "posts"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                }
-              ]
-            },
-            "description": "List forum posts (public)"
-          }
-        },
-        {
-          "name": "Create Post",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status code is 201', function() {",
-                  "  pm.response.to.have.status(201);",
-                  "});",
-                  "pm.test('Save post ID', function() {",
-                  "  const body = pm.response.json();",
-                  "  if (body.data?.id) {",
-                  "    pm.environment.set('postId', body.data.id);",
-                  "  }",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"e2e-{{$timestamp}}-Test Post\",\n  \"content\": \"This is a test forum post content.\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/forum/posts",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "forum",
-                "posts"
-              ]
-            },
-            "description": "Create a new forum post"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
-          }
-        },
-        {
-          "name": "Get Post",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status code is 200', function() {",
-                  "  pm.response.to.have.status(200);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/forum/posts/{{postId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "forum",
-                "posts",
-                "{{postId}}"
-              ]
-            },
-            "description": "Get forum post by ID (public)"
-          }
-        },
-        {
-          "name": "Add Comment",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status code is 201', function() {",
-                  "  pm.response.to.have.status(201);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"content\": \"This is a test comment.\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/forum/posts/{{postId}}/comments",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "forum",
-                "posts",
-                "{{postId}}",
-                "comments"
-              ]
-            },
-            "description": "Add comment to a post"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
-          }
-        },
-        {
-          "name": "GET Forum Categories",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/forum/categories",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "forum",
-                "categories"
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP status is successful', () => pm.expect(pm.response.code).to.be.within(200, 299));",
-                  "pm.test('Response follows P3 contract', () => {",
-                  "  const body = pm.response.json();",
-                  "  pm.expect(body.status).to.eql('success');",
-                  "  pm.expect(body.statusCode).to.eql(pm.response.code);",
-                  "  pm.expect(body.meta).to.have.property('requestId');",
-                  "  pm.expect(body.meta).to.have.property('timestamp');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "GET Post Comments",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/forum/posts/{{postId}}/comments?page=1&limit=20",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "forum",
-                "posts",
-                "{{postId}}",
-                "comments?page=1&limit=20"
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP status is successful', () => pm.expect(pm.response.code).to.be.within(200, 299));",
-                  "pm.test('Response follows P3 contract', () => {",
-                  "  const body = pm.response.json();",
-                  "  pm.expect(body.status).to.eql('success');",
-                  "  pm.expect(body.statusCode).to.eql(pm.response.code);",
-                  "  pm.expect(body.meta).to.have.property('requestId');",
-                  "  pm.expect(body.meta).to.have.property('timestamp');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST Reply to Comment",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/forum/comments/{{commentId}}/replies",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "forum",
-                "comments",
-                "{{commentId}}",
-                "replies"
-              ]
-            },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"content\": \"Postman reply\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP status is successful', () => pm.expect(pm.response.code).to.be.within(200, 299));",
-                  "pm.test('Response follows P3 contract', () => {",
-                  "  const body = pm.response.json();",
-                  "  pm.expect(body.status).to.eql('success');",
-                  "  pm.expect(body.statusCode).to.eql(pm.response.code);",
-                  "  pm.expect(body.meta).to.have.property('requestId');",
-                  "  pm.expect(body.meta).to.have.property('timestamp');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST Like Post",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/forum/posts/{{postId}}/like",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "forum",
-                "posts",
-                "{{postId}}",
-                "like"
-              ]
-            },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP status is successful', () => pm.expect(pm.response.code).to.be.within(200, 299));",
-                  "pm.test('Response follows P3 contract', () => {",
-                  "  const body = pm.response.json();",
-                  "  pm.expect(body.status).to.eql('success');",
-                  "  pm.expect(body.statusCode).to.eql(pm.response.code);",
-                  "  pm.expect(body.meta).to.have.property('requestId');",
-                  "  pm.expect(body.meta).to.have.property('timestamp');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "DELETE Unlike Post",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/forum/posts/{{postId}}/like",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "forum",
-                "posts",
-                "{{postId}}",
-                "like"
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP status is successful', () => pm.expect(pm.response.code).to.be.within(200, 299));",
-                  "pm.test('Response follows P3 contract', () => {",
-                  "  const body = pm.response.json();",
-                  "  pm.expect(body.status).to.eql('success');",
-                  "  pm.expect(body.statusCode).to.eql(pm.response.code);",
-                  "  pm.expect(body.meta).to.have.property('requestId');",
-                  "  pm.expect(body.meta).to.have.property('timestamp');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST Report Post",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/forum/posts/{{postId}}/report",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "forum",
-                "posts",
-                "{{postId}}",
-                "report"
-              ]
-            },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"reason\": \"SPAM\",\n  \"description\": \"Postman contract test\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP status is successful', () => pm.expect(pm.response.code).to.be.within(200, 299));",
-                  "pm.test('Response follows P3 contract', () => {",
-                  "  const body = pm.response.json();",
-                  "  pm.expect(body.status).to.eql('success');",
-                  "  pm.expect(body.statusCode).to.eql(pm.response.code);",
-                  "  pm.expect(body.meta).to.have.property('requestId');",
-                  "  pm.expect(body.meta).to.have.property('timestamp');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
       "name": "12 Reviews",
       "item": [
         {
@@ -3842,7 +3398,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"rating\": 5,\n  \"title\": \"Great book!\",\n  \"content\": \"This is an excellent book. Highly recommended!\"\n}"
+              "raw": "{\n  \"rating\": 5,\n  \"format\": \"PHYSICAL\",\n  \"comment\": \"Sách đóng gói cẩn thận, nội dung rất hay.\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/books/{{bookId}}/reviews",
@@ -4009,16 +3565,7 @@
                 "helpful"
               ]
             },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": ""
           },
           "event": [
             {
@@ -4237,7 +3784,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"participantId\": \"{{userId}}\",\n  \"bookId\": \"{{bookId}}\"\n}",
+              "raw": "{\n  \"storeId\": \"{{storeId}}\",\n  \"initialMessage\": \"Xin chào shop, mình cần tư vấn sách.\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -4361,7 +3908,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"Hello from Postman\",\n  \"type\": \"TEXT\"\n}",
+              "raw": "{\n  \"content\": \"Mình muốn hỏi tình trạng còn hàng của sách này.\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -4409,16 +3956,7 @@
                 "read"
               ]
             },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": ""
           },
           "event": [
             {
@@ -4460,16 +3998,7 @@
                 "close"
               ]
             },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": ""
           },
           "event": [
             {
@@ -4639,16 +4168,7 @@
                 "read"
               ]
             },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": ""
           },
           "event": [
             {
@@ -4796,7 +4316,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"emailEnabled\": false,\n  \"pushEnabled\": true\n}",
+              "raw": "{\n  \"emailOrders\": true,\n  \"pushOrders\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -4845,7 +4365,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"token\": \"local-device-token\",\n  \"platform\": \"WEB\"\n}",
+              "raw": "{\n  \"deviceToken\": \"fcm-device-token-{{}}\",\n  \"deviceType\": \"WEB\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5433,16 +4953,7 @@
                 "review"
               ]
             },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": ""
           },
           "event": [
             {
@@ -5488,7 +4999,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"resolution\": \"RESOLVED\",\n  \"note\": \"Postman contract test\"\n}",
+              "raw": "{\n  \"outcome\": \"RESOLVED\",\n  \"action\": \"HIDE_CONTENT\",\n  \"note\": \"Vi phạm tiêu chuẩn cộng đồng\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5576,7 +5087,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"action\": \"HIDE\",\n  \"reason\": \"Postman contract test\"\n}",
+              "raw": "{\n  \"action\": \"HIDE\",\n  \"note\": \"Kiểm duyệt nội dung\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

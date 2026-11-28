@@ -21,13 +21,9 @@ import {
   ApiOperation,
   ApiTags,
   ApiParam,
-  ApiResponse,
-  ApiUnauthorizedResponse,
-  ApiNotFoundResponse,
-  ApiForbiddenResponse,
-  ApiBadRequestResponse,
-  ApiTooManyRequestsResponse,
+  ApiQuery,
 } from "@nestjs/swagger";
+import { ApiSuccessResponse, ApiStandardErrors } from "@huki/shared";
 import { Throttle, ThrottlerGuard } from "@nestjs/throttler";
 import {
   AuthenticatedCommunityGuard,
@@ -59,7 +55,7 @@ export class BookReviewsController {
     description: "Returns paginated reviews for a specific book.",
   })
   @ApiParam({ name: "id", description: "Book ID" })
-  @ApiResponse({ status: 200, description: "Paginated book reviews" })
+  @ApiSuccessResponse(undefined, { isArray: true, description: "Paginated book reviews" })
   @UseGuards(OptionalCommunityAuthGuard)
   list(
     @Param() { id }: ReviewTargetParamDto,
@@ -71,17 +67,14 @@ export class BookReviewsController {
 
   @Post()
   @Throttle({ default: { limit: 10, ttl: 60 * 60_000 } })
-  @ApiBearerAuth()
+  @ApiBearerAuth("JWT-auth")
   @ApiOperation({
     summary: "Create a book review",
     description: "Creates a new review for a book. Rate limited to 10 reviews per hour.",
   })
   @ApiParam({ name: "id", description: "Book ID" })
-  @ApiResponse({ status: 201, description: "Review created successfully" })
-  @ApiBadRequestResponse({ description: "Invalid review data or purchase not verified" })
-  @ApiNotFoundResponse({ description: "Book not found" })
-  @ApiTooManyRequestsResponse({ description: "Rate limit exceeded" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Review created successfully" })
+  @ApiStandardErrors(400, 401, 404, 429)
   @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
   create(
     @CurrentCommunityActor() actor: CommunityActor,
@@ -104,7 +97,7 @@ export class StoreReviewsController {
     description: "Returns paginated reviews for a specific store.",
   })
   @ApiParam({ name: "id", description: "Store ID" })
-  @ApiResponse({ status: 200, description: "Paginated store reviews" })
+  @ApiSuccessResponse(undefined, { isArray: true, description: "Paginated store reviews" })
   @UseGuards(OptionalCommunityAuthGuard)
   list(
     @Param() { id }: ReviewTargetParamDto,
@@ -116,17 +109,14 @@ export class StoreReviewsController {
 
   @Post()
   @Throttle({ default: { limit: 10, ttl: 60 * 60_000 } })
-  @ApiBearerAuth()
+  @ApiBearerAuth("JWT-auth")
   @ApiOperation({
     summary: "Create a store review",
     description: "Creates a new review for a store. Rate limited to 10 reviews per hour.",
   })
   @ApiParam({ name: "id", description: "Store ID" })
-  @ApiResponse({ status: 201, description: "Review created successfully" })
-  @ApiBadRequestResponse({ description: "Invalid review data or purchase not verified" })
-  @ApiNotFoundResponse({ description: "Store not found" })
-  @ApiTooManyRequestsResponse({ description: "Rate limit exceeded" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Review created successfully" })
+  @ApiStandardErrors(400, 401, 404, 429)
   @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
   create(
     @CurrentCommunityActor() actor: CommunityActor,
@@ -149,6 +139,8 @@ export class ReviewsController {
     description:
       "Returns clean published book reviews prioritized by likes/comments engagement and 70% 5-star mix, excluding flagged/reported or profane content.",
   })
+  @ApiQuery({ name: "limit", required: false, type: Number })
+  @ApiSuccessResponse(undefined, { isArray: true, description: "Featured book reviews" })
   @UseGuards(OptionalCommunityAuthGuard)
   getFeatured(@Query("limit") limit?: string) {
     const parsedLimit = limit ? parseInt(limit, 10) : 6;
@@ -160,6 +152,9 @@ export class ReviewsController {
     summary: "Get batch review summaries for books or stores",
     description: "Returns average rating and total review count for multiple targets without authentication.",
   })
+  @ApiQuery({ name: "targetType", required: false, enum: ["BOOK", "STORE"] })
+  @ApiQuery({ name: "ids", required: false, type: String, description: "Comma-separated target IDs" })
+  @ApiSuccessResponse(undefined, { description: "Batch review summaries" })
   @UseGuards(OptionalCommunityAuthGuard)
   getBatchSummary(
     @Query("targetType") targetType: ReviewTargetType = "BOOK",
@@ -170,13 +165,14 @@ export class ReviewsController {
   }
 
   @Get("me")
-  @ApiBearerAuth()
+  @ApiBearerAuth("JWT-auth")
   @UseGuards(AuthenticatedCommunityGuard)
   @ApiOperation({
     summary: "List current user reviews",
     description: "Returns paginated reviews submitted by current user.",
   })
-  @ApiResponse({ status: 200, description: "Paginated user reviews" })
+  @ApiSuccessResponse(undefined, { isArray: true, description: "Paginated user reviews" })
+  @ApiStandardErrors(401)
   myReviews(
     @CurrentCommunityActor() actor: CommunityActor,
     @Query() query: ReviewListQueryDto,
@@ -185,13 +181,14 @@ export class ReviewsController {
   }
 
   @Get("seller")
-  @ApiBearerAuth()
+  @ApiBearerAuth("JWT-auth")
   @UseGuards(AuthenticatedCommunityGuard)
   @ApiOperation({
     summary: "List reviews across the authenticated seller's books and stores",
     description: "Returns paginated reviews belonging to any store, business, or book owned by the seller.",
   })
-  @ApiResponse({ status: 200, description: "Paginated seller reviews" })
+  @ApiSuccessResponse(undefined, { isArray: true, description: "Paginated seller reviews" })
+  @ApiStandardErrors(401)
   sellerReviews(
     @CurrentCommunityActor() actor: CommunityActor,
     @Query() query: SellerReviewListQueryDto,
@@ -201,18 +198,15 @@ export class ReviewsController {
 
   @Patch(":id")
   @Throttle({ default: { limit: 10, ttl: 60 * 60_000 } })
-  @ApiBearerAuth()
+  @ApiBearerAuth("JWT-auth")
   @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
   @ApiOperation({
     summary: "Update a review",
     description: "Updates an existing review. Only the author can update.",
   })
   @ApiParam({ name: "id", description: "Review ID" })
-  @ApiResponse({ status: 200, description: "Review updated successfully" })
-  @ApiNotFoundResponse({ description: "Review not found" })
-  @ApiForbiddenResponse({ description: "Not the review author" })
-  @ApiTooManyRequestsResponse({ description: "Rate limit exceeded" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { description: "Review updated successfully" })
+  @ApiStandardErrors(400, 401, 403, 404, 429)
   update(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ReviewIdParamDto,
@@ -222,17 +216,15 @@ export class ReviewsController {
   }
 
   @Delete(":id")
-  @ApiBearerAuth()
+  @ApiBearerAuth("JWT-auth")
   @UseGuards(AuthenticatedCommunityGuard)
   @ApiOperation({
     summary: "Delete a review",
     description: "Deletes a review. Only the author can delete.",
   })
   @ApiParam({ name: "id", description: "Review ID" })
-  @ApiResponse({ status: 200, description: "Review deleted successfully" })
-  @ApiNotFoundResponse({ description: "Review not found" })
-  @ApiForbiddenResponse({ description: "Not the review author" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { description: "Review deleted successfully" })
+  @ApiStandardErrors(401, 403, 404)
   remove(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ReviewIdParamDto,
@@ -241,16 +233,15 @@ export class ReviewsController {
   }
 
   @Post(":id/helpful")
-  @ApiBearerAuth()
+  @ApiBearerAuth("JWT-auth")
   @UseGuards(AuthenticatedCommunityGuard)
   @ApiOperation({
     summary: "Mark review as helpful",
     description: "Marks a review as helpful.",
   })
   @ApiParam({ name: "id", description: "Review ID" })
-  @ApiResponse({ status: 200, description: "Review marked as helpful" })
-  @ApiNotFoundResponse({ description: "Review not found" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Review marked as helpful" })
+  @ApiStandardErrors(401, 404)
   helpful(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ReviewIdParamDto,
@@ -259,16 +250,15 @@ export class ReviewsController {
   }
 
   @Delete(":id/helpful")
-  @ApiBearerAuth()
+  @ApiBearerAuth("JWT-auth")
   @UseGuards(AuthenticatedCommunityGuard)
   @ApiOperation({
     summary: "Remove helpful mark from review",
     description: "Removes the helpful mark from a review.",
   })
   @ApiParam({ name: "id", description: "Review ID" })
-  @ApiResponse({ status: 200, description: "Helpful mark removed" })
-  @ApiNotFoundResponse({ description: "Review not found" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { description: "Helpful mark removed" })
+  @ApiStandardErrors(401, 404)
   unhelpful(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ReviewIdParamDto,
@@ -277,17 +267,15 @@ export class ReviewsController {
   }
 
   @Post(":id/reply")
-  @ApiBearerAuth()
+  @ApiBearerAuth("JWT-auth")
   @UseGuards(AuthenticatedCommunityGuard)
   @ApiOperation({
     summary: "Reply to a review",
     description: "Adds a seller reply to a review.",
   })
   @ApiParam({ name: "id", description: "Review ID" })
-  @ApiResponse({ status: 201, description: "Reply added successfully" })
-  @ApiNotFoundResponse({ description: "Review not found" })
-  @ApiForbiddenResponse({ description: "Not authorized to reply to this review" })
-  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Reply added successfully" })
+  @ApiStandardErrors(400, 401, 403, 404)
   reply(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ReviewIdParamDto,

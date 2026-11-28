@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiSuccessResponse } from '@huki/shared';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 
@@ -21,6 +22,7 @@ export class HealthController {
 
   @Get()
   @ApiOperation({ summary: 'Health check with dependency status' })
+  @ApiSuccessResponse(undefined, { description: 'Community service health status' })
   async check(): Promise<HealthStatus> {
     // Check Database (MongoDB)
     try {

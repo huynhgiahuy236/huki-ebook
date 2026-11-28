@@ -11,7 +11,8 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { FilesInterceptor } from "@nestjs/platform-express";
-import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from "@nestjs/swagger";
+import { ApiSuccessResponse, ApiStandardErrors } from "@huki/shared";
 import { Throttle, ThrottlerGuard } from "@nestjs/throttler";
 import {
   AuthenticatedCommunityGuard,
@@ -29,7 +30,7 @@ import {
 } from "./dto/chat.dto";
 
 @ApiTags("Chat")
-@ApiBearerAuth()
+@ApiBearerAuth("JWT-auth")
 @Throttle({ default: { limit: 240, ttl: 60_000 } })
 @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
 @Controller("chat/conversations")
@@ -42,6 +43,9 @@ export class ChatController {
 
   @Get()
   @ApiOperation({ summary: "List user's conversations" })
+  @ApiQuery({ name: "storeId", required: false, type: String })
+  @ApiSuccessResponse(undefined, { isArray: true, description: "Conversations list" })
+  @ApiStandardErrors(401)
   list(
     @CurrentCommunityActor() actor: CommunityActor,
     @Query('storeId') storeId?: string,
@@ -51,6 +55,8 @@ export class ChatController {
 
   @Post()
   @ApiOperation({ summary: "Create a new conversation" })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Conversation created" })
+  @ApiStandardErrors(400, 401, 404)
   async create(
     @CurrentCommunityActor() actor: CommunityActor,
     @Body() dto: CreateConversationDto,
@@ -63,6 +69,8 @@ export class ChatController {
 
   @Get(":id/messages")
   @ApiOperation({ summary: "Get messages in a conversation" })
+  @ApiSuccessResponse(undefined, { isArray: true, description: "Conversation messages" })
+  @ApiStandardErrors(401, 403, 404)
   messages(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ChatIdParamDto,
@@ -74,6 +82,8 @@ export class ChatController {
   @Post(":id/messages")
   @ApiConsumes("application/json", "multipart/form-data")
   @ApiOperation({ summary: "Send a message in a conversation" })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Message sent" })
+  @ApiStandardErrors(400, 401, 403, 404, 429)
   @UseInterceptors(
     FilesInterceptor("attachments", 10, {
       limits: { fileSize: 30 * 1024 * 1024 },
@@ -97,6 +107,9 @@ export class ChatController {
 
   @Patch(":id/read")
   @ApiOperation({ summary: "Mark conversation as read" })
+  @ApiQuery({ name: "storeId", required: false, type: String })
+  @ApiSuccessResponse(undefined, { description: "Marked as read" })
+  @ApiStandardErrors(401, 403, 404)
   async read(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ChatIdParamDto,
@@ -109,6 +122,8 @@ export class ChatController {
 
   @Post(":id/close")
   @ApiOperation({ summary: "Close a conversation" })
+  @ApiSuccessResponse(undefined, { status: 201, description: "Conversation closed" })
+  @ApiStandardErrors(401, 403, 404)
   async close(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ChatIdParamDto,
@@ -121,6 +136,8 @@ export class ChatController {
 
   @Get(":id")
   @ApiOperation({ summary: "Get conversation details" })
+  @ApiSuccessResponse(undefined, { description: "Conversation detail" })
+  @ApiStandardErrors(401, 403, 404)
   detail(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ChatIdParamDto,
