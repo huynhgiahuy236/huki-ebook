@@ -751,30 +751,24 @@ export default function AdminUsersView() {
         align: 'center',
         sortable: true,
         className: 'whitespace-nowrap',
-        render: (_val, user) => (
-          <span
-            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
-              user.role === 'PLATFORM_ADMIN'
-                ? 'bg-rose-50 text-rose-800 border border-rose-200'
-                : user.role === 'BUSINESS' || user.role === 'SELLER_ADMIN'
-                ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                : user.role === 'DELIVERY_STAFF'
-                ? 'bg-blue-50 text-blue-800 border border-blue-200'
-                : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[13px]">
-              {user.role === 'PLATFORM_ADMIN'
-                ? 'admin_panel_settings'
-                : user.role === 'BUSINESS' || user.role === 'SELLER_ADMIN'
-                ? 'storefront'
-                : user.role === 'DELIVERY_STAFF'
-                ? 'local_shipping'
-                : 'person'}
+        render: (_val, user) => {
+          const roleStyles =
+            user.role === 'PLATFORM_ADMIN'
+              ? { wrap: 'bg-rose-50 text-rose-700', dot: 'bg-rose-500' }
+              : user.role === 'BUSINESS' || user.role === 'SELLER_ADMIN'
+              ? { wrap: 'bg-amber-50 text-amber-700', dot: 'bg-amber-500' }
+              : user.role === 'DELIVERY_STAFF'
+              ? { wrap: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' }
+              : { wrap: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500' };
+          return (
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold whitespace-nowrap ${roleStyles.wrap}`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${roleStyles.dot}`} />
+              <span>{user.roleLabel}</span>
             </span>
-            <span>{user.roleLabel}</span>
-          </span>
-        ),
+          );
+        },
       },
       {
         key: 'joinedDate',
@@ -792,23 +786,42 @@ export default function AdminUsersView() {
         render: (_val: string, user: AdminUser) => {
           if (user.status === 'pending_deletion') {
             return (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-50 text-amber-800 border border-amber-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                <span>Chờ xóa (${user.remainingDays ?? 7} ngày)</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                <span>{`Chờ xóa (${user.remainingDays ?? 7} ngày)`}</span>
               </span>
             );
           }
           if (user.status === 'deleted') {
             return (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-rose-50 text-rose-800 border border-rose-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
                 <span>Đã xóa</span>
               </span>
             );
           }
-          if (user.status === 'active') return <AdminStatusBadge status="success" label="Hoạt động" icon="check_circle" />;
-          if (user.status === 'warning') return <AdminStatusBadge status="warning" label="Chờ xác thực" icon="warning" />;
-          return <AdminStatusBadge status="danger" label="Đã khóa" icon="lock" />;
+          if (user.status === 'active') {
+            return (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                <span>Hoạt động</span>
+              </span>
+            );
+          }
+          if (user.status === 'warning') {
+            return (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                <span>Chờ xác thực</span>
+              </span>
+            );
+          }
+          return (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 whitespace-nowrap">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+              <span>Đã khóa</span>
+            </span>
+          );
         },
       },
       {
