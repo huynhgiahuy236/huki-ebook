@@ -153,7 +153,7 @@ export default function HierarchicalSidebar({
         },
         {
           id: 'stores',
-          title: 'NXB & Tác Giả',
+          title: 'Gian Hàng & Tác Giả',
           to: '/stores',
           icon: 'apartment',
         },

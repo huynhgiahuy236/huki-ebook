@@ -502,6 +502,10 @@ export class PaymentsService
             orderId: payment.orderId,
           },
         });
+        await tx.drmLicense.updateMany({
+          where: { bookId: item.bookId },
+          data: { issuedLicenses: { increment: item.quantity || 1 } },
+        });
       }
 
       await tx.outboxEvent.createMany({
@@ -720,6 +724,10 @@ export class PaymentsService
             sellerOrderId: item.sellerOrderId,
           },
         });
+        await tx.drmLicense.updateMany({
+          where: { bookId: item.bookId },
+          data: { issuedLicenses: { increment: item.quantity || 1 } },
+        });
       }
     });
 
@@ -843,6 +851,10 @@ export class PaymentsService
               orderId: payment.orderId,
               sellerOrderId: item.sellerOrderId,
             },
+          });
+          await tx.drmLicense.updateMany({
+            where: { bookId: item.bookId },
+            data: { issuedLicenses: { increment: item.quantity || 1 } },
           });
         }
 

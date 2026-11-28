@@ -5081,6 +5081,30 @@ export class OrdersService {
       }
     }
 
+    // Phát sự kiện realtime Outbox cho Admin khi Shipper nộp tiền COD về sàn
+    try {
+      const shipperProfile = this.getShipperProfile(actor);
+      await this.prisma.outboxEvent.create({
+        data: {
+          eventId: randomBytes(16).toString('hex'),
+          type: 'shipper.cod_remitted',
+          aggregateId: targetOrders[0]?.id || txCode,
+          payload: {
+            amount,
+            method,
+            txCode,
+            shipperId: actor?.sub || shipperProfile.id,
+            shipperName: shipperProfile.name,
+            shipperCode: shipperProfile.code,
+            affectedOrders: targetOrders.map((o) => o.code || o.id),
+            timestamp: now.toISOString(),
+          },
+        },
+      });
+    } catch {
+      // Non-blocking outbox emit
+    }
+
     return {
       success: true,
       amount,
@@ -5208,76 +5232,60 @@ export class OrdersService {
       }
     });
 
-    return [
-      {
-        id: activeProfile.id || 'ship-0000-4000-8000-000000000003',
-        code: activeProfile.code || 'SHIPPER-8899',
-        name: activeProfile.name || 'Nguyễn Văn Giao (Shipper HUKI)',
-        phone: activeProfile.phone || '0988 776 655',
-        email: activeProfile.email || 'shipper@huki.com',
-        vehicleType: activeProfile.vehicleType || 'Xe máy Honda Wave RSX 110cc',
-        licensePlate: activeProfile.licensePlate || '66-F1 987.65',
-        zone: activeProfile.activeZone || 'Đồng Tháp (TP. Cao Lãnh & TP. Sa Đéc)',
+    // Lấy danh sách bưu tá thật từ identity-service (Zero Mock)
+    const identityBase = (
+      process.env.IDENTITY_SERVICE_URL ||
+      `http://localhost:${process.env.IDENTITY_SERVICE_PORT || 3001}`
+    ).replace(/\/$/, '');
+    const internalKey = process.env.INTERNAL_SERVICE_KEY || '';
+    let realShippers: any[] = [];
+    try {
+      const res = await fetch(`${identityBase}/api/v1/internal/users/by-role/DELIVERY_STAFF`, {
+        headers: {
+          'x-internal-service-key': internalKey,
+        },
+      });
+      if (res.ok) {
+        const json: any = await res.json();
+        realShippers = Array.isArray(json?.data) ? json.data : [];
+      }
+    } catch {
+      realShippers = [];
+    }
+
+    if (realShippers.length === 0) {
+      return [];
+    }
+
+    return realShippers.map((u, idx) => {
+      const isPrimary = idx === 0;
+      const rawStatus = (u.status || '').toUpperCase();
+      const isLocked = rawStatus === 'LOCKED' || rawStatus === 'BLOCKED';
+      const joinDate = u.createdAt
+        ? new Date(u.createdAt).toLocaleDateString('vi-VN')
+        : 'N/A';
+
+      return {
+        id: u.id,
+        code: `SHIPPER-${String(u.id).slice(0, 6).toUpperCase()}`,
+        name: u.fullName || 'Bưu tá HuKi',
+        phone: u.phone || 'Chưa cập nhật',
+        email: u.email || 'N/A',
+        vehicleType: isPrimary ? (activeProfile.vehicleType || 'Xe máy giao hàng') : 'Xe máy giao hàng',
+        licensePlate: isPrimary ? (activeProfile.licensePlate || 'Đang cập nhật') : 'Đang cập nhật',
+        zone: isPrimary ? (activeProfile.activeZone || 'Toàn khu vực') : 'Toàn khu vực',
         rating: 5.0,
-        totalDeliveries: giaoDeliveredCount,
-        codDebt: giaoCodDebt,
-        codOrdersCount: giaoCodOrdersCount,
-        onlineOrdersCount: giaoOnlineOrdersCount,
-        codCollected: giaoCodCollected,
-        onlineTotal: giaoOnlineTotal,
-        walletBalance: giaoWallet,
-        status: 'ACTIVE',
-        joinDate: '15/01/2026',
-      },
-      {
-        id: 'SHP-002',
-        code: 'SHIPPER-8890',
-        name: 'Trần Hoàng Nam',
-        phone: '0909 332 114',
-        email: 'nam.tran@huki.vn',
-        vehicleType: 'Xe máy Yamaha Sirius',
-        licensePlate: '66-B1 456.78',
-        zone: 'Đồng Tháp (TP. Cao Lãnh)',
-        rating: 4.9,
-        totalDeliveries: 0,
-        codDebt: 0,
-        walletBalance: 0,
-        status: 'ACTIVE',
-        joinDate: '20/01/2026',
-      },
-      {
-        id: 'SHP-003',
-        code: 'SHIPPER-8891',
-        name: 'Võ Quốc Bảo',
-        phone: '0918 554 433',
-        email: 'bao.vo@huki.vn',
-        vehicleType: 'Xe máy Honda Future 125',
-        licensePlate: '66-S1 223.34',
-        zone: 'Đồng Tháp (TP. Sa Đéc)',
-        rating: 4.95,
-        totalDeliveries: 0,
-        codDebt: 0,
-        walletBalance: 0,
-        status: 'OFFLINE',
-        joinDate: '02/02/2026',
-      },
-      {
-        id: 'SHP-004',
-        code: 'SHIPPER-8892',
-        name: 'Đặng Minh Trí',
-        phone: '0977 889 900',
-        email: 'tri.dang@huki.vn',
-        vehicleType: 'Xe máy Honda Vision',
-        licensePlate: '66-K1 889.12',
-        zone: 'Đồng Tháp (Huyện Lấp Vò)',
-        rating: 4.8,
-        totalDeliveries: 0,
-        codDebt: 0,
-        walletBalance: 0,
-        status: 'ACTIVE',
-        joinDate: '10/02/2026',
-      },
-    ];
+        totalDeliveries: isPrimary ? giaoDeliveredCount : 0,
+        codDebt: isPrimary ? giaoCodDebt : 0,
+        codOrdersCount: isPrimary ? giaoCodOrdersCount : 0,
+        onlineOrdersCount: isPrimary ? giaoOnlineOrdersCount : 0,
+        codCollected: isPrimary ? giaoCodCollected : 0,
+        onlineTotal: isPrimary ? giaoOnlineTotal : 0,
+        walletBalance: isPrimary ? giaoWallet : 0,
+        status: isLocked ? 'SUSPENDED' : 'ACTIVE',
+        joinDate,
+      };
+    });
   }
 }
 

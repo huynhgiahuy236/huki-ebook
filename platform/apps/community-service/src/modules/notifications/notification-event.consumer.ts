@@ -506,6 +506,20 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
         });
         break;
       }
+      case "shipper.cod_remitted": {
+        const shipperName = payload.shipperName || "Bưu tá HuKi";
+        const amountStr = Number(payload.amount || 0).toLocaleString("vi-VN");
+        targets.push({
+          recipientId: "admin_channel",
+          recipientType: "ADMIN",
+          type: "ORDER" as any,
+          priority: "HIGH",
+          title: `Bưu tá nộp tiền COD về sàn (+${amountStr} ₫)`,
+          message: `${shipperName} vừa hoàn tất nộp ${amountStr} ₫ tiền thu hộ COD (Mã GD: ${payload.txCode || "N/A"}).`,
+          actionUrl: "/admin/shippers",
+        });
+        break;
+      }
       case "business.update_requested": {
         const shopName = payload.businessName || "Đối tác Nhà bán hàng";
         const changedList = Array.isArray(payload.changedFields) && payload.changedFields.length > 0

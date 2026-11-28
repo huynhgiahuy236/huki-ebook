@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { orderApi } from '@/ui/api/orderApi';
+import { adminApi } from '@/ui/api/adminApi';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
 import { AdminStatusBadge } from './AdminUI';
@@ -92,23 +93,25 @@ export default function AdminShippersView() {
   useEffect(() => {
     fetchData();
     const unsub = realtimeSyncBus.subscribe((msg) => {
-      if (msg.type === 'SHIPPER_PROFILE_UPDATED') {
+      if (
+        msg.type === 'SHIPPER_PROFILE_UPDATED' ||
+        (msg.type as string) === 'SHIPPER_COD_REMITTED' ||
+        (msg.type as string) === 'COD_REMITTANCE' ||
+        msg.type === 'ADMIN_NOTIFICATIONS_UPDATED'
+      ) {
         fetchData();
       }
     });
     return () => unsub();
   }, [fetchData]);
 
-  const toggleStatus = (id: string) => {
-    setShippers((prev) =>
-      prev.map((s) => {
-        if (s.id === id) {
-          const nextStatus = s.status === 'SUSPENDED' ? 'ACTIVE' : 'SUSPENDED';
-          return { ...s, status: nextStatus };
-        }
-        return s;
-      })
-    );
+  const toggleStatus = async (id: string) => {
+    try {
+      await adminApi.toggleLockUser(id);
+      await fetchData();
+    } catch (err) {
+      console.error('Lỗi cập nhật trạng thái shipper:', err);
+    }
   };
 
   const shipperBulkActionGroups: BulkActionGroup[] = [
@@ -137,14 +140,20 @@ export default function AdminShippersView() {
     if (selectedShipperIds.length === 0) return;
     setBulkLoading(true);
     try {
-      if (actionValue === 'SET_ACTIVE') {
+      if (actionValue === 'SUSPEND' || actionValue === 'UNSUSPEND') {
+        const shouldLock = actionValue === 'SUSPEND';
+        for (const sid of selectedShipperIds) {
+          const shipper = shippers.find((s) => s.id === sid);
+          const isCurrentlyLocked = shipper?.status === 'SUSPENDED';
+          if ((shouldLock && !isCurrentlyLocked) || (!shouldLock && isCurrentlyLocked)) {
+            await adminApi.toggleLockUser(sid);
+          }
+        }
+        await fetchData();
+      } else if (actionValue === 'SET_ACTIVE') {
         setShippers(prev => prev.map(s => selectedShipperIds.includes(s.id) ? { ...s, status: 'ACTIVE' } : s));
       } else if (actionValue === 'SET_OFFLINE') {
         setShippers(prev => prev.map(s => selectedShipperIds.includes(s.id) ? { ...s, status: 'OFFLINE' } : s));
-      } else if (actionValue === 'SUSPEND') {
-        setShippers(prev => prev.map(s => selectedShipperIds.includes(s.id) ? { ...s, status: 'SUSPENDED' } : s));
-      } else if (actionValue === 'UNSUSPEND') {
-        setShippers(prev => prev.map(s => selectedShipperIds.includes(s.id) ? { ...s, status: 'ACTIVE' } : s));
       }
       setSelectedShipperIds([]);
     } finally {

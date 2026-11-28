@@ -68,6 +68,21 @@ export class UserService {
     return users;
   }
 
+  async findUsersByRole(role: string) {
+    return this.prisma.user.findMany({
+      where: { role: role as any, deletedAt: null },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        status: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   private get commerceServiceUrl(): string {
     return (
       process.env.COMMERCE_SERVICE_URL ||

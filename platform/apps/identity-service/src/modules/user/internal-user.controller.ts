@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpException,
   HttpStatus,
   Param,
@@ -93,5 +94,13 @@ export class InternalUserController {
   @ApiStandardErrors(401)
   async profiles(@Body() body: { userIds: string[] }) {
     return { data: await this.userService.getPublicProfiles(body.userIds || []) };
+  }
+
+  @Get('by-role/:role')
+  @ApiOperation({ summary: 'Internal: List users by role' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Users list by role' })
+  @ApiStandardErrors(401)
+  async listByRole(@Param('role') role: string) {
+    return { data: await this.userService.findUsersByRole(role) };
   }
 }

@@ -88,24 +88,21 @@ export class DrmVaultService {
    * Thống kê tổng quan từ CSDL thực tế (không có thì hiển thị 0)
    */
   async getOverview(): Promise<DrmOverviewStats> {
-    const totalEncryptedBooks = await this.prisma.drmLicense.count();
-    
-    // Tính tổng độc giả đang đọc thời gian thực từ các giấy phép DRM
-    const licenses = await this.prisma.drmLicense.findMany({
-      select: { activeReaders: true },
-    });
+    const t0 = Date.now();
+    const [totalEncryptedBooks, licenses, revokedDevicesCount] = await Promise.all([
+      this.prisma.drmLicense.count(),
+      this.prisma.drmLicense.findMany({ select: { activeReaders: true } }),
+      this.prisma.drmDevice.count({ where: { isRevoked: true } }),
+    ]);
+    const kmsLatencyMs = totalEncryptedBooks > 0 ? Math.max(1, Date.now() - t0) : 0;
     const activeReadersCount = licenses.reduce((sum, lic) => sum + (lic.activeReaders || 0), 0);
-
-    const revokedDevicesCount = await this.prisma.drmDevice.count({
-      where: { isRevoked: true },
-    });
 
     return {
       totalEncryptedBooks,
       activeReadersCount,
       revokedDevicesCount,
-      kmsHardwareClusters: totalEncryptedBooks > 0 ? 'SG1 & HN02' : 'Chưa cấu hình',
-      kmsLatencyMs: totalEncryptedBooks > 0 ? 4 : 0,
+      kmsHardwareClusters: totalEncryptedBooks > 0 ? 'PostgreSQL KMS + R2 Vault' : 'Chưa kích hoạt',
+      kmsLatencyMs,
       algorithmSummary: 'AES-GCM-256 + Cloudflare R2',
     };
   }
@@ -236,16 +233,28 @@ export class DrmVaultService {
   }
 
   /**
-   * Quét toàn vẹn bản quyền (Integrity Scan)
+   * Quét toàn vẹn bản quyền (Integrity Scan) & đồng bộ cấp phép DRM cho sách số còn thiếu
    */
   async scanIntegrity(operatorId?: string) {
+    const missingBooks = await this.prisma.book.findMany({
+      where: {
+        format: { in: ['DIGITAL', 'BOTH'] },
+        drmLicense: null,
+      },
+      select: { id: true },
+    });
+
+    for (const b of missingBooks) {
+      await this.provisionLicenseForBook(b.id);
+    }
+
     const total = await this.prisma.drmLicense.count();
 
     await this.prisma.drmAuditLog.create({
       data: {
         action: 'INTEGRITY_SCAN',
         operatorId: operatorId || 'ADMIN_HUKI',
-        details: `Đã quét kiểm tra toàn vẹn CSDL DRM Vault. Tổng số chứng chỉ tồn tại: ${total}.`,
+        details: `Đã quét kiểm tra toàn vẹn CSDL DRM Vault (đồng bộ bổ sung ${missingBooks.length} sách số). Tổng số chứng chỉ hiện có: ${total}.`,
       },
     });
 
@@ -253,9 +262,10 @@ export class DrmVaultService {
       success: true,
       scannedCount: total,
       verifiedCount: total,
+      provisionedCount: missingBooks.length,
       leakedCount: 0,
       integrityScore: total > 0 ? '100%' : 'N/A',
-      scanCluster: total > 0 ? 'Singapore SG1 + Viettel IDC HN02' : 'Không có cụm hoạt động',
+      scanCluster: total > 0 ? 'PostgreSQL KMS + R2 Vault' : 'Chưa kích hoạt',
       timestamp: new Date().toISOString(),
     };
   }
