@@ -27,11 +27,24 @@ export default function AdminMaintenanceView() {
   const [scheduleDrainMinutes, setScheduleDrainMinutes] = useState<number>(5);
   const [scheduleReasonInput, setScheduleReasonInput] = useState<string>('Nâng cấp cụm máy chủ và bảo mật định kỳ');
 
-  // Modal confirmations
+  // Modal confirmations & 5s safety cooldown
   const [isBlackoutModalOpen, setIsBlackoutModalOpen] = useState(false);
   const [isDrainModalOpen, setIsDrainModalOpen] = useState(false);
   const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+  const [modalCooldownSec, setModalCooldownSec] = useState<number>(0);
   const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isBlackoutModalOpen && !isDrainModalOpen) {
+      setModalCooldownSec(0);
+      return;
+    }
+    setModalCooldownSec(5);
+    const cd = setInterval(() => {
+      setModalCooldownSec((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(cd);
+  }, [isBlackoutModalOpen, isDrainModalOpen]);
 
   // Remaining drain time
   const [remainingDrainSec, setRemainingDrainSec] = useState<number>(0);
@@ -738,7 +751,7 @@ export default function AdminMaintenanceView() {
         onClose={() => setIsBlackoutModalOpen(false)}
         title="XÁC NHẬN BẬT BẢO TRÌ KHẨN CẤP (BLACKOUT)"
       >
-        <div className="space-y-4 text-xs text-slate-700">
+        <div className="space-y-4 px-5 pb-5 pt-1 text-xs text-slate-700">
           <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2.5">
             <span className="material-symbols-outlined text-xl text-rose-600 mt-0.5">warning</span>
             <div>
@@ -753,21 +766,30 @@ export default function AdminMaintenanceView() {
             Hệ thống đảm bảo: Cổng lắng nghe Webhook thanh toán (<code className="bg-slate-100 px-1 py-0.5 rounded">/api/payments/webhook/*</code>) và phiên làm việc Quản trị viên Admin với Master Key vẫn hoạt động bình thường.
           </p>
 
-          <div className="flex justify-end gap-2 pt-3">
+          <div className="flex justify-end items-center gap-2.5 pt-3 border-t border-slate-100">
             <button
               type="button"
               onClick={() => setIsBlackoutModalOpen(false)}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
             >
               Hủy Bỏ
             </button>
             <button
               type="button"
+              disabled={modalCooldownSec > 0}
               onClick={handleTriggerInstantBlackout}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-600/30 flex items-center gap-1.5"
+              className={`px-4 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all ${
+                modalCooldownSec > 0
+                  ? 'bg-rose-300 cursor-not-allowed'
+                  : 'bg-rose-600 hover:bg-rose-500 shadow-md shadow-rose-600/30 cursor-pointer'
+              }`}
             >
               <span className="material-symbols-outlined text-sm">power_settings_new</span>
-              <span>Kích Hoạt Blackout Ngay</span>
+              <span>
+                {modalCooldownSec > 0
+                  ? `Xác nhận lại sau ${modalCooldownSec}s...`
+                  : 'Kích Hoạt Blackout Ngay'}
+              </span>
             </button>
           </div>
         </div>
@@ -779,7 +801,7 @@ export default function AdminMaintenanceView() {
         onClose={() => setIsDrainModalOpen(false)}
         title="XÁC NHẬN KÍCH HOẠT XẢ LƯU LƯỢNG ÊM DỊU"
       >
-        <div className="space-y-4 text-xs text-slate-700">
+        <div className="space-y-4 px-5 pb-5 pt-1 text-xs text-slate-700">
           <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-2.5">
             <span className="material-symbols-outlined text-xl text-amber-600 mt-0.5">timer</span>
             <div>
@@ -790,21 +812,30 @@ export default function AdminMaintenanceView() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-3">
+          <div className="flex justify-end items-center gap-2.5 pt-3 border-t border-slate-100">
             <button
               type="button"
               onClick={() => setIsDrainModalOpen(false)}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
             >
               Hủy Bỏ
             </button>
             <button
               type="button"
+              disabled={modalCooldownSec > 0}
               onClick={handleTriggerGracefulDrain}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 flex items-center gap-1.5"
+              className={`px-4 py-2 rounded-xl text-xs font-bold text-slate-950 flex items-center gap-1.5 transition-all ${
+                modalCooldownSec > 0
+                  ? 'bg-amber-200 text-amber-800 cursor-not-allowed'
+                  : 'bg-amber-500 hover:bg-amber-400 shadow-md shadow-amber-500/20 cursor-pointer'
+              }`}
             >
               <span className="material-symbols-outlined text-sm">play_arrow</span>
-              <span>Bắt Đầu Đếm Ngược Xả {drainMinutes} Phút</span>
+              <span>
+                {modalCooldownSec > 0
+                  ? `Xác nhận lại sau ${modalCooldownSec}s...`
+                  : `Bắt Đầu Đếm Ngược Xả ${drainMinutes} Phút`}
+              </span>
             </button>
           </div>
         </div>
