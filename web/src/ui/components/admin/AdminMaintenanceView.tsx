@@ -847,7 +847,7 @@ export default function AdminMaintenanceView() {
         onClose={() => setIsRestoreModalOpen(false)}
         title="XÁC NHẬN KHÔI PHỤC TOÀN HỆ THỐNG"
       >
-        <div className="space-y-4 text-xs text-slate-700">
+        <div className="space-y-4 px-5 pb-5 pt-1 text-xs text-slate-700">
           <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-start gap-2.5">
             <span className="material-symbols-outlined text-xl text-emerald-600 mt-0.5">check_circle</span>
             <div>
@@ -858,11 +858,11 @@ export default function AdminMaintenanceView() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-3">
+          <div className="flex justify-end items-center gap-2.5 pt-3 border-t border-slate-100">
             <button
               type="button"
               onClick={() => setIsRestoreModalOpen(false)}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
             >
               Hủy Bỏ
             </button>
