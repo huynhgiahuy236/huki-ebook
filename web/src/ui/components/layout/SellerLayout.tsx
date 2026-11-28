@@ -46,12 +46,18 @@ export default function SellerLayout({ children }: SellerLayoutProps = {}) {
   const { user, activeBusinessId } = useAuth();
   const currentBizId = user?.business?.id || activeBusinessId || undefined;
   const isChatPage = pathname.startsWith('/seller/chat');
-  const [isSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(isChatPage);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [featureCheck, setFeatureCheck] = useState<{ accessible: boolean; reason?: string; featureName?: string }>({ accessible: true });
 
   const { showToast } = useToast();
   const lastBroadcastTimeRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    if (isChatPage) {
+      setIsSidebarCollapsed(true);
+    }
+  }, [isChatPage]);
 
   useEffect(() => {
     const handleBroadcastUpdate = (msg: { type: string; payload?: unknown }) => {
@@ -179,7 +185,9 @@ export default function SellerLayout({ children }: SellerLayoutProps = {}) {
     };
   }, [currentBizId, pathname, showToast]);
 
-  const toggleSidebar = () => {};
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed((prev) => !prev);
+  };
 
   const toggleMobileSidebar = () => {
     setIsMobileOpen(prev => !prev);

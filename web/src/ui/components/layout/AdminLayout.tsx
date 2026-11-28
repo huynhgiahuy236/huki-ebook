@@ -645,7 +645,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 isSidebarCollapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2'
               }`}
             >
-              <span className="material-symbols-outlined text-[18px] shrink-0 text-emerald-300">storefront</span>
+              <span className="material-symbols-outlined text-[18px] shrink-0 text-white/75">storefront</span>
               {!isSidebarCollapsed && <span>Xem Sàn</span>}
             </Link>
             <button
@@ -653,11 +653,11 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               onClick={handleLogout}
               title="Đăng xuất"
               aria-label="Đăng xuất"
-              className={`w-full flex items-center rounded-lg text-xs font-semibold text-white/80 hover:text-white hover:bg-rose-500/20 transition-colors cursor-pointer ${
+              className={`w-full flex items-center rounded-lg text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer ${
                 isSidebarCollapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2'
               }`}
             >
-              <span className="material-symbols-outlined text-[18px] shrink-0 text-rose-300">logout</span>
+              <span className="material-symbols-outlined text-[18px] shrink-0 text-white/75">logout</span>
               {!isSidebarCollapsed && <span>Đăng xuất</span>}
             </button>
             {!isSidebarCollapsed ? (
@@ -771,7 +771,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-white/85 hover:text-white hover:bg-white/10 transition-colors"
                 >
-                  <span className="material-symbols-outlined text-[18px] text-emerald-300">storefront</span>
+                  <span className="material-symbols-outlined text-[18px] text-white/75">storefront</span>
                   <span>Xem Sàn</span>
                 </Link>
                 <button
@@ -780,9 +780,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                     setIsMobileMenuOpen(false);
                     handleLogout();
                   }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-white/85 hover:text-white hover:bg-rose-500/20 transition-colors cursor-pointer"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-white/85 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                 >
-                  <span className="material-symbols-outlined text-[18px] text-rose-300">logout</span>
+                  <span className="material-symbols-outlined text-[18px] text-white/75">logout</span>
                   <span>Đăng xuất</span>
                 </button>
               </div>

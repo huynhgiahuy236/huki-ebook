@@ -37,8 +37,7 @@ interface MenuGroup {
   items: MenuItem[];
 }
 
-export default function SellerSidebar({ isCollapsed: _isCollapsed, toggleSidebar: _toggleSidebar, isMobile, onClose }: SellerSidebarProps) {
-  const isCollapsed = false;
+export default function SellerSidebar({ isCollapsed, toggleSidebar: _toggleSidebar, isMobile, onClose }: SellerSidebarProps) {
   const pathname = usePathname() || '';
   const { user, activeBusinessId, setActiveBusinessId, logout } = useAuth();
   const [unreadAdminNotifs, setUnreadAdminNotifs] = useState(0);
@@ -680,20 +679,24 @@ export default function SellerSidebar({ isCollapsed: _isCollapsed, toggleSidebar
           href="/"
           target="_blank"
           rel="noopener noreferrer"
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-[#006953] hover:bg-emerald-50 transition-colors"
+          className={`w-full flex items-center rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition-colors ${
+            isCollapsed ? 'justify-center p-2' : 'gap-2.5 px-3 py-2'
+          }`}
           title="Mở trang chủ Sàn HuKi trong tab mới"
         >
-          <span className="material-symbols-outlined text-[18px] text-[#006953]">storefront</span>
-          <span>Xem Sàn</span>
+          <span className="material-symbols-outlined text-[18px] text-slate-500 shrink-0">storefront</span>
+          {!isCollapsed && <span>Xem Sàn</span>}
         </Link>
         <button
           type="button"
           onClick={() => logout()}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+          className={`w-full flex items-center rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition-colors cursor-pointer ${
+            isCollapsed ? 'justify-center p-2' : 'gap-2.5 px-3 py-2'
+          }`}
           title="Đăng xuất khỏi Kênh Người Bán"
         >
-          <span className="material-symbols-outlined text-[18px] text-rose-500">logout</span>
-          <span>Đăng xuất</span>
+          <span className="material-symbols-outlined text-[18px] text-slate-500 shrink-0">logout</span>
+          {!isCollapsed && <span>Đăng xuất</span>}
         </button>
       </div>
     </aside>
