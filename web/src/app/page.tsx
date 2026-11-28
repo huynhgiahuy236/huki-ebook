@@ -10,6 +10,7 @@ import { catalogApi, type BookData, type CatalogEntity, type CategoryData } from
 import { flashSaleApi, type FlashSaleSlot, type FlashSaleItem } from "@/ui/api/flashSaleApi";
 import { voucherApi } from "@/ui/api/voucherApi";
 import { bannerApi } from "@/ui/api/bannerApi";
+import { realtimeSyncBus } from "@/ui/services/realtimeSyncBus";
 import { tokenStorage } from "@/ui/api/tokenStorage";
 import { reviewApi } from "@/ui/api/reviewApi";
 import BookCard from "@/ui/components/common/BookCard";
@@ -457,9 +458,19 @@ export default function HomePage() {
       };
     } catch {}
 
+    const unsubBannerRealtime = realtimeSyncBus.subscribe((msg) => {
+      if (
+        (msg.type as string) === "BANNER_UPDATED" ||
+        (msg.type as string) === "NOTIFICATIONS_UPDATED"
+      ) {
+        loadAdminBanners();
+      }
+    });
+
     return () => {
       window.removeEventListener("storage", loadAdminBanners);
       window.removeEventListener("huki_admin_marketing_updated", loadAdminBanners);
+      unsubBannerRealtime();
       if (bc) {
         try { bc.close(); } catch {}
       }

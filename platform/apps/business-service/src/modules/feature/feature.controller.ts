@@ -6,12 +6,15 @@ import {
   Param,
   Query,
   Req,
+  UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { FeatureService } from './feature.service';
 import { UpdateFeatureDto } from './feature.dto';
 import { Public } from '@huki/shared/decorators';
 import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Seller Features')
 @Controller(['seller/feature-flags', 'seller-features'])
@@ -38,12 +41,16 @@ export class FeatureController {
     return { success: true, data: feature };
   }
 
-  @Public()
   @Post()
-  @ApiOperation({ summary: 'Toggle or update seller feature flag' })
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Toggle or update seller feature flag (Admin only)' })
   @ApiSuccessResponse(undefined, { description: 'Feature flag updated' })
-  @ApiStandardErrors(400, 404)
+  @ApiStandardErrors(400, 401, 403, 404)
   async updateFeature(@Body() dto: UpdateFeatureDto, @Req() req: any) {
+    if (req.user?.role !== 'PLATFORM_ADMIN') {
+      throw new ForbiddenException('Chỉ Quản trị viên sàn mới có quyền thay đổi cấu hình tính năng');
+    }
     const operator = req.user?.fullName || 'Admin System';
     const result = await this.featureService.updateFeature(dto, operator);
     return { success: true, data: result.updatedFeature, list: result.list };

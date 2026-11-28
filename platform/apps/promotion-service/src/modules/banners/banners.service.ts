@@ -1,4 +1,6 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { RabbitMqEventBus } from '@huki/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateBannerDto,
@@ -10,8 +12,81 @@ import { throwNotFound } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
 
 @Injectable()
-export class BannersService {
-  constructor(private readonly prisma: PrismaService) {}
+export class BannersService implements OnModuleInit, OnModuleDestroy {
+  private nextTransitionTimer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly eventBus?: RabbitMqEventBus,
+  ) {}
+
+  onModuleInit() {
+    void this.scheduleNextBannerTransition();
+  }
+
+  onModuleDestroy() {
+    if (this.nextTransitionTimer) {
+      clearTimeout(this.nextTransitionTimer);
+      this.nextTransitionTimer = null;
+    }
+  }
+
+  private async emitBannerUpdated(bannerId: string, action: string) {
+    if (!this.eventBus) return;
+    try {
+      await this.eventBus.publish({
+        eventId: randomUUID(),
+        eventType: 'banner.updated',
+        occurredAt: new Date().toISOString(),
+        producer: 'promotion-service',
+        version: 1,
+        aggregateId: bannerId,
+        payload: { bannerId, action },
+      });
+    } catch {
+      // Non-blocking realtime broadcast
+    }
+  }
+
+  private async scheduleNextBannerTransition() {
+    if (this.nextTransitionTimer) {
+      clearTimeout(this.nextTransitionTimer);
+      this.nextTransitionTimer = null;
+    }
+    try {
+      const now = new Date();
+      const upcoming = await this.prisma.banner.findMany({
+        where: {
+          isActive: true,
+          OR: [{ startDate: { gt: now } }, { endDate: { gt: now } }],
+        },
+        select: { id: true, startDate: true, endDate: true },
+      });
+
+      let nearestTime: number | null = null;
+      let nearestBannerId = 'scheduler';
+      for (const b of upcoming) {
+        for (const dt of [b.startDate, b.endDate]) {
+          if (dt && dt.getTime() > now.getTime()) {
+            if (nearestTime === null || dt.getTime() < nearestTime) {
+              nearestTime = dt.getTime();
+              nearestBannerId = b.id;
+            }
+          }
+        }
+      }
+
+      if (nearestTime !== null) {
+        const delayMs = Math.min(Math.max(500, nearestTime - now.getTime() + 500), 24 * 60 * 60 * 1000);
+        this.nextTransitionTimer = setTimeout(() => {
+          void this.emitBannerUpdated(nearestBannerId, 'SCHEDULED_TRANSITION');
+          void this.scheduleNextBannerTransition();
+        }, delayMs);
+      }
+    } catch {
+      // Ignore scheduler lookup failure
+    }
+  }
 
   private validateDateWindow(startDate?: Date | null, endDate?: Date | null) {
     if (startDate && endDate && endDate <= startDate) {
@@ -24,7 +99,7 @@ export class BannersService {
     const endDate = dto.endDate ? new Date(dto.endDate) : null;
     this.validateDateWindow(startDate, endDate);
 
-    return this.prisma.banner.create({
+    const created = await this.prisma.banner.create({
       data: {
         title: dto.title,
         image: dto.image,
@@ -37,6 +112,9 @@ export class BannersService {
         storeId: dto.storeId,
       },
     });
+    void this.emitBannerUpdated(created.id, 'CREATED');
+    void this.scheduleNextBannerTransition();
+    return created;
   }
 
   async findAll(query: BannerQueryDto) {
@@ -82,7 +160,7 @@ export class BannersService {
       dto.endDate !== undefined ? (dto.endDate ? new Date(dto.endDate) : null) : banner!.endDate;
     this.validateDateWindow(nextStartDate, nextEndDate);
 
-    return this.prisma.banner.update({
+    const updated = await this.prisma.banner.update({
       where: { id },
       data: {
         ...(dto.title !== undefined && { title: dto.title }),
@@ -94,6 +172,9 @@ export class BannersService {
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },
     });
+    void this.emitBannerUpdated(updated.id, 'UPDATED');
+    void this.scheduleNextBannerTransition();
+    return updated;
   }
 
   async incrementClick(id: string) {
@@ -115,6 +196,8 @@ export class BannersService {
     }
 
     await this.prisma.banner.delete({ where: { id } });
+    void this.emitBannerUpdated(id, 'DELETED');
+    void this.scheduleNextBannerTransition();
     return { success: true };
   }
 

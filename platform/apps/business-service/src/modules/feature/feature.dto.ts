@@ -1,11 +1,21 @@
-import { IsNotEmpty, IsOptional, IsString, IsBoolean, IsArray } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString, IsBoolean, IsArray } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateFeatureDto {
-  @ApiProperty()
-  @IsNotEmpty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  id!: string;
+  id?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  featureId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  action?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -14,8 +24,28 @@ export class UpdateFeatureDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsBoolean()
+  isEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   maintenanceReason?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  scheduledDisableAt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  scheduledEnableAt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  scheduledReason?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -34,8 +64,38 @@ export class UpdateFeatureDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsArray()
+  businessIds?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
+  featureIds?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isBlocked?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsBoolean()
   isBusinessEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  category?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

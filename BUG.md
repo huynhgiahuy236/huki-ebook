@@ -2502,3 +2502,13 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 - **Kiểm chứng & E2E:**
   - `build:promotion`, `web run typecheck`: **0 errors**.
   - [`scripts/test_e2e_stage3_bug45_46_47.js`](file:///e:/HuKi/scripts/test_e2e_stage3_bug45_46_47.js): **PASS 100%** trên môi trường thật (`BE :3000`, `FE :3100`, PostgreSQL thật).
+
+### Bước 4 — Giai đoạn 4 (`BUG-48`, `BUG-49`, `BUG-50`): Sửa Tận Gốc & E2E Độc Lập (28/11/2026)
+
+- **Khắc phục mã nguồn:**
+  - `BUG-48`: Chuyển cả 3 tab (`APPLICATIONS`, `PAYOUTS`, `FRAUD`) trong [`AdminAffiliatesView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminAffiliatesView.tsx) sang sử dụng đồng bộ `GroupedDataTable` + `DataTableFilterBar` có đầy đủ số đếm `count`, xóa bỏ toàn bộ `<table>` HTML thuần.
+  - `BUG-49`: Trong [`banners.service.ts`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/banners/banners.service.ts), inject `RabbitMqEventBus`, phát `banner.updated` khi tạo/sửa/xóa và cài đặt Smart Next-Due Timer (`scheduleNextBannerTransition`) tự kích hoạt khi đến `startDate`/`endDate`; định tuyến qua `public_broadcast` trong [`notification-event.consumer.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/notifications/notification-event.consumer.ts); trang chủ [`web/src/app/page.tsx`](file:///e:/HuKi/web/src/app/page.tsx) lắng nghe `BANNER_UPDATED` qua `realtimeSyncBus` tự cập nhật không cần F5.
+  - `BUG-50`: Mở rộng [`feature.dto.ts`](file:///e:/HuKi/platform/apps/business-service/src/modules/feature/feature.dto.ts), gắn `JwtAuthGuard` + kiểm tra `PLATFORM_ADMIN` trong [`feature.controller.ts`](file:///e:/HuKi/platform/apps/business-service/src/modules/feature/feature.controller.ts), hỗ trợ đủ các `action` & tự `upsert` DB trong [`feature.service.ts`](file:///e:/HuKi/platform/apps/business-service/src/modules/feature/feature.service.ts), đồng bộ `syncFromServer()` khi mount [`AdminSellerFeaturesView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminSellerFeaturesView.tsx).
+- **Kiểm chứng & E2E:**
+  - `build:business`, `build:promotion`, `build:community`, `web run typecheck`: **0 errors**.
+  - [`scripts/test_e2e_stage4_bug48_49_50.js`](file:///e:/HuKi/scripts/test_e2e_stage4_bug48_49_50.js): **PASS 100%** trên môi trường thật (`BE :3000`, PostgreSQL thật).

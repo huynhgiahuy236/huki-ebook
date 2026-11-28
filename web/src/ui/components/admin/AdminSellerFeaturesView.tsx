@@ -98,6 +98,7 @@ export default function AdminSellerFeaturesView() {
   const loadData = async () => {
     setLoading(true);
     try {
+      await featureFlagsService.syncFromServer();
       setFeatures(featureFlagsService.getAllFeatures());
       const res = await businessApi.getAllBusinesses({ limit: 100 });
       if (res && res.success && res.data) {

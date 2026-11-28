@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/ui/context/ToastContext';
 import { AdminStatusBadge } from './AdminUI';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
+import { DataTableFilterBar } from '../common';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import type { AffiliateProfile, PartnerStatus } from '@/types/affiliate';
@@ -491,47 +492,28 @@ export function AdminAffiliatesView() {
       {/* ======================================================== */}
       {mainTab === 'APPLICATIONS' && (
         <div className="space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-gray-200 pb-3">
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-semibold">
-              {[
-                { key: 'ALL', label: 'Tất cả' },
-                { key: 'PENDING_REVIEW', label: 'Chờ duyệt' },
-                { key: 'REQUEST_CHANGES', label: 'Yêu cầu sửa' },
-                { key: 'ACTIVE', label: 'Đang hoạt động' },
-                { key: 'REJECTED', label: 'Từ chối' },
-                { key: 'SUSPENDED', label: 'Tạm ngưng' },
-              ].map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => {
-                    setActiveTab(tab.key);
-                    setPage(1);
-                  }}
-                  className={`px-3 py-1.5 rounded-lg transition-all shrink-0 cursor-pointer ${
-                    activeTab === tab.key
-                      ? 'bg-emerald-700 text-white font-bold shadow-xs'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="relative w-full md:w-72">
-              <span className="material-symbols-outlined absolute left-3 top-2.5 text-gray-400 text-[18px]">
-                search
-              </span>
-              <input
-                type="text"
-                placeholder="Tìm mã CTV, tên, email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600 shadow-2xs font-sans"
-              />
-            </div>
-          </div>
+          <DataTableFilterBar
+            tabs={[
+              { key: 'ALL', label: 'Tất cả', count: activeTab === 'ALL' ? totalCount : applications.length },
+              { key: 'PENDING_REVIEW', label: 'Chờ duyệt', count: applications.filter((a) => a.status === 'PENDING_REVIEW').length },
+              { key: 'REQUEST_CHANGES', label: 'Yêu cầu sửa', count: applications.filter((a) => a.status === 'REQUEST_CHANGES').length },
+              { key: 'ACTIVE', label: 'Đang hoạt động', count: applications.filter((a) => a.status === 'ACTIVE').length },
+              { key: 'REJECTED', label: 'Từ chối', count: applications.filter((a) => a.status === 'REJECTED').length },
+              { key: 'SUSPENDED', label: 'Tạm ngưng', count: applications.filter((a) => a.status === 'SUSPENDED').length },
+            ]}
+            activeTab={activeTab}
+            onTabChange={(t) => {
+              setActiveTab(t);
+              setPage(1);
+            }}
+            searchQuery={searchQuery}
+            onSearchChange={(q) => {
+              setSearchQuery(q);
+              setPage(1);
+            }}
+            searchPlaceholder="Tìm mã CTV, tên, email..."
+            className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs"
+          />
 
           <div className="w-full max-w-full overflow-x-auto min-w-0 rounded-2xl border border-slate-200 bg-white shadow-2xs">
             <GroupedDataTable<AffiliateProfile>
@@ -565,113 +547,111 @@ export function AdminAffiliatesView() {
       {/* ======================================================== */}
       {mainTab === 'PAYOUTS' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2 border-b border-gray-200 pb-3">
-            {[
-              { key: 'ALL', label: 'Tất cả' },
-              { key: 'REQUESTED', label: 'Chờ xử lý (Pending)' },
-              { key: 'APPROVED', label: 'Đã duyệt chi' },
-              { key: 'REJECTED', label: 'Đã từ chối' },
-            ].map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => {
-                  setPayoutStatusFilter(t.key);
-                  setPayoutPage(1);
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  payoutStatusFilter === t.key
-                    ? 'bg-emerald-700 text-white font-bold shadow-xs'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <DataTableFilterBar
+            tabs={[
+              { key: 'ALL', label: 'Tất cả', count: payoutTotal || payouts.length },
+              { key: 'REQUESTED', label: 'Chờ xử lý', count: payouts.filter((p) => p.status === 'REQUESTED').length },
+              { key: 'APPROVED', label: 'Đã duyệt chi', count: payouts.filter((p) => p.status === 'APPROVED').length },
+              { key: 'REJECTED', label: 'Đã từ chối', count: payouts.filter((p) => p.status === 'REJECTED').length },
+            ]}
+            activeTab={payoutStatusFilter}
+            onTabChange={(t) => {
+              setPayoutStatusFilter(t);
+              setPayoutPage(1);
+            }}
+            className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs"
+          />
 
           <div className="w-full max-w-full overflow-x-auto min-w-0 rounded-2xl border border-slate-200 bg-white shadow-2xs">
-            <table className="w-full text-left text-xs text-slate-700">
-              <thead className="bg-[#003B2B] border-b border-[#00281D] text-white font-bold uppercase text-[10.5px] select-none">
-                <tr>
-                  <th className="px-4 py-3 text-white">Mã Giao Dịch</th>
-                  <th className="px-4 py-3 text-white">Số Tiền Rút</th>
-                  <th className="px-4 py-3 text-white">Tài Khoản Thụ Hưởng</th>
-                  <th className="px-4 py-3 text-white">Ngày Yêu Cầu</th>
-                  <th className="px-4 py-3 text-white">Trạng Thái</th>
-                  <th className="px-4 py-3 text-right text-white">Thao Tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {payoutLoading ? (
-                  <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400">
-                      <span className="material-symbols-outlined animate-spin text-2xl text-emerald-600">progress_activity</span>
-                      <p className="mt-1 font-semibold">Đang tải danh sách rút tiền...</p>
-                    </td>
-                  </tr>
-                ) : payouts.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400">
-                      <span className="material-symbols-outlined text-4xl">payments</span>
-                      <p className="mt-1 font-semibold">Không có yêu cầu rút tiền nào.</p>
-                    </td>
-                  </tr>
-                ) : (
-                  payouts.map((p) => {
+            <GroupedDataTable<any>
+              columns={[
+                {
+                  key: 'id',
+                  title: 'Mã Giao Dịch',
+                  render: (_v, p) => (
+                    <span className="font-mono text-[11px] font-semibold text-slate-600">{p.id.slice(0, 8)}...</span>
+                  ),
+                },
+                {
+                  key: 'amount',
+                  title: 'Số Tiền Rút',
+                  render: (_v, p) => (
+                    <span className="font-extrabold text-emerald-800 text-sm">{Number(p.amount).toLocaleString('vi-VN')} đ</span>
+                  ),
+                },
+                {
+                  key: 'bankSnapshot',
+                  title: 'Tài Khoản Thụ Hưởng',
+                  render: (_v, p) => {
                     const bank = p.bankSnapshot || {};
                     return (
-                      <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="px-4 py-3 font-mono text-[11px] font-semibold text-slate-600">
-                          {p.id.slice(0, 8)}...
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="font-extrabold text-emerald-800 text-sm">
-                            {Number(p.amount).toLocaleString('vi-VN')} đ
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="font-bold text-slate-900">{bank.accountHolderName || 'Chưa định danh'}</div>
-                          <div className="font-mono text-slate-600 text-[11px]">{bank.accountNumber || 'N/A'} - {bank.bankCode || bank.bankName}</div>
-                        </td>
-                        <td className="px-4 py-3 font-mono text-slate-500 text-[11px]">
-                          {p.requestedAt ? new Date(p.requestedAt).toLocaleString('vi-VN') : 'N/A'}
-                        </td>
-                        <td className="px-4 py-3">
-                          {p.status === 'REQUESTED' ? (
-                            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px]">Chờ xử lý</span>
-                          ) : p.status === 'APPROVED' ? (
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">Đã chuyển khoản</span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-[10px]">Đã từ chối</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          {p.status === 'REQUESTED' && (
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => setActionPayoutModal({ item: p, type: 'APPROVE' })}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] transition-colors cursor-pointer"
-                              >
-                                Duyệt Chi
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setActionPayoutModal({ item: p, type: 'REJECT' })}
-                                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] transition-colors cursor-pointer"
-                              >
-                                Từ Chối
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
+                      <div>
+                        <div className="font-bold text-slate-900">{bank.accountHolderName || 'Chưa định danh'}</div>
+                        <div className="font-mono text-slate-600 text-[11px]">{bank.accountNumber || 'N/A'} - {bank.bankCode || bank.bankName}</div>
+                      </div>
                     );
-                  })
-                )}
-              </tbody>
-            </table>
+                  },
+                },
+                {
+                  key: 'requestedAt',
+                  title: 'Ngày Yêu Cầu',
+                  render: (_v, p) => (
+                    <span className="font-mono text-slate-500 text-[11px]">{p.requestedAt ? new Date(p.requestedAt).toLocaleString('vi-VN') : 'N/A'}</span>
+                  ),
+                },
+                {
+                  key: 'status',
+                  title: 'Trạng Thái',
+                  render: (_v, p) =>
+                    p.status === 'REQUESTED' ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-[11px] font-semibold bg-amber-50/90 text-amber-800 border-amber-300/80"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />Chờ xử lý</span>
+                    ) : p.status === 'APPROVED' ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-[11px] font-semibold bg-emerald-50/90 text-emerald-800 border-emerald-200/80"><span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />Đã chuyển khoản</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-[11px] font-semibold bg-rose-50/90 text-rose-800 border-rose-200/80"><span className="w-1.5 h-1.5 rounded-full bg-rose-600" />Đã từ chối</span>
+                    ),
+                },
+                {
+                  key: 'actions',
+                  title: 'Thao Tác',
+                  align: 'right',
+                  render: (_v, p) =>
+                    p.status === 'REQUESTED' ? (
+                      <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => setActionPayoutModal({ item: p, type: 'APPROVE' })}
+                          className="px-2.5 py-1 rounded-lg bg-[#00875A] hover:bg-[#00704A] text-white font-semibold text-xs transition-colors cursor-pointer"
+                        >
+                          Duyệt Chi
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActionPayoutModal({ item: p, type: 'REJECT' })}
+                          className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-xs transition-colors cursor-pointer"
+                        >
+                          Từ Chối
+                        </button>
+                      </div>
+                    ) : null,
+                },
+              ]}
+              data={payouts}
+              keyField="id"
+              loading={payoutLoading}
+              emptyTitle="Không có yêu cầu rút tiền nào"
+              emptyMessage="Chưa có yêu cầu rút tiền hoa hồng nào trong mục này."
+              emptyIcon="payments"
+              pagination={{
+                currentPage: payoutPage,
+                totalPages: payoutTotalPages,
+                totalItems: payoutTotal,
+                pageSize: 10,
+                onPageChange: setPayoutPage,
+                itemLabel: 'lệnh rút tiền',
+              }}
+              className="w-full"
+            />
           </div>
         </div>
       )}
@@ -681,110 +661,110 @@ export function AdminAffiliatesView() {
       {/* ======================================================== */}
       {mainTab === 'FRAUD' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2 border-b border-gray-200 pb-3">
-            {[
-              { key: 'ALL', label: 'Tất cả' },
-              { key: 'INVESTIGATING', label: 'Đang điều tra' },
-              { key: 'CONFIRMED', label: 'Đã xác nhận (Gian lận)' },
-              { key: 'DISMISSED', label: 'Đã bỏ qua (Hợp lệ)' },
-            ].map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => {
-                  setFraudStatusFilter(t.key);
-                  setFraudPage(1);
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  fraudStatusFilter === t.key
-                    ? 'bg-emerald-700 text-white font-bold shadow-xs'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <DataTableFilterBar
+            tabs={[
+              { key: 'ALL', label: 'Tất cả', count: fraudTotal || fraudCases.length },
+              { key: 'INVESTIGATING', label: 'Đang điều tra', count: fraudCases.filter((c) => c.status === 'INVESTIGATING').length },
+              { key: 'CONFIRMED', label: 'Đã xác nhận', count: fraudCases.filter((c) => c.status === 'CONFIRMED').length },
+              { key: 'DISMISSED', label: 'Đã bỏ qua', count: fraudCases.filter((c) => c.status !== 'INVESTIGATING' && c.status !== 'CONFIRMED').length },
+            ]}
+            activeTab={fraudStatusFilter}
+            onTabChange={(t) => {
+              setFraudStatusFilter(t);
+              setFraudPage(1);
+            }}
+            className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs"
+          />
 
           <div className="w-full max-w-full overflow-x-auto min-w-0 rounded-2xl border border-slate-200 bg-white shadow-2xs">
-            <table className="w-full text-left text-xs text-slate-700">
-              <thead className="bg-[#003B2B] border-b border-[#00281D] text-white font-bold uppercase text-[10.5px] select-none">
-                <tr>
-                  <th className="px-4 py-3 text-white">Mã Vụ Việc</th>
-                  <th className="px-4 py-3 text-white">Đối Tác Nghi Vấn</th>
-                  <th className="px-4 py-3 text-white">Hành Vi Bất Thường</th>
-                  <th className="px-4 py-3 text-white">Điểm Rủi Ro</th>
-                  <th className="px-4 py-3 text-white">Trạng Thái</th>
-                  <th className="px-4 py-3 text-right text-white">Biện Pháp Xử Lý</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {fraudLoading ? (
-                  <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400">
-                      <span className="material-symbols-outlined animate-spin text-2xl text-emerald-600">progress_activity</span>
-                      <p className="mt-1 font-semibold">Đang tải danh sách cảnh báo gian lận...</p>
-                    </td>
-                  </tr>
-                ) : fraudCases.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400">
-                      <span className="material-symbols-outlined text-4xl text-emerald-700">verified_user</span>
-                      <p className="mt-1 font-semibold">Hệ sinh thái an toàn. Không có trường hợp gian lận nào.</p>
-                    </td>
-                  </tr>
-                ) : (
-                  fraudCases.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-4 py-3 font-mono text-[11px] font-semibold text-slate-600">
-                        {c.id.slice(0, 8)}...
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-bold text-slate-900">{c.displayName || 'Đối tác'}</div>
-                        <div className="font-mono text-emerald-800 text-[11px] font-bold">{c.affiliateCode || c.profileId}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200 font-semibold text-[10.5px]">
-                          {c.reasonCode || 'SELF_REFERRAL_SUSPECT'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="font-extrabold text-rose-700">{c.riskScore || 85}/100</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {c.status === 'INVESTIGATING' ? (
-                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px]">Đang điều tra</span>
-                        ) : c.status === 'CONFIRMED' ? (
-                          <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-[10px]">Đã khóa CTV</span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">Hợp lệ</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {c.status === 'INVESTIGATING' && (
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => setActionFraudModal({ item: c, resolution: 'CONFIRMED' })}
-                              className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] transition-colors cursor-pointer"
-                            >
-                              Khóa CTV
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setActionFraudModal({ item: c, resolution: 'DISMISSED' })}
-                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-colors cursor-pointer"
-                            >
-                              Bỏ Qua
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            <GroupedDataTable<any>
+              columns={[
+                {
+                  key: 'id',
+                  title: 'Mã Vụ Việc',
+                  render: (_v, c) => (
+                    <span className="font-mono text-[11px] font-semibold text-slate-600">{c.id.slice(0, 8)}...</span>
+                  ),
+                },
+                {
+                  key: 'displayName',
+                  title: 'Đối Tác Nghi Vấn',
+                  render: (_v, c) => (
+                    <div>
+                      <div className="font-bold text-slate-900">{c.displayName || 'Đối tác'}</div>
+                      <div className="font-mono text-emerald-800 text-[11px] font-bold">{c.affiliateCode || c.profileId}</div>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'reasonCode',
+                  title: 'Hành Vi Bất Thường',
+                  render: (_v, c) => (
+                    <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-200 font-semibold text-[11px]">
+                      {c.reasonCode || 'SELF_REFERRAL_SUSPECT'}
+                    </span>
+                  ),
+                },
+                {
+                  key: 'riskScore',
+                  title: 'Điểm Rủi Ro',
+                  render: (_v, c) => (
+                    <span className="font-extrabold text-rose-700">{c.riskScore || 85}/100</span>
+                  ),
+                },
+                {
+                  key: 'status',
+                  title: 'Trạng Thái',
+                  render: (_v, c) =>
+                    c.status === 'INVESTIGATING' ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-[11px] font-semibold bg-amber-50/90 text-amber-800 border-amber-300/80"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />Đang điều tra</span>
+                    ) : c.status === 'CONFIRMED' ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-[11px] font-semibold bg-rose-50/90 text-rose-800 border-rose-200/80"><span className="w-1.5 h-1.5 rounded-full bg-rose-600" />Đã khóa CTV</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-[11px] font-semibold bg-emerald-50/90 text-emerald-800 border-emerald-200/80"><span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />Hợp lệ</span>
+                    ),
+                },
+                {
+                  key: 'actions',
+                  title: 'Biện Pháp Xử Lý',
+                  align: 'right',
+                  render: (_v, c) =>
+                    c.status === 'INVESTIGATING' ? (
+                      <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => setActionFraudModal({ item: c, resolution: 'CONFIRMED' })}
+                          className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs transition-colors cursor-pointer"
+                        >
+                          Khóa CTV
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActionFraudModal({ item: c, resolution: 'DISMISSED' })}
+                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
+                        >
+                          Bỏ Qua
+                        </button>
+                      </div>
+                    ) : null,
+                },
+              ]}
+              data={fraudCases}
+              keyField="id"
+              loading={fraudLoading}
+              emptyTitle="Hệ sinh thái an toàn"
+              emptyMessage="Không có trường hợp nghi vấn gian lận nào."
+              emptyIcon="verified_user"
+              pagination={{
+                currentPage: fraudPage,
+                totalPages: fraudTotalPages,
+                totalItems: fraudTotal,
+                pageSize: 10,
+                onPageChange: setFraudPage,
+                itemLabel: 'vụ việc gian lận',
+              }}
+              className="w-full"
+            />
           </div>
         </div>
       )}

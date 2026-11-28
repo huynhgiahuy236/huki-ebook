@@ -376,6 +376,17 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
         });
         break;
       }
+      case "banner.updated": {
+        targets.push({
+          recipientId: "public_broadcast",
+          recipientType: "USER",
+          type: "PROMOTION" as any,
+          title: "Cập nhật Banner Trang chủ",
+          message: "Hệ thống vừa cập nhật danh sách banner quảng bá.",
+          actionUrl: "/",
+        });
+        break;
+      }
       case "flash_sale.deleted":
       case "flash_sale.cancelled": {
         const isDeleted = event.eventType === "flash_sale.deleted";
