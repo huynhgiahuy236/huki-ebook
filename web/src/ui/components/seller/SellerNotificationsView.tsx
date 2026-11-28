@@ -505,7 +505,7 @@ export default function SellerNotificationsView() {
 
   return (
     <div className="flex flex-col gap-5 w-full max-w-[1600px] mx-auto pb-20 font-sans animate-in fade-in duration-200">
-      
+
       {/* ===================================================================== */}
       {/* 1. HEADER KPI SUMMARY CARDS (TRUNG TÂM BÁO CÁO THÔNG BÁO THỜI GIAN THỰC) */}
       {/* ===================================================================== */}
@@ -519,7 +519,7 @@ export default function SellerNotificationsView() {
           }}
           className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
             activeTab === 'all' && readFilter === 'all'
-              ? 'bg-emerald-50/25 text-slate-900 border-2 border-[#003B2B] ring-2 ring-[#003B2B]/15'
+              ? 'border border-[#003B2B] ring-1 ring-[#003B2B] bg-emerald-50/20'
               : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
           }`}
         >
@@ -544,11 +544,10 @@ export default function SellerNotificationsView() {
             }
             setCurrentPage(1);
           }}
-          className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
-            readFilter === 'unread'
-              ? 'bg-emerald-50/25 text-slate-900 border-2 border-[#003B2B] ring-2 ring-[#003B2B]/15'
-              : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
-          }`}
+          className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${readFilter === 'unread'
+            ? 'border border-[#003B2B] ring-1 ring-[#003B2B] bg-emerald-50/20'
+            : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
+            }`}
         >
           <div className="flex items-center justify-between mb-2">
             <span className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400">
@@ -577,7 +576,7 @@ export default function SellerNotificationsView() {
           }}
           className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
             activeTab === 'sla' && readFilter === 'all'
-              ? 'bg-emerald-50/25 text-slate-900 border-2 border-[#003B2B] ring-2 ring-[#003B2B]/15'
+              ? 'border border-[#003B2B] ring-1 ring-[#003B2B] bg-emerald-50/20'
               : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
           }`}
         >
@@ -608,7 +607,7 @@ export default function SellerNotificationsView() {
           }}
           className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
             activeTab === 'orders' && readFilter === 'all'
-              ? 'bg-emerald-50/25 text-slate-900 border-2 border-[#003B2B] ring-2 ring-[#003B2B]/15'
+              ? 'border border-[#003B2B] ring-1 ring-[#003B2B] bg-emerald-50/20'
               : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
           }`}
         >
@@ -639,7 +638,7 @@ export default function SellerNotificationsView() {
           }}
           className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs col-span-2 sm:col-span-1 ${
             activeTab === 'admin' && readFilter === 'all'
-              ? 'bg-emerald-50/25 text-slate-900 border-2 border-[#003B2B] ring-2 ring-[#003B2B]/15'
+              ? 'border border-[#003B2B] ring-1 ring-[#003B2B] bg-emerald-50/20'
               : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
           }`}
         >
@@ -666,7 +665,7 @@ export default function SellerNotificationsView() {
       {/* 2. TAB NAVIGATION & ADVANCED FILTER DOCK */}
       {/* ===================================================================== */}
       <section className="bg-white dark:bg-neutral-900 border border-slate-200/90 dark:border-neutral-800 rounded-2xl p-4 shadow-2xs space-y-3.5">
-        
+
         {/* Row 1: Category Tabs (Scrollable on Mobile) */}
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-zinc-800 pb-3">
           <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5 flex-1 min-w-0">
@@ -688,22 +687,20 @@ export default function SellerNotificationsView() {
                     setActiveTab(tab.id as NotificationCategoryTab);
                     setCurrentPage(1);
                   }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer shrink-0 ${
-                    isActive
-                      ? 'bg-[#003B2B] text-white shadow-2xs'
-                      : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-zinc-700'
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer shrink-0 ${isActive
+                    ? 'bg-[#003B2B] text-white shadow-2xs'
+                    : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-zinc-700'
+                    }`}
                 >
                   <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>
                   <span>{tab.label}</span>
                   <span
-                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                      isActive
-                        ? 'bg-white/20 text-white'
-                        : tab.unread > 0
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${isActive
+                      ? 'bg-white/20 text-white'
+                      : tab.unread > 0
                         ? `${tab.badgeClass || 'bg-rose-500'} text-white`
                         : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-slate-400'
-                    }`}
+                      }`}
                   >
                     {tab.count}
                   </span>
@@ -836,11 +833,10 @@ export default function SellerNotificationsView() {
                 setIsMultiSelectMode(!isMultiSelectMode);
                 if (isMultiSelectMode) setSelectedIds([]);
               }}
-              className={`h-9 px-3 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
-                isMultiSelectMode || selectedIds.length > 0
-                  ? 'bg-emerald-800 text-white border-emerald-800'
-                  : 'bg-white dark:bg-zinc-850 border-slate-200 dark:border-zinc-750 text-slate-700 dark:text-slate-200 hover:bg-slate-50'
-              }`}
+              className={`h-9 px-3 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${isMultiSelectMode || selectedIds.length > 0
+                ? 'bg-emerald-800 text-white border-emerald-800'
+                : 'bg-white dark:bg-zinc-850 border-slate-200 dark:border-zinc-750 text-slate-700 dark:text-slate-200 hover:bg-slate-50'
+                }`}
             >
               <span className="material-symbols-outlined text-[16px]">checklist</span>
               <span>{isMultiSelectMode ? 'Đóng chọn nhiều' : 'Chọn nhiều'}</span>
@@ -991,24 +987,22 @@ export default function SellerNotificationsView() {
                       handleOpenDetailByIndex(globalIndex);
                     }
                   }}
-                  className={`bg-white dark:bg-neutral-900 rounded-xl border transition-all p-4 sm:px-5 mb-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 cursor-pointer hover:border-slate-300 hover:shadow-xs relative overflow-hidden group ${
-                    isSelected
-                      ? 'border-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/30 ring-1 ring-emerald-500/30'
-                      : !n.isRead
+                  className={`bg-white dark:bg-neutral-900 rounded-xl border transition-all p-4 sm:px-5 mb-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 cursor-pointer hover:border-slate-300 hover:shadow-xs relative overflow-hidden group ${isSelected
+                    ? 'border-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/30 ring-1 ring-emerald-500/30'
+                    : !n.isRead
                       ? 'border-slate-200 bg-white dark:bg-neutral-900 shadow-2xs'
                       : 'border-slate-200/70 bg-slate-50/60 opacity-75 dark:border-neutral-800'
-                  }`}
+                    }`}
                 >
                   {/* Clean subtle Left Indicator for unread (no harsh pulsing) */}
                   {!n.isRead && (
                     <div
-                      className={`absolute left-0 top-0 bottom-0 w-1 ${
-                        isCritical || isSla
-                          ? 'bg-rose-500'
-                          : isHigh
+                      className={`absolute left-0 top-0 bottom-0 w-1 ${isCritical || isSla
+                        ? 'bg-rose-500'
+                        : isHigh
                           ? 'bg-amber-500'
                           : 'bg-[#00875A]'
-                      }`}
+                        }`}
                     />
                   )}
 
@@ -1027,30 +1021,29 @@ export default function SellerNotificationsView() {
 
                     {/* Icon by Category */}
                     <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs transition-transform group-hover:scale-105 ${
-                        isSla
-                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300 ring-1 ring-rose-300'
-                          : isOrder
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs transition-transform group-hover:scale-105 ${isSla
+                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300 ring-1 ring-rose-300'
+                        : isOrder
                           ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300'
                           : isFinance
-                          ? 'bg-emerald-100 text-[#00875A] dark:bg-emerald-950 dark:text-emerald-300'
-                          : isAdmin
-                          ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300'
-                          : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                      }`}
+                            ? 'bg-emerald-100 text-[#00875A] dark:bg-emerald-950 dark:text-emerald-300'
+                            : isAdmin
+                              ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300'
+                              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                        }`}
                     >
                       <span className="material-symbols-outlined text-[20px]">
                         {isSla
                           ? 'gavel'
                           : isOrder
-                          ? 'local_shipping'
-                          : isFinance
-                          ? 'account_balance_wallet'
-                          : isAdmin
-                          ? 'shield'
-                          : n.category === 'MANUAL_DIRECT'
-                          ? 'chat'
-                          : 'notifications'}
+                            ? 'local_shipping'
+                            : isFinance
+                              ? 'account_balance_wallet'
+                              : isAdmin
+                                ? 'shield'
+                                : n.category === 'MANUAL_DIRECT'
+                                  ? 'chat'
+                                  : 'notifications'}
                       </span>
                     </div>
 
@@ -1110,11 +1103,10 @@ export default function SellerNotificationsView() {
 
                       {/* Notification Title */}
                       <h3
-                        className={`text-sm leading-snug line-clamp-1 ${
-                          !n.isRead
-                            ? 'font-black text-slate-900 dark:text-white'
-                            : 'font-bold text-slate-800 dark:text-slate-200'
-                        }`}
+                        className={`text-sm leading-snug line-clamp-1 ${!n.isRead
+                          ? 'font-black text-slate-900 dark:text-white'
+                          : 'font-bold text-slate-800 dark:text-slate-200'
+                          }`}
                       >
                         {n.title}
                       </h3>
@@ -1139,20 +1131,19 @@ export default function SellerNotificationsView() {
                           }
                           router.push(n.actionUrl!);
                         }}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1 ${
-                          isSla
-                            ? 'bg-rose-700 hover:bg-rose-800 text-white'
-                            : isOrder
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1 ${isSla
+                          ? 'bg-rose-700 hover:bg-rose-800 text-white'
+                          : isOrder
                             ? 'bg-[#003B2B] hover:bg-[#00271E] text-white'
                             : 'bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-200'
-                        }`}
+                          }`}
                       >
                         <span>
                           {typeof n.payload?.actionLabel === 'string'
                             ? n.payload.actionLabel
                             : isSla
-                            ? 'Xác nhận đóng gói ngay'
-                            : 'Xử lý ngay'}
+                              ? 'Xác nhận đóng gói ngay'
+                              : 'Xử lý ngay'}
                         </span>
                         <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
                       </button>
@@ -1173,11 +1164,10 @@ export default function SellerNotificationsView() {
                           handleMarkSingleAsRead(n.id);
                         }
                       }}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                        n.isRead
-                          ? 'text-slate-500 bg-slate-100 hover:bg-slate-200'
-                          : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
-                      }`}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap ${n.isRead
+                        ? 'text-slate-500 bg-slate-100 hover:bg-slate-200'
+                        : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+                        }`}
                       title={n.isRead ? 'Đánh dấu chưa đọc' : 'Đánh dấu đã đọc'}
                     >
                       <span className="material-symbols-outlined text-[15px]">
