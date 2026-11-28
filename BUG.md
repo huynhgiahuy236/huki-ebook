@@ -2455,3 +2455,17 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 3. **`BUG-53` (Báo động đỏ giả Microservices trên UAT):**
    - **Giải pháp đã duyệt:** Đọc URL nội bộ từng microservice qua biến môi trường (tên container Docker trên UAT, fallback `127.0.0.1` ở Local), thêm retry 2–3 lần trước khi báo động đỏ và ghi rõ mã/chi tiết lỗi (không để rỗng).
    - **AC:** 0 cảnh báo giả khi tất cả container đang chạy bình thường trên UAT.
+
+### Bước 3 — Giai đoạn 6 (`BUG-54`, `BUG-55`): Phương Án Kiến Trúc & Tiêu Chuẩn Nghiệm Thu (Đã Phê Duyệt)
+
+1. **`BUG-54` (UI Badge cột Vai trò & Trạng thái + User không có "Chờ duyệt"):**
+   - **Giải pháp đã duyệt:** User/Khách hàng thông thường không hiển thị trạng thái `Chờ duyệt` (chỉ hiển thị nếu đang chờ duyệt lên Seller); đồng bộ badge cột Vai trò & Trạng thái theo mẫu `• Chữ màu` (`rounded-md`, chấm tròn nhỏ + chữ gọn trên 1 hàng ngang).
+   - **AC:** Bảng quản lý người dùng thẳng hàng, badge tinh tế kiểu `• Hoạt động`, `• Khách hàng`, không có User thường bị `Chờ duyệt`.
+2. **`BUG-55` (`/admin/reports` — 4 Tab Báo Cáo Thống Kê):**
+   - **Giải pháp đã duyệt:**
+     - Giữ nguyên thanh 4 nút tab trên cùng; thiết kế lại UI nội dung bên trong 4 tab tinh tế chuẩn Admin/Seller (Tab 3 bỏ UUID/icon copy thừa, gọn badge, sửa dòng `TỔNG CỘNG` 1 hàng; Tab 4 map đúng tên Shop không hiện UUID, bỏ banner đen `PostgreSQL Real Data`, badge Trạng thái 1 dòng).
+     - Xóa toàn bộ số mock/fallback cứng ở Tab 3 (`1280`, `69`, `60`, `|| 32`, `|| 5743194`), lấy 100% từ DB thật; đồng bộ GMV Tab 1 khớp 100% với đơn hàng hoàn tất thực tế của `commerce-service`.
+     - Tab 2 Flash Sale đối soát 100% doanh thu & giảm giá tài trợ theo đơn hàng mua thật hợp lệ (đã thanh toán/hoàn tất, loại trừ đơn hủy/hết hạn/chưa mua).
+   - **AC:** Cả 4 tab hiển thị 100% số liệu thật khớp DB, 0 số mock, UI gọn đẹp 1 hàng.
+
+- **Trạng thái Bước 3 (Toàn bộ 17 bug `BUG-39` → `BUG-55`):** **ĐÃ PHÊ DUYỆT 100%**. Sẵn sàng triển khai **Bước 4 — Giai đoạn 1 (`BUG-39`, `BUG-40`, `BUG-41`)**.
