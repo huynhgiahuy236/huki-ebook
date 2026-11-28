@@ -80,6 +80,7 @@ export default function PaymentCountdownModal({
   // Calculate remaining seconds from expiresAt if provided
   useEffect(() => {
     if (!isOpen) return;
+    setCancelledReason(null);
 
     if (currentPayment?.expiresAt) {
       const diff = Math.max(0, Math.floor((new Date(currentPayment.expiresAt).getTime() - Date.now()) / 1000));
@@ -162,13 +163,20 @@ export default function PaymentCountdownModal({
                 router.push(`/order-success?orderId=${orderId}&code=${orderCode || o.code}&paymentMethod=ONLINE_PAYMENT`);
               }
             }, 1200);
-          } else if (o.status === 'CANCELLED') {
-            setCancelledReason(
+          } else if (o.status === 'CANCELLED' || o.paymentStatus === 'CANCELLED') {
+            const reason =
               (o as any).cancelReason ||
-                'Đơn hàng đã bị hủy tự động (tác phẩm tạm khóa lưu hành hoặc hết hạn).'
-            );
+              'Đơn hàng đã bị hủy tự động (tác phẩm tạm khóa lưu hành hoặc hết hạn).';
+            setCancelledReason(reason);
             setIsExpired(true);
             clearInterval(pollInterval);
+            showToast?.(
+              {
+                title: 'Đơn hàng đã tự động hủy',
+                message: reason,
+              } as any,
+              'error'
+            );
           } else if (o.paymentStatus === 'EXPIRED') {
             setIsExpired(true);
             clearInterval(pollInterval);
@@ -181,15 +189,33 @@ export default function PaymentCountdownModal({
 
     const unsub = realtimeSyncBus.subscribe(async (event: any) => {
       if (event?.type === 'BOOK_MODERATED' && (event.payload as any)?.action === 'BLOCK') {
+        const blockedBookId = String((event.payload as any)?.bookId || '');
         try {
           const res = await orderApi.getBuyerOrderDetail(orderId);
-          if (res.success && res.data && res.data.status === 'CANCELLED') {
-            setCancelledReason(
-              (res.data as any).cancelReason ||
-                'Tác phẩm trong đơn hàng vừa bị Ban Quản Trị tạm khóa lưu hành.'
-            );
-            setIsExpired(true);
-            clearInterval(pollInterval);
+          if (res.success && res.data) {
+            const o: any = res.data;
+            const containsBlockedBook =
+              blockedBookId &&
+              (o.sellerOrders?.some((so: any) =>
+                so.items?.some((it: any) => String(it.bookId || it.book?.id) === blockedBookId)
+              ) ||
+                o.items?.some((it: any) => String(it.bookId || it.book?.id) === blockedBookId));
+
+            if (o.status === 'CANCELLED' || o.paymentStatus === 'CANCELLED' || containsBlockedBook) {
+              const reason =
+                o.cancelReason ||
+                'Tác phẩm trong đơn hàng vừa bị Ban Quản Trị tạm khóa lưu hành.';
+              setCancelledReason(reason);
+              setIsExpired(true);
+              clearInterval(pollInterval);
+              showToast?.(
+                {
+                  title: 'Đơn hàng đã tự động hủy',
+                  message: reason,
+                } as any,
+                'error'
+              );
+            }
           }
         } catch {}
       }

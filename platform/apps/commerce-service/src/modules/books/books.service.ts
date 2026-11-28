@@ -1072,7 +1072,7 @@ export class BooksService implements OnModuleInit {
   private async cancelUnpaidOrdersForSuspendedBook(bookId: string, bookTitle: string) {
     const unpaidOrders = await this.prisma.order.findMany({
       where: {
-        status: OrderStatus.PENDING_PAYMENT,
+        status: { in: [OrderStatus.PENDING, OrderStatus.PENDING_PAYMENT] },
         paymentStatus: { not: PaymentStatus.SUCCEEDED },
         sellerOrders: {
           some: {
@@ -1095,7 +1095,7 @@ export class BooksService implements OnModuleInit {
         await tx.order.updateMany({
           where: {
             id: order.id,
-            status: OrderStatus.PENDING_PAYMENT,
+            status: { in: [OrderStatus.PENDING, OrderStatus.PENDING_PAYMENT] },
             paymentStatus: { not: PaymentStatus.SUCCEEDED },
           },
           data: {
