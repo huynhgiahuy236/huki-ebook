@@ -105,17 +105,42 @@ function SlotStatusBadge({ slot }: { slot: FlashSaleSlot }) {
 
   if (isEndingEarly) {
     return (
-      <AdminStatusBadge
-        status="warning"
-        label={`KẾT THÚC SAU ${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, "0")}`}
-        icon="alarm"
-      />
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 whitespace-nowrap">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+        <span>{`Kết thúc sau ${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, "0")}`}</span>
+      </span>
     );
   }
-  if (isLive) return <AdminStatusBadge status="danger" label="ĐANG DIỄN RA" icon="bolt" />;
-  if (isScheduled) return <AdminStatusBadge status="warning" label="ĐÃ LÊN LỊCH" icon="schedule" />;
-  if (isCancelled) return <AdminStatusBadge status="danger" label="ĐÃ HỦY" icon="cancel" />;
-  return <AdminStatusBadge status="neutral" label="ĐÃ KẾT THÚC" />;
+  if (isLive) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 whitespace-nowrap">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
+        <span>Đang Diễn Ra</span>
+      </span>
+    );
+  }
+  if (isScheduled) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 whitespace-nowrap">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+        <span>Đã Lên Lịch</span>
+      </span>
+    );
+  }
+  if (isCancelled) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 whitespace-nowrap">
+        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+        <span>Đã Hủy</span>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-gray-100 text-gray-600 whitespace-nowrap">
+      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />
+      <span>Đã Kết Thúc</span>
+    </span>
+  );
 }
 
 export function AdminFlashSaleView() {
@@ -948,11 +973,10 @@ export function AdminFlashSaleView() {
                 <button
                   type="button"
                   onClick={() => handleCancelSlot(slot)}
-                  className="px-2.5 py-1 rounded-lg font-bold text-[11px] cursor-pointer border transition-colors bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 flex items-center gap-1 shadow-2xs shrink-0"
+                  className="px-2.5 py-1 rounded-md font-semibold text-xs cursor-pointer border transition-colors bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 whitespace-nowrap shrink-0"
                   title="Hủy lịch mở bán khung giờ này"
                 >
-                  <span className="material-symbols-outlined text-[14px]">event_busy</span>
-                  <span>Hủy Lịch</span>
+                  Hủy Lịch
                 </button>
               )}
             </div>
