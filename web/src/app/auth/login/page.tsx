@@ -190,66 +190,63 @@ function LoginForm() {
     <main id="main-content" tabIndex={-1} className="min-h-dvh w-full bg-white outline-none">
       <div className="grid min-h-dvh w-full grid-cols-1 overflow-hidden bg-white lg:grid-cols-12">
         {/* Left Column: Brand & Editorial Identity */}
-        <section
-          className="relative hidden min-h-dvh flex-col justify-between overflow-hidden p-12 text-white lg:col-span-5 lg:flex xl:p-16 2xl:p-20"
-          style={{
-            background:
-              'linear-gradient(to bottom right, var(--theme-hero-from, #003B2B), var(--theme-hero-via, #002f22), var(--theme-hero-to, #001f17))',
-          }}
-        >
-          {/* Background Ambient Blur */}
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-[#94f5d6]/10 blur-3xl pointer-events-none"></div>
-          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-80 h-80 rounded-full bg-[#ac2c19]/15 blur-3xl pointer-events-none"></div>
-
-          {/* Center Brand Identity */}
-          <div className="relative z-10 my-auto py-8">
-            <Link href="/" className="inline-flex items-center gap-3.5 group mb-10">
-              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-white border border-white/20 group-hover:scale-105 transition-transform shadow-inner">
-                <span className="material-symbols-outlined text-2xl text-[#94f5d6]">menu_book</span>
+        <section className="relative hidden min-h-dvh flex-col justify-between bg-[#0B3025] p-12 text-[#F5F2EB] lg:col-span-5 lg:flex xl:p-16 2xl:p-20">
+          {/* Top Brand Mark */}
+          <div className="relative z-10">
+            <Link href="/" className="inline-flex items-center gap-3 group">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/[0.06] text-[#E6D8BE] transition-colors group-hover:border-white/30 group-hover:bg-white/10">
+                <span className="material-symbols-outlined text-[20px]">menu_book</span>
               </div>
-              <div>
-                <span className="font-editorial text-2xl font-bold tracking-tight text-white block">
-                  HUKI EBOOK
+              <div className="flex flex-col">
+                <span className="font-editorial text-lg font-semibold tracking-tight text-white leading-none">
+                  HUKI
                 </span>
-                <span className="text-[10px] uppercase tracking-widest text-[#94f5d6] font-semibold">
+                <span className="mt-1 text-[10px] font-medium uppercase tracking-[0.2em] text-[#9BB5AA]">
                   Khởi Nguồn Tri Thức
                 </span>
               </div>
             </Link>
-
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/15 text-[#94f5d6] text-xs font-semibold mb-6 backdrop-blur-xs">
-              <span className="material-symbols-outlined text-sm">verified</span>
-              <span>Bảo vệ bản quyền DRM Tiêu chuẩn</span>
-            </div>
-
-            <h1 className="font-editorial text-3xl xl:text-4xl font-bold leading-tight mb-4 text-white">
-              Chào mừng bạn <br />
-              <span className="text-[#94f5d6] italic">trở lại với HUKI</span>.
-            </h1>
-            <p className="text-white/80 text-sm leading-relaxed font-light max-w-md mb-8">
-              Đăng nhập để tiếp tục khám phá tri thức, đọc sách và quản lý các đơn hàng của bạn.
-            </p>
-
-            <div className="space-y-3.5 pt-1">
-              <div className="flex items-center gap-3 text-xs sm:text-sm text-white/90">
-                <div className="w-6 h-6 rounded-full bg-[#94f5d6]/20 flex items-center justify-center text-[#94f5d6] shrink-0">
-                  <span className="material-symbols-outlined text-sm">check</span>
-                </div>
-                <span>Tủ sách cá nhân &amp; đồng bộ đa thiết bị</span>
-              </div>
-              <div className="flex items-center gap-3 text-xs sm:text-sm text-white/90">
-                <div className="w-6 h-6 rounded-full bg-[#94f5d6]/20 flex items-center justify-center text-[#94f5d6] shrink-0">
-                  <span className="material-symbols-outlined text-sm">check</span>
-                </div>
-                <span>Ưu đãi hội viên &amp; tích điểm độc quyền</span>
-              </div>
-            </div>
           </div>
 
-          {/* Bottom: Stat & Version */}
-          <div className="relative z-10 pt-6 border-t border-white/15 text-xs text-white/70 flex items-center justify-between">
-            <span>Hơn 45.000+ độc giả tin dùng</span>
-            <span className="font-semibold text-white/90">HUKI v2.4</span>
+          {/* Center Editorial Copy */}
+          <div className="relative z-10 my-auto max-w-[400px] py-10">
+            <p className="mb-4 text-[11px] font-medium uppercase tracking-[0.2em] text-[#A4BDB2]">
+              Thư viện sách &amp; bản quyền số
+            </p>
+
+            <h1 className="font-editorial text-[34px] font-semibold leading-[1.16] tracking-[-0.02em] text-white xl:text-[40px]">
+              Chào mừng bạn
+              <span className="mt-1 block font-normal italic text-[#E6D8BE]">
+                trở lại với HUKI.
+              </span>
+            </h1>
+
+            <p className="mt-5 text-[15px] font-normal leading-[1.68] text-[#C6D5CE]">
+              Đăng nhập để tiếp tục khám phá tri thức, đồng bộ tủ sách cá nhân và theo dõi các đơn hàng của bạn.
+            </p>
+
+            <div className="my-8 h-px w-12 bg-white/15" />
+
+            <ul className="space-y-3.5 text-[13.5px] text-[#D7E2DD]">
+              <li className="flex items-center gap-3">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#E6D8BE]" />
+                <span>Tủ sách cá nhân &amp; đồng bộ tiến độ đọc đa thiết bị</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#E6D8BE]" />
+                <span>Bảo vệ bản quyền DRM chuẩn quốc tế</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#E6D8BE]" />
+                <span>Ưu đãi hội viên &amp; tích điểm độc quyền</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Bottom: Quiet Editorial Footer */}
+          <div className="relative z-10 flex items-center justify-between border-t border-white/10 pt-5 text-xs text-[#9BB5AA]">
+            <span>Hơn 45.000 độc giả đồng hành</span>
+            <span className="tracking-wide text-[#C6D5CE]">HUKI · 2.4</span>
           </div>
         </section>
 
