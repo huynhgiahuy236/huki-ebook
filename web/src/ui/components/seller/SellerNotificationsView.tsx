@@ -514,10 +514,11 @@ export default function SellerNotificationsView() {
         <div
           onClick={() => {
             setActiveTab('all');
+            setReadFilter('all');
             setCurrentPage(1);
           }}
           className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
-            activeTab === 'all'
+            activeTab === 'all' && readFilter === 'all'
               ? 'bg-emerald-50/25 text-slate-900 border-2 border-[#003B2B] ring-2 ring-[#003B2B]/15'
               : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
           }`}
@@ -535,7 +536,12 @@ export default function SellerNotificationsView() {
         {/* Card 2: Chưa đọc (High Urgency) */}
         <div
           onClick={() => {
-            setReadFilter(readFilter === 'unread' ? 'all' : 'unread');
+            if (readFilter === 'unread') {
+              setReadFilter('all');
+            } else {
+              setActiveTab('all');
+              setReadFilter('unread');
+            }
             setCurrentPage(1);
           }}
           className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
@@ -566,10 +572,11 @@ export default function SellerNotificationsView() {
         <div
           onClick={() => {
             setActiveTab('sla');
+            setReadFilter('all');
             setCurrentPage(1);
           }}
           className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
-            activeTab === 'sla'
+            activeTab === 'sla' && readFilter === 'all'
               ? 'bg-emerald-50/25 text-slate-900 border-2 border-[#003B2B] ring-2 ring-[#003B2B]/15'
               : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
           }`}
@@ -596,10 +603,11 @@ export default function SellerNotificationsView() {
         <div
           onClick={() => {
             setActiveTab('orders');
+            setReadFilter('all');
             setCurrentPage(1);
           }}
           className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs ${
-            activeTab === 'orders'
+            activeTab === 'orders' && readFilter === 'all'
               ? 'bg-emerald-50/25 text-slate-900 border-2 border-[#003B2B] ring-2 ring-[#003B2B]/15'
               : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
           }`}
@@ -626,10 +634,11 @@ export default function SellerNotificationsView() {
         <div
           onClick={() => {
             setActiveTab('admin');
+            setReadFilter('all');
             setCurrentPage(1);
           }}
           className={`p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden group shadow-2xs col-span-2 sm:col-span-1 ${
-            activeTab === 'admin'
+            activeTab === 'admin' && readFilter === 'all'
               ? 'bg-emerald-50/25 text-slate-900 border-2 border-[#003B2B] ring-2 ring-[#003B2B]/15'
               : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white'
           }`}
