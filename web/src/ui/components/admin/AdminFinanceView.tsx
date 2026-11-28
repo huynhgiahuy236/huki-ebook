@@ -864,11 +864,10 @@ export function AdminFinanceView() {
       <div className="flex items-center gap-2 border-b border-[#E2E8F0] pb-2.5">
         <button
           onClick={() => setViewSection('live_requests')}
-          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
-            viewSection === 'live_requests'
-              ? 'bg-[#00875A] text-white shadow-xs'
-              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-          }`}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${viewSection === 'live_requests'
+            ? 'bg-[#00875A] text-white shadow-xs'
+            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
         >
           <span className="material-symbols-outlined text-[16px]">payments</span>
           <span>Nhật Ký Rút Tiền Seller ({liveRequests.length})</span>
@@ -876,11 +875,10 @@ export function AdminFinanceView() {
 
         <button
           onClick={() => setViewSection('eod_reconciliation')}
-          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
-            viewSection === 'eod_reconciliation'
-              ? 'bg-[#00875A] text-white shadow-xs'
-              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-          }`}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${viewSection === 'eod_reconciliation'
+            ? 'bg-[#00875A] text-white shadow-xs'
+            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
         >
           <span className="material-symbols-outlined text-[16px]">account_balance_wallet</span>
           <span>Đối Soát Cuối Ngày ({eodRuns.length})</span>
@@ -888,11 +886,10 @@ export function AdminFinanceView() {
 
         <button
           onClick={() => setViewSection('wallet_transactions')}
-          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
-            viewSection === 'wallet_transactions'
-              ? 'bg-[#00875A] text-white shadow-xs'
-              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-          }`}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${viewSection === 'wallet_transactions'
+            ? 'bg-[#00875A] text-white shadow-xs'
+            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
         >
           <span className="material-symbols-outlined text-[16px]">receipt_long</span>
           <span>Sổ Giao Dịch Ví ({totalWalletTransactions || walletTransactions.length})</span>
@@ -985,30 +982,29 @@ export function AdminFinanceView() {
               <div className="flex items-center gap-2">
                 <h3 className="font-extrabold text-gray-900 text-sm">Đối Soát Tài Chính Cuối Ngày</h3>
                 {latestEodRun && (
-                  <span
-                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
+                  <AdminStatusBadge
+                    variant={
                       latestEodRun.status === 'COMPLETED_PASS'
-                        ? 'bg-emerald-50 text-[#00875A] border border-emerald-200'
-                        : latestEodRun.status === 'COMPLETED_WARNING'
-                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                        ? 'success'
+                        : latestEodRun.status === 'COMPLETED_WARNING' || latestEodRun.status === 'COMPLETED_FAIL'
+                        ? 'warning'
                         : latestEodRun.status === 'RUNNING'
-                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                        : 'bg-rose-50 text-rose-700 border border-rose-200'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[12px]">
-                      {latestEodRun.status === 'COMPLETED_PASS' ? 'check_circle' : latestEodRun.status === 'RUNNING' ? 'sync' : 'warning'}
-                    </span>
-                    <span>
-                      {latestEodRun.status === 'COMPLETED_PASS'
+                        ? 'info'
+                        : 'danger'
+                    }
+                    label={
+                      latestEodRun.status === 'COMPLETED_PASS'
                         ? 'Đạt chuẩn'
                         : latestEodRun.status === 'COMPLETED_WARNING'
                         ? 'Có cảnh báo'
+                        : latestEodRun.status === 'COMPLETED_FAIL'
+                        ? 'Có sai lệch'
                         : latestEodRun.status === 'RUNNING'
                         ? 'Đang chạy'
-                        : 'Thất bại'}
-                    </span>
-                  </span>
+                        : 'Lỗi chạy'
+                    }
+                    className="rounded-md border-0"
+                  />
                 )}
               </div>
               <p className="text-[11px] text-gray-500">
@@ -1184,10 +1180,10 @@ export function AdminFinanceView() {
                   {selectedEodRun.status === 'COMPLETED_PASS'
                     ? 'Đạt chuẩn'
                     : selectedEodRun.status === 'COMPLETED_WARNING'
-                    ? 'Có cảnh báo'
-                    : selectedEodRun.status === 'RUNNING'
-                    ? 'Đang chạy'
-                    : 'Phát hiện sai lệch'}
+                      ? 'Có cảnh báo'
+                      : selectedEodRun.status === 'RUNNING'
+                        ? 'Đang chạy'
+                        : 'Phát hiện sai lệch'}
                 </div>
               </div>
               <div className="p-3 bg-gray-50 rounded-xl">
@@ -1299,15 +1295,13 @@ export function AdminFinanceView() {
       {selectedRequest && reviewAction && (
         <div
           ref={reviewFormRef}
-          className={`mt-6 bg-white rounded-3xl p-6 sm:p-8 shadow-sm border-2 max-w-2xl animate-in fade-in slide-in-from-top-4 duration-300 space-y-4 ${
-            reviewAction === 'APPROVE' ? 'border-[#00875A]/40' : 'border-rose-300'
-          }`}
+          className={`mt-6 bg-white rounded-3xl p-6 sm:p-8 shadow-sm border-2 max-w-2xl animate-in fade-in slide-in-from-top-4 duration-300 space-y-4 ${reviewAction === 'APPROVE' ? 'border-[#00875A]/40' : 'border-rose-300'
+            }`}
         >
           <div className="flex items-center justify-between border-b border-gray-100 pb-3">
             <div className="flex items-center gap-2.5">
-              <span className={`material-symbols-outlined text-2xl ${
-                reviewAction === 'APPROVE' ? 'text-[#00875A]' : 'text-rose-600'
-              }`}>
+              <span className={`material-symbols-outlined text-2xl ${reviewAction === 'APPROVE' ? 'text-[#00875A]' : 'text-rose-600'
+                }`}>
                 {reviewAction === 'APPROVE' ? 'verified' : 'cancel'}
               </span>
               <div>
@@ -1315,8 +1309,8 @@ export function AdminFinanceView() {
                   {reviewAction === 'APPROVE'
                     ? 'Xác Nhận Phê Duyệt Lệnh Rút Tiền'
                     : reviewAction === 'CANCEL_REFUND'
-                    ? 'Hủy Lệnh Chi Thất Bại & Hoàn Số Dư Khả Dụng'
-                    : 'Từ Chối Lệnh Rút Tiền & Hoàn Tiền'}
+                      ? 'Hủy Lệnh Chi Thất Bại & Hoàn Số Dư Khả Dụng'
+                      : 'Từ Chối Lệnh Rút Tiền & Hoàn Tiền'}
                 </h3>
                 <p className="text-xs text-gray-500">Mã lệnh: #{selectedRequest.id}</p>
               </div>
@@ -1334,8 +1328,8 @@ export function AdminFinanceView() {
             {reviewAction === 'APPROVE'
               ? 'Lệnh rút tiền sẽ được chuyển sang trạng thái APPROVED và sẵn sàng giải ngân chuyển khoản ngân hàng.'
               : reviewAction === 'CANCEL_REFUND'
-              ? 'Lệnh rút tiền thất bại sẽ chuyển sang trạng thái REJECTED và hoàn trả toàn bộ số tiền đang phong tỏa về số dư khả dụng.'
-              : 'Tiền đang đóng băng trong ví sẽ tự động được hoàn trả về số dư khả dụng của gian hàng.'}
+                ? 'Lệnh rút tiền thất bại sẽ chuyển sang trạng thái REJECTED và hoàn trả toàn bộ số tiền đang phong tỏa về số dư khả dụng.'
+                : 'Tiền đang đóng băng trong ví sẽ tự động được hoàn trả về số dư khả dụng của gian hàng.'}
           </p>
 
           <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-2 text-xs text-gray-700">
@@ -1380,9 +1374,8 @@ export function AdminFinanceView() {
                     ? 'Nhập lý do hủy lệnh chi lỗi (ví dụ: Số tài khoản thụ hưởng bị khóa, ngân hàng từ chối nhận tiền...)'
                     : 'Nhập lý do từ chối (ví dụ: Thông tin tài khoản ngân hàng không khớp hồ sơ thuế, nghi vấn gian lận...)'
                 }
-                className={`w-full p-3 rounded-xl border text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none transition-all ${
-                  rejectReasonError ? 'border-rose-400 focus:border-rose-500 bg-rose-50/30' : 'border-gray-300 focus:border-rose-500'
-                }`}
+                className={`w-full p-3 rounded-xl border text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none transition-all ${rejectReasonError ? 'border-rose-400 focus:border-rose-500 bg-rose-50/30' : 'border-gray-300 focus:border-rose-500'
+                  }`}
               />
               {rejectReasonError && (
                 <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
@@ -1406,9 +1399,8 @@ export function AdminFinanceView() {
               type="button"
               disabled={isSubmittingReview}
               onClick={handleSubmitReview}
-              className={`px-4 py-2 rounded-xl text-white font-bold text-xs shadow-sm cursor-pointer flex items-center gap-1.5 disabled:opacity-50 ${
-                reviewAction === 'APPROVE' ? 'bg-[#00875A] hover:bg-[#00734c]' : 'bg-rose-600 hover:bg-rose-700'
-              }`}
+              className={`px-4 py-2 rounded-xl text-white font-bold text-xs shadow-sm cursor-pointer flex items-center gap-1.5 disabled:opacity-50 ${reviewAction === 'APPROVE' ? 'bg-[#00875A] hover:bg-[#00734c]' : 'bg-rose-600 hover:bg-rose-700'
+                }`}
             >
               {isSubmittingReview ? (
                 <span>Đang Xử Lý...</span>
@@ -1421,8 +1413,8 @@ export function AdminFinanceView() {
                     {reviewAction === 'APPROVE'
                       ? 'Xác Nhận Phê Duyệt'
                       : reviewAction === 'CANCEL_REFUND'
-                      ? 'Xác Nhận Hủy & Hoàn Tiền'
-                      : 'Xác Nhận Từ Chối'}
+                        ? 'Xác Nhận Hủy & Hoàn Tiền'
+                        : 'Xác Nhận Từ Chối'}
                   </span>
                 </>
               )}
