@@ -104,12 +104,13 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
           icon: 'confirmation_number',
           active: pathname === '/vouchers',
         },
-        {
-          label: 'Ví HUKI & Xu Tích Lũy',
-          href: '/profile/wallet',
-          icon: 'account_balance_wallet',
-          active: pathname === '/profile/wallet',
-        },
+        // Temporarily disabled until Wallet/Xu feature is developed
+        // {
+        //   label: 'Ví HUKI & Xu Tích Lũy',
+        //   href: '/profile/wallet',
+        //   icon: 'account_balance_wallet',
+        //   active: pathname === '/profile/wallet',
+        // },
         {
           label: 'Đánh Giá Của Tôi',
           href: '/profile/reviews',

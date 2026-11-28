@@ -176,7 +176,7 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
           <button
             type="button"
             onClick={toggleSidebar}
-            className="hidden lg:flex w-9 h-9 items-center justify-center rounded-xl text-gray-500 hover:text-[#003B2B] hover:bg-gray-100 transition-all cursor-pointer border border-[#E2E8F0] hover:border-[#003B2B]/30 shadow-2xs active:scale-95"
+            className="hidden lg:flex w-9 h-9 items-center justify-center rounded-md text-gray-500 hover:text-[#003B2B] hover:bg-gray-100 transition-all cursor-pointer border border-[#E2E8F0] hover:border-[#003B2B]/30 shadow-2xs active:scale-95"
             title={isSidebarCollapsed ? 'Mở rộng thanh menu (Sidebar)' : 'Thu gọn thanh menu (Sidebar)'}
             aria-label="Toggle Sidebar"
           >
@@ -189,7 +189,7 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
           <button
             type="button"
             onClick={toggleMobileSidebar}
-            className="lg:hidden w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 border border-[#E2E8F0] cursor-pointer active:scale-95"
+            className="lg:hidden w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 border border-[#E2E8F0] cursor-pointer active:scale-95"
             title="Mở menu"
             aria-label="Open Mobile Menu"
           >

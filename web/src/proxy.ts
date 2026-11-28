@@ -15,7 +15,7 @@ const legacyMappings: Record<string, string> = {
   "/messages": "/account/messages",
   "/addresses": "/profile/addresses",
   "/security": "/profile/security",
-  "/wallet": "/profile/wallet",
+  // "/wallet": "/profile/wallet",
   "/devices": "/library/devices",
   "/order/success": "/order-success",
   "/orders/success": "/order-success",

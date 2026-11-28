@@ -383,7 +383,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             {/* Desktop Sidebar Collapse Toggle Button */}
             <button
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="hidden lg:flex w-9 h-9 items-center justify-center rounded-xl text-gray-500 hover:text-[#003B2B] hover:bg-gray-100 transition-all cursor-pointer border border-[#E2E8F0] hover:border-[#003B2B]/30 shadow-2xs active:scale-95"
+              className="hidden lg:flex w-9 h-9 items-center justify-center rounded-md text-gray-500 hover:text-[#003B2B] hover:bg-gray-100 transition-all cursor-pointer border border-[#E2E8F0] hover:border-[#003B2B]/30 shadow-2xs active:scale-95"
               title={isSidebarCollapsed ? 'Mở rộng thanh menu (Sidebar)' : 'Thu gọn thanh menu (Sidebar)'}
               aria-label="Toggle sidebar"
             >
@@ -395,7 +395,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             {/* Mobile Menu Toggle */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 border border-[#E2E8F0] cursor-pointer active:scale-95"
+              className="lg:hidden w-9 h-9 flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 border border-[#E2E8F0] cursor-pointer active:scale-95"
               aria-label="Toggle mobile menu"
             >
               <span className="material-symbols-outlined text-[20px] text-[#003B2B]">menu</span>
