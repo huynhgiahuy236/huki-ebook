@@ -331,13 +331,6 @@ class RealtimeSyncBus {
             target: { roles: ['ALL'] },
           });
         }
-        if (e.key === 'huki_reported_books_v1') {
-          this.notifyListeners({
-            type: 'BOOK_REPORTED',
-            timestamp: Date.now(),
-            target: { roles: ['ADMIN', 'ADMIN_CON', 'ALL'] },
-          });
-        }
 
         const jsonKeys = [
           'huki_latest_order_event',

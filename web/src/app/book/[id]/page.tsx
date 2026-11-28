@@ -433,7 +433,7 @@ export default function BookDetailPage() {
             );
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     },
   });
 
@@ -621,11 +621,11 @@ export default function BookDetailPage() {
           prev.map((r) =>
             String(r.id) === String(evt.reviewId)
               ? {
-                  ...r,
-                  replies: (r.replies || []).some((x) => String(x.id) === String(evt.reply!.id))
-                    ? r.replies
-                    : [...(r.replies || []), evt.reply!],
-                }
+                ...r,
+                replies: (r.replies || []).some((x) => String(x.id) === String(evt.reply!.id))
+                  ? r.replies
+                  : [...(r.replies || []), evt.reply!],
+              }
               : r,
           ),
         );
@@ -1608,11 +1608,11 @@ export default function BookDetailPage() {
                     const isDiscounted = displayOriginalPrice > displayPrice;
                     const fsPct = isFormatFlashSale
                       ? Number(
-                          flashSaleInfo.discountPercent ||
-                            (displayOriginalPrice > displayPrice
-                              ? Math.round(((displayOriginalPrice - displayPrice) / displayOriginalPrice) * 100)
-                              : 0),
-                        )
+                        flashSaleInfo.discountPercent ||
+                        (displayOriginalPrice > displayPrice
+                          ? Math.round(((displayOriginalPrice - displayPrice) / displayOriginalPrice) * 100)
+                          : 0),
+                      )
                       : 0;
                     return (
                       <div
@@ -1621,17 +1621,16 @@ export default function BookDetailPage() {
                           hasManualFormatChoiceRef.current = true;
                           setSelectedFormat(fmt.type);
                         }}
-                        className={`relative p-3.5 rounded-xl cursor-pointer transition-all border-[1.5px] flex items-center justify-between gap-3 select-none ${
-                          isFormatFlashSale ? 'mt-1.5' : ''
-                        } ${isSelected
-                          ? isFormatFlashSale
-                            ? 'border-rose-500 bg-rose-50/40 shadow-xs'
-                            : 'border-[#006953] bg-[#006953]/5 shadow-2xs'
-                          : isFormatFlashSale
-                            ? 'border-rose-300 bg-rose-50/15 hover:border-rose-400'
-                            : isDiscounted
-                              ? 'border-rose-200/80 bg-rose-50/10 hover:border-rose-300'
-                              : 'border-gray-200 bg-white hover:border-gray-300'
+                        className={`relative p-3.5 rounded-xl cursor-pointer transition-all border-[1.5px] flex items-center justify-between gap-3 select-none ${isFormatFlashSale ? 'mt-1.5' : ''
+                          } ${isSelected
+                            ? isFormatFlashSale
+                              ? 'border-rose-500 bg-rose-50/40 shadow-xs'
+                              : 'border-[#006953] bg-[#006953]/5 shadow-2xs'
+                            : isFormatFlashSale
+                              ? 'border-rose-300 bg-rose-50/15 hover:border-rose-400'
+                              : isDiscounted
+                                ? 'border-rose-200/80 bg-rose-50/10 hover:border-rose-300'
+                                : 'border-gray-200 bg-white hover:border-gray-300'
                           }`}
                       >
                         {isFormatFlashSale && (
@@ -1969,9 +1968,8 @@ export default function BookDetailPage() {
 
                 {/* Khối thông số riêng theo định dạng: Sách Vật Lý / Sách Điện Tử / Cả Hai */}
                 <div
-                  className={`grid grid-cols-1 ${
-                    book.format === 'BOTH' ? 'md:grid-cols-2' : ''
-                  } gap-4`}
+                  className={`grid grid-cols-1 ${book.format === 'BOTH' ? 'md:grid-cols-2' : ''
+                    } gap-4`}
                 >
                   {(book.format === 'PHYSICAL' || book.format === 'BOTH') && (
                     <div className="p-4 sm:p-5 rounded-2xl bg-[#f8f6f1]/75 border border-[#e8e5df] space-y-2.5 text-xs">

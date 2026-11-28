@@ -14,8 +14,11 @@ describe('BookModerationService - Post-moderation Flow', () => {
     expect(res.stats.pending + res.stats.blocked + res.stats.dismissed).toBe(res.stats.total);
   });
 
-  it('2. should submit a new user report for a book and emit realtime BOOK_REPORTED event', async () => {
-    const publishSpy = vi.spyOn(realtimeSyncBus, 'publish');
+  it('2. should submit a new user report for a book to backend API without fake client chime', async () => {
+    const reportApiSpy = vi.spyOn(moderationApi, 'reportBook').mockResolvedValue({
+      success: true,
+      data: { id: 'rep-backend-1' },
+    } as any);
 
     const res = await bookModerationService.submitReport({
       bookId: 'test-book-999',
@@ -31,15 +34,12 @@ describe('BookModerationService - Post-moderation Flow', () => {
     });
 
     expect(res.success).toBe(true);
-    expect(res.reportId).toBeDefined();
-    expect(publishSpy).toHaveBeenCalledWith(
-      'BOOK_REPORTED',
+    expect(res.reportId).toBe('rep-backend-1');
+    expect(reportApiSpy).toHaveBeenCalledWith(
+      'test-book-999',
       expect.objectContaining({
-        bookId: 'test-book-999',
         reason: 'COPYRIGHT',
-      }),
-      expect.objectContaining({
-        roles: expect.arrayContaining(['ADMIN', 'ADMIN_CON']),
+        evidenceImages: expect.any(Array),
       })
     );
 
@@ -81,6 +81,7 @@ describe('BookModerationService - Post-moderation Flow', () => {
   });
 
   it('4. should allow Admin to DISMISS reports when book is verified valid', async () => {
+    vi.spyOn(moderationApi, 'moderateBook').mockResolvedValue({ success: true, data: {} } as any);
     const res = await bookModerationService.moderateBook({
       bookId: 'test-book-999',
       action: 'DISMISS',

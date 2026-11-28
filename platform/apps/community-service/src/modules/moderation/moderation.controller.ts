@@ -44,11 +44,12 @@ import { ModerationService } from './moderation.service';
 @ApiTags('Reports')
 @ApiBearerAuth()
 @Controller()
-@UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
+@UseGuards(ThrottlerGuard)
 export class ContentReportsController {
   constructor(private readonly moderation: ModerationService) {}
 
   @Post('reviews/:id/report')
+  @UseGuards(AuthenticatedCommunityGuard)
   @ApiOperation({ summary: 'Report a review' })
   @ApiResponse({ status: 201, description: 'Report created' })
   @ApiBadRequestResponse({ description: 'Invalid or duplicate report' })

@@ -246,33 +246,38 @@ class BookModerationService {
     evidenceUrl?: string;
     evidenceImages: string[];
   }): Promise<{ success: boolean; reportId: string; totalReports: number }> {
-    // 1. Gửi lên Backend API thật
-    try {
-      await moderationApi.reportBook(payload.bookId, {
-        reason: payload.reason,
-        description: payload.description,
-        evidenceUrl: payload.evidenceUrl,
-        evidenceImages: payload.evidenceImages,
-        bookTitle: payload.bookTitle,
-        bookCover: payload.bookCover,
-        author: payload.author,
-        publisher: payload.publisher,
-        sellerId: payload.sellerId,
-        sellerName: payload.sellerName,
-        isbn: payload.isbn,
-        format: payload.format,
-        price: payload.price,
-        reporterName: payload.reporterName,
-        reporterEmail: payload.reporterEmail,
-      });
-    } catch (e) {
-      // Backend offline hoặc fallback
+    // 1. Gửi lên Backend API thật — không nuốt lỗi, không phát chuông giả nếu API thất bại
+    const apiRes = await moderationApi.reportBook(payload.bookId, {
+      reason: payload.reason,
+      description: payload.description,
+      evidenceUrl: payload.evidenceUrl,
+      evidenceImages: payload.evidenceImages,
+      bookTitle: payload.bookTitle,
+      bookCover: payload.bookCover,
+      author: payload.author,
+      publisher: payload.publisher,
+      sellerId: payload.sellerId,
+      sellerName: payload.sellerName,
+      isbn: payload.isbn,
+      format: payload.format,
+      price: payload.price,
+      reporterName: payload.reporterName,
+      reporterEmail: payload.reporterEmail,
+    });
+
+    if (!apiRes?.success) {
+      const errMsg =
+        typeof apiRes?.error === 'string'
+          ? apiRes.error
+          : (apiRes?.error as any)?.message || 'Không thể gửi báo cáo vi phạm lên máy chủ.';
+      throw new Error(errMsg);
     }
 
     this.invalidateCache();
+    const backendReportId = (apiRes.data as any)?.id || (apiRes.data as any)?.reportId;
     const all = this.loadStorage();
     const nowIso = new Date().toISOString();
-    const reportId = `rep-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const reportId = backendReportId || `rep-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
     const newSingleReport: SingleBookReport = {
       id: reportId,
@@ -316,24 +321,6 @@ class BookModerationService {
       all[existingIndex] = updatedBook;
       this.saveStorage(all);
 
-      // Bắn sự kiện realtime tới Admin Portal
-      realtimeSyncBus.publish(
-        'BOOK_REPORTED',
-        {
-          bookId: payload.bookId,
-          bookTitle: payload.bookTitle,
-          reportId,
-          reason: payload.reason,
-          reporterName: payload.reporterName,
-          totalReports: updatedReports.length,
-          timestamp: nowIso,
-        },
-        { roles: ['ADMIN', 'ADMIN_CON', 'ALL'] }
-      );
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('huki_book_reported', { detail: { bookId: payload.bookId, reportId } }));
-      }
-
       return { success: true, reportId, totalReports: updatedReports.length };
     } else {
       // Sách lần đầu bị báo cáo -> Tạo hồ sơ mới
@@ -362,24 +349,6 @@ class BookModerationService {
       const updatedAll = [newBook, ...all];
       this.saveStorage(updatedAll);
 
-      // Bắn sự kiện realtime tới Admin Portal
-      realtimeSyncBus.publish(
-        'BOOK_REPORTED',
-        {
-          bookId: payload.bookId,
-          bookTitle: payload.bookTitle,
-          reportId,
-          reason: payload.reason,
-          reporterName: payload.reporterName,
-          totalReports: 1,
-          timestamp: nowIso,
-        },
-        { roles: ['ADMIN', 'ADMIN_CON', 'ALL'] }
-      );
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('huki_book_reported', { detail: { bookId: payload.bookId, reportId } }));
-      }
-
       return { success: true, reportId, totalReports: 1 };
     }
   }
@@ -395,15 +364,19 @@ class BookModerationService {
     adminName?: string;
     notifySeller?: boolean;
   }): Promise<{ success: boolean; book: ReportedBook }> {
-    // 1. Gửi lên Backend API thật
-    try {
-      await moderationApi.moderateBook(payload.bookId, {
-        action: payload.action,
-        note: payload.note,
-        notifySeller: payload.notifySeller,
-      });
-    } catch (e) {
-      // Backend offline hoặc fallback
+    // 1. Gửi lên Backend API thật — không nuốt lỗi
+    const apiRes = await moderationApi.moderateBook(payload.bookId, {
+      action: payload.action,
+      note: payload.note,
+      notifySeller: payload.notifySeller,
+    });
+
+    if (!apiRes?.success) {
+      const errMsg =
+        typeof apiRes?.error === 'string'
+          ? apiRes.error
+          : (apiRes?.error as any)?.message || 'Không thể xử lý kiểm duyệt sách trên máy chủ.';
+      throw new Error(errMsg);
     }
 
     const all = this.loadStorage();
