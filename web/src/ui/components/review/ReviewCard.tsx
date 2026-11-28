@@ -294,14 +294,9 @@ export default function ReviewCard({
           <span>Nội dung đánh giá này đang được đội ngũ kiểm duyệt xem xét và tạm hạn chế hiển thị.</span>
         </div>
       ) : (
-        <div className="space-y-1.5 pt-0.5">
-          {review.title && (
-            <h4 className="font-bold text-sm text-slate-800 dark:text-zinc-100 leading-snug">
-              {review.title}
-            </h4>
-          )}
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-zinc-300 leading-relaxed whitespace-pre-line font-normal">
-            {review.content}
+        <div className="pt-0.5">
+          <p className="text-xs sm:text-sm text-slate-700 dark:text-zinc-200 leading-relaxed whitespace-pre-line font-normal">
+            {review.content || review.title}
           </p>
         </div>
       )}
@@ -334,22 +329,20 @@ export default function ReviewCard({
 
       {/* Seller Replies */}
       {replies && replies.length > 0 && (
-        <div className="space-y-2 pt-2">
+        <div className="space-y-2.5 pt-2">
           {replies.map((reply) => (
             <div
               key={reply.id}
-              className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/80 dark:bg-zinc-800/40 border border-slate-100 dark:border-zinc-800 text-xs space-y-1.5"
+              className="relative p-3.5 rounded-xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-200/80 dark:border-zinc-700 text-xs space-y-1"
             >
-              <div className="flex items-center justify-between font-bold text-slate-700 dark:text-zinc-200">
-                <span className="flex items-center gap-1.5 text-[#006953] dark:text-emerald-400">
-                  <span className="material-symbols-outlined text-sm">storefront</span>
-                  Phản hồi từ {reply.business?.name || 'Gian hàng'}
-                </span>
-                <span className="text-[10px] font-normal text-slate-400">
+              <span className="absolute -top-1.5 left-5 w-2.5 h-2.5 bg-slate-50 dark:bg-zinc-800/60 border-l border-t border-slate-200/80 dark:border-zinc-700 rotate-45" />
+              <div className="flex items-center justify-between font-semibold text-slate-800 dark:text-zinc-100">
+                <span>Phản hồi từ {reply.business?.name || 'Gian hàng'}</span>
+                <span className="text-[11px] font-normal text-slate-400">
                   {reply.createdAt ? new Date(reply.createdAt).toLocaleDateString('vi-VN') : ''}
                 </span>
               </div>
-              <p className="text-slate-600 dark:text-zinc-300 leading-relaxed whitespace-pre-line pl-5">
+              <p className="text-slate-600 dark:text-zinc-300 leading-relaxed whitespace-pre-line">
                 {reply.content}
               </p>
             </div>

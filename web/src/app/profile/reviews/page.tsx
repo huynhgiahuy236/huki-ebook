@@ -474,17 +474,15 @@ export default function MyReviewsPage() {
 
                       {/* Seller Replies Section */}
                       {rev.replies && rev.replies.length > 0 ? (
-                        <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3.5 text-xs space-y-1.5">
-                          <div className="flex items-center justify-between text-[#006953] font-bold">
-                            <span className="flex items-center gap-1.5">
-                              <span className="material-symbols-outlined text-sm">storefront</span>
-                              <span>Phản hồi từ {rev.replies[rev.replies.length - 1].business?.name || 'Gian Hàng'}:</span>
-                            </span>
-                            <span className="text-[11px] font-normal text-gray-500">
+                        <div className="relative mt-2.5 bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 text-xs space-y-1">
+                          <span className="absolute -top-1.5 left-5 w-2.5 h-2.5 bg-slate-50 border-l border-t border-slate-200/80 rotate-45" />
+                          <div className="flex items-center justify-between text-slate-800 font-semibold">
+                            <span>Phản hồi từ {rev.replies[rev.replies.length - 1].business?.name || 'Gian Hàng'}</span>
+                            <span className="text-[11px] font-normal text-slate-400">
                               {new Date(rev.replies[rev.replies.length - 1].createdAt).toLocaleDateString('vi-VN')}
                             </span>
                           </div>
-                          <p className="text-gray-800 leading-relaxed">
+                          <p className="text-slate-600 leading-relaxed">
                             {rev.replies[rev.replies.length - 1].content}
                           </p>
                         </div>
