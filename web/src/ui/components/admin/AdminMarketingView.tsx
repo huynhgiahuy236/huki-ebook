@@ -692,13 +692,6 @@ export function AdminMarketingView() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-5">
             {/* Form Inputs (7 cols) */}
             <form onSubmit={handleSubmitBanner} className="lg:col-span-7 space-y-4 text-xs">
-              <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/80 flex items-start gap-2 text-[11.5px] text-emerald-900">
-                <span className="material-symbols-outlined text-base text-[#00875A] shrink-0 mt-0.5">info</span>
-                <div>
-                  <strong>Chuẩn hiển thị Shopee:</strong> Trang chủ hiển thị trọn vẹn ảnh banner thiết kế sẵn (chữ, ưu đãi &amp; nút CTA nằm ngay trong ảnh đồ họa), <strong>không đè chữ HTML hay lớp phủ tối</strong> lên ảnh. Kích thước gợi ý: <strong>{SLOT_SPECS[bannerForm.slot].sizeHint}</strong>.
-                </div>
-              </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-gray-700 font-bold mb-1">

@@ -763,26 +763,35 @@ export default function AuditHistoryTimeline({
       },
     },
     {
-      key: 'action',
-      title: 'Tác vụ & Sự kiện',
+      key: 'action_badge',
+      title: 'Tác vụ',
+      width: '185px',
       render: (_, item) => {
         const actor = resolveActorInfo(item, currentUser, staffList);
-        const { badge, sentence } = renderActionSummary(item, actor);
+        const { badge } = renderActionSummary(item, actor);
+        return <div className="flex items-center whitespace-nowrap">{badge}</div>;
+      },
+    },
+    {
+      key: 'action',
+      title: 'Chi tiết sự kiện',
+      render: (_, item) => {
+        const actor = resolveActorInfo(item, currentUser, staffList);
+        const { sentence } = renderActionSummary(item, actor);
         const changed = (item.changedFields || []).filter((f) => f && f !== 'status');
         return (
-          <div className="space-y-1 max-w-xl">
-            <div className="flex items-center flex-wrap gap-1.5">
-              {badge}
-              {changed.length > 0 && (
+          <div className="space-y-1">
+            <div className="text-xs text-slate-700 leading-relaxed">
+              {sentence}
+            </div>
+            {changed.length > 0 && (
+              <div className="flex items-center flex-wrap gap-1">
                 <span className="text-[10.5px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                   Trường sửa: {changed.map((f) => FIELD_LABEL_MAP[f] || f).slice(0, 3).join(', ')}
                   {changed.length > 3 ? ` (+${changed.length - 3})` : ''}
                 </span>
-              )}
-            </div>
-            <div className="text-xs text-slate-700 leading-relaxed">
-              {sentence}
-            </div>
+              </div>
+            )}
           </div>
         );
       },
