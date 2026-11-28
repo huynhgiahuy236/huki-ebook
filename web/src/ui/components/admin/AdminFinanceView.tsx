@@ -587,13 +587,13 @@ export function AdminFinanceView() {
         align: 'center',
         className: 'whitespace-nowrap',
         render: (status: string) => {
-          if (status === 'PENDING') return <AdminStatusBadge status="warning" label="Chờ Duyệt" icon="hourglass_top" />;
-          if (status === 'APPROVED') return <AdminStatusBadge status="info" label="Đã Duyệt" icon="verified" />;
-          if (status === 'PROCESSING') return <AdminStatusBadge status="purple" label="Đang Xử Lý" icon="sync" />;
-          if (status === 'COMPLETED') return <AdminStatusBadge status="success" label="Đã Chi" icon="task_alt" />;
-          if (status === 'FAILED') return <AdminStatusBadge status="danger" label="Chi Lỗi" icon="warning" />;
-          if (status === 'REJECTED') return <AdminStatusBadge status="neutral" label="Từ Chối" icon="cancel" />;
-          return <AdminStatusBadge status="neutral" label={status} />;
+          if (status === 'PENDING') return <AdminStatusBadge status="warning" label="Chờ duyệt" className="rounded-md border-0" />;
+          if (status === 'APPROVED') return <AdminStatusBadge status="info" label="Đã duyệt" className="rounded-md border-0" />;
+          if (status === 'PROCESSING') return <AdminStatusBadge status="purple" label="Đang xử lý" className="rounded-md border-0" />;
+          if (status === 'COMPLETED') return <AdminStatusBadge status="success" label="Đã chi" className="rounded-md border-0" />;
+          if (status === 'FAILED') return <AdminStatusBadge status="danger" label="Chi lỗi" className="rounded-md border-0" />;
+          if (status === 'REJECTED') return <AdminStatusBadge status="neutral" label="Từ chối" className="rounded-md border-0" />;
+          return <AdminStatusBadge status="neutral" label={status} className="rounded-md border-0" />;
         },
       },
       {
@@ -680,10 +680,10 @@ export function AdminFinanceView() {
         align: 'center',
         className: 'whitespace-nowrap',
         render: (status: string) => {
-          if (status === 'COMPLETED_PASS') return <AdminStatusBadge status="success" label="Đạt chuẩn" icon="check_circle" />;
-          if (status === 'COMPLETED_WARNING') return <AdminStatusBadge status="warning" label="Có cảnh báo" icon="warning" />;
-          if (status === 'RUNNING') return <AdminStatusBadge status="info" label="Đang chạy" icon="sync" />;
-          return <AdminStatusBadge status="danger" label="Thất bại" icon="error" />;
+          if (status === 'COMPLETED_PASS') return <AdminStatusBadge status="success" label="Đạt chuẩn" className="rounded-md border-0" />;
+          if (status === 'COMPLETED_WARNING') return <AdminStatusBadge status="warning" label="Có cảnh báo" className="rounded-md border-0" />;
+          if (status === 'RUNNING') return <AdminStatusBadge status="info" label="Đang chạy" className="rounded-md border-0" />;
+          return <AdminStatusBadge status="danger" label="Thất bại" className="rounded-md border-0" />;
         },
       },
       {
