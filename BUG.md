@@ -2339,4 +2339,38 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
   - Lỗ hổng bảo mật: `FeatureController` (`feature.controller.ts:41`) đang gắn `@Public()` cho `POST`, cần siết lại `@Roles('PLATFORM_ADMIN')`.
 - **Ma trận Rủi ro Domino:** Sửa đồng bộ `FeatureController` / `FeatureService` (hỗ trợ upsert + RBAC `PLATFORM_ADMIN` + phát event realtime `FEATURE_FLAGS_UPDATED`) và `featureFlagsService.ts` (bỏ `localStorage` làm nguồn chính, await API thật và báo lỗi rõ ràng) sẽ giúp toàn bộ Seller trên UAT nhận trạng thái khóa/mở tính năng ngay lập tức.
 
-- **Trạng thái Bước 2 — Giai đoạn 4:** Hoàn tất phân tích 3 bug (`BUG-48`, `BUG-49`, `BUG-50`). **DỪNG LẠI** theo quy chế phân chặng để báo cáo Người dùng trước khi sang Giai đoạn 5 (`BUG-51`, `BUG-52`, `BUG-53`).
+- **Trạng thái Bước 2 — Giai đoạn 4:** Hoàn tất phân tích 3 bug (`BUG-48`, `BUG-49`, `BUG-50`).
+
+---
+
+### Bước 2 — Giai đoạn 5 (`BUG-51`, `BUG-52`, `BUG-53`, `BUG-54`): Phân tích Nguyên nhân Gốc rễ & Ma trận Domino (28/11/2026)
+
+> **Phạm vi kiểm chứng môi trường:**
+> - **`BUG-51`, `BUG-52`, `BUG-54`:** Nằm trực tiếp trong mã nguồn hiện tại nên **xảy ra trên cả Local lẫn UAT**.
+> - **`BUG-53`:** Lỗi **đặc thù của môi trường Docker multi-container trên UAT** (Local chạy cùng host nên không gặp, UAT chạy container riêng nên bị bắn báo động đỏ liên tục).
+
+#### 1. `BUG-51` — `/admin/maintenance` (Bảo trì hệ thống không hoạt động)
+- **Tầng 4 vs Tầng 2 (Lệch DTO Contract & Fire-and-forget):**
+  - [`maintenanceService.ts`](file:///e:/HuKi/web/src/ui/services/maintenanceService.ts#L207-L211) gửi **toàn bộ object `this.config`** lên `POST /api/v1/system/maintenance`, bao gồm các trường dư thừa như `masterBypassKey`, `updatedAt`, `scheduledMode`, `drainStartedAt` mà [`UpdateMaintenanceDto`](file:///e:/HuKi/platform/apps/identity-service/src/modules/maintenance/maintenance.dto.ts#L4-L69) không khai báo ➔ `ValidationPipe` của `identity-service` từ chối `400 Bad Request`!
+  - Frontend gọi `fetch` không `await`, không check `res.ok`, chỉ lưu `localStorage` + cookie cục bộ trên máy Admin nên **server không hề bật chế độ bảo trì** cho toàn sàn UAT.
+- **Ma trận Rủi ro Domino:** Khi sửa đồng bộ payload DTO, await response, lưu DB `identity-service` và phát sự kiện realtime `SYSTEM_MAINTENANCE_CHANGED`, toàn bộ user/seller/shipper (trừ Admin/Bypass) sẽ bị chặn đồng bộ trên UAT.
+
+#### 2. `BUG-52` — Header Search Bar (Seller còn thô & Admin bị chữ đè lên icon kính lúp)
+- **Tầng 4 (Frontend Client):**
+  - Tại [`AdminLayout.tsx`](file:///e:/HuKi/web/src/ui/components/layout/AdminLayout.tsx#L422-L432), icon `search` đặt `position: absolute` (`left-3.5`) chồng lên `<input className="... pl-11 ...">`. Khi CSS global hoặc trình duyệt can thiệp padding của input, text `"Tìm sách, doanh nghiệp, ISBN..."` bị đè trực tiếp lên icon kính lúp.
+  - Tại [`SellerHeader.tsx`](file:///e:/HuKi/web/src/ui/components/layout/SellerHeader.tsx#L222-L231), ô Search dùng `flex items-center` (an toàn không đè chữ) nhưng kích thước nhỏ (`w-40 lg:w-52`, `py-1`), thiếu nút xóa nhanh và thiếu độ mềm mại, tinh tế như thanh tìm kiếm Buyer.
+- **Ma trận Rủi ro Domino:** Đồng bộ thiết kế `flex items-center` mềm mại, tinh tế cho cả `SellerHeader` và `AdminLayout` sẽ triệt tiêu vĩnh viễn lỗi đè chữ trên mọi kích thước màn hình.
+
+#### 3. `BUG-53` — Báo động đỏ Microservices Port 3001–3007 bắn spam lên Admin
+- **Tầng 2 & Hạ tầng Docker UAT ([`notification-watchdog.service.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/notifications/notification-watchdog.service.ts#L386-L418)):**
+  - Watchdog của `community-service` đang **hardcode `http://localhost:${s.port}/api/v1/health`** cho `identity:3001`, `business:3002`, `commerce:3003`, `shipping:3004`, `promotion:3007`.
+  - Trên **UAT (Docker Compose)**, mỗi microservice nằm trong 1 container độc lập, nên `localhost` bên trong `community-service` không kết nối được sang các container khác (`ECONNREFUSED`).
+  - Trên Node 20+, lỗi kết nối `localhost` (`::1` và `127.0.0.1`) trả về `AggregateError` có `err.message === ""` (chuỗi rỗng) ➔ sinh ra thông báo `"Chi tiết lỗi: ."` lặp đi lặp lại mỗi giờ!
+- **Ma trận Rủi ro Domino:** Phải cấu hình URL nội bộ qua biến môi trường (`IDENTITY_SERVICE_URL` ➔ `http://identity-service:3001` trên Docker, fallback `http://127.0.0.1:${port}` ở Local), bổ sung retry + grace period trước khi báo động đỏ, và đọc `err.message || err.code` đầy đủ.
+
+#### 4. `BUG-54` — UI Badge cột Vai trò & Trạng thái người dùng + Trạng thái "Chờ duyệt"
+- **Tầng 4 (Frontend Client):**
+  - Tại [`AdminUsersView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminUsersView.tsx#L765-L766), cột Trạng thái & Vai trò dùng `AdminStatusBadge` dạng viên thuốc `rounded-full` kèm icon to (`warning`, `check_circle`, `person`) và hiển thị nhãn `"Chờ duyệt"` cho tài khoản User/Khách hàng thông thường.
+  - Chuẩn UI tổng quan của hệ thống (như mẫu `• Sách Giấy`) sử dụng dạng **chấm tròn nhỏ `•` + chữ màu thanh thoát** hoặc badge bo góc nhẹ (`rounded-md`), gọn gàng trên 1 hàng ngang.
+
+- **Trạng thái Bước 2 (Toàn bộ 5 Giai đoạn `BUG-39` → `BUG-54`):** **HOÀN TẤT 100%**. Sẵn sàng chuyển sang **Bước 3 — Giai đoạn 1 (`BUG-39`, `BUG-40`, `BUG-41`)** để lập phương án kiến trúc & bộ câu hỏi tương tác phê duyệt giải pháp.
