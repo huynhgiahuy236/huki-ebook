@@ -110,6 +110,34 @@ function renderTypeBadge(type: string): React.ReactNode {
       label = 'Điều Chỉnh';
       style = 'bg-indigo-50 text-indigo-700 border-indigo-200/80';
       break;
+    case 'MOVE_PENDING_TO_AVAILABLE':
+      label = 'Chuyển Sang Khả Dụng';
+      style = 'bg-emerald-50 text-emerald-700 border-emerald-200/80';
+      break;
+    case 'CREDIT_PENDING':
+      label = 'Chờ Đối Soát';
+      style = 'bg-amber-50 text-amber-700 border-amber-200/80';
+      break;
+    case 'CREDIT_AVAILABLE':
+      label = 'Cộng Số Dư Khả Dụng';
+      style = 'bg-emerald-50 text-emerald-700 border-emerald-200/80';
+      break;
+    case 'FREEZE_FOR_PAYOUT':
+    case 'FREEZE_AVAILABLE':
+      label = 'Đóng Băng Chờ Rút';
+      style = 'bg-blue-50 text-blue-700 border-blue-200/80';
+      break;
+    case 'UNFREEZE_PAYOUT':
+    case 'UNFREEZE_TO_AVAILABLE':
+      label = 'Hoàn Số Dư Khả Dụng';
+      style = 'bg-sky-50 text-sky-700 border-sky-200/80';
+      break;
+    case 'DEBIT_FROZEN_FOR_PAYOUT':
+    case 'DEBIT_FROZEN':
+    case 'DEBIT_AVAILABLE':
+      label = 'Giải Ngân Rút Tiền';
+      style = 'bg-rose-50 text-rose-700 border-rose-200/80';
+      break;
   }
 
   return (

@@ -510,12 +510,13 @@ export class FinanceReconciliationService {
     }
 
     // 3. Orphan entries check (Defensive data corruption check; FK constraint Restrict prevents creation under normal DB operations)
-    const orphanEntries = await this.prisma.ledgerEntry.findMany({
-      where: {
-        ledgerTransaction: { is: null } as any,
-      },
-      take: 50,
-    });
+    const orphanEntries = await this.prisma.$queryRaw<Array<{ id: string; store_id: string | null }>>`
+      SELECT le.id, le.store_id
+      FROM ledger_entries le
+      LEFT JOIN ledger_transactions lt ON lt.id = le.ledger_transaction_id
+      WHERE lt.id IS NULL
+      LIMIT 50
+    `;
 
     for (const orphan of orphanEntries) {
       checked++;
@@ -524,7 +525,7 @@ export class FinanceReconciliationService {
         severity: ReconciliationSeverity.CRITICAL,
         entityType: 'LedgerEntry',
         entityId: orphan.id,
-        storeId: orphan.storeId || undefined,
+        storeId: orphan.store_id || undefined,
         expected: 'Valid parent LedgerTransaction',
         actual: 'No parent transaction found',
         details: `Orphan ledger entry detected with ID ${orphan.id}`,

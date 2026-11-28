@@ -46,8 +46,8 @@ function formatDate(dateStr?: string | null): string {
 export function AdminFinanceView() {
   const { showToast } = useToast();
 
-  // Primary Section Tab: Live Payout Requests Queue vs EOD Reconciliation vs Wallet Transactions vs Periodic NXB Batches
-  const [viewSection, setViewSection] = useState<'live_requests' | 'eod_reconciliation' | 'wallet_transactions' | 'periodic_batches'>('live_requests');
+  // Primary Section Tab: Live Payout Requests Queue vs EOD Reconciliation vs Wallet Transactions
+  const [viewSection, setViewSection] = useState<'live_requests' | 'eod_reconciliation' | 'wallet_transactions'>('live_requests');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'REJECTED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -55,7 +55,6 @@ export function AdminFinanceView() {
   const [currentPageLive, setCurrentPageLive] = useState(1);
   const [currentPageEod, setCurrentPageEod] = useState(1);
   const [currentPageWallet, setCurrentPageWallet] = useState(1);
-  const [currentPageBatches, setCurrentPageBatches] = useState(1);
   const pageSize = 10;
 
   // Real Wallet Transactions State (Commerce Service Financial Traceability)
@@ -108,55 +107,6 @@ export function AdminFinanceView() {
   // Disbursement State (Single / Batch / Retry)
   const [isDisbursing, setIsDisbursing] = useState(false);
   const [disbursingId, setDisbursingId] = useState<string | null>(null);
-
-  // Periodic Settlement Batches State
-  const [payoutBatches] = useState([
-    {
-      id: 'PAY-202606-01',
-      publisher: 'Công Ty CP Văn Hóa & Truyền Thông Nhã Nam',
-      code: 'NHANAM',
-      ordersCount: 2840,
-      grossSales: 620400000,
-      shareRatio: '95% NXB / 5% Sàn',
-      platformFee: 31020000,
-      taxWithheld: 6204000,
-      netPayout: 583176000,
-      bankAccount: 'Ngân hàng Vietcombank - CN Ba Đình (001100489281)',
-      period: 'Kỳ 1: 01/06 - 15/06/2026',
-      status: 'pending_approval',
-      statusLabel: 'Chờ Ký Duyệt Giải Ngân',
-    },
-    {
-      id: 'PAY-202606-02',
-      publisher: 'Nhà Xuất Bản Trẻ',
-      code: 'TRE',
-      ordersCount: 2150,
-      grossSales: 485600000,
-      shareRatio: '95% NXB / 5% Sàn',
-      platformFee: 24280000,
-      taxWithheld: 4856000,
-      netPayout: 456464000,
-      bankAccount: 'Ngân hàng VietinBank - CN TP.HCM (102893847291)',
-      period: 'Kỳ 1: 01/06 - 15/06/2026',
-      status: 'pending_approval',
-      statusLabel: 'Chờ Ký Duyệt Giải Ngân',
-    },
-    {
-      id: 'PAY-202606-03',
-      publisher: 'Nhà Xuất Bản Kim Đồng',
-      code: 'KIMDONG',
-      ordersCount: 2420,
-      grossSales: 512300000,
-      shareRatio: '95% NXB / 5% Sàn',
-      platformFee: 25615000,
-      taxWithheld: 5123000,
-      netPayout: 481562000,
-      bankAccount: 'Ngân hàng BIDV - CN Hà Nội (12010009827361)',
-      period: 'Kỳ 1: 01/06 - 15/06/2026',
-      status: 'paid',
-      statusLabel: 'Đã Chuyển Khoản Thành Công',
-    },
-  ]);
 
   const fetchLivePayoutRequests = useCallback(async (isSilent = false) => {
     if (!isSilent) setIsLoadingLive(true);
@@ -372,10 +322,8 @@ export function AdminFinanceView() {
   }, [showToast]);
 
   useEffect(() => {
-    if (viewSection === 'eod_reconciliation') {
-      fetchEodData();
-    }
-  }, [viewSection, fetchEodData]);
+    fetchEodData();
+  }, [fetchEodData]);
 
   // Real Wallet Transactions Methods (Financial Traceability)
   const fetchWalletTransactions = useCallback(async (page = 1) => {
@@ -400,10 +348,25 @@ export function AdminFinanceView() {
   }, [pageSize]);
 
   useEffect(() => {
-    if (viewSection === 'wallet_transactions') {
-      fetchWalletTransactions(currentPageWallet);
+    fetchWalletTransactions(currentPageWallet);
+  }, [currentPageWallet, fetchWalletTransactions]);
+
+  const formatWalletReason = (desc?: string | null): string => {
+    if (!desc) return 'Biến động số dư ví';
+    if (desc.startsWith('Escrow released net proceeds for sub-order ')) {
+      return desc.replace('Escrow released net proceeds for sub-order ', 'Giải ngân doanh thu đơn phụ ');
     }
-  }, [viewSection, currentPageWallet, fetchWalletTransactions]);
+    if (desc.startsWith('Pending revenue credited from sub-order ')) {
+      return desc.replace('Pending revenue credited from sub-order ', 'Ghi nhận doanh thu chờ đối soát đơn phụ ');
+    }
+    if (desc.startsWith('Freeze available balance for payout ')) {
+      return desc.replace('Freeze available balance for payout ', 'Đóng băng số dư cho lệnh rút ');
+    }
+    if (desc.startsWith('Unfreeze payout balance ')) {
+      return desc.replace('Unfreeze payout balance ', 'Hoàn trả số dư lệnh rút ');
+    }
+    return desc;
+  };
 
   const mappedWalletTransactions: FinancialTransactionItem[] = useMemo(() => {
     return walletTransactions.map((tx) => ({
@@ -416,7 +379,7 @@ export function AdminFinanceView() {
       balanceAfter: tx.availableAfter,
       status: 'COMPLETED',
       referenceId: tx.referenceId,
-      reason: tx.description,
+      reason: formatWalletReason(tx.description),
       metadata: {
         walletId: tx.walletId,
         storeId: tx.storeId,
@@ -562,12 +525,7 @@ export function AdminFinanceView() {
     return eodRuns.slice(start, start + pageSize);
   }, [eodRuns, currentPageEod, pageSize]);
 
-  // Batches Pagination
-  const totalPagesBatches = Math.ceil(payoutBatches.length / pageSize) || 1;
-  const paginatedBatches = useMemo(() => {
-    const start = (currentPageBatches - 1) * pageSize;
-    return payoutBatches.slice(start, start + pageSize);
-  }, [payoutBatches, currentPageBatches, pageSize]);
+
 
   // Columns Definitions
   const payoutColumns: Column<PayoutRequestView>[] = useMemo(
@@ -726,10 +684,10 @@ export function AdminFinanceView() {
         align: 'center',
         className: 'whitespace-nowrap',
         render: (status: string) => {
-          if (status === 'COMPLETED_PASS') return <AdminStatusBadge status="success" label="COMPLETED_PASS" icon="check_circle" />;
-          if (status === 'COMPLETED_WARNING') return <AdminStatusBadge status="warning" label="COMPLETED_WARNING" icon="warning" />;
-          if (status === 'RUNNING') return <AdminStatusBadge status="info" label="RUNNING" icon="sync" />;
-          return <AdminStatusBadge status="danger" label={status} icon="error" />;
+          if (status === 'COMPLETED_PASS') return <AdminStatusBadge status="success" label="Đạt chuẩn" icon="check_circle" />;
+          if (status === 'COMPLETED_WARNING') return <AdminStatusBadge status="warning" label="Có cảnh báo" icon="warning" />;
+          if (status === 'RUNNING') return <AdminStatusBadge status="info" label="Đang chạy" icon="sync" />;
+          return <AdminStatusBadge status="danger" label="Thất bại" icon="error" />;
         },
       },
       {
@@ -791,94 +749,6 @@ export function AdminFinanceView() {
     [currentPageEod, pageSize]
   );
 
-  const batchColumns: Column<any>[] = useMemo(
-    () => [
-      {
-        key: 'batchPartner',
-        title: 'Kỳ Đối Soát & Đối Tác',
-        sortable: true,
-        render: (_val, batch) => (
-          <div className="flex flex-col gap-0.5">
-            <div className="flex items-center gap-1.5">
-              <span className="font-mono text-xs text-[#00875A] font-bold">#{batch.id}</span>
-              <span className="text-[10px] text-gray-400 bg-slate-100 px-1.5 py-0.2 rounded font-mono">{batch.period}</span>
-            </div>
-            <span className="font-bold text-gray-900 text-xs truncate max-w-[200px]" title={batch.publisher}>
-              {batch.publisher}
-            </span>
-          </div>
-        ),
-      },
-      {
-        key: 'ordersGross',
-        title: 'Đơn Hàng & GMV Doanh Số',
-        sortable: true,
-        render: (_val, batch) => (
-          <div className="flex flex-col gap-0.5">
-            <span className="font-extrabold text-gray-900 font-mono text-xs">
-              {(batch.grossSales || 0).toLocaleString()}₫
-            </span>
-            <span className="text-[11px] text-gray-500 font-medium">
-              {(batch.ordersCount || 0).toLocaleString()} đơn hàng
-            </span>
-          </div>
-        ),
-      },
-      {
-        key: 'feesAndTax',
-        title: 'Phí Sàn 5% & Thuế',
-        render: (_val, batch) => (
-          <div className="flex flex-col gap-0.5 text-[11px]">
-            <span className="font-bold text-amber-700 font-mono">
-              -{(batch.platformFee || 0).toLocaleString()}₫ <span className="text-gray-400 font-normal">({batch.shareRatio || '95/5'})</span>
-            </span>
-            <span className="text-gray-500 font-mono text-[10.5px]">
-              Thuế: -{(batch.taxWithheld || 0).toLocaleString()}₫
-            </span>
-          </div>
-        ),
-      },
-      {
-        key: 'netPayoutStatus',
-        title: 'Thực Nhận NXB & Trạng Thái',
-        render: (_val, batch) => (
-          <div className="flex flex-col gap-1">
-            <span className="font-extrabold text-xs text-[#00875A] font-mono">
-              {(batch.netPayout || 0).toLocaleString()}₫
-            </span>
-            <div>
-              {batch.status === 'paid' ? (
-                <AdminStatusBadge status="success" label="Đã Chuyển Khoản" icon="check_circle" />
-              ) : (
-                <AdminStatusBadge status="warning" label="Chờ Ký Duyệt" icon="hourglass_top" />
-              )}
-            </div>
-          </div>
-        ),
-      },
-      {
-        key: 'accountAction',
-        title: 'Tài Khoản & Thao Tác',
-        align: 'right',
-        render: (_val, batch) => (
-          <div className="flex flex-col items-end gap-1">
-            <span className="text-[10.5px] text-gray-600 font-mono max-w-[160px] truncate block" title={batch.bankAccount}>
-              {batch.bankAccount || 'Tài khoản mặc định'}
-            </span>
-            <button
-              type="button"
-              onClick={() => showToast(`Kỳ đối soát #${batch.id} - ${batch.publisher}: Thực nhận ${(batch.netPayout || 0).toLocaleString()}₫`, 'info')}
-              className="px-2 py-0.5 rounded-lg bg-gray-100 hover:bg-[#00875A] hover:text-white text-gray-700 font-semibold text-[10.5px] transition-colors cursor-pointer"
-            >
-              Chi Tiết
-            </button>
-          </div>
-        ),
-      },
-    ],
-    [currentPageBatches, pageSize, showToast]
-  );
-
   return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200">
       {/* 1. TOP HEADER */}
@@ -916,7 +786,7 @@ export function AdminFinanceView() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Chờ Duyệt (Pending)</span>
+            <span className="text-xs font-semibold text-gray-500">Chờ Duyệt</span>
             <span className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
               <span className="material-symbols-outlined text-[16px]">hourglass_top</span>
             </span>
@@ -930,7 +800,7 @@ export function AdminFinanceView() {
 
         <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Đã Duyệt (Approved)</span>
+            <span className="text-xs font-semibold text-gray-500">Đã Duyệt</span>
             <span className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
               <span className="material-symbols-outlined text-[16px]">verified</span>
             </span>
@@ -939,12 +809,12 @@ export function AdminFinanceView() {
             <span className="text-xl font-extrabold text-blue-700">{approvedCount}</span>
             <span className="text-xs font-bold text-blue-600 font-mono">({formatVND(approvedAmount)})</span>
           </div>
-          <div className="mt-1.5 text-[11px] text-blue-600 font-medium">Sẵn sàng chi trả Task 77</div>
+          <div className="mt-1.5 text-[11px] text-blue-600 font-medium">Sẵn sàng chi trả</div>
         </div>
 
         <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Đã Giải Ngân (Completed)</span>
+            <span className="text-xs font-semibold text-gray-500">Đã Giải Ngân</span>
             <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
               <span className="material-symbols-outlined text-[16px]">task_alt</span>
             </span>
@@ -958,7 +828,7 @@ export function AdminFinanceView() {
 
         <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Chi Thất Bại (Failed)</span>
+            <span className="text-xs font-semibold text-gray-500">Chi Thất Bại</span>
             <span className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
               <span className="material-symbols-outlined text-[16px]">warning</span>
             </span>
@@ -972,7 +842,7 @@ export function AdminFinanceView() {
 
         <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Đã Từ Chối (Rejected)</span>
+            <span className="text-xs font-semibold text-gray-500">Đã Từ Chối</span>
             <span className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
               <span className="material-symbols-outlined text-[16px]">cancel</span>
             </span>
@@ -1008,7 +878,7 @@ export function AdminFinanceView() {
           }`}
         >
           <span className="material-symbols-outlined text-[16px]">account_balance_wallet</span>
-          <span>Đối Soát EOD ({eodRuns.length})</span>
+          <span>Đối Soát Cuối Ngày ({eodRuns.length})</span>
         </button>
 
         <button
@@ -1021,18 +891,6 @@ export function AdminFinanceView() {
         >
           <span className="material-symbols-outlined text-[16px]">receipt_long</span>
           <span>Sổ Giao Dịch Ví ({totalWalletTransactions || walletTransactions.length})</span>
-        </button>
-
-        <button
-          onClick={() => setViewSection('periodic_batches')}
-          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
-            viewSection === 'periodic_batches'
-              ? 'bg-[#00875A] text-white shadow-xs'
-              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-          }`}
-        >
-          <span className="material-symbols-outlined text-[16px]">calendar_month</span>
-          <span>Lịch Sử Quyết Toán</span>
         </button>
       </div>
 
@@ -1113,40 +971,14 @@ export function AdminFinanceView() {
         </div>
       )}
 
-      {/* SECTION 2: EOD FINANCIAL RECONCILIATION & AUDIT REPORTS (Task 78) */}
+      {/* SECTION 2: EOD FINANCIAL RECONCILIATION & AUDIT REPORTS */}
       {viewSection === 'eod_reconciliation' && (
         <div className="space-y-5">
-          {/* 1. Governance & Limitation Alert Banner */}
-          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-900 text-xs space-y-1.5">
-            <div className="flex items-center gap-2 font-bold text-xs text-amber-800">
-              <span className="material-symbols-outlined text-[16px]">verified_user</span>
-              <span>Kiểm Soát Tài Chính Cuối Ngày &amp; Giới Hạn Hệ Thống (Task 78 Invariants)</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 text-[11px] text-amber-900/90 leading-relaxed">
-              <div className="flex items-start gap-1.5">
-                <span className="text-amber-600 font-bold">•</span>
-                <span><strong>EXTERNAL CASH ACCOUNTING:</strong> GAP / NOT PROVEN. Số dư có mở (credit balance) trên tài khoản <code>PAYOUT_CLEARING</code> là bình thường do sàn chưa tích hợp hạch toán sao kê ngân hàng ngoại bảng.</span>
-              </div>
-              <div className="flex items-start gap-1.5">
-                <span className="text-amber-600 font-bold">•</span>
-                <span><strong>LIVE EXTERNAL BANK PROVIDER:</strong> NOT PROVEN (Sử dụng MockBankTransferProvider cho môi trường kiểm thử/staging).</span>
-              </div>
-              <div className="flex items-start gap-1.5">
-                <span className="text-amber-600 font-bold">•</span>
-                <span><strong>AUTOMATED SCHEDULER:</strong> NOT PROVEN (Chạy thủ công hoặc theo lệnh gọi API; tiến trình cron tự động chưa triển khai).</span>
-              </div>
-              <div className="flex items-start gap-1.5">
-                <span className="text-amber-600 font-bold">•</span>
-                <span><strong>MÚI GIỜ KINH DOANH:</strong> Asia/Ho_Chi_Minh (Engineering Default — Canonical Policy: PENDING / NOT PROVEN).</span>
-              </div>
-            </div>
-          </div>
-
-          {/* 2. Controls & Trigger Header */}
+          {/* Controls & Trigger Header */}
           <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-gray-900 text-sm">Đối Soát Tài Chính EOD</h3>
+                <h3 className="font-extrabold text-gray-900 text-sm">Đối Soát Tài Chính Cuối Ngày</h3>
                 {latestEodRun && (
                   <span
                     className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
@@ -1162,12 +994,20 @@ export function AdminFinanceView() {
                     <span className="material-symbols-outlined text-[12px]">
                       {latestEodRun.status === 'COMPLETED_PASS' ? 'check_circle' : latestEodRun.status === 'RUNNING' ? 'sync' : 'warning'}
                     </span>
-                    <span>{latestEodRun.status}</span>
+                    <span>
+                      {latestEodRun.status === 'COMPLETED_PASS'
+                        ? 'Đạt chuẩn'
+                        : latestEodRun.status === 'COMPLETED_WARNING'
+                        ? 'Có cảnh báo'
+                        : latestEodRun.status === 'RUNNING'
+                        ? 'Đang chạy'
+                        : 'Thất bại'}
+                    </span>
                   </span>
                 )}
               </div>
               <p className="text-[11px] text-gray-500">
-                Quét toàn bộ bất biến Double-Entry Ledger, Seller Wallet, Escrow Settlement và Payout Clearing.
+                Kiểm tra đối khớp sổ cái kép, số dư ví Seller, ký quỹ đơn hàng và các lệnh rút tiền trong hệ thống.
               </p>
             </div>
 
@@ -1198,27 +1038,27 @@ export function AdminFinanceView() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
               <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs space-y-1.5">
                 <div className="flex justify-between items-center text-xs text-gray-500 font-semibold">
-                  <span>Ví Seller &amp; Bất Biến WAL-001</span>
+                  <span>Ví Seller &amp; Số Dư</span>
                   <span className="material-symbols-outlined text-emerald-600 text-[16px]">account_balance_wallet</span>
                 </div>
                 <div className="text-lg font-extrabold text-gray-900">
-                  {latestEodRun.summary.walletsHealthy} / {latestEodRun.summary.walletsAudited} Ví Khỏe
+                  {latestEodRun.summary.walletsHealthy} / {latestEodRun.summary.walletsAudited} Ví Hợp Lệ
                 </div>
                 <div className="text-[10.5px] text-gray-500">
-                  Số dư không âm &amp; tái tạo lịch sử giao dịch ví khớp 100%
+                  Số dư không âm &amp; khớp lịch sử giao dịch 100%
                 </div>
               </div>
 
               <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs space-y-1.5">
                 <div className="flex justify-between items-center text-xs text-gray-500 font-semibold">
-                  <span>Ghi Sổ Kép &amp; Ký Quỹ Escrow</span>
+                  <span>Sổ Cái Kép &amp; Ký Quỹ</span>
                   <span className="material-symbols-outlined text-blue-600 text-[16px]">receipt_long</span>
                 </div>
                 <div className="text-lg font-extrabold text-gray-900">
-                  {latestEodRun.summary.ledgerTransactionsAudited} Ledger / {latestEodRun.summary.escrowRecordsAudited} Đơn
+                  {latestEodRun.summary.ledgerTransactionsAudited} Bút toán / {latestEodRun.summary.escrowRecordsAudited} Đơn
                 </div>
                 <div className="text-[10.5px] text-gray-500">
-                  Nợ = Có (Debit = Credit) &amp; giải phóng ký quỹ hợp lệ
+                  Tổng Nợ = Tổng Có &amp; giải phóng ký quỹ hợp lệ
                 </div>
               </div>
 
@@ -1231,13 +1071,13 @@ export function AdminFinanceView() {
                   {formatVND(latestEodRun.summary.totalPayoutsCompletedAmount)}
                 </div>
                 <div className="text-[10.5px] text-gray-500">
-                  {latestEodRun.summary.payoutsCompleted} Đã chi, {latestEodRun.summary.payoutsPending + latestEodRun.summary.payoutsApproved} Phong tỏa ({formatVND(latestEodRun.summary.totalPayoutsReservedAmount)})
+                  {latestEodRun.summary.payoutsCompleted} Đã chi, {latestEodRun.summary.payoutsPending + latestEodRun.summary.payoutsApproved} Đang phong tỏa ({formatVND(latestEodRun.summary.totalPayoutsReservedAmount)})
                 </div>
               </div>
 
               <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs space-y-1.5">
                 <div className="flex justify-between items-center text-xs text-gray-500 font-semibold">
-                  <span>Tài Khoản PAYOUT_CLEARING</span>
+                  <span>Tài Khoản Thanh Toán Bù Trừ</span>
                   <span className="material-symbols-outlined text-amber-600 text-[16px]">balance</span>
                 </div>
                 <div className="text-lg font-extrabold font-mono text-gray-900">
@@ -1276,7 +1116,7 @@ export function AdminFinanceView() {
             <div>
               <h3 className="font-extrabold text-gray-900 text-sm">Sổ Nhật Ký Giao Dịch Ví Toàn Sàn</h3>
               <p className="text-[11px] text-gray-500">
-                Truy xuất trực tiếp từ Commerce Service với 10 trường số dư nguyên tử (Available, Pending, Frozen).
+                Truy xuất biến động số dư ví Seller theo thời gian thực (Khả dụng, Chờ đối soát, Đóng băng).
               </p>
             </div>
             <button
@@ -1307,92 +1147,6 @@ export function AdminFinanceView() {
             }}
           />
         </div>
-      )}
-
-      {/* SECTION 4: PERIODIC SETTLEMENT BATCHES */}
-      {viewSection === 'periodic_batches' && (
-        <GroupedDataTable<any>
-          data={paginatedBatches}
-          columns={batchColumns}
-          keyField="id"
-          expandable={true}
-          expandedRowRender={(batch) => (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 p-4 bg-slate-50/80 rounded-2xl border border-slate-200">
-              {/* Card 1: Doanh thu & GMV */}
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs space-y-2">
-                <div className="flex items-center gap-2 pb-1.5 border-b border-slate-100">
-                  <span className="material-symbols-outlined text-[16px] text-[#00875A]">analytics</span>
-                  <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Doanh Thu &amp; GMV Kỳ Đối Soát</h4>
-                </div>
-                <div className="text-[11px] space-y-1.5 text-gray-600">
-                  <div><span className="text-gray-400">Mã đợt:</span> <strong className="font-mono text-gray-900 font-bold">#{batch.id}</strong></div>
-                  <div><span className="text-gray-400">Đơn vị thụ hưởng:</span> <span className="font-semibold text-gray-800">{batch.publisher}</span></div>
-                  <div><span className="text-gray-400">Chu kỳ kế toán:</span> <span className="font-mono text-gray-700 bg-slate-100 px-1.5 py-0.5 rounded">{batch.period}</span></div>
-                  <div><span className="text-gray-400">Tổng sản lượng:</span> <strong className="text-gray-900">{(batch.ordersCount || 0).toLocaleString()} đơn hàng</strong></div>
-                  <div><span className="text-gray-400">Tổng GMV gộp:</span> <strong className="font-mono text-gray-900 text-xs">{(batch.grossSales || 0).toLocaleString()}₫</strong></div>
-                </div>
-              </div>
-
-              {/* Card 2: Phí sàn & Khấu trừ */}
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs space-y-2">
-                <div className="flex items-center gap-2 pb-1.5 border-b border-slate-100">
-                  <span className="material-symbols-outlined text-[16px] text-amber-600">account_balance</span>
-                  <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Khấu Trừ Sàn &amp; Nghĩa Vụ Thuế</h4>
-                </div>
-                <div className="text-[11px] space-y-1.5 text-gray-600">
-                  <div><span className="text-gray-400">Tỷ lệ phân chia:</span> <strong className="text-gray-900">{batch.shareRatio || '95% NXB / 5% Sàn'}</strong></div>
-                  <div><span className="text-gray-400">Phí hoa hồng sàn:</span> <span className="font-mono font-bold text-amber-700">-{(batch.platformFee || 0).toLocaleString()}₫</span></div>
-                  <div><span className="text-gray-400">Thuế TNCN/TNDN tạm khấu:</span> <span className="font-mono text-gray-700">-{(batch.taxWithheld || 0).toLocaleString()}₫</span></div>
-                  <div className="pt-1 border-t border-slate-100"><span className="text-gray-400">Thực nhận sau khấu trừ:</span> <strong className="font-mono text-[#00875A] text-xs block">{(batch.netPayout || 0).toLocaleString()}₫</strong></div>
-                </div>
-              </div>
-
-              {/* Card 3: Thụ hưởng & Thao tác */}
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs space-y-2.5 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-2 pb-1.5 border-b border-slate-100">
-                    <span className="material-symbols-outlined text-[16px] text-blue-600">credit_card</span>
-                    <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Thanh Toán &amp; Ký Duyệt</h4>
-                  </div>
-                  <div className="text-[11px] space-y-1 text-gray-600 mt-1">
-                    <div>Tài khoản ngân hàng: <span className="font-mono font-bold text-gray-800">{batch.bankAccount || 'Theo hợp đồng B2B'}</span></div>
-                    <div>Trạng thái: <span className={`font-semibold ${batch.status === 'paid' ? 'text-emerald-700' : 'text-amber-700'}`}>{batch.status === 'paid' ? 'Đã giải ngân chuyển khoản' : 'Chờ kế toán trưởng ký duyệt'}</span></div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => showToast(`Đã xuất báo cáo đối soát chi tiết kỳ #${batch.id}`, 'success')}
-                    className="flex-1 py-1.5 px-3 rounded-lg bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs"
-                  >
-                    <span className="material-symbols-outlined text-[14px]">download</span>
-                    <span>Xuất Báo Cáo</span>
-                  </button>
-                  {batch.status !== 'paid' && (
-                    <button
-                      type="button"
-                      onClick={() => showToast(`Đã duyệt giải ngân kỳ đối soát #${batch.id} thành công!`, 'success')}
-                      className="py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs"
-                    >
-                      <span className="material-symbols-outlined text-[14px]">check</span>
-                      <span>Ký Duyệt</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-          emptyTitle="Chưa Có Kỳ Đối Soát Nào"
-          emptyMessage="Không tìm thấy kỳ đối soát nào."
-          pagination={{
-            currentPage: currentPageBatches,
-            totalPages: totalPagesBatches,
-            totalItems: payoutBatches.length,
-            pageSize,
-            onPageChange: setCurrentPageBatches,
-          }}
-        />
       )}
 
       {/* 3. EOD RUN DETAILS IN-PAGE PANEL */}
