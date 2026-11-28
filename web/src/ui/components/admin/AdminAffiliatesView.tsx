@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/ui/context/ToastContext';
 import { AdminStatusBadge } from './AdminUI';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
-import { DataTableFilterBar } from '../common';
+import { DataTableFilterBar, BulkActionGroup } from '../common';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import type { AffiliateProfile, PartnerStatus } from '@/types/affiliate';
@@ -23,6 +23,8 @@ export function AdminAffiliatesView() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [applications, setApplications] = useState<AffiliateProfile[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [selectedPayoutIds, setSelectedPayoutIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -415,17 +417,19 @@ export function AdminAffiliatesView() {
       {
         key: 'actions',
         title: 'THAO TÁC',
-        width: '20%',
+        width: '16%',
         align: 'right',
         render: (_, app) => (
-          <button
-            type="button"
-            onClick={() => handleOpenDetail(app.id)}
-            className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[15px]">fact_check</span>
-            <span>Chi Tiết</span>
-          </button>
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => handleOpenDetail(app.id)}
+              className="px-3 py-1.5 rounded-lg bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-bold transition-all shadow-2xs inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
+            >
+              <span className="material-symbols-outlined text-[15px]">fact_check</span>
+              <span>Chi Tiết</span>
+            </button>
+          </div>
         ),
       },
     ],
@@ -512,6 +516,49 @@ export function AdminAffiliatesView() {
               setPage(1);
             }}
             searchPlaceholder="Tìm mã CTV, tên, email..."
+            bulkActionGroups={[
+              {
+                groupLabel: 'Duyệt & Quản Lý CTV',
+                actions: [
+                  { value: 'APPROVE_ALL', label: 'Duyệt & Kích hoạt CTV hàng loạt' },
+                  { value: 'EXPORT_CSV', label: 'Xuất danh sách CTV (.csv)' },
+                ],
+              },
+            ] as BulkActionGroup[]}
+            selectedCount={selectedIds.length}
+            totalCount={applications.length}
+            bulkLoading={bulkLoading}
+            itemName="hồ sơ CTV"
+            onClearSelection={() => setSelectedIds([])}
+            onExecuteBulkAction={async (actionVal) => {
+              if (selectedIds.length === 0) return;
+              setBulkLoading(true);
+              try {
+                if (actionVal === 'APPROVE_ALL') {
+                  const targets = applications.filter((a) => selectedIds.includes(a.id) && (a.status === 'PENDING_REVIEW' || a.status === 'REQUEST_CHANGES'));
+                  let ok = 0;
+                  for (const t of targets) {
+                    const r = await affiliateApi.adminApproveApplication(t.id);
+                    if (r.success) ok++;
+                  }
+                  showToast(`Đã duyệt kích hoạt ${ok}/${targets.length} hồ sơ CTV.`, ok > 0 ? 'success' : 'info');
+                  setSelectedIds([]);
+                  await fetchApplications();
+                } else if (actionVal === 'EXPORT_CSV') {
+                  const rows = applications.filter((a) => selectedIds.includes(a.id)).map((a) => `${a.affiliateCode},${a.displayName},${a.email},${a.status}`);
+                  const blob = new Blob(['\uFEFFMa CTV,Ten,Email,Trang thai\n' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = 'affiliate_profiles.csv';
+                  link.click();
+                  URL.revokeObjectURL(url);
+                  showToast('Đã xuất danh sách hồ sơ CTV (.csv)!', 'success');
+                }
+              } finally {
+                setBulkLoading(false);
+              }
+            }}
             className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs"
           />
 
@@ -520,6 +567,9 @@ export function AdminAffiliatesView() {
               columns={applicationColumns}
               data={applications}
               keyField="id"
+              selectable={true}
+              selectedRowKeys={selectedIds}
+              onSelectionChange={(keys) => setSelectedIds(keys as string[])}
               loading={loading}
               emptyTitle="Không tìm thấy hồ sơ đối tác nào"
               emptyMessage={
@@ -559,11 +609,49 @@ export function AdminAffiliatesView() {
               setPayoutStatusFilter(t);
               setPayoutPage(1);
             }}
+            bulkActionGroups={[
+              {
+                groupLabel: 'Đối Soát & Chi Trả',
+                actions: [
+                  {
+                    value: 'APPROVE_PAYOUTS',
+                    label: 'Duyệt chi hàng loạt (Chờ xử lý)',
+                    confirmMessage: 'Xác nhận duyệt chi trả hoa hồng cho các lệnh rút tiền đã chọn?',
+                  },
+                ],
+              },
+            ] as BulkActionGroup[]}
+            selectedCount={selectedPayoutIds.length}
+            totalCount={payouts.length}
+            bulkLoading={bulkLoading}
+            itemName="lệnh rút tiền"
+            onClearSelection={() => setSelectedPayoutIds([])}
+            onExecuteBulkAction={async (actionVal) => {
+              if (actionVal === 'APPROVE_PAYOUTS' && selectedPayoutIds.length > 0) {
+                setBulkLoading(true);
+                try {
+                  const targets = payouts.filter((p) => selectedPayoutIds.includes(p.id) && p.status === 'REQUESTED');
+                  let ok = 0;
+                  for (const t of targets) {
+                    const r = await affiliateApi.adminApprovePayout(t.id);
+                    if (r.success) ok++;
+                  }
+                  showToast(`Đã duyệt chi ${ok}/${targets.length} lệnh rút tiền.`, ok > 0 ? 'success' : 'info');
+                  setSelectedPayoutIds([]);
+                  await fetchPayouts();
+                } finally {
+                  setBulkLoading(false);
+                }
+              }
+            }}
             className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs"
           />
 
           <div className="w-full max-w-full overflow-x-auto min-w-0 rounded-2xl border border-slate-200 bg-white shadow-2xs">
             <GroupedDataTable<any>
+              selectable={true}
+              selectedRowKeys={selectedPayoutIds}
+              onSelectionChange={(keys) => setSelectedPayoutIds(keys as string[])}
               columns={[
                 {
                   key: 'id',
