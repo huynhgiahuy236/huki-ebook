@@ -78,6 +78,13 @@ export class CreateBookDto {
   @Min(0)
   price?: number;
 
+  @ApiPropertyOptional({ minimum: 0, description: 'Giá bìa niêm yết / giá gốc' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  originalPrice?: number;
+
   @ApiPropertyOptional({ minimum: 0 })
   @IsOptional()
   @Type(() => Number)

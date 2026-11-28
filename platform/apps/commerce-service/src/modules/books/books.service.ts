@@ -416,6 +416,7 @@ export class BooksService implements OnModuleInit {
         if (dto.pricePaper !== undefined) dimObj.pricePaper = dto.pricePaper;
         if (dto.priceEbook !== undefined) dimObj.priceEbook = dto.priceEbook;
         if (dto.priceCombo !== undefined) dimObj.priceCombo = dto.priceCombo;
+        if (dto.originalPrice !== undefined) dimObj.originalPrice = dto.originalPrice;
         const dimensionsStr = Object.keys(dimObj).length > 0 ? JSON.stringify(dimObj) : undefined;
 
         await tx.physicalBookDetails.create({
@@ -1008,6 +1009,7 @@ export class BooksService implements OnModuleInit {
         if (dto.pricePaper !== undefined) dimObj.pricePaper = dto.pricePaper;
         if (dto.priceEbook !== undefined) dimObj.priceEbook = dto.priceEbook;
         if (dto.priceCombo !== undefined) dimObj.priceCombo = dto.priceCombo;
+        if (dto.originalPrice !== undefined) dimObj.originalPrice = dto.originalPrice;
         const dimensionsStr = Object.keys(dimObj).length > 0 ? JSON.stringify(dimObj) : undefined;
 
         await tx.physicalBookDetails.upsert({
@@ -1327,6 +1329,7 @@ export class BooksService implements OnModuleInit {
     let pricePaper: number | undefined;
     let priceEbook: number | undefined;
     let priceCombo: number | undefined;
+    let savedOriginalPrice: number | undefined;
     if (physical?.dimensions) {
       try {
         const dim = typeof physical.dimensions === 'string' ? JSON.parse(physical.dimensions) : physical.dimensions;
@@ -1334,13 +1337,14 @@ export class BooksService implements OnModuleInit {
           if (dim.pricePaper !== undefined) pricePaper = Number(dim.pricePaper);
           if (dim.priceEbook !== undefined) priceEbook = Number(dim.priceEbook);
           if (dim.priceCombo !== undefined) priceCombo = Number(dim.priceCombo);
+          if (dim.originalPrice !== undefined) savedOriginalPrice = Number(dim.originalPrice);
         }
       } catch {}
     }
 
     const basePrice = Number(book.price);
     let salePrice = basePrice;
-    let originalPrice: number | undefined = undefined;
+    let originalPrice: number | undefined = savedOriginalPrice;
     let discountPercent: number | undefined = undefined;
     let discountAmount: number | undefined = undefined;
     let hasActiveDiscount = false;
