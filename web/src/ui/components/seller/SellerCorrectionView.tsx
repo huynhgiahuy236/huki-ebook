@@ -14,6 +14,7 @@ import {
 } from '@/ui/components/seller/SellerUI';
 import { getFlashSaleFormatStyle } from '@/ui/utils/flashSaleFormat';
 import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
+import { DataTableBulkActionBar, BulkActionGroup } from '@/ui/components/common';
 
 export interface DraftBookItem {
   id: string;
@@ -43,6 +44,44 @@ export default function SellerCorrectionView() {
   const [selectedFormat, setSelectedFormat] = useState<string>('ALL');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  const correctionBulkActionGroups: BulkActionGroup[] = [
+    {
+      groupLabel: 'TIẾN TRÌNH PHÁT HÀNH',
+      actions: [
+        {
+          value: 'PUBLISH_ALL',
+          label: 'Xuất bản hàng loạt (Công khai)',
+        },
+      ],
+    },
+  ];
+
+  const handleExecuteBulkAction = async (actionValue: string) => {
+    if (selectedIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionValue === 'PUBLISH_ALL') {
+        let count = 0;
+        for (const id of selectedIds) {
+          try {
+            const res = await catalogApi.publishBook(id);
+            if (res.success) count++;
+          } catch { /* ignore individual failure */ }
+        }
+        if (count > 0) {
+          showToast(`Đã xuất bản công khai thành công ${count}/${selectedIds.length} sách nháp!`, 'success');
+        } else {
+          showToast('Không thể xuất bản các đầu sách đã chọn (vui lòng kiểm tra thông tin bắt buộc của sách).', 'error');
+        }
+        setSelectedIds([]);
+        await loadDrafts();
+      }
+    } finally {
+      setBulkLoading(false);
+    }
+  };
 
   // Phân trang
   const [currentPage, setCurrentPage] = useState(1);
@@ -571,6 +610,21 @@ export default function SellerCorrectionView() {
           )}
         </div>
       </div>
+
+      {/* BULK ACTION BAR FOR DRAFTS */}
+      {selectedIds.length > 0 && (
+        <div className="flex justify-end">
+          <DataTableBulkActionBar
+            selectedCount={selectedIds.length}
+            totalCount={filteredBooks.length}
+            actionGroups={correctionBulkActionGroups}
+            onExecuteAction={handleExecuteBulkAction}
+            onClearSelection={() => setSelectedIds([])}
+            isLoading={bulkLoading}
+            itemName="sách nháp"
+          />
+        </div>
+      )}
 
       {/* 4. GROUPED DATA TABLE CHUẨN HÓA GROUPED DATA TABLE */}
       <GroupedDataTable<DraftBookItem>

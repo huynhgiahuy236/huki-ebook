@@ -1,8 +1,13 @@
 "use client";
 
-import React from "react";
-import { AdminAccountsView } from "@/ui/components/admin/AdminAccountsView";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-export default function AdminAccountsViewPage() {
-  return <AdminAccountsView />;
+export default function AdminAccountsRedirectPage() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/admin/users");
+  }, [router]);
+
+  return null;
 }

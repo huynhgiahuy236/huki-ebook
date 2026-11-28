@@ -49,8 +49,8 @@ export default function SellerReturnsPage() {
   const fetchReturns = useCallback(async () => {
     setLoading(true);
     try {
+      // Luôn tải toàn bộ danh sách của Shop (theo từ khóa search) để số đếm mọi tab luôn độc lập và chính xác 100%
       const res = await orderApi.getSellerReturnRequests({
-        status: activeTab !== 'ALL' && activeTab !== 'RESOLVED' ? activeTab : undefined,
         search: searchQuery || undefined,
       });
 
@@ -64,7 +64,7 @@ export default function SellerReturnsPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, searchQuery]);
+  }, [searchQuery]);
 
   useEffect(() => {
     fetchReturns();
@@ -137,14 +137,15 @@ export default function SellerReturnsPage() {
     }
   };
 
+  const ACCEPTED_GROUP_STATUSES = ['SELLER_ACCEPTED', 'PICKUP_SCHEDULED', 'IN_TRANSIT', 'RETURNED_TO_SELLER', 'APPROVED'];
+  const RESOLVED_GROUP_STATUSES = ['COMPLETED', 'ARBITRATED_BUYER_WINS', 'ARBITRATED_SELLER_WINS', 'REJECTED', 'CANCELLED'];
+
   const filteredReturns = useMemo(() => {
     return returns.filter((it) => {
-      if (activeTab === 'RESOLVED') {
-        const isResolved =
-          it.status === 'COMPLETED' ||
-          it.status === 'ARBITRATED_BUYER_WINS' ||
-          it.status === 'ARBITRATED_SELLER_WINS';
-        if (!isResolved) return false;
+      if (activeTab === 'SELLER_ACCEPTED') {
+        if (!ACCEPTED_GROUP_STATUSES.includes(it.status)) return false;
+      } else if (activeTab === 'RESOLVED') {
+        if (!RESOLVED_GROUP_STATUSES.includes(it.status)) return false;
       } else if (activeTab !== 'ALL' && it.status !== activeTab) {
         return false;
       }
@@ -190,14 +191,9 @@ export default function SellerReturnsPage() {
 
   const returnStatusTabs: StatusTab[] = useMemo(() => {
     const forwardCount = returns.filter((it) => it.status === 'FORWARDED_TO_SELLER').length;
-    const acceptedCount = returns.filter((it) => it.status === 'SELLER_ACCEPTED').length;
+    const acceptedCount = returns.filter((it) => ACCEPTED_GROUP_STATUSES.includes(it.status)).length;
     const disputedCount = returns.filter((it) => it.status === 'SELLER_DISPUTED').length;
-    const resolvedCount = returns.filter(
-      (it) =>
-        it.status === 'COMPLETED' ||
-        it.status === 'ARBITRATED_BUYER_WINS' ||
-        it.status === 'ARBITRATED_SELLER_WINS'
-    ).length;
+    const resolvedCount = returns.filter((it) => RESOLVED_GROUP_STATUSES.includes(it.status)).length;
 
     return [
       { key: 'ALL', label: 'Tất Cả', count: returns.length },

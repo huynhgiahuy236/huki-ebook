@@ -468,6 +468,7 @@ function SellerProductsContent() {
   const metrics = useMemo(() => {
     const total = books.length;
     const published = books.filter(b => b.status === 'PUBLISHED').length;
+    const hidden = books.filter(b => b.status === 'HIDDEN').length;
     const suspended = books.filter(b => b.status === 'SUSPENDED').length;
     const draft = books.filter(b => b.status === 'DRAFT' || !b.status).length;
     const totalStock = books.reduce((sum, b) => sum + (b.physicalDetails?.stock || 0), 0);
@@ -475,7 +476,7 @@ function SellerProductsContent() {
     const outOfStock = books.filter(b => b.format !== 'DIGITAL' && (b.physicalDetails?.stock ?? 0) === 0).length;
     const digitalCount = books.filter(b => b.format === 'DIGITAL' || b.format === 'BOTH').length;
 
-    return { total, published, suspended, draft, totalStock, lowStock, outOfStock, digitalCount };
+    return { total, published, hidden, suspended, draft, totalStock, lowStock, outOfStock, digitalCount };
   }, [books]);
 
   // Filtered books
@@ -529,6 +530,7 @@ function SellerProductsContent() {
 
       // Tab status filter
       if (activeTab === 'PUBLISHED' && b.status !== 'PUBLISHED') return false;
+      if (activeTab === 'HIDDEN' && b.status !== 'HIDDEN') return false;
       if (activeTab === 'SUSPENDED' && b.status !== 'SUSPENDED') return false;
       if (activeTab === 'DRAFT' && b.status !== 'DRAFT' && b.status) return false;
       if (activeTab === 'LOW_STOCK') {
@@ -546,12 +548,11 @@ function SellerProductsContent() {
     return filteredBooks.slice(start, start + pageSize);
   }, [filteredBooks, currentPage, pageSize]);
 
-  // Bulk action groups definition
+  // Bulk action groups definition (Xuất bản hàng loạt đã chuyển sang Sách nháp /seller/correction)
   const productBulkActionGroups: BulkActionGroup[] = [
     {
-      groupLabel: 'TIẾN TRÌNH PHÁT HÀNH',
+      groupLabel: 'TIẾN TRÌNH HIỂN THỊ',
       actions: [
-        { value: 'PUBLISH_ALL', label: 'Xuất bản hàng loạt (Công khai)' },
         { value: 'HIDE_ALL', label: 'Tạm ẩn hàng loạt (Ẩn khỏi sàn)' },
       ],
     },
@@ -654,6 +655,7 @@ function SellerProductsContent() {
   const tabs = [
     { key: 'ALL', label: 'Tất Cả', count: metrics.total },
     { key: 'PUBLISHED', label: 'Đang Bán', count: metrics.published },
+    { key: 'HIDDEN', label: 'Đang Ẩn', count: metrics.hidden },
     { key: 'SUSPENDED', label: 'Bị Tạm Khóa', count: metrics.suspended },
     { key: 'DRAFT', label: 'Bản Nháp', count: metrics.draft },
     { key: 'LOW_STOCK', label: 'Sắp Hết Kho', count: metrics.lowStock + metrics.outOfStock },

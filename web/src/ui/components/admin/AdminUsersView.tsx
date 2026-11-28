@@ -108,7 +108,30 @@ export default function AdminUsersView() {
   const loadUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await adminApi.getUsers();
+      const [res, escrowRes] = await Promise.all([
+        adminApi.getUsers(),
+        adminApi.getEscrowItems().catch(() => null),
+      ]);
+
+      const purchaseByUserId = new Map<string, { spent: number; books: number }>();
+      const purchaseByEmailOrName = new Map<string, { spent: number; books: number }>();
+      if (escrowRes?.success && Array.isArray(escrowRes.data)) {
+        escrowRes.data.forEach((it: any) => {
+          const amt = Number(it.subtotal || it.orderGrandTotal || 0);
+          const qty = Number(it.quantity || 1);
+          const uid = it.userId || it.buyerId || it.customerId;
+          if (uid) {
+            const cur = purchaseByUserId.get(uid) || { spent: 0, books: 0 };
+            purchaseByUserId.set(uid, { spent: cur.spent + amt, books: cur.books + qty });
+          }
+          const cname = (it.customerName || '').trim().toLowerCase();
+          if (cname) {
+            const cur = purchaseByEmailOrName.get(cname) || { spent: 0, books: 0 };
+            purchaseByEmailOrName.set(cname, { spent: cur.spent + amt, books: cur.books + qty });
+          }
+        });
+      }
+
       if (res.success && Array.isArray(res.data)) {
         const rawUsers = res.data;
         const mapped: AdminUser[] = rawUsers.map((u: any) => {
@@ -152,6 +175,11 @@ export default function AdminUsersView() {
 
           const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.fullName || 'User')}&background=00875A&color=fff&size=120`;
 
+          const purchaseStats =
+            purchaseByUserId.get(u.id) ||
+            purchaseByEmailOrName.get((u.fullName || '').trim().toLowerCase()) ||
+            { spent: Number(u.totalSpent || 0), books: Number(u.ordersCount || 0) };
+
           return {
             id: u.id,
             name: u.fullName || 'Độc Giả Chưa Đặt Tên',
@@ -162,8 +190,8 @@ export default function AdminUsersView() {
             roleLabel: u.roleLabel || (role === 'CUSTOMER' ? 'Khách hàng' : role),
             tier,
             tierLabel,
-            spent: 0,
-            booksOwned: 0,
+            spent: purchaseStats.spent,
+            booksOwned: purchaseStats.books,
             ebooksCount: 0,
             physicalCount: 0,
             devicesCount: 1,
@@ -608,8 +636,10 @@ export default function AdminUsersView() {
 
     return users.filter((user) => {
       if (activeTab === 'customer' && user.role !== 'CUSTOMER' && user.role !== 'USER') return false;
+      if (activeTab === 'no_orders' && ((user.role !== 'CUSTOMER' && user.role !== 'USER') || user.booksOwned > 0 || user.spent > 0)) return false;
       if (activeTab === 'business' && user.role !== 'BUSINESS' && user.role !== 'SELLER_ADMIN') return false;
       if (activeTab === 'staff' && user.role !== 'DELIVERY_STAFF') return false;
+      if (activeTab === 'admin' && user.role !== 'PLATFORM_ADMIN') return false;
       if (activeTab === 'pending_deletion' && user.status !== 'pending_deletion') return false;
       if (activeTab === 'deleted' && user.status !== 'deleted') return false;
       if (activeTab === 'warning' && user.status !== 'warning' && user.status !== 'locked') return false;
@@ -641,8 +671,10 @@ export default function AdminUsersView() {
   const kpiStats = useMemo(() => {
     const totalUsers = users.length;
     const customerCount = users.filter((u) => u.role === 'CUSTOMER' || u.role === 'USER').length;
+    const noOrdersCount = users.filter((u) => (u.role === 'CUSTOMER' || u.role === 'USER') && u.booksOwned === 0 && u.spent === 0).length;
     const businessCount = users.filter((u) => u.role === 'BUSINESS' || u.role === 'SELLER_ADMIN').length;
     const staffCount = users.filter((u) => u.role === 'DELIVERY_STAFF').length;
+    const adminCount = users.filter((u) => u.role === 'PLATFORM_ADMIN').length;
     const lockedOrPendingCount = users.filter((u) => u.status === 'locked' || u.status === 'warning').length;
     const pendingDeletionCount = users.filter((u) => u.status === 'pending_deletion').length;
     const deletedCount = users.filter((u) => u.status === 'deleted').length;
@@ -650,8 +682,10 @@ export default function AdminUsersView() {
     return {
       totalUsers,
       customerCount,
+      noOrdersCount,
       businessCount,
       staffCount,
+      adminCount,
       lockedOrPendingCount,
       pendingDeletionCount,
       deletedCount,
@@ -852,13 +886,6 @@ export default function AdminUsersView() {
             <span>Làm Mới</span>
           </button>
           <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white transition-all cursor-pointer shadow-xs"
-          >
-            <span className="material-symbols-outlined text-[16px]">person_add</span>
-            <span>Thêm Bạn Đọc</span>
-          </button>
-          <button
             onClick={handleExportCsv}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white transition-all cursor-pointer shadow-xs"
           >
@@ -940,12 +967,14 @@ export default function AdminUsersView() {
       <DataTableFilterBar
         tabs={[
           { key: 'all', label: 'Tất cả người dùng', count: users.length },
-          { key: 'customer', label: 'Độc giả (Customer)', count: kpiStats.customerCount },
-          { key: 'business', label: 'Nhà bán sách (Business)', count: kpiStats.businessCount },
+          { key: 'customer', label: 'Khách hàng', count: kpiStats.customerCount },
+          { key: 'no_orders', label: 'Khách chưa mua hàng', count: kpiStats.noOrdersCount },
+          { key: 'business', label: 'Gian hàng (Seller)', count: kpiStats.businessCount },
           { key: 'staff', label: 'Bưu tá (Shipper)', count: kpiStats.staffCount },
+          { key: 'admin', label: 'Quản trị viên', count: kpiStats.adminCount },
           { key: 'pending_deletion', label: 'Chờ xóa (7 ngày)', count: kpiStats.pendingDeletionCount },
           { key: 'deleted', label: 'Đã xóa', count: kpiStats.deletedCount },
-          { key: 'warning', label: 'Khóa / Chờ duyệt', count: kpiStats.lockedOrPendingCount },
+          { key: 'warning', label: 'Đã khóa', count: kpiStats.lockedOrPendingCount },
         ]}
         activeTab={activeTab}
         onTabChange={(tab) => {

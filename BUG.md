@@ -2468,4 +2468,16 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
      - Tab 2 Flash Sale đối soát 100% doanh thu & giảm giá tài trợ theo đơn hàng mua thật hợp lệ (đã thanh toán/hoàn tất, loại trừ đơn hủy/hết hạn/chưa mua).
    - **AC:** Cả 4 tab hiển thị 100% số liệu thật khớp DB, 0 số mock, UI gọn đẹp 1 hàng.
 
-- **Trạng thái Bước 3 (Toàn bộ 17 bug `BUG-39` → `BUG-55`):** **ĐÃ PHÊ DUYỆT 100%**. Sẵn sàng triển khai **Bước 4 — Giai đoạn 1 (`BUG-39`, `BUG-40`, `BUG-41`)**.
+- **Trạng thái Bước 3 (Toàn bộ 17 bug `BUG-39` → `BUG-55`):** **ĐÃ PHÊ DUYỆT 100%**.
+
+---
+
+### Bước 4 — Giai đoạn 1 (`BUG-39`, `BUG-40`, `BUG-41`): Sửa Tận Gốc & E2E Độc Lập (28/11/2026)
+
+- **Khắc phục mã nguồn:**
+  - `BUG-39`: Chuẩn hóa [`DataTableBulkActionBar.tsx`](file:///e:/HuKi/web/src/ui/components/common/DataTableBulkActionBar.tsx) & [`DataTableFilterBar.tsx`](file:///e:/HuKi/web/src/ui/components/common/DataTableFilterBar.tsx) từ nền đen sang nền trắng tinh tế (`bg-white border-emerald-200/90`), điểm nhấn `#00875A`, padding thoáng (`px-4 py-2 gap-3`). Bổ sung tab lọc `Đang Ẩn` (`HIDDEN`) vào [`web/src/app/seller/products/page.tsx`](file:///e:/HuKi/web/src/app/seller/products/page.tsx); chuyển `Xuất bản hàng loạt (Công khai)` sang [`SellerCorrectionView.tsx`](file:///e:/HuKi/web/src/ui/components/seller/SellerCorrectionView.tsx).
+  - `BUG-40`: Sửa [`web/src/app/seller/returns/page.tsx`](file:///e:/HuKi/web/src/app/seller/returns/page.tsx) tải toàn bộ danh sách Shop để số đếm mọi tab luôn độc lập và chính xác 100%, nhóm đủ `ACCEPTED_GROUP_STATUSES` & `RESOLVED_GROUP_STATUSES`.
+  - `BUG-41`: Gộp `/admin/accounts` & `/admin/users` thành 1 mục menu duy nhất `"Quản Lý Người Dùng"` (`/admin/users`) trong [`AdminLayout.tsx`](file:///e:/HuKi/web/src/ui/components/layout/AdminLayout.tsx), chuyển [`web/src/app/admin/accounts/page.tsx`](file:///e:/HuKi/web/src/app/admin/accounts/page.tsx) thành redirect, bỏ nút `"Thêm Bạn Đọc"` và thêm lọc `"Khách chưa mua hàng"` / Vai trò tại [`AdminUsersView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminUsersView.tsx).
+- **Kiểm chứng & E2E:**
+  - `npm --prefix web run typecheck`: **0 errors**.
+  - [`scripts/test_e2e_stage1_bug39_40_41.js`](file:///e:/HuKi/scripts/test_e2e_stage1_bug39_40_41.js): **PASS 100%** trên môi trường thật (`BE :3000`, `FE :3100`, PostgreSQL thật).

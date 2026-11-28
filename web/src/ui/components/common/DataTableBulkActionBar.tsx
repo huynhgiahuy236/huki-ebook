@@ -58,32 +58,32 @@ export default function DataTableBulkActionBar({
 
   return (
     <>
-      {/* Inline Bulk Action Bar (Not floating at bottom) */}
+      {/* Inline Bulk Action Bar (Chuẩn HuKi: Nền trắng tinh tế, viền xanh ngọc, thoáng rộng) */}
       <div
-        className={`inline-flex flex-wrap items-center justify-between gap-3 bg-neutral-900 text-white dark:bg-neutral-800 dark:text-neutral-100 rounded-xl shadow-xs border border-neutral-700/80 px-3.5 py-1.5 animate-in fade-in duration-150 ${className}`}
+        className={`inline-flex flex-wrap items-center justify-between gap-3.5 bg-white text-slate-800 dark:bg-neutral-900 dark:text-neutral-100 rounded-xl shadow-xs border border-emerald-200/90 dark:border-emerald-800/60 px-4 py-2 animate-in fade-in duration-150 ${className}`}
       >
         {/* Left: Selection Counter */}
-        <div className="flex items-center gap-2 text-xs font-semibold">
-          <span className="w-5 h-5 rounded-md bg-primary text-white flex items-center justify-center font-bold text-[11px]">
+        <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-700 dark:text-neutral-200">
+          <span className="w-5 h-5 rounded-md bg-[#00875A] text-white flex items-center justify-center font-bold text-[11px] shadow-2xs">
             ✓
           </span>
           <span>
-            Đã chọn: <strong className="text-amber-400 font-bold">{selectedCount}</strong>
+            Đã chọn: <strong className="text-[#00875A] font-extrabold">{selectedCount}</strong>
             {totalCount > 0 ? ` / ${totalCount}` : ''} {itemName}
           </span>
         </div>
 
         {/* Center: Custom Grouped Dropdown Menu */}
-        <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+        <div className="flex items-center gap-2.5 flex-1 sm:flex-initial">
           <div className="relative">
             <button
               type="button"
               onClick={() => setShowBulkMenu(!showBulkMenu)}
               disabled={isLoading}
-              className="h-8 px-3 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-600 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              className="h-8 px-3.5 rounded-lg bg-emerald-50 hover:bg-emerald-100/80 text-[#003B2B] dark:bg-emerald-950/50 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
             >
               <span>{isLoading ? 'Đang xử lý...' : 'Chọn việc cần làm'}</span>
-              <span className={`text-[8px] text-neutral-400 transition-transform ${showBulkMenu ? 'rotate-180' : ''}`}>
+              <span className={`text-[9px] text-[#00875A] transition-transform ${showBulkMenu ? 'rotate-180' : ''}`}>
                 ▼
               </span>
             </button>
@@ -132,7 +132,7 @@ export default function DataTableBulkActionBar({
             type="button"
             onClick={onClearSelection}
             disabled={isLoading}
-            className="h-8 px-2.5 text-xs text-neutral-400 hover:text-white transition-colors cursor-pointer shrink-0"
+            className="h-8 px-2.5 rounded-lg text-xs font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
             title="Bỏ chọn tất cả"
           >
             Bỏ chọn

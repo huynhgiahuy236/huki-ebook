@@ -177,7 +177,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     '/admin/categories': { parent: 'Quản Trị Catalog', title: 'Danh Mục & Tác Giả' },
     '/admin/health': { parent: 'Hạ Tầng Kỹ Thuật', title: 'Sức Khỏe Hệ Thống Microservices' },
     '/admin/system/health': { parent: 'Hạ Tầng Kỹ Thuật', title: 'Sức Khỏe Hệ Thống Microservices' },
-    '/admin/users': { parent: 'Độc Giả & Hội Viên', title: 'Danh Sách Bạn Đọc' },
+    '/admin/users': { parent: 'Quản Trị Người Dùng', title: 'Quản Lý Người Dùng Toàn Sàn' },
     '/admin/accounts': { parent: 'Quản Trị Người Dùng', title: 'Quản Lý Người Dùng Toàn Sàn' },
     '/admin/users-management': { parent: 'Quản Trị Người Dùng', title: 'Quản Lý Người Dùng Toàn Sàn' },
     '/admin/finance': { parent: 'Tài Chính & Kế Toán', title: 'Báo Cáo & Đối Soát Doanh Thu' },
@@ -230,8 +230,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       group: 'NGƯỜI DÙNG & ĐỐI TÁC',
       icon: 'domain',
       items: [
-        { label: 'Quản Lý Người Dùng', to: '/admin/accounts', icon: 'manage_accounts' },
-        { label: 'Danh Sách Bạn Đọc', to: '/admin/users', icon: 'groups' },
+        { label: 'Quản Lý Người Dùng', to: '/admin/users', icon: 'manage_accounts' },
         {
           label: 'Quản Lý Đối Tác & Gian Hàng',
           to: '/admin/businesses',
