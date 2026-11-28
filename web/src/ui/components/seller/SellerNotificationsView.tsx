@@ -1012,24 +1012,20 @@ export default function SellerNotificationsView() {
                       handleOpenDetailByIndex(globalIndex);
                     }
                   }}
-                  className={`bg-white dark:bg-neutral-900 rounded-2xl border transition-all p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5 cursor-pointer hover:shadow-md relative overflow-hidden group ${
+                  className={`bg-white dark:bg-neutral-900 rounded-xl border transition-all px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 cursor-pointer hover:border-slate-300 hover:shadow-xs relative overflow-hidden group ${
                     isSelected
-                      ? 'border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/30 ring-2 ring-emerald-500/20'
+                      ? 'border-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/30 ring-1 ring-emerald-500/30'
                       : !n.isRead
-                      ? isCritical || isSla
-                        ? 'border-rose-300 bg-rose-50/30 dark:bg-rose-950/20 shadow-2xs'
-                        : isHigh
-                        ? 'border-amber-300 bg-amber-50/30 dark:bg-amber-950/20 shadow-2xs'
-                        : 'border-emerald-300 bg-emerald-50/25 dark:bg-emerald-950/20 shadow-2xs'
-                      : 'border-slate-200/80 dark:border-neutral-800 hover:border-slate-300'
+                      ? 'border-slate-200 bg-slate-50/40 dark:bg-neutral-900'
+                      : 'border-slate-200/80 dark:border-neutral-800'
                   }`}
                 >
-                  {/* Left Indicator Ribbon for unread */}
+                  {/* Clean subtle Left Indicator for unread (no harsh pulsing) */}
                   {!n.isRead && (
                     <div
-                      className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                      className={`absolute left-0 top-0 bottom-0 w-1 ${
                         isCritical || isSla
-                          ? 'bg-rose-600 animate-pulse'
+                          ? 'bg-rose-500'
                           : isHigh
                           ? 'bg-amber-500'
                           : 'bg-[#00875A]'
@@ -1082,34 +1078,37 @@ export default function SellerNotificationsView() {
                     {/* Content Details */}
                     <div className="space-y-1 flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        {/* Category Label Pill */}
+                        {/* Clean Category Tag */}
                         {isSla ? (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-rose-600 text-white flex items-center gap-1 shadow-2xs">
-                            <span className="material-symbols-outlined text-[12px]">warning</span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-rose-50 text-rose-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                             <span>Sao Quả Tạ &amp; SLA</span>
                           </span>
                         ) : isOrder ? (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
-                            Đơn Hàng
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                            <span>Đơn Hàng</span>
                           </span>
                         ) : isFinance ? (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                            Tài Chính Ví
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            <span>Tài Chính Ví</span>
                           </span>
                         ) : isAdmin ? (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
-                            Ban Quản Trị
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                            <span>Ban Quản Trị</span>
                           </span>
                         ) : null}
 
                         {isCritical && !isSla && (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-rose-600 text-white animate-pulse">
+                          <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-rose-50 text-rose-700">
                             Khẩn cấp
                           </span>
                         )}
 
                         {isHigh && !isCritical && !isSla && (
-                          <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase bg-amber-500 text-white">
+                          <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700">
                             Ưu tiên cao
                           </span>
                         )}
@@ -1120,7 +1119,7 @@ export default function SellerNotificationsView() {
 
                         {!n.isRead && (
                           <span
-                            className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"
+                            className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"
                             title="Tin mới chưa đọc"
                           />
                         )}

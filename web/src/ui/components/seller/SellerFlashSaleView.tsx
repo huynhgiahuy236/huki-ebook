@@ -3162,7 +3162,7 @@ export function SellerFlashSaleView() {
       {/* 6. SAO QUẢ TẠ TRANSPARENCY, ELIGIBILITY CRITERIA & APPEAL MODAL */}
       {isPolicyModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-5xl w-full border border-gray-200 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden animate-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-3xl max-w-6xl w-full border border-gray-200 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden animate-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="p-5 sm:p-6 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-rose-500/10 border-b border-gray-100 flex items-start justify-between gap-4">
               <div className="flex items-center gap-3.5">
@@ -3394,21 +3394,23 @@ export function SellerFlashSaleView() {
                               key={row.key}
                               className={`${row.bg} ${isCurrent ? 'ring-2 ring-orange-500 font-bold' : ''}`}
                             >
-                              <td className="py-3 px-4 font-bold text-gray-900 flex items-center gap-1.5">
-                                <span>{row.tier}</span>
-                                {isCurrent && (
-                                  <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-orange-600 text-white font-extrabold uppercase">
-                                    Hiện Tại
-                                  </span>
-                                )}
+                              <td className="py-3.5 px-4 font-bold text-gray-900 whitespace-nowrap">
+                                <div className="flex items-center gap-2">
+                                  <span>{row.tier}</span>
+                                  {isCurrent && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-orange-600 text-white font-bold uppercase whitespace-nowrap">
+                                      Hiện Tại
+                                    </span>
+                                  )}
+                                </div>
                               </td>
-                              <td className="py-3 px-4 font-mono font-bold text-gray-800">{row.points}</td>
-                              <td className="py-3 px-4">{row.flashSale}</td>
-                              <td className="py-3 px-4">{row.search}</td>
-                              <td className="py-3 px-4">{row.wallet}</td>
-                              <td className="py-3 px-4 text-center">
+                              <td className="py-3.5 px-4 font-mono font-bold text-gray-800 whitespace-nowrap">{row.points}</td>
+                              <td className="py-3.5 px-4">{row.flashSale}</td>
+                              <td className="py-3.5 px-4">{row.search}</td>
+                              <td className="py-3.5 px-4">{row.wallet}</td>
+                              <td className="py-3.5 px-4 text-center whitespace-nowrap">
                                 {isCurrent ? (
-                                  <span className="text-xs text-orange-600 font-black">★ Đang Áp Dụng</span>
+                                  <span className="text-xs text-orange-600 font-bold whitespace-nowrap">★ Đang Áp Dụng</span>
                                 ) : (
                                   <span className="text-xs text-gray-400">-</span>
                                 )}
