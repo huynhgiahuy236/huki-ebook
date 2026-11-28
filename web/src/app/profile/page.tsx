@@ -13,6 +13,7 @@ export default function ProfilePage() {
   const { showToast } = useToast();
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [formError, setFormError] = useState('');
   const [business, setBusiness] = useState<BusinessData | null>(null);
@@ -133,6 +134,7 @@ export default function ProfilePage() {
 
       if (res.success) {
         showToast('Cập nhật hồ sơ cá nhân thành công!', 'success');
+        setIsEditing(false);
       } else {
         const msg = res.error?.message || (typeof res.error === 'string' ? res.error : 'Không thể cập nhật hồ sơ.');
         setFormError(msg);
@@ -151,11 +153,24 @@ export default function ProfilePage() {
     <AccountLayout>
       <div className="p-6 sm:p-8">
         {/* Title Header */}
-        <div className="border-b border-gray-100 pb-5 mb-6">
-          <h1 className="text-xl font-bold text-gray-900">Hồ Sơ Của Tôi</h1>
-          <p className="text-xs text-gray-500 mt-1">
-            Quản lý thông tin cá nhân và bảo mật tài khoản độc giả HUKI
-          </p>
+        <div className="border-b border-gray-100 pb-5 mb-6 flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Hồ Sơ Của Tôi</h1>
+            <p className="text-xs text-gray-500 mt-1">
+              Quản lý thông tin cá nhân và bảo mật tài khoản độc giả HUKI
+            </p>
+          </div>
+
+          {!isEditing && (
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="px-3.5 py-2 rounded-xl border border-gray-200 bg-white hover:border-[#003B2B] hover:bg-emerald-50/40 text-xs font-bold text-gray-700 hover:text-[#003B2B] transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+            >
+              <span className="material-symbols-outlined text-[16px]">edit</span>
+              <span>Chỉnh sửa</span>
+            </button>
+          )}
         </div>
 
         {formError && (
@@ -165,7 +180,7 @@ export default function ProfilePage() {
           </div>
         )}
 
-        <form onSubmit={handleSaveProfile} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <form onSubmit={handleSaveProfile} className="grid grid-cols-1 lg:grid-cols-12 gap-8 pb-8">
           
           {/* Left Column: Form Fields (8 cols) */}
           <div className="lg:col-span-8 space-y-5 text-xs">
@@ -179,8 +194,13 @@ export default function ProfilePage() {
                 type="text"
                 value={formData.fullName}
                 onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                disabled={!isEditing}
                 placeholder="Nhập họ và tên đầy đủ"
-                className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-xs focus:outline-none focus:border-[#003B2B] focus:ring-1 focus:ring-[#003B2B] transition-all text-gray-900 font-medium"
+                className={`w-full px-3.5 py-2.5 border rounded-xl text-xs transition-all font-medium ${
+                  isEditing
+                    ? 'bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-[#003B2B] focus:ring-1 focus:ring-[#003B2B]'
+                    : 'bg-gray-50 border-gray-200 text-gray-700 cursor-default'
+                }`}
                 required
               />
             </div>
@@ -208,8 +228,13 @@ export default function ProfilePage() {
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                disabled={!isEditing}
                 placeholder="Ví dụ: 0988123456"
-                className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-xs focus:outline-none focus:border-[#003B2B] focus:ring-1 focus:ring-[#003B2B] transition-all text-gray-900 font-medium"
+                className={`w-full px-3.5 py-2.5 border rounded-xl text-xs transition-all font-medium ${
+                  isEditing
+                    ? 'bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-[#003B2B] focus:ring-1 focus:ring-[#003B2B]'
+                    : 'bg-gray-50 border-gray-200 text-gray-700 cursor-default'
+                }`}
               />
             </div>
 
@@ -326,26 +351,43 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* Submit Button */}
-            <div className="pt-3">
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="px-6 py-2.5 bg-[#003B2B] hover:bg-[#00241A] text-white font-bold rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-2 disabled:opacity-50"
-              >
-                {isSaving ? (
-                  <>
-                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Đang Lưu...</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-base">check</span>
-                    <span>Lưu Thay Đổi</span>
-                  </>
-                )}
-              </button>
-            </div>
+            {/* Submit Button (Only when editing) */}
+            {isEditing && (
+              <div className="pt-2 flex items-center gap-2.5">
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="px-6 py-2.5 bg-[#003B2B] hover:bg-[#00241A] text-white font-bold rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Đang Lưu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-base">check</span>
+                      <span>Lưu Thay Đổi</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={() => {
+                    setFormData({
+                      fullName: user?.fullName || user?.name || '',
+                      phone: user?.phone || '',
+                    });
+                    setFormError('');
+                    setIsEditing(false);
+                  }}
+                  className="px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-600 font-semibold rounded-xl transition-colors cursor-pointer"
+                >
+                  Hủy
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Right Column: Avatar Preview (4 cols) */}

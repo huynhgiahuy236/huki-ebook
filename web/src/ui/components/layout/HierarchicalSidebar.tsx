@@ -193,12 +193,6 @@ export default function HierarchicalSidebar({
           to: '/library?tab=completed',
           icon: 'task_alt',
         },
-        {
-          id: 'web-reader',
-          title: 'Trình Đọc Ebook',
-          to: '/library',
-          icon: 'chrome_reader_mode',
-        },
       ],
     },
     {
@@ -344,9 +338,7 @@ export default function HierarchicalSidebar({
                   const currentTab = new URLSearchParams(currentSearch).get('tab');
                   const itemTab = itemQuery ? new URLSearchParams(itemQuery).get('tab') : null;
                   const isActive =
-                    item.id === 'web-reader'
-                      ? false
-                      : itemPath === '/'
+                    itemPath === '/'
                       ? pathname === '/'
                       : itemTab
                       ? pathname === itemPath && currentTab === itemTab
