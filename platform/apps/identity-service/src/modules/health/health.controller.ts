@@ -1,5 +1,6 @@
 import { Controller, Get, Inject } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiSuccessResponse } from '@huki/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { ClientProxy } from '@nestjs/microservices';
@@ -27,6 +28,7 @@ export class HealthController {
 
   @Get('health')
   @ApiOperation({ summary: 'Health check with dependency status' })
+  @ApiSuccessResponse(undefined, { description: 'Identity service health status' })
   async check(): Promise<HealthStatus> {
     const dependencies: HealthStatus['dependencies'] = {};
     let overallStatus: 'ok' | 'degraded' | 'error' = 'ok';

@@ -23,21 +23,17 @@ import {
   ApiOperation,
   ApiQuery,
   ApiParam,
-  ApiResponse,
-  ApiBadRequestResponse,
-  ApiUnauthorizedResponse,
-  ApiForbiddenResponse,
-  ApiNotFoundResponse,
-  ApiConflictResponse,
+  ApiBody,
 } from '@nestjs/swagger';
 import { BusinessService } from './business.service';
 import { CreateBusinessDto, UpdateBusinessDto } from './dto/business.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Public, CurrentUser, Roles } from '@huki/shared/decorators';
 import { RolesGuard } from '@huki/shared/guards';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 
 @ApiTags('Business')
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 @Controller('businesses')
 @UseGuards(JwtAuthGuard)
 export class BusinessController {
@@ -49,10 +45,8 @@ export class BusinessController {
     summary: 'Register a new business',
     description: 'Creates a new business entity. User becomes the owner.',
   })
-  @ApiResponse({ status: 201, description: 'Business registered successfully' })
-  @ApiBadRequestResponse({ description: 'Invalid input data' })
-  @ApiConflictResponse({ description: 'User already has a business' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Business registered successfully' })
+  @ApiStandardErrors(400, 401, 409)
   async registerBusiness(
     @Body() dto: CreateBusinessDto,
     @CurrentUser('id') userId: string,
@@ -69,9 +63,8 @@ export class BusinessController {
     summary: 'Get my business',
     description: 'Returns the business owned by the current user.',
   })
-  @ApiResponse({ status: 200, description: 'Current user business' })
-  @ApiNotFoundResponse({ description: 'User does not own a business' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Current user business' })
+  @ApiStandardErrors(401, 404)
   async getMyBusiness(@CurrentUser('id') userId: string) {
     const business = await this.businessService.getBusinessByOwner(userId);
     return { data: business };
@@ -81,6 +74,12 @@ export class BusinessController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('PLATFORM_ADMIN')
   @ApiOperation({ summary: 'List businesses for platform administration' })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Admin paginated businesses list' })
+  @ApiStandardErrors(401, 403)
   async getAllBusinessesForAdmin(
     @Query('status') status?: string,
     @Query('search') search?: string,
@@ -100,7 +99,8 @@ export class BusinessController {
     summary: 'Get businesses followed by current user',
     description: 'Returns a list of businesses followed by the logged-in user with store details.',
   })
-  @ApiResponse({ status: 200, description: 'List of followed businesses' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'List of followed businesses' })
+  @ApiStandardErrors(401)
   async getMyFollowedBusinesses(@CurrentUser('id') userId: string) {
     const data = await this.businessService.getMyFollowedBusinesses(userId);
     return {
@@ -114,7 +114,8 @@ export class BusinessController {
     summary: 'Get IDs of businesses followed by current user',
     description: 'Returns a list of business IDs followed by the logged-in user.',
   })
-  @ApiResponse({ status: 200, description: 'List of followed business IDs' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'List of followed business IDs' })
+  @ApiStandardErrors(401)
   async getMyFollowedBusinessIds(@CurrentUser('id') userId: string) {
     const data = await this.businessService.getMyFollowedBusinessIds(userId);
     return {
@@ -130,6 +131,11 @@ export class BusinessController {
     description: 'Returns paginated list of users following the specified business/store.',
   })
   @ApiParam({ name: 'id', description: 'Business ID' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Business followers list' })
+  @ApiStandardErrors(404)
   async getBusinessFollowers(
     @Param('id') businessId: string,
     @Query('page') page?: string,
@@ -155,6 +161,8 @@ export class BusinessController {
     description: 'Adds the business to the user\'s followed list.',
   })
   @ApiParam({ name: 'id', description: 'Business ID' })
+  @ApiSuccessResponse(undefined, { description: 'Followed business' })
+  @ApiStandardErrors(401, 404)
   async followBusiness(
     @Param('id') businessId: string,
     @CurrentUser('id') userId: string,
@@ -174,6 +182,8 @@ export class BusinessController {
     description: 'Removes the business from the user\'s followed list.',
   })
   @ApiParam({ name: 'id', description: 'Business ID' })
+  @ApiSuccessResponse(undefined, { description: 'Unfollowed business' })
+  @ApiStandardErrors(401, 404)
   async unfollowBusiness(
     @Param('id') businessId: string,
     @CurrentUser('id') userId: string,
@@ -193,8 +203,8 @@ export class BusinessController {
     description: 'Returns business details by ID.',
   })
   @ApiParam({ name: 'id', description: 'Business ID' })
-  @ApiResponse({ status: 200, description: 'Business details' })
-  @ApiNotFoundResponse({ description: 'Business not found' })
+  @ApiSuccessResponse(undefined, { description: 'Business details' })
+  @ApiStandardErrors(404)
   async getBusiness(@Param('id') id: string) {
     const business = await this.businessService.getBusinessById(id);
     return { data: business };
@@ -210,7 +220,7 @@ export class BusinessController {
   @ApiQuery({ name: 'search', required: false, description: 'Search by name' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
-  @ApiResponse({ status: 200, description: 'Paginated list of businesses' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Paginated list of businesses' })
   async getAllBusinesses(
     @Query('status') status?: string,
     @Query('search') search?: string,
@@ -232,10 +242,8 @@ export class BusinessController {
     description: 'Updates business details. Only owner can update.',
   })
   @ApiParam({ name: 'id', description: 'Business ID' })
-  @ApiResponse({ status: 200, description: 'Business updated successfully' })
-  @ApiNotFoundResponse({ description: 'Business not found' })
-  @ApiForbiddenResponse({ description: 'Not the business owner' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Business updated successfully' })
+  @ApiStandardErrors(400, 401, 403, 404)
   async updateBusiness(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
@@ -257,10 +265,8 @@ export class BusinessController {
     description: 'Admin endpoint: Approves a pending business. Requires PLATFORM_ADMIN role.',
   })
   @ApiParam({ name: 'id', description: 'Business ID' })
-  @ApiResponse({ status: 200, description: 'Business approved successfully' })
-  @ApiNotFoundResponse({ description: 'Business not found' })
-  @ApiForbiddenResponse({ description: 'Requires PLATFORM_ADMIN role' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Business approved successfully' })
+  @ApiStandardErrors(401, 403, 404)
   async approveBusiness(
     @Param('id') id: string,
     @CurrentUser('id') adminId: string,
@@ -281,11 +287,9 @@ export class BusinessController {
     description: 'Admin endpoint: Rejects a pending business. Requires PLATFORM_ADMIN role.',
   })
   @ApiParam({ name: 'id', description: 'Business ID' })
-  @ApiResponse({ status: 200, description: 'Business rejected' })
-  @ApiBadRequestResponse({ description: 'Business already approved/rejected' })
-  @ApiNotFoundResponse({ description: 'Business not found' })
-  @ApiForbiddenResponse({ description: 'Requires PLATFORM_ADMIN role' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiBody({ schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string', example: 'Hồ sơ chưa hợp lệ' } } } })
+  @ApiSuccessResponse(undefined, { description: 'Business rejected' })
+  @ApiStandardErrors(400, 401, 403, 404)
   async rejectBusiness(
     @Param('id') id: string,
     @CurrentUser('id') adminId: string,
@@ -303,6 +307,8 @@ export class BusinessController {
   @Post('my/update-request/send-otp')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Send 6-digit OTP email to verify business profile update request (Seller)' })
+  @ApiSuccessResponse(undefined, { description: 'OTP sent' })
+  @ApiStandardErrors(401, 404, 429)
   async sendUpdateRequestOtp(
     @CurrentUser('id') userId: string,
     @CurrentUser('email') userEmail?: string,
@@ -317,6 +323,9 @@ export class BusinessController {
 
   @Post('my/update-request')
   @ApiOperation({ summary: 'Submit a business profile update request (Seller)' })
+  @ApiBody({ schema: { type: 'object', description: 'Business update request payload with OTP' } })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Update request submitted' })
+  @ApiStandardErrors(400, 401, 404, 409)
   async submitUpdateRequest(
     @CurrentUser('id') userId: string,
     @Body() body: any,
@@ -331,6 +340,8 @@ export class BusinessController {
 
   @Get('my/update-requests')
   @ApiOperation({ summary: 'Get business update requests history and cooldown status (Seller)' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Update requests history' })
+  @ApiStandardErrors(401, 404)
   async getMyUpdateRequests(@CurrentUser('id') userId: string) {
     const result = await this.businessService.getMyUpdateRequests(userId);
     return {
@@ -343,6 +354,12 @@ export class BusinessController {
 
   @Get('my/audit-logs')
   @ApiOperation({ summary: 'Get business activity and governance audit logs (Seller)' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'action', required: false, type: String })
+  @ApiQuery({ name: 'resource', required: false, type: String })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Business audit logs' })
+  @ApiStandardErrors(401, 404)
   async getMyAuditLogs(
     @CurrentUser('id') userId: string,
     @Query('page') page?: string,
@@ -366,6 +383,11 @@ export class BusinessController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('PLATFORM_ADMIN')
   @ApiOperation({ summary: 'List all business update requests (Admin)' })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Admin update requests list' })
+  @ApiStandardErrors(401, 403)
   async getAllUpdateRequestsForAdmin(
     @Query('status') status?: string,
     @Query('page') page?: string,
@@ -386,6 +408,8 @@ export class BusinessController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Get update request detail (Admin)' })
+  @ApiSuccessResponse(undefined, { description: 'Update request detail' })
+  @ApiStandardErrors(401, 403, 404)
   async getUpdateRequestDetail(@Param('id') id: string) {
     const data = await this.businessService.getUpdateRequestById(id);
     return {
@@ -398,6 +422,8 @@ export class BusinessController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Approve business update request (Admin)' })
+  @ApiSuccessResponse(undefined, { description: 'Update request approved' })
+  @ApiStandardErrors(400, 401, 403, 404)
   async approveUpdateRequest(
     @Param('id') id: string,
     @CurrentUser('id') adminId: string,
@@ -413,6 +439,9 @@ export class BusinessController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Reject business update request (Admin)' })
+  @ApiBody({ schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string', example: 'Thông tin không khớp' } } } })
+  @ApiSuccessResponse(undefined, { description: 'Update request rejected' })
+  @ApiStandardErrors(400, 401, 403, 404)
   async rejectUpdateRequest(
     @Param('id') id: string,
     @CurrentUser('id') adminId: string,
@@ -429,6 +458,11 @@ export class BusinessController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Get business governance audit logs (Platform Admin)' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'action', required: false, type: String })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Business audit logs' })
+  @ApiStandardErrors(401, 403, 404)
   async getBusinessAuditLogs(
     @Param('id') id: string,
     @Query('page') page?: string,

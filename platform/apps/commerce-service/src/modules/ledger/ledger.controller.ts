@@ -5,7 +5,8 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import {
   BookActor,
   AuthenticatedGuard,
@@ -19,12 +20,19 @@ export class LedgerController {
   constructor(private readonly ledgerService: LedgerService) {}
 
   @Get('transactions')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(AuthenticatedGuard)
   @ApiOperation({
     summary: 'List double-entry ledger transactions with entries',
     description: 'Enforces tenant isolation and immutable audit trail. Accessible by Platform Admin or Store Owner.',
   })
+  @ApiQuery({ name: 'storeId', required: false, type: String })
+  @ApiQuery({ name: 'referenceType', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Ledger transactions list' })
+  @ApiStandardErrors(401, 403)
   async listTransactions(
     @CurrentBookActor() actor: BookActor,
     @Query('storeId') storeId?: string,
@@ -43,16 +51,14 @@ export class LedgerController {
   }
 
   @Get('transactions/:id')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(AuthenticatedGuard)
   @ApiOperation({
     summary: 'Get double-entry ledger transaction by ID with full entry lines',
     description: 'Enforces tenant isolation and immutable audit trail. Accessible by Store Owner or Platform Admin.',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns double-entry ledger transaction details and entries',
-  })
+  @ApiSuccessResponse(undefined, { description: 'Ledger transaction detail' })
+  @ApiStandardErrors(401, 403, 404)
   async getTransaction(
     @Param('id') id: string,
     @CurrentBookActor() actor: BookActor,
@@ -61,17 +67,15 @@ export class LedgerController {
   }
 
   @Get('summaries')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(AuthenticatedGuard)
   @ApiOperation({
     summary: 'List accounting running balance summaries',
     description: 'Platform Admin can list all accounts; merchants view store-scoped account summaries.',
   })
   @ApiQuery({ name: 'storeId', required: false, description: 'Optional store filter (Admin only)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns list of account summaries with total debits, credits, and net balance',
-  })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Ledger account summaries' })
+  @ApiStandardErrors(401, 403)
   async getAccountSummaries(
     @CurrentBookActor() actor: BookActor,
     @Query('storeId') storeId?: string,

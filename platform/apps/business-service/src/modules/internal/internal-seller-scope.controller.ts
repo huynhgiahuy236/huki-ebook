@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiHeader, ApiBody } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { InternalAuthGuard } from './guards/internal-auth.guard';
 import { PrismaService } from '../../../prisma/prisma.service';
 
@@ -21,7 +22,8 @@ export interface UserStoreMappingsResponse {
   storeMapByMember: Record<string, { storeName: string; role: string }>;
 }
 
-@ApiTags('Internal')
+@ApiTags('Internal - Business')
+@ApiHeader({ name: 'x-internal-service-key', required: true, description: 'Internal service authentication key' })
 @Controller('internal')
 @UseGuards(InternalAuthGuard)
 export class InternalSellerScopeController {
@@ -29,6 +31,8 @@ export class InternalSellerScopeController {
 
   @Get('seller-scope/:userId')
   @ApiOperation({ summary: 'Internal API: Get authorized seller scope for a user' })
+  @ApiSuccessResponse(undefined, { description: 'Seller scope IDs' })
+  @ApiStandardErrors(401)
   async getSellerScope(@Param('userId') userId: string): Promise<SellerScopeResponse> {
     const businesses = await this.prisma.business.findMany({
       where: {
@@ -60,6 +64,8 @@ export class InternalSellerScopeController {
 
   @Get('resolve-target/:targetId')
   @ApiOperation({ summary: 'Internal API: Resolve business, store, and owner user IDs for a target' })
+  @ApiSuccessResponse(undefined, { description: 'Resolved business/store/owner IDs' })
+  @ApiStandardErrors(401)
   async resolveTarget(@Param('targetId') targetId: string): Promise<ResolveTargetResponse> {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
     if (!isUuid) {
@@ -125,6 +131,9 @@ export class InternalSellerScopeController {
 
   @Post('user-store-mappings')
   @ApiOperation({ summary: 'Internal API: Get store/business mappings for a list of user IDs' })
+  @ApiBody({ schema: { type: 'object', required: ['userIds'], properties: { userIds: { type: 'array', items: { type: 'string' } } } } })
+  @ApiSuccessResponse(undefined, { description: 'User store mappings' })
+  @ApiStandardErrors(401)
   async getUserStoreMappings(
     @Body() body: { userIds: string[] },
   ): Promise<UserStoreMappingsResponse> {

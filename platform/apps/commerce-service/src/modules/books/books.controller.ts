@@ -14,7 +14,8 @@ import {
   UseGuards,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import {
   BookActor,
   AuthenticatedGuard,
@@ -38,14 +39,17 @@ export class BooksController {
 
   @Get()
   @ApiOperation({ summary: 'List published books with filters and pagination' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Paginated published books list' })
   findAll(@Query() query: BookListQueryDto) {
     return this.booksService.findAll(query);
   }
 
   @Get('owned')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(AuthenticatedGuard)
   @ApiOperation({ summary: 'List books manageable by the signed-in seller, including private inventory' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Owned books list' })
+  @ApiStandardErrors(401)
   findOwned(
     @Query() query: BookListQueryDto,
     @CurrentBookActor() actor: BookActor,
@@ -56,6 +60,8 @@ export class BooksController {
   @Get('library/my-books')
   @UseGuards(OptionalBookAuthGuard)
   @ApiOperation({ summary: 'Get books in personal library from real DB' })
+  @ApiQuery({ name: 'userId', required: false, type: String })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'User library books' })
   async getMyLibrary(
     @Query('userId') queryUserId?: string,
     @CurrentBookActor() actor?: BookActor,
@@ -69,8 +75,11 @@ export class BooksController {
   }
 
   @Delete('library/:bookId')
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(AuthenticatedGuard)
   @ApiOperation({ summary: 'Remove a book from personal library' })
+  @ApiSuccessResponse(undefined, { description: 'Book removed from library' })
+  @ApiStandardErrors(401, 404)
   async removeBookFromLibrary(
     @Param('bookId') bookId: string,
     @CurrentBookActor() actor: BookActor,
@@ -81,6 +90,8 @@ export class BooksController {
   @Get('slug/:slug')
   @UseGuards(OptionalBookAuthGuard)
   @ApiOperation({ summary: 'Get a book by slug' })
+  @ApiSuccessResponse(undefined, { description: 'Book detail' })
+  @ApiStandardErrors(404)
   async findBySlug(
     @Param('slug') slug: string,
     @CurrentBookActor() actor?: BookActor,
@@ -89,9 +100,11 @@ export class BooksController {
   }
 
   @Get(':id/access')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(AuthenticatedGuard)
   @ApiOperation({ summary: 'Check reader/ebook access authorization for current user' })
+  @ApiSuccessResponse(undefined, { description: 'Book access check result' })
+  @ApiStandardErrors(401, 404)
   async checkAccess(
     @Param('id') id: string,
     @CurrentBookActor() actor: BookActor,
@@ -102,6 +115,9 @@ export class BooksController {
 
   @Get(':id/related')
   @ApiOperation({ summary: 'Get related books by category, author/publisher, or format' })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Related books' })
+  @ApiStandardErrors(404)
   async findRelated(
     @Param('id') id: string,
     @Query('limit') limit?: string,
@@ -113,6 +129,8 @@ export class BooksController {
 
   @Get(':id/pdf')
   @ApiOperation({ summary: 'Stream public preview / full ebook PDF from R2 storage' })
+  @ApiSuccessResponse(undefined, { description: 'PDF binary stream' })
+  @ApiStandardErrors(401, 403, 404)
   async streamPdf(
     @Param('id') id: string,
     @Req() req: any,
@@ -124,6 +142,9 @@ export class BooksController {
   @Get(':id')
   @UseGuards(OptionalBookAuthGuard)
   @ApiOperation({ summary: 'Get a book by id or slug' })
+  @ApiQuery({ name: 'light', required: false, type: Boolean })
+  @ApiSuccessResponse(undefined, { description: 'Book detail' })
+  @ApiStandardErrors(404)
   async findOne(
     @Param('id') id: string,
     @Query('light') light?: string,
@@ -142,17 +163,21 @@ export class BooksController {
   }
 
   @Post()
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(BookWriteGuard)
   @ApiOperation({ summary: 'Create a draft book' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Draft book created' })
+  @ApiStandardErrors(400, 401, 403, 409)
   async create(@Body() dto: CreateBookDto, @CurrentBookActor() actor: BookActor) {
     return { message: 'Book created', data: await this.booksService.create(dto, actor) };
   }
 
   @Patch(':id')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(BookWriteGuard)
   @ApiOperation({ summary: 'Update a book owned by the current business' })
+  @ApiSuccessResponse(undefined, { description: 'Book updated' })
+  @ApiStandardErrors(400, 401, 403, 404)
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateBookDto,
@@ -163,9 +188,11 @@ export class BooksController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(BookWriteGuard)
   @ApiOperation({ summary: 'Soft-delete a book' })
+  @ApiSuccessResponse(undefined, { status: 204, description: 'Book deleted' })
+  @ApiStandardErrors(401, 403, 404)
   async remove(
     @Param('id') id: string,
     @CurrentBookActor() actor: BookActor,

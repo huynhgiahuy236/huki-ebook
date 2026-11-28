@@ -93,18 +93,23 @@ export class PayOSWebhookDataDto {
 }
 
 export class PayOSWebhookDto {
+  @ApiProperty({ example: '00' })
   @Allow()
   code: string;
 
+  @ApiProperty({ example: 'success' })
   @Allow()
   desc: string;
 
+  @ApiProperty({ example: true })
   @Allow()
   success: boolean;
 
+  @ApiProperty({ type: () => PayOSWebhookDataDto })
   @Allow()
   data: PayOSWebhookDataDto;
 
+  @ApiProperty({ example: 'hmac-sha256-signature' })
   @Allow()
   signature: string;
 }

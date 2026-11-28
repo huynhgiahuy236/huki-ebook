@@ -13,7 +13,7 @@ import {
   HttpStatus,
   Req,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { MemberService } from './member.service';
 import {
   InviteMemberDto,
@@ -26,9 +26,10 @@ import {
 } from './dto/member.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '@huki/shared/decorators';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 
 @ApiTags('Members')
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class MemberController {
@@ -37,6 +38,8 @@ export class MemberController {
   @Post('businesses/:businessId/members/provision')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Provision a new member directly (Owner only)' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Member provisioned' })
+  @ApiStandardErrors(400, 401, 403, 404, 409)
   async provisionMember(
     @Param('businessId') businessId: string,
     @CurrentUser('id') adminId: string,
@@ -48,6 +51,8 @@ export class MemberController {
   @Post('businesses/:businessId/members/invite')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Invite a new member' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Invitation sent' })
+  @ApiStandardErrors(400, 401, 403, 404, 409)
   async inviteMember(
     @Param('businessId') businessId: string,
     @CurrentUser('id') userId: string,
@@ -59,6 +64,8 @@ export class MemberController {
   @Post('invitations/accept')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Accept invitation' })
+  @ApiSuccessResponse(undefined, { description: 'Invitation accepted' })
+  @ApiStandardErrors(400, 401, 404)
   async acceptInvitation(
     @CurrentUser('id') userId: string,
     @CurrentUser('email') email: string,
@@ -69,6 +76,8 @@ export class MemberController {
 
   @Get('businesses/:businessId/members')
   @ApiOperation({ summary: 'Get all members of a business' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Business members list' })
+  @ApiStandardErrors(401, 403, 404)
   async getMembers(
     @Param('businessId') businessId: string,
     @CurrentUser('id') userId: string,
@@ -78,6 +87,8 @@ export class MemberController {
 
   @Get('businesses/:businessId/members/:memberId')
   @ApiOperation({ summary: 'Get a specific member' })
+  @ApiSuccessResponse(undefined, { description: 'Member detail' })
+  @ApiStandardErrors(401, 404)
   async getMember(
     @Param('businessId') businessId: string,
     @Param('memberId') memberId: string,
@@ -87,6 +98,8 @@ export class MemberController {
 
   @Patch('businesses/:businessId/members/:memberId/permissions')
   @ApiOperation({ summary: 'Update member permissions (Owner only)' })
+  @ApiSuccessResponse(undefined, { description: 'Member permissions updated' })
+  @ApiStandardErrors(400, 401, 403, 404)
   async updateMemberPermissions(
     @Param('businessId') businessId: string,
     @Param('memberId') memberId: string,
@@ -103,6 +116,8 @@ export class MemberController {
 
   @Patch('businesses/:businessId/members/:memberId/status')
   @ApiOperation({ summary: 'Update member status (Owner only)' })
+  @ApiSuccessResponse(undefined, { description: 'Member status updated' })
+  @ApiStandardErrors(400, 401, 403, 404)
   async updateMemberStatus(
     @Param('businessId') businessId: string,
     @Param('memberId') memberId: string,
@@ -120,6 +135,8 @@ export class MemberController {
   @Post('businesses/:businessId/members/:memberId/reset-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reset member password (Owner only)' })
+  @ApiSuccessResponse(undefined, { description: 'Member password reset' })
+  @ApiStandardErrors(400, 401, 403, 404)
   async resetMemberPassword(
     @Param('businessId') businessId: string,
     @Param('memberId') memberId: string,
@@ -136,6 +153,8 @@ export class MemberController {
 
   @Patch('businesses/:businessId/members/:memberId/role')
   @ApiOperation({ summary: 'Update member role (owner only)' })
+  @ApiSuccessResponse(undefined, { description: 'Member role updated' })
+  @ApiStandardErrors(400, 401, 403, 404)
   async updateMemberRole(
     @Param('businessId') businessId: string,
     @Param('memberId') memberId: string,
@@ -154,6 +173,8 @@ export class MemberController {
   @Delete('businesses/:businessId/members/:memberId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Remove member (owner only)' })
+  @ApiSuccessResponse(undefined, { description: 'Member removed' })
+  @ApiStandardErrors(401, 403, 404)
   async removeMember(
     @Param('businessId') businessId: string,
     @Param('memberId') memberId: string,
@@ -166,6 +187,8 @@ export class MemberController {
   @Post('businesses/:businessId/leave')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Leave a business' })
+  @ApiSuccessResponse(undefined, { description: 'Left business' })
+  @ApiStandardErrors(400, 401, 404)
   async leaveBusiness(
     @Param('businessId') businessId: string,
     @CurrentUser('id') userId: string,
@@ -176,6 +199,12 @@ export class MemberController {
 
   @Get('members/business/:businessId/audit-logs')
   @ApiOperation({ summary: 'Get member governance audit logs (Store Owner / Authorized Staff / Admin)' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'action', required: false, type: String })
+  @ApiQuery({ name: 'resource', required: false, type: String })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Member audit logs' })
+  @ApiStandardErrors(401, 403, 404)
   async getMemberAuditLogs(
     @Param('businessId') businessId: string,
     @CurrentUser('id') userId: string,
@@ -199,6 +228,12 @@ export class MemberController {
 
   @Get('businesses/:businessId/members/audit-logs')
   @ApiOperation({ summary: 'Get member governance audit logs alias' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'action', required: false, type: String })
+  @ApiQuery({ name: 'resource', required: false, type: String })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Member audit logs' })
+  @ApiStandardErrors(401, 403, 404)
   async getBusinessMembersAuditLogs(
     @Param('businessId') businessId: string,
     @CurrentUser('id') userId: string,
@@ -222,6 +257,26 @@ export class MemberController {
 
   @Post('members/business/:businessId/audit-logs')
   @ApiOperation({ summary: 'Record store/staff governance audit log' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['action', 'resource'],
+      properties: {
+        action: { type: 'string' },
+        resource: { type: 'string' },
+        resourceId: { type: 'string' },
+        actorName: { type: 'string' },
+        actorEmail: { type: 'string' },
+        actorRole: { type: 'string' },
+        beforeState: { type: 'object' },
+        afterState: { type: 'object' },
+        changedFields: { type: 'array', items: { type: 'string' } },
+        metadata: { type: 'object' },
+      },
+    },
+  })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Audit log recorded' })
+  @ApiStandardErrors(400, 401, 403)
   async recordAuditLog(
     @Param('businessId') businessId: string,
     @CurrentUser('id') userId: string,
@@ -249,6 +304,26 @@ export class MemberController {
 
   @Post('businesses/:businessId/members/audit-logs')
   @ApiOperation({ summary: 'Record store/staff governance audit log alias' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['action', 'resource'],
+      properties: {
+        action: { type: 'string' },
+        resource: { type: 'string' },
+        resourceId: { type: 'string' },
+        actorName: { type: 'string' },
+        actorEmail: { type: 'string' },
+        actorRole: { type: 'string' },
+        beforeState: { type: 'object' },
+        afterState: { type: 'object' },
+        changedFields: { type: 'array', items: { type: 'string' } },
+        metadata: { type: 'object' },
+      },
+    },
+  })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Audit log recorded' })
+  @ApiStandardErrors(400, 401, 403)
   async recordBusinessAuditLogAlias(
     @Param('businessId') businessId: string,
     @CurrentUser('id') userId: string,

@@ -19,6 +19,7 @@ function namespaceComponents(document: OpenApiDocument, namespace: string) {
 
   const references = new Map<string, string>();
   for (const [section, entries] of Object.entries(components)) {
+    if (section === 'securitySchemes') continue;
     if (!entries || typeof entries !== 'object') continue;
     for (const key of Object.keys(entries as Record<string, unknown>)) {
       references.set(
@@ -43,12 +44,30 @@ function namespaceComponents(document: OpenApiDocument, namespace: string) {
   rewrite(document);
 
   for (const [section, entries] of Object.entries(components)) {
+    if (section === 'securitySchemes') {
+      delete components.securitySchemes;
+      continue;
+    }
     if (!entries || typeof entries !== 'object') continue;
     const renamed: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(entries as Record<string, unknown>)) {
       renamed[`${namespace}_${key}`] = value;
     }
     components[section] = renamed;
+  }
+
+  // Normalize service-level bearer security requirements to Gateway's JWT-auth
+  for (const pathItem of Object.values(document.paths ?? {})) {
+    if (!pathItem || typeof pathItem !== 'object') continue;
+    for (const op of Object.values(pathItem as Record<string, any>)) {
+      if (!op || typeof op !== 'object' || !Array.isArray(op.security)) continue;
+      op.security = op.security.map((req: Record<string, unknown>) => {
+        if ('bearer' in req) {
+          return { 'JWT-auth': req.bearer };
+        }
+        return req;
+      });
+    }
   }
 }
 

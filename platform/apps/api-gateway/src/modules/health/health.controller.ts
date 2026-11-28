@@ -1,6 +1,7 @@
-import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 
 @ApiTags('Health')
 @Controller()
@@ -9,7 +10,7 @@ export class HealthController {
 
   @Get('health')
   @ApiOperation({ summary: 'Health check endpoint' })
-  @ApiResponse({ status: 200, description: 'Service is healthy' })
+  @ApiSuccessResponse(undefined, { description: 'Service is healthy' })
   health() {
     return {
       status: 'ok',
@@ -21,6 +22,7 @@ export class HealthController {
 
   @Get(['health/live', 'health/liveness'])
   @ApiOperation({ summary: 'Liveness probe - basic health check' })
+  @ApiSuccessResponse(undefined, { description: 'Gateway process is alive' })
   liveness() {
     return {
       status: 'ok',
@@ -31,18 +33,22 @@ export class HealthController {
 
   @Get(['health/ready', 'health/readiness'])
   @ApiOperation({ summary: 'Readiness probe - checks all downstream dependencies' })
+  @ApiSuccessResponse(undefined, { description: 'Gateway readiness status' })
+  @ApiStandardErrors(503)
   async readiness() {
     return this.services();
   }
 
   @Get('ping')
   @ApiOperation({ summary: 'Simple ping endpoint' })
+  @ApiSuccessResponse(undefined, { description: 'Pong response' })
   ping() {
     return { message: 'pong' };
   }
 
   @Get('health/services')
   @ApiOperation({ summary: 'Check all local backend services' })
+  @ApiSuccessResponse(undefined, { description: 'Aggregated downstream health status' })
   async services() {
     const names = ['identity', 'business', 'commerce', 'shipping', 'community', 'promotion', 'analytics'] as const;
     const checks = await Promise.all(names.map(async (name) => {

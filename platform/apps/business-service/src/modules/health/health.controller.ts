@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiSuccessResponse } from '@huki/shared';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 interface HealthStatus {
@@ -18,6 +19,7 @@ export class HealthController {
 
   @Get('health')
   @ApiOperation({ summary: 'Health check with dependency status' })
+  @ApiSuccessResponse(undefined, { description: 'Business service health status' })
   async check(): Promise<HealthStatus> {
     // Check Database (Prisma/PostgreSQL)
     try {

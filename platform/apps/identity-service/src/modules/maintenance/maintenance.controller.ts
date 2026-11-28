@@ -12,7 +12,7 @@ import { UpdateMaintenanceDto } from './maintenance.dto';
 import { Public } from '@huki/shared/decorators';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '@huki/shared';
+import { Roles, ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 
 @ApiTags('System Maintenance')
 @Controller(['system/maintenance', 'system-maintenance', 'maintenance'])
@@ -22,16 +22,19 @@ export class MaintenanceController {
   @Public()
   @Get()
   @ApiOperation({ summary: 'Get current system maintenance status & configuration' })
+  @ApiSuccessResponse(undefined, { description: 'Current maintenance status' })
   async getStatus() {
     const config = await this.maintenanceService.getConfig();
     return { success: true, data: config };
   }
 
   @Post()
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('PLATFORM_ADMIN')
   @ApiOperation({ summary: 'Update system maintenance mode & settings (Admin only)' })
+  @ApiSuccessResponse(undefined, { description: 'Maintenance settings updated' })
+  @ApiStandardErrors(400, 401, 403)
   async updateConfig(@Body() dto: UpdateMaintenanceDto, @Req() req: any) {
     const operator = req.user?.fullName || 'Quản Trị Viên HuKi';
     const config = await this.maintenanceService.updateConfig(dto, operator);

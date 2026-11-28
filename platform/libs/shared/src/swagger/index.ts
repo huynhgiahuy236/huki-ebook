@@ -4,8 +4,9 @@
  * Export all shared Swagger DTOs for use across services
  */
 
-// Common DTOs (P3 response contract)
+// Common DTOs & Decorators (P3 response contract)
 export * from './common.dto';
+export * from './swagger-decorators';
 
 // Domain DTOs
 export * from './identity.dto';

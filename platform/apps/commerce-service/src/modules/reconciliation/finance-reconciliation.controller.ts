@@ -8,7 +8,8 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { AuthenticatedGuard, BookActor } from '../../common/book-auth.guard';
 import { CurrentBookActor } from '../../common/current-book-actor.decorator';
 import { FinanceReconciliationService } from './finance-reconciliation.service';
@@ -29,17 +30,14 @@ export class FinanceReconciliationController {
   ) {}
 
   @Post('run')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(AuthenticatedGuard)
   @ApiOperation({
     summary: 'Execute financial reconciliation run across Ledger, Wallet, Escrow, and Outbox',
     description: 'Admin only. Scans for accounting invariants, projection drifts, and lifecycle discrepancies.',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Reconciliation report with detailed diagnostic discrepancies',
-    type: ReconciliationReportDto,
-  })
+  @ApiSuccessResponse(ReconciliationReportDto, { status: 201, description: 'Reconciliation report with detailed diagnostic discrepancies' })
+  @ApiStandardErrors(400, 401, 403)
   async runReconciliation(
     @Body() query: ReconciliationQueryDto,
     @CurrentBookActor() actor: BookActor,
@@ -52,17 +50,14 @@ export class FinanceReconciliationController {
   }
 
   @Post('rebuild-summaries')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(AuthenticatedGuard)
   @ApiOperation({
     summary: 'Rebuild LedgerAccountSummary projections from immutable LedgerEntry history',
     description: 'Admin only. Updates derived account summaries without modifying historical ledger or wallet entries.',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Summary rebuild execution adjustments and status',
-    type: SummaryRebuildResultDto,
-  })
+  @ApiSuccessResponse(SummaryRebuildResultDto, { status: 201, description: 'Summary rebuild execution adjustments and status' })
+  @ApiStandardErrors(400, 401, 403)
   async rebuildSummaries(
     @Body() query: RebuildSummaryQueryDto,
     @CurrentBookActor() actor: BookActor,
@@ -79,12 +74,14 @@ export class FinanceReconciliationController {
   // ============================================
 
   @Post('eod/run')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(AuthenticatedGuard)
   @ApiOperation({
     summary: 'Execute End-of-Day Financial Reconciliation run and persist immutable audit record',
     description: 'Admin only. Scans all finance invariants, analyzes clearing balances, and records immutable historical run.',
   })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'EOD reconciliation run created' })
+  @ApiStandardErrors(400, 401, 403)
   async runEodReconciliation(
     @Body() dto: EodReconciliationRunDto,
     @CurrentBookActor() actor: BookActor,
@@ -97,12 +94,14 @@ export class FinanceReconciliationController {
   }
 
   @Get('eod/runs')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(AuthenticatedGuard)
   @ApiOperation({
     summary: 'List historical EOD reconciliation runs with summary statistics',
     description: 'Admin only. Retrieves historical immutable audit reports.',
   })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'EOD reconciliation runs list' })
+  @ApiStandardErrors(401, 403)
   async getEodRuns(
     @Query() query: EodRunsQueryDto,
     @CurrentBookActor() actor: BookActor,
@@ -115,12 +114,15 @@ export class FinanceReconciliationController {
   }
 
   @Get('eod/runs/latest')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(AuthenticatedGuard)
   @ApiOperation({
     summary: 'Get latest completed EOD reconciliation run',
     description: 'Admin only. Retrieves the most recent financial control report.',
   })
+  @ApiQuery({ name: 'businessDate', required: false, type: String })
+  @ApiSuccessResponse(undefined, { description: 'Latest EOD reconciliation run' })
+  @ApiStandardErrors(401, 403, 404)
   async getLatestEodRun(
     @Query('businessDate') businessDate: string | undefined,
     @CurrentBookActor() actor: BookActor,
@@ -133,12 +135,14 @@ export class FinanceReconciliationController {
   }
 
   @Get('eod/runs/:id')
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(AuthenticatedGuard)
   @ApiOperation({
     summary: 'Get full details of a specific EOD reconciliation run by ID',
     description: 'Admin only. Retrieves full financial control summary, counts, and diagnostic discrepancies.',
   })
+  @ApiSuccessResponse(undefined, { description: 'EOD reconciliation run detail' })
+  @ApiStandardErrors(401, 403, 404)
   async getEodRunById(
     @Param('id') id: string,
     @CurrentBookActor() actor: BookActor,

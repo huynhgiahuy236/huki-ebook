@@ -23,15 +23,14 @@ import {
   ApiTags,
   ApiOperation,
   ApiBearerAuth,
-  ApiResponse,
-  ApiBadRequestResponse,
-  ApiUnauthorizedResponse,
+  ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { CurrentUser } from '@huki/shared';
+import { CurrentUser, ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import {
   RegisterDto,
   LoginDto,
@@ -56,8 +55,8 @@ export class AuthController {
     summary: 'Register a new user',
     description: 'Creates a new user account. Requires email verification.',
   })
-  @ApiResponse({ status: 201, description: 'Registration successful' })
-  @ApiBadRequestResponse({ description: 'Invalid input data' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Registration successful' })
+  @ApiStandardErrors(400, 409, 429)
   async register(@Body() dto: RegisterDto) {
     const result = await this.authService.register(dto);
     return { data: result };
@@ -69,8 +68,18 @@ export class AuthController {
     summary: 'Verify email address',
     description: 'Verifies user email using token from verification email.',
   })
-  @ApiResponse({ status: 200, description: 'Email verified successfully' })
-  @ApiBadRequestResponse({ description: 'Invalid or expired token' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['token'],
+      properties: {
+        token: { type: 'string', example: 'verification-token' },
+        email: { type: 'string', example: 'user@huki.com' },
+      },
+    },
+  })
+  @ApiSuccessResponse(undefined, { description: 'Email verified successfully' })
+  @ApiStandardErrors(400, 404)
   async verifyEmail(@Body('token') token: string, @Body('email') email?: string) {
     const result = await this.authService.verifyEmail(token, email);
     return { data: result };
@@ -82,7 +91,17 @@ export class AuthController {
     summary: 'Resend verification email',
     description: 'Sends a new verification email to the user.',
   })
-  @ApiResponse({ status: 200, description: 'Verification email sent if account exists' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['email'],
+      properties: {
+        email: { type: 'string', example: 'user@huki.com' },
+      },
+    },
+  })
+  @ApiSuccessResponse(undefined, { description: 'Verification email sent if account exists' })
+  @ApiStandardErrors(400)
   async resendVerification(@Body('email') email: string) {
     await this.authService.resendVerification(email);
     return { message: 'Verification email sent' };
@@ -130,8 +149,8 @@ export class AuthController {
     summary: 'Login with credentials',
     description: 'Authenticates user with email and password. Requires verified email.',
   })
-  @ApiResponse({ status: 200, description: 'Login successful' })
-  @ApiUnauthorizedResponse({ description: 'Invalid credentials or unverified email' })
+  @ApiSuccessResponse(undefined, { description: 'Login successful', messageExample: 'Đăng nhập thành công' })
+  @ApiStandardErrors(400, 401, 429)
   async login(
     @Body() dto: LoginDto,
     @Req() req: Request,
@@ -155,8 +174,8 @@ export class AuthController {
     summary: 'Login with Google OAuth ID Token',
     description: 'Authenticates or creates a user account via verified Google OAuth credential.',
   })
-  @ApiResponse({ status: 200, description: 'Google login successful' })
-  @ApiBadRequestResponse({ description: 'Invalid Google token or missing email' })
+  @ApiSuccessResponse(undefined, { description: 'Google login successful' })
+  @ApiStandardErrors(400, 401)
   async loginWithGoogle(
     @Body() dto: GoogleLoginDto,
     @Req() req: Request,
@@ -180,7 +199,7 @@ export class AuthController {
     summary: 'Get Google OAuth Client ID for frontend integration',
     description: 'Returns the public Google Client ID configured on the backend.',
   })
-  @ApiResponse({ status: 200, description: 'Google Client ID returned' })
+  @ApiSuccessResponse(undefined, { description: 'Google Client ID returned' })
   getGoogleClientId() {
     return {
       data: {
@@ -194,6 +213,8 @@ export class AuthController {
     summary: 'Google OAuth2 Callback URL (Server-side redirect flow)',
     description: 'Handles OAuth2 redirect from Google and sets session tokens.',
   })
+  @ApiQuery({ name: 'code', required: true, description: 'OAuth authorization code from Google' })
+  @ApiSuccessResponse(undefined, { status: 302, description: 'Redirects to frontend login page with token or error' })
   async googleCallback(
     @Query('code') code: string,
     @Res() res: Response,
@@ -249,13 +270,22 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Logout from current device',
     description: 'Revokes the refresh token and logs out from current device.',
   })
-  @ApiResponse({ status: 200, description: 'Logout successful' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiBody({
+    required: false,
+    schema: {
+      type: 'object',
+      properties: {
+        refreshToken: { type: 'string', example: 'eyJhbGciOi...' },
+      },
+    },
+  })
+  @ApiSuccessResponse(undefined, { description: 'Logout successful', messageExample: 'Đăng xuất thành công' })
+  @ApiStandardErrors(401)
   async logout(
     @Body('refreshToken') bodyRefreshToken: string | undefined,
     @Req() req: Request,
@@ -272,13 +302,13 @@ export class AuthController {
   @Post('logout-all')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Logout from all devices',
     description: 'Revokes all refresh tokens and logs out from all devices.',
   })
-  @ApiResponse({ status: 200, description: 'Logged out from all devices' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Logged out from all devices', messageExample: 'Đăng xuất khỏi tất cả thiết bị' })
+  @ApiStandardErrors(401)
   async logoutAll(@CurrentUser('id') userId: string) {
     await this.authService.logoutAll(userId);
     return { message: 'Đăng xuất khỏi tất cả thiết bị' };
@@ -290,8 +320,8 @@ export class AuthController {
     summary: 'Refresh access token',
     description: 'Issues a new access token using a valid refresh token.',
   })
-  @ApiResponse({ status: 200, description: 'Token refreshed' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or expired refresh token' })
+  @ApiSuccessResponse(undefined, { description: 'Token refreshed' })
+  @ApiStandardErrors(400, 401)
   async refresh(
     @Body() dto: RefreshTokenDto,
     @Req() req: Request,
@@ -310,13 +340,13 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Get current user profile',
     description: 'Returns the profile of the currently authenticated user.',
   })
-  @ApiResponse({ status: 200, description: 'Current user profile' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Current user profile' })
+  @ApiStandardErrors(401)
   async getProfile(@CurrentUser() user: any) {
     return { data: user };
   }
@@ -327,7 +357,8 @@ export class AuthController {
     summary: 'Request password reset',
     description: 'Sends a password reset email to the user if the email exists.',
   })
-  @ApiResponse({ status: 200, description: 'Reset email sent if account exists' })
+  @ApiSuccessResponse(undefined, { description: 'Reset email sent if account exists' })
+  @ApiStandardErrors(400)
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     await this.authService.forgotPassword(dto);
     return { message: 'Nếu email tồn tại, liên kết đặt lại mật khẩu đã được gửi' };
@@ -339,8 +370,8 @@ export class AuthController {
     summary: 'Reset password with token',
     description: 'Resets the user password using a valid reset token.',
   })
-  @ApiResponse({ status: 200, description: 'Password reset successful' })
-  @ApiBadRequestResponse({ description: 'Invalid or expired reset token' })
+  @ApiSuccessResponse(undefined, { description: 'Password reset successful', messageExample: 'Đặt lại mật khẩu thành công' })
+  @ApiStandardErrors(400, 404)
   async resetPassword(@Body() dto: ResetPasswordDto) {
     await this.authService.resetPassword(dto);
     return { message: 'Đặt lại mật khẩu thành công' };
@@ -349,14 +380,13 @@ export class AuthController {
   @Patch('change-password')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Change password while logged in',
     description: 'Changes the user password after verifying the current password.',
   })
-  @ApiResponse({ status: 200, description: 'Password changed successfully' })
-  @ApiBadRequestResponse({ description: 'Current password incorrect' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Password changed successfully', messageExample: 'Đổi mật khẩu thành công' })
+  @ApiStandardErrors(400, 401)
   async changePassword(
     @CurrentUser('id') userId: string,
     @Body() dto: ChangePasswordDto,

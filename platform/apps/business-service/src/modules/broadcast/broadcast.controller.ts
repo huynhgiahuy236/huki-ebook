@@ -9,10 +9,11 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { BroadcastService } from './broadcast.service';
 import { CreateBroadcastDto, UpdateBroadcastActionDto } from './broadcast.dto';
 import { Public } from '@huki/shared/decorators';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 
 @ApiTags('Broadcast Notifications')
 @Controller(['broadcast-notifications', 'admin/broadcast-notifications'])
@@ -22,6 +23,8 @@ export class BroadcastController {
   @Public()
   @Get()
   @ApiOperation({ summary: 'Get all broadcast notifications' })
+  @ApiQuery({ name: 'businessId', required: false, type: String })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Broadcast notifications list' })
   async getNotifications(@Query('businessId') businessId?: string) {
     const list = await this.broadcastService.findAll(businessId);
     return { success: true, data: list };
@@ -30,6 +33,8 @@ export class BroadcastController {
   @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Get a single broadcast notification by ID' })
+  @ApiSuccessResponse(undefined, { description: 'Broadcast notification detail' })
+  @ApiStandardErrors(404)
   async getNotification(@Param('id') id: string) {
     const notif = await this.broadcastService.findOne(id);
     return { success: true, data: notif };
@@ -38,6 +43,8 @@ export class BroadcastController {
   @Public()
   @Post()
   @ApiOperation({ summary: 'Create a new broadcast notification' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Broadcast notification created' })
+  @ApiStandardErrors(400)
   async createNotification(
     @Body() dto: CreateBroadcastDto,
     @Req() req: any,
@@ -50,6 +57,8 @@ export class BroadcastController {
   @Public()
   @Put()
   @ApiOperation({ summary: 'Perform an action on a notification (MARK_READ, etc.)' })
+  @ApiSuccessResponse(undefined, { description: 'Action performed' })
+  @ApiStandardErrors(400, 404)
   async handleAction(@Body() dto: UpdateBroadcastActionDto) {
     const result = await this.broadcastService.handleAction(dto);
     return { success: true, list: result.list };
@@ -58,6 +67,9 @@ export class BroadcastController {
   @Public()
   @Delete(':id?')
   @ApiOperation({ summary: 'Delete a notification by ID (via path param or query string)' })
+  @ApiQuery({ name: 'id', required: false, type: String })
+  @ApiSuccessResponse(undefined, { description: 'Notification deleted' })
+  @ApiStandardErrors(400, 404)
   async deleteNotification(
     @Param('id') pathId?: string,
     @Query('id') queryId?: string,

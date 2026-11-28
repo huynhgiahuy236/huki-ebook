@@ -632,12 +632,11 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/users/sessions",
+              "raw": "{{baseUrl}}/sessions",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "sessions"
               ]
             },
@@ -672,14 +671,13 @@
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/users/sessions/:sessionId",
+              "raw": "{{baseUrl}}/sessions/{{sessionId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "sessions",
-                ":sessionId"
+                "{{sessionId}}"
               ]
             },
             "description": "Delete a specific session"
@@ -693,6 +691,27 @@
                 "type": "string"
               }
             ]
+          }
+        },
+        {
+          "name": "Revoke All Other Sessions",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sessions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sessions"
+              ]
+            }
           }
         }
       ]
@@ -730,7 +749,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"e2e-{{$timestamp}}-Business\",\n  \"description\": \"Test business for E2E\",\n  \"taxCode\": \"0123456789\",\n  \"phone\": \"0912345678\",\n  \"address\": \"123 Test Street\"\n}"
+              "raw": "{\n  \"name\": \"Nhà sách HuKi Demo\",\n  \"email\": \"business@huki.ebook.com\",\n  \"phone\": \"0912345678\",\n  \"address\": \"123 Nguyễn Huệ, Quận 1, TP.HCM\",\n  \"businessType\": \"INDIVIDUAL\",\n  \"storeName\": \"Nhà sách HuKi Demo\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/businesses",
@@ -905,7 +924,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"e2e-{{$timestamp}}-Store\",\n  \"description\": \"Test store for E2E\",\n  \"address\": \"456 Store Street\"\n}"
+              "raw": "{\n  \"name\": \"Cửa hàng HuKi Demo\",\n  \"slug\": \"cua-hang-huki-demo-{{}}\",\n  \"email\": \"store@huki.ebook.com\",\n  \"description\": \"Cửa hàng sách trực tuyến\",\n  \"phone\": \"0912345678\",\n  \"address\": \"123 Nguyễn Huệ, Quận 1, TP.HCM\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/stores?businessId={{businessId}}",
@@ -1102,20 +1121,19 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/invitations/{{invitationToken}}/accept",
+              "raw": "{{baseUrl}}/invitations/accept",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "invitations",
-                "{{invitationToken}}",
                 "accept"
               ]
             },
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{}",
+              "raw": "{\n  \"token\": \"{{invitationToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1251,16 +1269,7 @@
                 "leave"
               ]
             },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": ""
           },
           "event": [
             {
@@ -1457,7 +1466,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"e2e-{{$timestamp}}-Test Book\",\n  \"description\": \"A test book for E2E\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"price\": 99000,\n  \"hasPhysical\": true,\n  \"hasDigital\": false\n}"
+              "raw": "{\n  \"storeId\": \"{{storeId}}\",\n  \"title\": \"Sách Demo HuKi {{}}\",\n  \"description\": \"Mô tả sách demo\",\n  \"price\": 120000,\n  \"format\": \"PHYSICAL\",\n  \"categoryIds\": [\n    \"{{categoryId}}\"\n  ]\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/books",
@@ -1568,25 +1577,18 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/search?search=test&page=1&limit=20",
+              "raw": "{{baseUrl}}/catalog/search?q=sach",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
+                "catalog",
                 "search"
               ],
               "query": [
                 {
-                  "key": "search",
-                  "value": "test"
-                },
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
+                  "key": "q",
+                  "value": "sach"
                 }
               ]
             },
@@ -1816,7 +1818,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"stock\": 20\n}",
+              "raw": "{\n  \"operation\": \"SET\",\n  \"quantity\": 50,\n  \"reason\": \"MANUAL_ADJUSTMENT\",\n  \"note\": \"Postman sync\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1910,7 +1912,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"bookId\": \"{{bookId}}\",\n  \"quantity\": 1\n}"
+              "raw": "{\n  \"bookId\": \"{{bookId}}\",\n  \"format\": \"PHYSICAL\",\n  \"quantity\": 1\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/cart/items",
@@ -2050,7 +2052,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"addressId\": \"{{addressId}}\",\n  \"shippingMethod\": \"STANDARD\"\n}"
+              "raw": "{\n  \"addressId\": \"{{addressId}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/cart/checkout/preview",
@@ -2111,7 +2113,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"addressId\": \"{{addressId}}\",\n  \"shippingMethod\": \"STANDARD\",\n  \"paymentMethod\": \"COD\"\n}"
+              "raw": "{\n  \"sessionId\": \"{{checkoutSessionId}}\",\n  \"addressId\": \"{{addressId}}\",\n  \"paymentMethod\": \"COD\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/cart/checkout/confirm",
@@ -2852,7 +2854,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"status\": \"SUCCEEDED\",\n  \"providerReference\": \"manual-local-reference\"\n}",
+              "raw": "{\n  \"succeeded\": true,\n  \"providerRef\": \"PAYOS-REF-{{}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -6349,7 +6351,7 @@
                 "description": "",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"bookId\": \"{{bookId}}\",\n  \"quantity\": 1\n}",
+                  "raw": "{\n  \"bookId\": \"{{bookId}}\",\n  \"format\": \"PHYSICAL\",\n  \"quantity\": 1\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -6449,7 +6451,7 @@
                 "description": "",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"addressId\": \"{{addressId}}\",\n  \"paymentMethod\": \"COD\"\n}",
+                  "raw": "{\n  \"sessionId\": \"{{checkoutSessionId}}\",\n  \"addressId\": \"{{addressId}}\",\n  \"paymentMethod\": \"COD\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"

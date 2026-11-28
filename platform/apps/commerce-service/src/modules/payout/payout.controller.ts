@@ -7,7 +7,8 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { BookActor, AuthenticatedGuard } from '../../common/book-auth.guard';
 import { CurrentBookActor } from '../../common/current-book-actor.decorator';
 import { PayoutService } from './payout.service';
@@ -24,7 +25,7 @@ import {
 @ApiTags('Payout (Task 76-77 / POL-15)')
 @Controller('payout')
 @UseGuards(AuthenticatedGuard)
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 export class PayoutController {
   constructor(
     private readonly payoutService: PayoutService,
@@ -35,7 +36,8 @@ export class PayoutController {
   @ApiOperation({
     summary: 'Tạo yêu cầu rút tiền từ số dư khả dụng (Yêu cầu mã xác thực 2FA Finance Auth)',
   })
-  @ApiResponse({ status: 201, description: 'Yêu cầu rút tiền được tạo thành công ở trạng thái PENDING.' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Yêu cầu rút tiền được tạo thành công ở trạng thái PENDING.' })
+  @ApiStandardErrors(400, 401, 403, 404, 409)
   async createPayoutRequest(
     @Param('storeId') storeId: string,
     @Body() dto: CreatePayoutRequestDto,
@@ -49,7 +51,8 @@ export class PayoutController {
   @ApiOperation({
     summary: 'Xem lịch sử các yêu cầu rút tiền của gian hàng',
   })
-  @ApiResponse({ status: 200, description: 'Danh sách yêu cầu rút tiền của gian hàng.' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Danh sách yêu cầu rút tiền của gian hàng.' })
+  @ApiStandardErrors(401, 403, 404)
   async getStorePayoutRequests(
     @Param('storeId') storeId: string,
     @Query() query: PayoutQueryDto,
@@ -62,7 +65,8 @@ export class PayoutController {
   @ApiOperation({
     summary: 'Platform Admin phê duyệt hoặc từ chối yêu cầu rút tiền',
   })
-  @ApiResponse({ status: 200, description: 'Cập nhật trạng thái yêu cầu rút tiền.' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Cập nhật trạng thái yêu cầu rút tiền.' })
+  @ApiStandardErrors(400, 401, 403, 404, 409)
   async reviewPayoutRequest(
     @Param('id') id: string,
     @Body() dto: ReviewPayoutDto,
@@ -79,7 +83,8 @@ export class PayoutController {
   @ApiOperation({
     summary: 'Platform Admin xem danh sách tất cả yêu cầu rút tiền trên sàn',
   })
-  @ApiResponse({ status: 200, description: 'Danh sách yêu cầu rút tiền toàn sàn.' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Danh sách yêu cầu rút tiền toàn sàn.' })
+  @ApiStandardErrors(401, 403)
   async getAllPayoutRequests(
     @Query() query: PayoutQueryDto,
     @CurrentBookActor() actor: BookActor,
@@ -91,7 +96,8 @@ export class PayoutController {
   @ApiOperation({
     summary: 'Platform Admin thực hiện giải ngân chuyển khoản ngân hàng cho lệnh đã duyệt (Task 77)',
   })
-  @ApiResponse({ status: 200, description: 'Kết quả giải ngân chuyển khoản ngân hàng.' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Kết quả giải ngân chuyển khoản ngân hàng.' })
+  @ApiStandardErrors(400, 401, 403, 404, 409)
   async disbursePayout(
     @Param('id') id: string,
     @CurrentBookActor() actor: BookActor,
@@ -103,7 +109,8 @@ export class PayoutController {
   @ApiOperation({
     summary: 'Platform Admin thực hiện giải ngân hàng loạt cho nhiều lệnh đã duyệt (Task 77)',
   })
-  @ApiResponse({ status: 200, description: 'Kết quả giải ngân hàng loạt.' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Kết quả giải ngân hàng loạt.' })
+  @ApiStandardErrors(400, 401, 403)
   async disburseBatch(
     @Body() dto: DisburseBatchDto,
     @CurrentBookActor() actor: BookActor,
@@ -115,7 +122,8 @@ export class PayoutController {
   @ApiOperation({
     summary: 'Platform Admin thử lại chuyển khoản cho lệnh rút tiền thất bại (Task 77)',
   })
-  @ApiResponse({ status: 200, description: 'Kết quả thử lại giải ngân.' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Kết quả thử lại giải ngân.' })
+  @ApiStandardErrors(401, 403, 404, 409)
   async retryPayout(
     @Param('id') id: string,
     @CurrentBookActor() actor: BookActor,
@@ -127,7 +135,8 @@ export class PayoutController {
   @ApiOperation({
     summary: 'Platform Admin hủy lệnh rút tiền thất bại và hoàn trả số dư khả dụng cho người bán (Task 77)',
   })
-  @ApiResponse({ status: 200, description: 'Hủy lệnh và hoàn trả số dư thành công.' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Hủy lệnh và hoàn trả số dư thành công.' })
+  @ApiStandardErrors(400, 401, 403, 404, 409)
   async cancelFailedAndRefund(
     @Param('id') id: string,
     @Body() dto: CancelFailedPayoutDto,
@@ -140,7 +149,8 @@ export class PayoutController {
   @ApiOperation({
     summary: 'Platform Admin đối soát trạng thái giao dịch trực tiếp từ cổng ngân hàng (Task 77)',
   })
-  @ApiResponse({ status: 200, description: 'Kết quả đối soát trạng thái từ ngân hàng.' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Kết quả đối soát trạng thái từ ngân hàng.' })
+  @ApiStandardErrors(401, 403, 404)
   async reconcilePayoutWithProvider(
     @Param('id') id: string,
     @CurrentBookActor() actor: BookActor,

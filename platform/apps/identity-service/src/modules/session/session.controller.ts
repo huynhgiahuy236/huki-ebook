@@ -11,11 +11,11 @@ import {
 import { Request } from 'express';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '@huki/shared';
+import { CurrentUser, ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { SessionService } from './session.service';
 
 @ApiTags('Sessions')
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard)
 @Controller('sessions')
 export class SessionController {
@@ -23,6 +23,8 @@ export class SessionController {
 
   @Get()
   @ApiOperation({ summary: 'Get all active sessions' })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Active sessions list' })
+  @ApiStandardErrors(401)
   async getSessions(
     @CurrentUser('id') userId: string,
     @Req() req: Request,
@@ -36,6 +38,8 @@ export class SessionController {
   @Delete(':sessionId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Revoke a specific session' })
+  @ApiSuccessResponse(undefined, { description: 'Session revoked' })
+  @ApiStandardErrors(401, 404)
   async revokeSession(
     @CurrentUser('id') userId: string,
     @Param('sessionId') sessionId: string,
@@ -47,6 +51,8 @@ export class SessionController {
   @Delete()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Revoke all sessions except current' })
+  @ApiSuccessResponse(undefined, { description: 'All other sessions revoked' })
+  @ApiStandardErrors(401)
   async revokeAllSessions(
     @CurrentUser('id') userId: string,
   ) {

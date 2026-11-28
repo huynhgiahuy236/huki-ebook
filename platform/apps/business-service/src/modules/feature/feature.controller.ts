@@ -7,10 +7,11 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { FeatureService } from './feature.service';
 import { UpdateFeatureDto } from './feature.dto';
 import { Public } from '@huki/shared/decorators';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 
 @ApiTags('Seller Features')
 @Controller(['seller/feature-flags', 'seller-features'])
@@ -20,6 +21,8 @@ export class FeatureController {
   @Public()
   @Get()
   @ApiOperation({ summary: 'Get all seller feature flags' })
+  @ApiQuery({ name: 'businessId', required: false, type: String })
+  @ApiSuccessResponse(undefined, { isArray: true, description: 'Seller feature flags list' })
   async getFeatures(@Query('businessId') businessId?: string) {
     const list = await this.featureService.findAll(businessId);
     return { success: true, data: list };
@@ -28,6 +31,8 @@ export class FeatureController {
   @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Get a single feature by ID' })
+  @ApiSuccessResponse(undefined, { description: 'Feature flag detail' })
+  @ApiStandardErrors(404)
   async getFeature(@Param('id') id: string) {
     const feature = await this.featureService.findOne(id);
     return { success: true, data: feature };
@@ -36,6 +41,8 @@ export class FeatureController {
   @Public()
   @Post()
   @ApiOperation({ summary: 'Toggle or update seller feature flag' })
+  @ApiSuccessResponse(undefined, { description: 'Feature flag updated' })
+  @ApiStandardErrors(400, 404)
   async updateFeature(@Body() dto: UpdateFeatureDto, @Req() req: any) {
     const operator = req.user?.fullName || 'Admin System';
     const result = await this.featureService.updateFeature(dto, operator);

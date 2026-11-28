@@ -22,11 +22,8 @@ import {
   ApiOperation,
   ApiTags,
   ApiParam,
-  ApiResponse,
-  ApiUnauthorizedResponse,
-  ApiNotFoundResponse,
-  ApiBadRequestResponse,
 } from '@nestjs/swagger';
+import { ApiSuccessResponse, ApiStandardErrors } from '@huki/shared';
 import { AuthenticatedGuard, BookActor } from '../../common/book-auth.guard';
 import { CurrentBookActor } from '../../common/current-book-actor.decorator';
 import { CartService } from './cart.service';
@@ -35,7 +32,7 @@ import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 import { MergeCartDto } from './dto/merge-cart.dto';
 
 @ApiTags('Cart')
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 @UseGuards(AuthenticatedGuard)
 @Controller('cart')
 export class CartController {
@@ -46,8 +43,8 @@ export class CartController {
     summary: 'Get current user cart',
     description: 'Returns the current user\'s shopping cart with all items.',
   })
-  @ApiResponse({ status: 200, description: 'Cart details' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Cart details' })
+  @ApiStandardErrors(401)
   get(@CurrentBookActor() actor: BookActor) {
     return this.cartService.getCart(actor.sub);
   }
@@ -58,8 +55,8 @@ export class CartController {
     summary: 'Merge guest cart into user account',
     description: 'Merges items stored in local storage during guest session into the authenticated user cart.',
   })
-  @ApiResponse({ status: 200, description: 'Cart merged successfully' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Cart merged successfully' })
+  @ApiStandardErrors(400, 401)
   merge(@CurrentBookActor() actor: BookActor, @Body() dto: MergeCartDto) {
     return this.cartService.mergeGuestCart(actor.sub, dto.items || []);
   }
@@ -70,10 +67,8 @@ export class CartController {
     summary: 'Add item to cart',
     description: 'Adds a book to the user\'s shopping cart.',
   })
-  @ApiResponse({ status: 201, description: 'Item added to cart' })
-  @ApiBadRequestResponse({ description: 'Invalid item or quantity' })
-  @ApiNotFoundResponse({ description: 'Book not found' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { status: 201, description: 'Item added to cart' })
+  @ApiStandardErrors(400, 401, 404, 409)
   add(@CurrentBookActor() actor: BookActor, @Body() dto: AddCartItemDto) {
     return this.cartService.add(actor.sub, dto);
   }
@@ -84,10 +79,8 @@ export class CartController {
     description: 'Updates the quantity of an item in the cart.',
   })
   @ApiParam({ name: 'itemId', description: 'Cart item ID' })
-  @ApiResponse({ status: 200, description: 'Item quantity updated' })
-  @ApiNotFoundResponse({ description: 'Cart item not found' })
-  @ApiBadRequestResponse({ description: 'Invalid quantity' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Item quantity updated' })
+  @ApiStandardErrors(400, 401, 404, 409)
   update(
     @CurrentBookActor() actor: BookActor,
     @Param('itemId', ParseUUIDPipe) itemId: string,
@@ -102,9 +95,8 @@ export class CartController {
     description: 'Removes a specific item from the cart.',
   })
   @ApiParam({ name: 'itemId', description: 'Cart item ID' })
-  @ApiResponse({ status: 200, description: 'Item removed from cart' })
-  @ApiNotFoundResponse({ description: 'Cart item not found' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Item removed from cart' })
+  @ApiStandardErrors(401, 404)
   remove(
     @CurrentBookActor() actor: BookActor,
     @Param('itemId', ParseUUIDPipe) itemId: string,
@@ -118,8 +110,8 @@ export class CartController {
     summary: 'Clear entire cart',
     description: 'Removes all items from the user\'s cart.',
   })
-  @ApiResponse({ status: 200, description: 'Cart cleared' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  @ApiSuccessResponse(undefined, { description: 'Cart cleared' })
+  @ApiStandardErrors(401)
   async clear(@CurrentBookActor() actor: BookActor) {
     await this.cartService.clear(actor.sub);
     return { message: 'Đã xóa giỏ hàng' };
