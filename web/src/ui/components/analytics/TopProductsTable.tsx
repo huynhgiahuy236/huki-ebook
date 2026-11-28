@@ -107,14 +107,14 @@ export function TopProductsTable({
               <thead>
                 <tr className="border-b border-gray-100 text-gray-400 font-bold uppercase text-[10px] tracking-wider">
                   <th className="py-2 px-2 w-12 text-center">Hạng</th>
-                  <th className="py-2 px-3">Mã Sách (Book ID)</th>
+                  <th className="py-2 px-3">Tên Sách &amp; Gian Hàng</th>
                   <th className="py-2 px-3 text-right">Số Bản Bán</th>
                   <th className="py-2 px-3 text-right">Tổng GMV</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 font-medium">
                 {items.map((bk, idx) => {
-                  const isCopied = copiedId === bk.bookId;
+                  const storeLabel = (bk as BestsellerItem & { storeName?: string }).storeName;
                   return (
                     <tr key={bk.bookId} className="hover:bg-gray-50/80 transition-colors">
                       {/* Rank badge */}
@@ -136,31 +136,28 @@ export function TopProductsTable({
                         )}
                       </td>
 
-                      {/* Book ID with copy button */}
-                      <td className="py-2.5 px-3 font-mono text-[11px] text-gray-800">
-                        <div className="flex items-center gap-1.5">
-                          <span title={bk.bookId} className="truncate max-w-[150px] sm:max-w-[200px]">
-                            {bk.bookId}
+                      {/* Book Title & Store */}
+                      <td className="py-2.5 px-3 text-gray-800">
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-bold text-xs text-gray-900 truncate max-w-[260px] sm:max-w-[380px]" title={bk.title}>
+                            {bk.title || 'Sách HuKi'}
                           </span>
-                          <button
-                            onClick={() => handleCopy(bk.bookId)}
-                            className="text-gray-400 hover:text-gray-700 p-0.5 rounded transition-colors cursor-pointer"
-                            title="Sao chép Book ID"
-                          >
-                            <span className="material-symbols-outlined text-[13px]">
-                              {isCopied ? 'check' : 'content_copy'}
+                          {storeLabel && (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-medium mt-0.5 truncate">
+                              <span className="material-symbols-outlined text-[13px] shrink-0">storefront</span>
+                              <span className="truncate">{storeLabel}</span>
                             </span>
-                          </button>
+                          )}
                         </div>
                       </td>
 
                       {/* Units */}
-                      <td className="py-2.5 px-3 text-right font-bold text-blue-700">
+                      <td className="py-2.5 px-3 text-right font-bold text-blue-700 whitespace-nowrap">
                         {bk.units.toLocaleString('vi-VN')} bản
                       </td>
 
                       {/* GMV */}
-                      <td className="py-2.5 px-3 text-right font-extrabold text-gray-900 font-editorial">
+                      <td className="py-2.5 px-3 text-right font-extrabold text-sm text-gray-900 font-editorial whitespace-nowrap">
                         {formatVND(bk.gmv)}
                       </td>
                     </tr>

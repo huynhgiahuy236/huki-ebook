@@ -124,7 +124,6 @@ export default function AdminMaintenanceView() {
     });
     setConfig(updated);
     setIsBlackoutModalOpen(false);
-    showNotification('ĐÃ KÍCH HOẠT CHẾ ĐỘ BẢO TRÌ KHẨN CẤP (BLACKOUT)!');
   };
 
   const handleTriggerGracefulDrain = () => {
@@ -136,14 +135,12 @@ export default function AdminMaintenanceView() {
     });
     setConfig(updated);
     setIsDrainModalOpen(false);
-    showNotification(`ĐÃ KÍCH HOẠT XẢ ÊM DỊU: Đếm ngược ${drainMinutes} phút trước khi ngắt toàn hệ thống!`);
   };
 
   const handleRestoreSystem = () => {
     const updated = maintenanceService.deactivateMaintenance('Admin Trung Tâm');
     setConfig(updated);
     setIsRestoreModalOpen(false);
-    showNotification('HỆ THỐNG ĐÃ ĐƯỢC PHỤC HỒI HOÀN TOÀN! Các dịch vụ đã hoạt động bình thường.');
   };
 
   const handleSaveSchedule = () => {

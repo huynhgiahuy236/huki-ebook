@@ -271,15 +271,31 @@ export function AdminReportsView() {
 
         if (resolvedBestsellers.length === 0) {
           try {
-            const validItems = await getValidEscrowItems();
-            const bookMap = new Map<string, BestsellerItem>();
+            const [validItems, bizRes] = await Promise.all([
+              getValidEscrowItems(),
+              adminApi.getBusinesses({ limit: 100 }).catch(() => null),
+            ]);
+            const storeNameMap = new Map<string, string>();
+            if (bizRes && bizRes.success && Array.isArray(bizRes.data)) {
+              bizRes.data.forEach((b: any) => {
+                if (b.id && b.name) storeNameMap.set(b.id, b.name);
+                if (Array.isArray(b.stores)) {
+                  b.stores.forEach((s: any) => {
+                    if (s.id) storeNameMap.set(s.id, s.name || b.name || 'Nhà Xuất Bản');
+                  });
+                }
+              });
+            }
+            const bookMap = new Map<string, BestsellerItem & { storeName?: string }>();
             validItems.forEach((it: any) => {
               const bid = it.bookId || it.bookTitle || 'unknown';
               const qty = Number(it.quantity || 1);
               const amt = Number(it.effectiveSubtotal ?? it.subtotal ?? 0);
+              const sName = storeNameMap.get(it.storeId) || it.storeName || 'Gian hàng đối tác';
               const cur = bookMap.get(bid) || {
                 bookId: bid,
                 title: it.bookTitle || 'Sách HuKi',
+                storeName: sName,
                 metricValue: '0',
                 units: 0,
                 gmv: '0',

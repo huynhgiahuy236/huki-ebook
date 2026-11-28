@@ -31,6 +31,8 @@ export interface PlatformGmvResponse {
 
 export interface BestsellerItem {
   bookId: string;
+  title?: string;
+  storeName?: string;
   metricValue: string;
   units: number;
   gmv: string;

@@ -345,9 +345,9 @@ export function ConversionAndCategoryView() {
         key: 'viewCount',
         title: 'Lượt Xem',
         width: 120,
-        align: 'right',
+        align: 'center',
         render: (_val, row) => (
-          <div className="text-right">
+          <div className="text-center">
             <span className="text-sm font-semibold text-gray-800">
               {row.viewCount.toLocaleString('vi-VN')}
             </span>
@@ -359,9 +359,9 @@ export function ConversionAndCategoryView() {
         key: 'totalUnits',
         title: 'Đã Bán',
         width: 110,
-        align: 'right',
+        align: 'center',
         render: (_val, row) => (
-          <div className="text-right">
+          <div className="text-center">
             <span
               className={`text-sm font-black ${
                 row.totalUnits > 0 ? 'text-[#00875A]' : 'text-gray-400'
@@ -376,10 +376,10 @@ export function ConversionAndCategoryView() {
       {
         key: 'totalRevenue',
         title: 'Doanh Thu Danh Mục',
-        width: 170,
+        width: 185,
         align: 'right',
         render: (_val, row) => (
-          <div className="text-right">
+          <div className="text-right pr-3">
             <span
               className={`text-sm font-black ${
                 row.totalRevenue > 0 ? 'text-gray-900 font-mono' : 'text-gray-400'
@@ -398,9 +398,9 @@ export function ConversionAndCategoryView() {
       {
         key: 'sharePercent',
         title: 'Tỷ Trọng GMV',
-        width: 150,
+        width: 160,
         render: (_val, row) => (
-          <div className="w-full">
+          <div className="w-full pl-3">
             <div className="flex items-center justify-between text-xs font-bold text-gray-700 mb-1">
               <span>{row.sharePercent}%</span>
             </div>
@@ -874,16 +874,16 @@ export function ConversionAndCategoryView() {
                     {grandTotals.bookCount} sách
                   </span>
                 </td>
-                <td className="py-3 px-3 text-right whitespace-nowrap">
+                <td className="py-3 px-3 text-center whitespace-nowrap">
                   {grandTotals.viewCount.toLocaleString('vi-VN')}
                 </td>
-                <td className="py-3 px-3 text-right text-[#00875A] whitespace-nowrap">
+                <td className="py-3 px-3 text-center text-[#00875A] whitespace-nowrap">
                   {grandTotals.totalUnits.toLocaleString('vi-VN')} cuốn
                 </td>
-                <td className="py-3 px-3 text-right font-mono text-sm font-extrabold text-gray-900 whitespace-nowrap">
+                <td className="py-3 px-3 pr-6 text-right font-mono text-sm font-extrabold text-gray-900 whitespace-nowrap">
                   {formatVND(grandTotals.totalRevenue)}
                 </td>
-                <td className="py-3 px-3 whitespace-nowrap">
+                <td className="py-3 px-3 pl-6 whitespace-nowrap">
                   <span className="text-xs font-bold text-gray-700">100.0%</span>
                 </td>
                 <td className="py-3 px-3 text-center whitespace-nowrap">
