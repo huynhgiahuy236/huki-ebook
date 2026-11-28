@@ -2246,4 +2246,37 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
   - `AdminUsersView.tsx` có giao diện bảng & inspect drawer chuẩn hơn, nhưng thiếu các bộ lọc phân loại theo vai trò (Gian hàng/Seller, Bưu tá/Shipper, Khách hàng, Admin) và lọc hành vi mua hàng (như **Khách chưa mua hàng**); ngược lại `AdminAccountsView.tsx` lại giữ các thao tác quản trị tài khoản (đổi role, khóa/mở, xóa...).
 - **Ma trận Rủi ro Domino:** Header Search của Admin (`AdminLayout.tsx:354`) và một số link điều hướng đang trỏ tới `/admin/users` hoặc `/admin/accounts`. Khi gộp về `/admin/users`, cần giữ route `/admin/accounts` redirect sang `/admin/users` để không gãy liên kết cũ.
 
-- **Trạng thái Bước 2 — Giai đoạn 1:** Hoàn tất phân tích 3 bug (`BUG-39`, `BUG-40`, `BUG-41`). **DỪNG LẠI** theo quy chế phân chặng để báo cáo Người dùng trước khi sang Giai đoạn 2 (`BUG-42`, `BUG-43`, `BUG-44`).
+- **Trạng thái Bước 2 — Giai đoạn 1:** Hoàn tất phân tích 3 bug (`BUG-39`, `BUG-40`, `BUG-41`).
+
+---
+
+### Bước 2 — Giai đoạn 2 (`BUG-42`, `BUG-43`, `BUG-44`): Phân tích Nguyên nhân Gốc rễ & Ma trận Domino (28/11/2026)
+
+> **Phạm vi kiểm chứng môi trường:** Cả **3 lỗi (`BUG-42`, `BUG-43`, `BUG-44`)** đều bắt nguồn trực tiếp từ mã nguồn hiện tại trong `web/` và `platform/`, nên **xảy ra trên cả Local lẫn UAT**.
+
+#### 1. `BUG-42` — Sidebar `NXB & Tác Giả` ➔ `Gian Hàng & Tác Giả`
+- **Tầng 4 (Frontend Client):**
+  - Trang đích [`web/src/app/stores/page.tsx`](file:///e:/HuKi/web/src/app/stores/page.tsx#L438) đã được chuẩn hóa tiêu đề thành **`Gian Hàng & Tác Giả`**.
+  - Tuy nhiên, thanh điều hướng [`HierarchicalSidebar.tsx`](file:///e:/HuKi/web/src/ui/components/layout/HierarchicalSidebar.tsx#L155-L159) (`id: 'stores'`, `to: '/stores'`) vẫn giữ nhãn cũ `title: 'NXB & Tác Giả'`.
+- **Ma trận Rủi ro Domino:** Thay đổi thuần nhãn hiển thị ở sidebar, không ảnh hưởng route `/stores` hay API.
+
+#### 2. `BUG-43` — `/admin/drm-vault` (Kiểm tra dữ liệu thật & logic chuẩn hóa)
+- **Hiện trạng kiểm chứng (Tầng 2 & Tầng 4):**
+  - [`AdminDrmVaultView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminDrmVaultView.tsx#L71-L132) và [`drm-vault.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/books/drm-vault.service.ts#L90-L185) **đã truy vấn dữ liệu thật từ PostgreSQL** (`prisma.drmLicense`, `prisma.drmDevice`, `prisma.drmAuditLog`), không dùng danh sách mock tĩnh.
+- **Các lỗ hổng logic & thông số giả lập còn sót:**
+  1. `issuedLicenses` (lượt cấp bản quyền cho người mua) được khởi tạo `0` trong `provisionLicenseForBook` nhưng **chưa bao giờ được cộng (`increment`)** khi khách mua Ebook thành công ➔ cột số lượt cấp luôn bằng `0`.
+  2. `kmsHardwareClusters: 'SG1 & HN02'` và `kmsLatencyMs: 4` trong `getOverview()` (dòng 107–108) đang **hardcode tĩnh** thay vì đo thời gian phản hồi DB/KMS thật và phản ánh đúng engine đang chạy (`AES-GCM-256 Local Vault / R2`).
+  3. `startSession` / `endSession` (dòng 355–462) chưa phát sự kiện realtime (`DRM_ACTIVE_READERS_CHANGED`) qua RabbitMQ/Socket tới Admin và chưa tự dọn phiên treo nếu người đọc đóng trình duyệt đột ngột.
+  4. Các sách số cũ (tạo trước khi có `provisionLicenseForBook`) chưa được đồng bộ cấp `DrmLicense` khi bấm `Quét Toàn Vẹn Bản Quyền (Integrity Scan)`.
+- **Ma trận Rủi ro Domino:** Liên quan trực tiếp tới `reader/page.tsx` (phiên đọc Ebook), `library/devices/page.tsx` (thu hồi thiết bị), và luồng thanh toán Ebook (`PaymentsService` / `DigitalEntitlement`).
+
+#### 3. `BUG-44` — `/admin/shippers` (Mock danh sách Bưu tá & thiếu Realtime nộp tiền COD)
+- **Tầng 2 (Backend Commerce Service):**
+  - Trong [`orders.service.ts`](file:///e:/HuKi/platform/apps/commerce-service/src/modules/orders/orders.service.ts#L5168-L5250), hàm `adminListShippers` **đang hardcode/mock cứng danh sách shipper giả** (`Nguyễn Văn Giao`, `Trần Hoàng Nam / SHP-002`, `SHP-003`...) thay vì gọi API nội bộ sang `identity-service` để lấy danh sách user có role `DELIVERY_STAFF` thật từ DB (đó là lý do `/admin/users` trên UAT chỉ có 1 shipper nhưng `/admin/shippers` lại hiện nhiều shipper giả).
+  - Luồng Shipper nộp tiền COD về sàn chưa phát sự kiện realtime tới Admin để cập nhật bảng đối soát ngay lập tức.
+- **Tầng 4 (Frontend Client):**
+  - [`AdminShippersView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminShippersView.tsx#L92-L100) chỉ lắng nghe `SHIPPER_PROFILE_UPDATED`, **thiếu lắng nghe sự kiện nộp tiền COD** (`SHIPPER_COD_REMITTED` / `COD_REMITTANCE`).
+  - Các nút `toggleStatus` và `handleExecuteBulkAction` (dòng 102–153) chỉ `setShippers` trên client state mà **không gọi API cập nhật DB**.
+- **Ma trận Rủi ro Domino:** Cần tuân thủ ranh giới Microservice (`commerce-service` gọi `identity-service` qua Internal HTTP API để lấy danh sách `DELIVERY_STAFF`, tuyệt đối không truy cập chéo DB `huki_identity`).
+
+- **Trạng thái Bước 2 — Giai đoạn 2:** Hoàn tất phân tích 3 bug (`BUG-42`, `BUG-43`, `BUG-44`). **DỪNG LẠI** theo quy chế phân chặng để báo cáo Người dùng trước khi sang Giai đoạn 3 (`BUG-45`, `BUG-46`, `BUG-47`).
