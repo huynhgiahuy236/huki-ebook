@@ -40,6 +40,7 @@ export default function AdminMaintenanceView() {
   // Sync state
   useEffect(() => {
     setMounted(true);
+    void maintenanceService.syncFromServer();
     const handleUpdate = () => {
       const current = maintenanceService.getConfig();
       setConfig(current);

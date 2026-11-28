@@ -24,6 +24,26 @@ export class UpdateMaintenanceDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsString()
+  scheduledMode?: 'IMMEDIATE' | 'GRACEFUL';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  drainStartedAt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  masterBypassKey?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  updatedAt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsNumber()
   drainDurationMinutes?: number;
 

@@ -208,7 +208,14 @@ class MaintenanceService {
         method: 'POST',
         headers,
         body: JSON.stringify(this.config),
-      }).catch((err) => console.warn('Failed to persist maintenance to server:', err));
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            const errText = await res.text().catch(() => '');
+            console.warn('Failed to persist maintenance to server:', res.status, errText);
+          }
+        })
+        .catch((err) => console.warn('Failed to persist maintenance to server:', err));
     }
 
     realtimeSyncBus.publish({

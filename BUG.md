@@ -2512,3 +2512,13 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
 - **Kiểm chứng & E2E:**
   - `build:business`, `build:promotion`, `build:community`, `web run typecheck`: **0 errors**.
   - [`scripts/test_e2e_stage4_bug48_49_50.js`](file:///e:/HuKi/scripts/test_e2e_stage4_bug48_49_50.js): **PASS 100%** trên môi trường thật (`BE :3000`, PostgreSQL thật).
+
+### Bước 4 — Giai đoạn 5 (`BUG-51`, `BUG-52`, `BUG-53`): Sửa Tận Gốc & E2E Độc Lập (28/11/2026)
+
+- **Khắc phục mã nguồn:**
+  - `BUG-51`: Mở rộng [`maintenance.dto.ts`](file:///e:/HuKi/platform/apps/identity-service/src/modules/maintenance/maintenance.dto.ts) nhận đủ trường `scheduledMode`, `drainStartedAt`, `masterBypassKey`, `updatedAt`; thêm đồng bộ `syncFromServer()` khi mount [`AdminMaintenanceView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminMaintenanceView.tsx) và log lỗi rõ trong [`maintenanceService.ts`](file:///e:/HuKi/web/src/ui/services/maintenanceService.ts).
+  - `BUG-52`: Chuyển Header Search ở [`AdminLayout.tsx`](file:///e:/HuKi/web/src/ui/components/layout/AdminLayout.tsx) sang `flex items-center` (triệt tiêu đè chữ lên icon kính lúp) và tinh chỉnh mềm mại đồng bộ cho [`SellerHeader.tsx`](file:///e:/HuKi/web/src/ui/components/layout/SellerHeader.tsx).
+  - `BUG-53`: Sửa [`notification-watchdog.service.ts`](file:///e:/HuKi/platform/apps/community-service/src/modules/notifications/notification-watchdog.service.ts) đọc URL nội bộ từng service qua biến môi trường (fallback `127.0.0.1` ở Local), thêm retry 2 lần và parse đầy đủ `AggregateError` message; bổ sung `IDENTITY_SERVICE_URL`, `SHIPPING_SERVICE_URL`, `PROMOTION_SERVICE_URL` cho `community-service-uat` trong [`docker-compose.uat.yml`](file:///e:/HuKi/docker-compose.uat.yml).
+- **Kiểm chứng & E2E:**
+  - `build:identity`, `build:community`, `web run typecheck`: **0 errors**.
+  - [`scripts/test_e2e_stage5_bug51_52_53.js`](file:///e:/HuKi/scripts/test_e2e_stage5_bug51_52_53.js): **PASS 100%** trên môi trường thật (`BE :3000`, PostgreSQL thật).

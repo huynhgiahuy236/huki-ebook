@@ -382,39 +382,78 @@ export class NotificationWatchdogService {
   ): Promise<number> {
     let count = 0;
 
-    // Default microservices list to check
-    const services = serviceChecks || [
-      { serviceName: "identity", port: 3001 },
-      { serviceName: "business", port: 3002 },
-      { serviceName: "commerce", port: 3003 },
-      { serviceName: "shipping", port: 3004 },
-      { serviceName: "promotion", port: 3007 },
+    // Default microservices list with Docker env URL support (falls back to 127.0.0.1 for local dev)
+    const services: Array<WatchdogServiceCheckInput & { url?: string }> = serviceChecks || [
+      {
+        serviceName: "identity",
+        port: Number(process.env.IDENTITY_SERVICE_PORT || 3001),
+        url: process.env.IDENTITY_SERVICE_URL,
+      },
+      {
+        serviceName: "business",
+        port: Number(process.env.BUSINESS_SERVICE_PORT || 3002),
+        url: process.env.BUSINESS_SERVICE_URL,
+      },
+      {
+        serviceName: "commerce",
+        port: Number(process.env.COMMERCE_SERVICE_PORT || 3003),
+        url: process.env.COMMERCE_SERVICE_URL,
+      },
+      {
+        serviceName: "shipping",
+        port: Number(process.env.SHIPPING_SERVICE_PORT || 3004),
+        url: process.env.SHIPPING_SERVICE_URL,
+      },
+      {
+        serviceName: "promotion",
+        port: Number(process.env.PROMOTION_SERVICE_PORT || 3007),
+        url: process.env.PROMOTION_SERVICE_URL,
+      },
     ];
+
+    const pingOnce = (targetUrl: string): Promise<{ down: boolean; reason: string }> =>
+      new Promise((resolve) => {
+        try {
+          const parsed = new URL(targetUrl);
+          const client = parsed.protocol === "https:" ? require("https") : http;
+          const req = client.get(targetUrl, { timeout: 3000 }, (res: any) => {
+            res.resume();
+            resolve({
+              down: res.statusCode !== 200,
+              reason: res.statusCode !== 200 ? `HTTP ${res.statusCode}` : "",
+            });
+          });
+          req.on("error", (err: any) => {
+            const aggMsg = Array.isArray(err?.errors)
+              ? err.errors.map((e: any) => e?.code || e?.message).filter(Boolean).join(", ")
+              : "";
+            const msg = err?.message || err?.code || aggMsg || "Connection refused";
+            resolve({ down: true, reason: msg });
+          });
+          req.on("timeout", () => {
+            req.destroy();
+            resolve({ down: true, reason: "Connection timeout (3000ms)" });
+          });
+        } catch (err: any) {
+          resolve({ down: true, reason: err?.message || "Invalid healthcheck URL" });
+        }
+      });
 
     for (const s of services) {
       let isDown = s.isDown ?? false;
       let errorMsg = s.errorMessage || "Service unavailable";
 
       if (s.isDown === undefined) {
-        // Ping actual health endpoint
-        isDown = await new Promise((resolve) => {
-          const req = http.get(
-            `http://localhost:${s.port}/api/v1/health`,
-            { timeout: 2000 },
-            (res) => {
-              resolve(res.statusCode !== 200);
-            },
-          );
-          req.on("error", (err) => {
-            errorMsg = err.message;
-            resolve(true);
-          });
-          req.on("timeout", () => {
-            req.destroy();
-            errorMsg = "Connection timeout (2000ms)";
-            resolve(true);
-          });
-        });
+        const base = ((s as any).url || `http://127.0.0.1:${s.port}`).replace(/\/$/, "");
+        const healthUrl = `${base}/api/v1/health`;
+        // Retry 2 times before raising critical downtime alert to prevent transient false-positives
+        let check = await pingOnce(healthUrl);
+        if (check.down) {
+          await new Promise((r) => setTimeout(r, 500));
+          check = await pingOnce(healthUrl);
+        }
+        isDown = check.down;
+        if (check.reason) errorMsg = check.reason;
       }
 
       if (isDown) {

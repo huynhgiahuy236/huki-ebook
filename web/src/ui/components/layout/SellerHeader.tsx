@@ -218,16 +218,29 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
         </div>
       </div>
 
-      {/* Center Search */}
-      <form onSubmit={handleSearch} className="hidden md:flex items-center bg-surface-container-low/80 border border-theme-border rounded-full px-3 py-1 w-40 lg:w-52 xl:w-64 text-xs text-on-surface-variant focus-within:border-theme-primary focus-within:ring-2 focus-within:ring-theme-primary/10 transition-all shrink-0">
-        <span className="material-symbols-outlined text-[15px] mr-1.5 text-on-surface-variant shrink-0">search</span>
+      {/* Center Search - Tinh tế & đồng bộ chuẩn HuKi */}
+      <form
+        onSubmit={handleSearch}
+        className="hidden md:flex items-center gap-2 bg-[#F8FAFC] hover:bg-[#F1F5F9] focus-within:bg-white border border-[#E2E8F0] focus-within:border-[#00875A] focus-within:ring-2 focus-within:ring-[#00875A]/15 rounded-full px-3.5 h-9 w-48 lg:w-64 xl:w-80 text-xs text-slate-800 transition-all shadow-2xs focus-within:shadow-xs shrink-0"
+      >
+        <span className="material-symbols-outlined text-[17px] text-slate-400 shrink-0">search</span>
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Tìm mã đơn, SKU, tựa sách..."
-          className="bg-transparent border-none outline-none w-full text-xs text-on-surface placeholder:text-on-surface-variant/70 min-w-0"
+          className="bg-transparent border-none outline-none w-full text-xs font-medium text-slate-800 placeholder:text-slate-400 min-w-0"
         />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery('')}
+            className="text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200 transition-colors cursor-pointer shrink-0"
+            aria-label="Xóa tìm kiếm"
+          >
+            <span className="material-symbols-outlined text-[14px] block">close</span>
+          </button>
+        )}
       </form>
 
       {/* Right Actions */}
