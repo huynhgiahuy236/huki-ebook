@@ -376,14 +376,14 @@ export default function BookCard({
             <button
               type="button"
               onClick={handleToggleWishlist}
-              className={`absolute top-1 right-1 z-20 w-6 h-6 rounded-full flex items-center justify-center transition-all backdrop-blur-md shadow-xs cursor-pointer ${
+              className={`group/heart absolute top-1.5 right-1.5 z-20 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-200 backdrop-blur-md cursor-pointer active:scale-90 ${
                 isWishlisted
-                  ? 'bg-rose-500 text-white shadow-rose-500/30'
-                  : 'bg-white/85 hover:bg-white text-slate-500 hover:text-rose-500'
+                  ? 'bg-rose-500/95 text-white shadow-sm shadow-rose-500/25 ring-1 ring-white/80'
+                  : 'bg-white/80 hover:bg-white text-slate-500 hover:text-rose-500 shadow-sm ring-1 ring-black/5'
               }`}
               title={isWishlisted ? 'Bỏ khỏi yêu thích' : 'Thêm vào yêu thích'}
             >
-              <span className={`material-symbols-outlined text-[13px] ${isWishlisted ? 'fill-current text-white' : ''}`}>
+              <span className={`material-symbols-outlined text-[13px] transition-transform duration-200 group-hover/heart:scale-110 ${isWishlisted ? 'fill-current text-white' : ''}`}>
                 {isWishlisted ? 'favorite' : 'favorite_border'}
               </span>
             </button>
@@ -476,18 +476,18 @@ export default function BookCard({
           className="group-hover:scale-105 transition-transform duration-300 w-full h-full object-cover"
         />
 
-        {/* Nút Yêu Thích (Wishlist Heart Button) - Di chuyển lên góc trên bên phải, không che bìa */}
+        {/* Nút Yêu Thích (Wishlist Heart Button) */}
         <button
           type="button"
           onClick={handleToggleWishlist}
-          className={`absolute top-1.5 right-1.5 z-20 w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-xs active:scale-90 ${
+          className={`group/heart absolute top-2 right-2 z-20 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-200 backdrop-blur-md cursor-pointer active:scale-90 ${
             isWishlisted
-              ? 'bg-rose-500 text-white shadow-rose-500/30 ring-2 ring-white'
-              : 'bg-white/85 hover:bg-white text-slate-400 hover:text-rose-500 border border-slate-200/60'
+              ? 'bg-rose-500/95 text-white shadow-sm shadow-rose-500/25 ring-1 ring-white/80'
+              : 'bg-white/80 hover:bg-white text-slate-500 hover:text-rose-500 shadow-sm ring-1 ring-black/5'
           }`}
           title={isWishlisted ? 'Bỏ khỏi yêu thích' : 'Thêm vào yêu thích'}
         >
-          <span className={`material-symbols-outlined text-[15px] sm:text-[16px] leading-none ${isWishlisted ? 'fill-current text-white' : ''}`}>
+          <span className={`material-symbols-outlined text-[15px] leading-none transition-transform duration-200 group-hover/heart:scale-110 ${isWishlisted ? 'fill-current text-white' : ''}`}>
             {isWishlisted ? 'favorite' : 'favorite_border'}
           </span>
         </button>
@@ -556,9 +556,9 @@ export default function BookCard({
             type="button"
             onClick={handleAddToCart}
             title="Thêm vào giỏ hàng"
-            className="w-8 h-8 rounded-lg bg-emerald-50 hover:bg-[#00875A] text-[#00875A] hover:text-white border border-emerald-200/90 hover:border-transparent transition-all duration-200 flex items-center justify-center cursor-pointer shadow-2xs hover:shadow-xs active:scale-95 shrink-0"
+            className="w-8 h-8 rounded-full bg-emerald-50/90 hover:bg-[#006953] text-[#006953] hover:text-white transition-all duration-200 flex items-center justify-center cursor-pointer shadow-2xs hover:shadow-sm active:scale-95 shrink-0"
           >
-            <span className="material-symbols-outlined text-[17px]">shopping_cart</span>
+            <span className="material-symbols-outlined text-[16px]">add_shopping_cart</span>
           </button>
         </div>
       </div>
