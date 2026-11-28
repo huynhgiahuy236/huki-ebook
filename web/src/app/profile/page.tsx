@@ -417,12 +417,16 @@ function FollowedStoresAndAuthorsSection() {
         const res = await businessApi.getMyFollowedBusinesses();
         if (res?.success && Array.isArray(res.data)) {
           setFollowedStores(
-            res.data.map((b: any) => ({
-              id: b.id,
-              name: b.name || 'Gian hàng HuKi',
-              slug: b.slug,
-              logo: b.logo,
-            }))
+            res.data.map((r: any) => {
+              const biz = r.business || r;
+              const store = Array.isArray(biz.stores) && biz.stores.length > 0 ? biz.stores[0] : null;
+              return {
+                id: biz.id || r.id,
+                name: store?.name || biz.name || 'Gian hàng HuKi',
+                slug: store?.slug || biz.slug,
+                logo: store?.logo || biz.logo || undefined,
+              };
+            })
           );
           return;
         }

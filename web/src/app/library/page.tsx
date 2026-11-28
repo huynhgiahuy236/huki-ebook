@@ -17,7 +17,39 @@ export default function LibraryPage() {
   const [externalWishlistBooks, setExternalWishlistBooks] = useState<UserLibraryBook[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<FilterTab>('all');
+  const [activeTab, setActiveTabState] = useState<FilterTab>('all');
+  const setActiveTab = (tab: FilterTab) => {
+    setActiveTabState(tab);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (tab === 'all') {
+        url.searchParams.delete('tab');
+      } else {
+        url.searchParams.set('tab', tab);
+      }
+      window.history.replaceState({}, '', url.pathname + url.search);
+      window.dispatchEvent(new Event('huki_library_tab_change'));
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const syncTabFromUrl = () => {
+      const tab = new URLSearchParams(window.location.search).get('tab');
+      if (tab === 'reading' || tab === 'favorite' || tab === 'completed' || tab === 'all') {
+        setActiveTabState(tab);
+      } else {
+        setActiveTabState('all');
+      }
+    };
+    syncTabFromUrl();
+    window.addEventListener('popstate', syncTabFromUrl);
+    window.addEventListener('huki_library_tab_change', syncTabFromUrl);
+    return () => {
+      window.removeEventListener('popstate', syncTabFromUrl);
+      window.removeEventListener('huki_library_tab_change', syncTabFromUrl);
+    };
+  }, []);
   const [sortBy, setSortBy] = useState<'recent' | 'progress_desc' | 'title_asc'>('recent');
   const [wishlistIds, setWishlistIds] = useState<string[]>([]);
 

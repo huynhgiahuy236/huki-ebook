@@ -176,6 +176,24 @@ export default function HierarchicalSidebar({
           icon: 'auto_stories',
         },
         {
+          id: 'library-reading',
+          title: 'Đang Đọc Dở',
+          to: '/library?tab=reading',
+          icon: 'schedule',
+        },
+        {
+          id: 'library-favorite',
+          title: 'Sách Yêu Thích',
+          to: '/library?tab=favorite',
+          icon: 'favorite_border',
+        },
+        {
+          id: 'library-completed',
+          title: 'Đã Hoàn Thành',
+          to: '/library?tab=completed',
+          icon: 'task_alt',
+        },
+        {
           id: 'web-reader',
           title: 'Trình Đọc Ebook',
           to: '/library',
@@ -321,8 +339,20 @@ export default function HierarchicalSidebar({
               {/* Navigation Items */}
               <div className="space-y-1">
                 {group.items.map((item) => {
+                  const [itemPath, itemQuery] = item.to.split('?');
+                  const currentSearch = typeof window !== 'undefined' ? window.location.search : '';
+                  const currentTab = new URLSearchParams(currentSearch).get('tab');
+                  const itemTab = itemQuery ? new URLSearchParams(itemQuery).get('tab') : null;
                   const isActive =
-                    item.to === '/' ? pathname === '/' : pathname.startsWith(item.to);
+                    item.id === 'web-reader'
+                      ? false
+                      : itemPath === '/'
+                      ? pathname === '/'
+                      : itemTab
+                      ? pathname === itemPath && currentTab === itemTab
+                      : itemPath === '/library'
+                      ? pathname === '/library' && (!currentTab || currentTab === 'all')
+                      : pathname.startsWith(itemPath);
 
                   return (
                     <div key={item.id} className="relative group">

@@ -104,8 +104,15 @@ function StoresContent() {
           });
 
           const worksCount = authorBooks.length;
-          const notableWorks = authorBooks.slice(0, 3).map((b: any) => b.title);
-          const previewBooks = authorBooks.slice(0, 4).map((b: any) => ({
+          const seenBookTitles = new Set<string>();
+          const uniqueAuthorBooks = authorBooks.filter((b: any) => {
+            const key = (b.title || '').trim().toLowerCase();
+            if (!key || seenBookTitles.has(key)) return false;
+            seenBookTitles.add(key);
+            return true;
+          });
+          const notableWorks = uniqueAuthorBooks.slice(0, 3).map((b: any) => b.title);
+          const previewBooks = uniqueAuthorBooks.slice(0, 4).map((b: any) => ({
             id: b.id,
             title: b.title || 'Tác phẩm',
             coverUrl: b.coverUrl || b.coverImage || b.cover || '',
@@ -938,13 +945,20 @@ function StoresContent() {
                                   <img
                                     src={book.coverUrl}
                                     alt={book.title}
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                      const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
+                                      if (fallback) fallback.style.display = 'flex';
+                                    }}
                                     className="w-full h-full object-cover group-hover/book:scale-105 transition-transform duration-200"
                                   />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-slate-300">
-                                    <span className="material-symbols-outlined text-[18px]">menu_book</span>
-                                  </div>
-                                )}
+                                ) : null}
+                                <div
+                                  style={{ display: book.coverUrl ? 'none' : 'flex' }}
+                                  className="w-full h-full items-center justify-center text-slate-300"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">menu_book</span>
+                                </div>
                                 <div className="absolute inset-0 bg-black/70 opacity-0 group-hover/book:opacity-100 transition-opacity duration-150 p-1 flex items-end">
                                   <span className="text-[9px] leading-tight font-medium text-white line-clamp-3">
                                     {book.title}
