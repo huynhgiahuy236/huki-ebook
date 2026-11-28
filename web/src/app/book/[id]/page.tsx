@@ -1071,7 +1071,12 @@ export default function BookDetailPage() {
     let discountPercentValue = 0;
     let discountFixedValue = 0;
 
-    if (bookDiscount && bookDiscount.status === 'ACTIVE' && bookDiscount.isCurrentlyActive) {
+    const hasActiveBookDiscount = Boolean(
+      bookDiscount && bookDiscount.status === 'ACTIVE' && bookDiscount.isCurrentlyActive
+    );
+    const hasActiveFlashSale = Boolean(flashSaleInfo?.salePrice);
+
+    if (hasActiveBookDiscount && bookDiscount) {
       if (bookDiscount.type === 'PERCENTAGE') {
         discountPercentValue = Number(bookDiscount.value);
         const discountAmt = Math.round(originalBasePrice * (discountPercentValue / 100));
@@ -1081,7 +1086,7 @@ export default function BookDetailPage() {
         const discountAmt = Math.min(originalBasePrice, discountFixedValue);
         salePrice = Math.max(0, originalBasePrice - discountAmt);
       }
-    } else if (book.originalPrice && Number(book.originalPrice) > Number(book.price)) {
+    } else if (!hasActiveFlashSale && book.originalPrice && Number(book.originalPrice) > Number(book.price)) {
       salePrice = Number(book.price);
       discountPercentValue = Math.round(((originalBasePrice - salePrice) / originalBasePrice) * 100);
     } else {
@@ -1183,7 +1188,7 @@ export default function BookDetailPage() {
         note: 'Trọn bộ giải pháp đọc kép tiện lợi',
       },
     };
-  }, [book, bookDiscount, realBook]);
+  }, [book, bookDiscount, realBook, flashSaleInfo?.salePrice]);
 
   // Ensure selectedFormat is always valid for the available options
   useEffect(() => {

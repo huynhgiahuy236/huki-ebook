@@ -593,7 +593,7 @@ export default function SellerDashboardPage() {
               </select>
             </div>
 
-            <div className="space-y-3 my-auto">
+            <div className="space-y-3.5 my-auto">
               {[
                 { stage: 'Tổng sản phẩm', value: stats.totalBooks, color: 'bg-[#003B2B]' },
                 { stage: 'Đã xuất bản', value: stats.publishedBooks, color: 'bg-[#00875A]' },
@@ -603,13 +603,13 @@ export default function SellerDashboardPage() {
                 { stage: 'Combo Hybrid', value: stats.hybridBooks, color: 'bg-emerald-600' },
               ].map((item, i) => {
                 const maxVal = Math.max(stats.totalBooks, 1);
-                const pct = item.value > 0 ? Math.max(4, Math.round((item.value / maxVal) * 100)) : 0;
+                const pct = item.value > 0 ? Math.max(5, Math.round((item.value / maxVal) * 100)) : 0;
                 return (
                   <div key={i} className="grid grid-cols-12 items-center gap-2.5">
                     <span className="col-span-5 text-xs font-medium text-slate-600 truncate" title={item.stage}>
                       {item.stage}
                     </span>
-                    <div className="col-span-6 h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                    <div className="col-span-6 h-4 rounded-full bg-slate-100 overflow-hidden">
                       {pct > 0 && (
                         <div
                           className={`h-full rounded-full ${item.color} transition-all duration-500`}

@@ -778,77 +778,9 @@ export default function HomePage() {
       return mappedItems;
     }
 
-    // FALLBACK: Khi không có Flash Sale nào đang LIVE, hiển thị Sách Ưu Đãi Đặc Biệt từ Catalog
-    const validBooks = realBooks.filter(isValidDisplayBook);
-    if (validBooks.length === 0) return [];
-
-    const discounted = validBooks.filter((b) => {
-      const p = Number(b.price || 0);
-      const op = Number(b.originalPrice || 0);
-      return (b.discountPercent && b.discountPercent > 0) || (op > p);
-    });
-
-    // Phòng thủ: nếu số sách có giảm giá trong catalog < 6, tự động bổ sung sách hot/sao cao để luôn đủ 6 ô (không bị trống)
-    const candidateBooks = [...discounted];
-    if (candidateBooks.length < 6) {
-      const existingIds = new Set(candidateBooks.map((b) => b.id));
-      const additionalBooks = validBooks.filter((b) => !existingIds.has(b.id));
-      candidateBooks.push(...additionalBooks);
-    }
-
-    // Xếp hạng các sách ứng viên theo công thức kết hợp Giá (chiết khấu) và Sao
-    const scoredBooks = candidateBooks.map((b) => {
-      const p = Number(b.price || 0);
-      const op = Number(b.originalPrice || 0);
-      const orig = op > p ? op : Math.round(p * 1.25);
-      const pct = b.discountPercent || Math.round(((orig - p) / orig) * 100);
-      const r = Number(b.rating || (b as any)?.averageRating || 5);
-      return {
-        ...b,
-        calculatedOrig: orig,
-        calculatedPct: pct,
-        calculatedRating: r,
-        compositeScore: calculateCompositeScore(r, pct, p),
-      };
-    });
-
-    scoredBooks.sort((a, b) => {
-      if (b.compositeScore !== a.compositeScore) {
-        return b.compositeScore - a.compositeScore;
-      }
-      if (Number(a.price || 0) !== Number(b.price || 0)) {
-        return Number(a.price || 0) - Number(b.price || 0);
-      }
-      return Number(b.soldCount || 0) - Number(a.soldCount || 0);
-    });
-
-    const balancedDiscounted = balanceBooksByPublisher(scoredBooks, 2, 6);
-    return balancedDiscounted.map((b: any) => {
-      const p = Number(b.price || 0);
-      const orig = b.calculatedOrig || Math.round(p * 1.25);
-      const pct = b.calculatedPct || 20;
-      return {
-        id: b.id,
-        bookId: b.id,
-        storeId: b.storeId,
-        businessId: b.businessId,
-        book: b,
-        title: b.title,
-        author: b.author?.name || (typeof b.author === 'string' ? b.author : ((b as any).authorName || 'Nhiều tác giả')),
-        publisher: b.publisher?.name || "Gian hàng HUKI",
-        cover: b.coverUrl || "/banners/hero-library.jpg",
-        price: p,
-        originalPrice: orig,
-        discount: `-${pct}%`,
-        discountPercent: pct,
-        rating: b.calculatedRating || 5,
-        sales: Number(b.soldCount || 0),
-        soldText: b.soldCount ? `Đã bán ${b.soldCount} cuốn` : "Ưu đãi hot",
-        format: b.format === "DIGITAL" ? "Ebook DRM" : "Sách giấy",
-        formatType: b.format === "DIGITAL" ? "ebook" : "physical",
-      };
-    });
-  }, [activeFlashSale, platformSalePhase, realBooks]);
+    // Không hiển thị mục Flash Sale / Ưu Đãi Đặc Biệt giả khi không có chương trình Flash Sale nào đang LIVE hoặc TEASER
+    return [];
+  }, [activeFlashSale, platformSalePhase]);
 
   const flashCountdown = useMemo(() => {
     const hours = Math.floor(flashSeconds / 3600);
