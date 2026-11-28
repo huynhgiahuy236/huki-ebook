@@ -159,10 +159,8 @@ export default function OrderReviewPage() {
         (r.targetId === currentItem.bookId || (rawId && r.orderId === rawId)) &&
         r.status !== 'DELETED',
     );
-    if (fromBackend) return fromBackend;
-    const list = reviewStorage.getByBookId(currentItem.bookId);
-    return list.find((r) => !user?.id || r.author?.id === user.id) || null;
-  }, [currentItem?.bookId, myReviews, rawId, user?.id]);
+    return fromBackend || null;
+  }, [currentItem?.bookId, myReviews, rawId]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -448,7 +446,6 @@ export default function OrderReviewPage() {
 
               <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
                 <VerifiedPurchaseBadge variant="pill" format={currentItem.format} label="Đơn hàng hợp lệ" />
-                <span className="text-[11px] text-gray-400">Chính sách POL-13</span>
               </div>
             </div>
 
@@ -460,7 +457,7 @@ export default function OrderReviewPage() {
               </div>
               <ul className="list-disc list-inside space-y-1 text-[11.5px] text-gray-600 leading-relaxed">
                 <li>Nhận xét về chất lượng giấy in, dịch thuật hoặc font chữ ebook.</li>
-                <li>Đính kèm hình ảnh chụp thực tế để nhận trọn vẹn <strong>+50 HUKI Xu</strong>.</li>
+                <li>Đính kèm hình ảnh chụp thực tế để giúp độc giả khác có cái nhìn trực quan hơn.</li>
                 <li>Tránh sử dụng từ ngữ xúc phạm hoặc thông tin cá nhân.</li>
               </ul>
             </div>
@@ -528,25 +525,35 @@ export default function OrderReviewPage() {
                       </span>
                     </div>
 
-                    {existingReview.title && (
-                      <h4 className="font-bold text-sm text-gray-900">{existingReview.title}</h4>
-                    )}
+                    {existingReview.title &&
+                      existingReview.title.trim() !== (existingReview.content || '').trim() && (
+                        <h4 className="font-bold text-sm text-gray-900">{existingReview.title}</h4>
+                      )}
                     <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-line">
                       {existingReview.content}
                     </p>
 
-                    {existingReview.images && existingReview.images.length > 0 && (
-                      <div className="flex gap-2 flex-wrap pt-2">
-                        {existingReview.images.map((img, i) => (
-                          <img
-                            key={i}
-                            src={typeof img === 'string' ? img : (img as any)?.url || ''}
-                            alt=""
-                            className="w-16 h-16 rounded-xl object-cover border border-gray-200"
-                          />
-                        ))}
-                      </div>
-                    )}
+                    {(() => {
+                      const validImgs = (existingReview.images || [])
+                        .map((img) => (typeof img === 'string' ? img : (img as any)?.url || ''))
+                        .filter((url) => url && !url.includes('storage.huki.vn'));
+                      if (validImgs.length === 0) return null;
+                      return (
+                        <div className="flex gap-2 flex-wrap pt-2">
+                          {validImgs.slice(0, 5).map((url, i) => (
+                            <img
+                              key={i}
+                              src={url}
+                              alt=""
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                              }}
+                              className="w-16 h-16 rounded-xl object-cover border border-gray-200"
+                            />
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="flex items-center justify-between pt-2">

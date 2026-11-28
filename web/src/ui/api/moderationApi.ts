@@ -24,6 +24,7 @@ export interface ReportedContentPreview {
   authorId?: string;
   authorName?: string;
   status?: string;
+  images?: string[];
   moderationNote?: string;
   createdAt?: string;
 }

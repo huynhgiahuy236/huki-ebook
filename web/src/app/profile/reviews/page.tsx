@@ -28,6 +28,8 @@ export default function MyReviewsPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [editingReview, setEditingReview] = useState<ReviewItemData | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [replyingReviewId, setReplyingReviewId] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
@@ -41,20 +43,26 @@ export default function MyReviewsPage() {
     )
   );
 
-  const handleDeleteReview = async (reviewId: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa bài đánh giá này? Sau khi xóa, bạn có thể gửi lại đánh giá mới.')) {
-      return;
-    }
+  const handleDeleteReview = (reviewId: string) => {
+    setConfirmDeleteId(reviewId);
+  };
+
+  const executeDeleteReview = async () => {
+    if (!confirmDeleteId) return;
+    setIsDeleting(true);
     try {
-      const res = await reviewApi.deleteReview(reviewId);
+      const res = await reviewApi.deleteReview(confirmDeleteId);
       if (res?.success) {
         showToast('Đã xóa đánh giá thành công.', 'success');
+        setConfirmDeleteId(null);
         loadReviewsData();
       } else {
         showToast(res?.error?.message || 'Không thể xóa đánh giá.', 'error');
       }
     } catch {
       showToast('Có lỗi xảy ra khi xóa đánh giá.', 'error');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -685,6 +693,49 @@ export default function MyReviewsPage() {
           bookTitle={editingReview.title}
           initialReview={editingReview}
         />
+      )}
+
+      {/* ================= 5. CONFIRM DELETE MODAL ================= */}
+      {confirmDeleteId && (
+        <div
+          onClick={() => !isDeleting && setConfirmDeleteId(null)}
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[1px] flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl border border-gray-200 shadow-xl max-w-md w-full p-6 space-y-4"
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-xl">delete_outline</span>
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-gray-900">Xác nhận xóa đánh giá</h3>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  Bạn có chắc chắn muốn xóa bài đánh giá này? Sau khi xóa, đơn hàng sẽ quay lại mục Chưa Đánh Giá để bạn có thể gửi đánh giá mới.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setConfirmDeleteId(null)}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={executeDeleteReview}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer inline-flex items-center gap-1.5"
+              >
+                {isDeleting ? 'Đang xóa...' : 'Xóa đánh giá'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </AccountLayout>
   );

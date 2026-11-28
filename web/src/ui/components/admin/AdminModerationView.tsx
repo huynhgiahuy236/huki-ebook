@@ -400,6 +400,11 @@ export function AdminModerationView() {
                     · Đã ẩn
                   </span>
                 )}
+                {rc.status === 'DELETED' && (
+                  <span className="text-[10.5px] font-medium text-rose-500 shrink-0">
+                    · Đã xóa
+                  </span>
+                )}
               </div>
               {showSeparateTitle && (
                 <div className="font-medium text-slate-800 text-xs truncate" title={rawTitle}>
@@ -730,12 +735,22 @@ export function AdminModerationView() {
                       <span>Tác giả đánh giá: <strong className="text-gray-900">{rc.authorName || 'Độc giả HUKI'}</strong></span>
                       <span>
                         Trạng thái hiển thị:{' '}
-                        <strong className={rc.status === 'HIDDEN' ? 'text-rose-700' : 'text-[#006953]'}>
-                          {rc.status === 'HIDDEN' ? 'Đã bị Admin ẩn' : 'Đang hiển thị công khai'}
+                        <strong
+                          className={
+                            rc.status === 'HIDDEN' || rc.status === 'DELETED'
+                              ? 'text-rose-700'
+                              : 'text-[#006953]'
+                          }
+                        >
+                          {rc.status === 'HIDDEN'
+                            ? 'Đã bị Admin ẩn'
+                            : rc.status === 'DELETED'
+                              ? 'Người dùng đã xóa'
+                              : 'Đang hiển thị công khai'}
                         </strong>
                       </span>
                     </div>
-                    {rc.title && (
+                    {rc.title && rc.title.trim() !== (rc.content || '').trim() && (
                       <div className="font-bold text-gray-900 text-xs break-words">
                         {rc.title}
                       </div>
@@ -743,6 +758,27 @@ export function AdminModerationView() {
                     <div className="bg-white p-3 rounded-lg border border-amber-100 text-gray-800 leading-relaxed whitespace-pre-wrap break-words max-h-60 overflow-y-auto">
                       {rc.content || '(Không có nội dung chữ)'}
                     </div>
+                    {(() => {
+                      const validImgs = (rc.images || [])
+                        .map((img) => (typeof img === 'string' ? img : (img as any)?.url || ''))
+                        .filter((url) => url && !url.includes('storage.huki.vn'));
+                      if (validImgs.length === 0) return null;
+                      return (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {validImgs.slice(0, 5).map((url, idx) => (
+                            <img
+                              key={idx}
+                              src={url}
+                              alt=""
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                              }}
+                              className="w-14 h-14 rounded-lg object-cover border border-amber-200 bg-white"
+                            />
+                          ))}
+                        </div>
+                      );
+                    })()}
                     {rc.targetId && (
                       <div className="pt-1">
                         <a
@@ -871,10 +907,33 @@ export function AdminModerationView() {
                         <span className="font-bold text-amber-700">★ {rc.rating}/5</span>
                       )}
                     </div>
-                    {rc.title && <div className="font-bold text-gray-900 text-xs break-words">{rc.title}</div>}
+                    {rc.title && rc.title.trim() !== (rc.content || '').trim() && (
+                      <div className="font-bold text-gray-900 text-xs break-words">{rc.title}</div>
+                    )}
                     <p className="text-gray-800 leading-relaxed whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
                       {rc.content || '(Không có nội dung chữ)'}
                     </p>
+                    {(() => {
+                      const validImgs = (rc.images || [])
+                        .map((img) => (typeof img === 'string' ? img : (img as any)?.url || ''))
+                        .filter((url) => url && !url.includes('storage.huki.vn'));
+                      if (validImgs.length === 0) return null;
+                      return (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {validImgs.slice(0, 5).map((url, idx) => (
+                            <img
+                              key={idx}
+                              src={url}
+                              alt=""
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                              }}
+                              className="w-12 h-12 rounded-lg object-cover border border-amber-200 bg-white"
+                            />
+                          ))}
+                        </div>
+                      );
+                    })()}
                     {rc.targetId && (
                       <a
                         href={`/book/${rc.targetId}#reviews`}
