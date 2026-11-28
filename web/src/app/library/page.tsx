@@ -296,45 +296,36 @@ export default function LibraryPage() {
   return (
     <div className="w-full bg-[#f8fafc] min-h-screen font-sans pb-24 text-slate-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* 1. Header Banner & Stats Card */}
-        <section
-          className="w-full rounded-3xl text-white p-6 sm:p-8 relative overflow-hidden shadow-xl border border-white/10"
-          style={{
-            background: 'linear-gradient(135deg, #003B2B 0%, #005A3E 50%, #00271E 100%)',
-          }}
-        >
-          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div className="max-w-2xl space-y-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-[#94F5D6] text-xs font-bold backdrop-blur-md border border-white/20">
-                <span className="material-symbols-outlined text-sm text-[#FBBF24]">auto_awesome</span>
-                <span>Tủ Sách Số Bản Quyền DRM • Đồng Bộ Thời Gian Thực</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight">
-                Không Gian Đọc Sách Số Cá Nhân
-              </h1>
-              <p className="text-white/80 text-xs sm:text-sm leading-relaxed max-w-xl">
-                Toàn bộ ấn bản sách điện tử (EPUB / PDF) của bạn được lưu trữ vĩnh viễn trên HUKI Cloud, tự động lưu dấu trang và đồng bộ tiến độ đọc.
-              </p>
-            </div>
+        {/* 1. Clean Header & Summary */}
+        <section className="w-full rounded-2xl bg-white border border-slate-200/80 p-5 sm:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight font-editorial">
+              Tủ Sách Cá Nhân
+            </h1>
+            <p className="text-slate-500 text-xs sm:text-sm">
+              Quản lý ấn bản sách điện tử (EPUB / PDF) và đồng bộ tiến độ đọc của bạn.
+            </p>
+          </div>
 
-            {/* Quick stats pills */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 w-full md:w-auto">
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/15 text-center min-w-[90px]">
-                <span className="block text-xl font-black text-white">{counts.total}</span>
-                <span className="text-[11px] text-emerald-200/90 font-medium">Tổng sách</span>
-              </div>
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/15 text-center min-w-[90px]">
-                <span className="block text-xl font-black text-[#94F5D6]">{counts.reading}</span>
-                <span className="text-[11px] text-emerald-200/90 font-medium">Đang đọc</span>
-              </div>
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/15 text-center min-w-[90px]">
-                <span className="block text-xl font-black text-rose-300">{counts.favorite}</span>
-                <span className="text-[11px] text-emerald-200/90 font-medium">Yêu thích</span>
-              </div>
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/15 text-center min-w-[90px]">
-                <span className="block text-xl font-black text-amber-300">{counts.completed}</span>
-                <span className="text-[11px] text-emerald-200/90 font-medium">Đã xong</span>
-              </div>
+          <div className="flex items-center gap-4 sm:gap-6 shrink-0 flex-wrap text-xs">
+            <div className="text-center">
+              <span className="block text-lg font-extrabold text-slate-900">{counts.total}</span>
+              <span className="text-[11px] text-slate-500 font-medium">Tổng sách</span>
+            </div>
+            <div className="h-7 w-px bg-slate-200 hidden sm:block" />
+            <div className="text-center">
+              <span className="block text-lg font-extrabold text-[#006953]">{counts.reading}</span>
+              <span className="text-[11px] text-slate-500 font-medium">Đang đọc</span>
+            </div>
+            <div className="h-7 w-px bg-slate-200 hidden sm:block" />
+            <div className="text-center">
+              <span className="block text-lg font-extrabold text-rose-600">{counts.favorite}</span>
+              <span className="text-[11px] text-slate-500 font-medium">Yêu thích</span>
+            </div>
+            <div className="h-7 w-px bg-slate-200 hidden sm:block" />
+            <div className="text-center">
+              <span className="block text-lg font-extrabold text-amber-600">{counts.completed}</span>
+              <span className="text-[11px] text-slate-500 font-medium">Đã xong</span>
             </div>
           </div>
         </section>

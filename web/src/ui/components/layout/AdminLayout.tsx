@@ -491,17 +491,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               </span>
             </div>
           </div>
-
-          {/* Back to Storefront Link */}
-          <Link
-            href="/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden sm:inline-flex items-center text-xs font-semibold text-[#006953] hover:bg-emerald-50/70 px-3 py-1.5 rounded-xl border border-[#E2E8F0] transition-colors shrink-0 whitespace-nowrap"
-            title="Mở trang chủ Sàn HuKi trong tab mới"
-          >
-            Xem Sàn
-          </Link>
         </div>
       </header>
 
@@ -646,7 +635,19 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           </div>
 
           {/* Sidebar Footer */}
-          <div className="p-2.5 border-t border-white/10 bg-black/15 flex flex-col gap-1.5 shrink-0">
+          <div className="p-2.5 border-t border-white/10 bg-black/15 flex flex-col gap-1 shrink-0">
+            <Link
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Mở trang chủ Sàn HuKi trong tab mới"
+              className={`w-full flex items-center rounded-lg text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 transition-colors ${
+                isSidebarCollapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[18px] shrink-0 text-emerald-300">storefront</span>
+              {!isSidebarCollapsed && <span>Xem Sàn</span>}
+            </Link>
             <button
               type="button"
               onClick={handleLogout}
@@ -762,7 +763,17 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 })}
               </div>
 
-              <div className="p-3 border-t border-white/10 bg-black/15 shrink-0">
+              <div className="p-3 border-t border-white/10 bg-black/15 shrink-0 flex flex-col gap-1">
+                <Link
+                  href="/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-white/85 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[18px] text-emerald-300">storefront</span>
+                  <span>Xem Sàn</span>
+                </Link>
                 <button
                   type="button"
                   onClick={() => {

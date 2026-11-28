@@ -280,18 +280,6 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
           <span className="hidden sm:inline">Thêm Sản Phẩm</span>
           <span className="sm:hidden text-[11px]">Thêm</span>
         </Link>
-
-        <div className="hidden sm:block h-4 w-px bg-theme-border shrink-0"></div>
-
-        <Link
-          href="/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hidden sm:flex items-center gap-1 text-xs font-semibold text-theme-primary hover:bg-theme-secondary-subtle px-2 sm:px-2.5 py-1.5 rounded-xl border border-theme-border transition-colors shrink-0 whitespace-nowrap"
-        >
-          <span className="material-symbols-outlined text-[15px]">open_in_new</span>
-          <span className="hidden sm:inline">Về Sàn</span>
-        </Link>
       </div>
     </header>
   );

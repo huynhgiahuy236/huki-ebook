@@ -676,6 +676,16 @@ export default function SellerSidebar({ isCollapsed: _isCollapsed, toggleSidebar
 
       {/* Sidebar Bottom Controls */}
       <div className="p-2.5 border-t border-[#00875A]/15 bg-slate-50/70 flex flex-col gap-1 shrink-0 -mx-2.5 -mb-2.5 mt-auto">
+        <Link
+          href="/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-[#006953] hover:bg-emerald-50 transition-colors"
+          title="Mở trang chủ Sàn HuKi trong tab mới"
+        >
+          <span className="material-symbols-outlined text-[18px] text-[#006953]">storefront</span>
+          <span>Xem Sàn</span>
+        </Link>
         <button
           type="button"
           onClick={() => logout()}
