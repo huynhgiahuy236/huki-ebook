@@ -600,16 +600,25 @@ export default function LibraryPage() {
                         <button
                           type="button"
                           onClick={(e) => handleToggleFavorite(bookKey, e)}
-                          className={`absolute top-1.5 right-1.5 z-20 w-7 h-7 rounded-full flex items-center justify-center transition-all backdrop-blur-md shadow-xs cursor-pointer ${
+                          className={`group/heart absolute top-2 right-2 z-20 w-8 h-8 p-1.5 rounded-full flex items-center justify-center transition-all duration-200 backdrop-blur-md cursor-pointer active:scale-90 ${
                             isFav
-                              ? 'bg-rose-500 text-white shadow-rose-500/30 scale-105'
-                              : 'bg-black/35 hover:bg-black/60 text-white/90 hover:text-white'
+                              ? 'bg-rose-500/95 text-white shadow-sm shadow-rose-500/25 ring-1 ring-white/80'
+                              : 'bg-white/85 hover:bg-white text-slate-500 hover:text-rose-500 shadow-sm ring-1 ring-black/5'
                           }`}
                           title={isFav ? 'Bỏ khỏi yêu thích' : 'Thêm vào yêu thích'}
+                          aria-label={isFav ? 'Bỏ khỏi yêu thích' : 'Thêm vào yêu thích'}
                         >
-                          <span className={`material-symbols-outlined text-[15px] ${isFav ? 'fill-current' : ''}`}>
-                            {isFav ? 'favorite' : 'favorite_border'}
-                          </span>
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill={isFav ? 'currentColor' : 'none'}
+                            stroke="currentColor"
+                            strokeWidth={1.9}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="w-4 h-4 transition-transform duration-200 group-hover/heart:scale-110"
+                          >
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                          </svg>
                         </button>
 
                         {/* Hover Overlay Play Icon */}

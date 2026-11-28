@@ -1431,13 +1431,27 @@ export default function BookDetailPage() {
 
                   {/* Floating Action Icons: Top-Left Heart, Top-Right Share */}
                   <button
+                    type="button"
                     onClick={handleToggleWishlist}
                     title={isWishlisted ? 'Bỏ khỏi yêu thích' : 'Thêm vào yêu thích'}
-                    className="absolute top-2.5 left-2.5 z-10 w-8 h-8 rounded-full bg-white/85 backdrop-blur-md shadow-sm border border-white/60 flex items-center justify-center text-gray-700 hover:scale-110 active:scale-95 transition-all"
+                    aria-label={isWishlisted ? 'Bỏ khỏi yêu thích' : 'Thêm vào yêu thích'}
+                    className={`group/heart absolute top-2.5 left-2.5 z-10 w-8 h-8 p-1.5 rounded-full backdrop-blur-md flex items-center justify-center transition-all duration-200 cursor-pointer active:scale-90 ${
+                      isWishlisted
+                        ? 'bg-rose-500/95 text-white shadow-sm shadow-rose-500/25 ring-1 ring-white/80'
+                        : 'bg-white/85 hover:bg-white text-slate-500 hover:text-rose-500 shadow-sm ring-1 ring-black/5'
+                    }`}
                   >
-                    <span className={`material-symbols-outlined text-[18px] leading-none ${isWishlisted ? 'text-red-500 fill-1 font-variation-fill' : 'text-gray-600'}`}>
-                      {isWishlisted ? 'favorite' : 'favorite_border'}
-                    </span>
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill={isWishlisted ? 'currentColor' : 'none'}
+                      stroke="currentColor"
+                      strokeWidth={1.9}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="w-4 h-4 transition-transform duration-200 group-hover/heart:scale-110"
+                    >
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                    </svg>
                   </button>
 
                   <button

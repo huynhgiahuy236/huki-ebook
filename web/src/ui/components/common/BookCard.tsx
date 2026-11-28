@@ -376,16 +376,25 @@ export default function BookCard({
             <button
               type="button"
               onClick={handleToggleWishlist}
-              className={`group/heart absolute top-1.5 right-1.5 z-20 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-200 backdrop-blur-md cursor-pointer active:scale-90 ${
+              className={`group/heart absolute top-1.5 right-1.5 z-20 w-6.5 h-6.5 p-1 rounded-full flex items-center justify-center transition-all duration-200 backdrop-blur-md cursor-pointer active:scale-90 ${
                 isWishlisted
                   ? 'bg-rose-500/95 text-white shadow-sm shadow-rose-500/25 ring-1 ring-white/80'
-                  : 'bg-white/80 hover:bg-white text-slate-500 hover:text-rose-500 shadow-sm ring-1 ring-black/5'
+                  : 'bg-white/85 hover:bg-white text-slate-500 hover:text-rose-500 shadow-sm ring-1 ring-black/5'
               }`}
               title={isWishlisted ? 'Bỏ khỏi yêu thích' : 'Thêm vào yêu thích'}
+              aria-label={isWishlisted ? 'Bỏ khỏi yêu thích' : 'Thêm vào yêu thích'}
             >
-              <span className={`material-symbols-outlined text-[13px] transition-transform duration-200 group-hover/heart:scale-110 ${isWishlisted ? 'fill-current text-white' : ''}`}>
-                {isWishlisted ? 'favorite' : 'favorite_border'}
-              </span>
+              <svg
+                viewBox="0 0 24 24"
+                fill={isWishlisted ? 'currentColor' : 'none'}
+                stroke="currentColor"
+                strokeWidth={1.9}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-3.5 h-3.5 transition-transform duration-200 group-hover/heart:scale-110"
+              >
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
             </button>
             {isFlashSale && (
               <span className="absolute top-1 left-1 bg-rose-600 text-white font-bold text-[8.5px] px-1.5 py-0.5 rounded shadow-2xs">
@@ -565,22 +574,9 @@ export default function BookCard({
             type="button"
             onClick={handleAddToCart}
             title="Thêm vào giỏ hàng"
-            aria-label="Thêm vào giỏ hàng"
-            className="w-9 h-9 p-2 rounded-full bg-emerald-50/95 hover:bg-[#006953] text-[#006953] hover:text-white ring-1 ring-emerald-200/70 hover:ring-transparent transition-all duration-200 flex items-center justify-center cursor-pointer shadow-2xs hover:shadow-sm active:scale-95 shrink-0"
+            className="w-8 h-8 rounded-lg bg-emerald-50 hover:bg-[#00875A] text-[#00875A] hover:text-white border border-emerald-200/90 hover:border-transparent transition-all duration-200 flex items-center justify-center cursor-pointer shadow-2xs hover:shadow-xs active:scale-95 shrink-0"
           >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.85}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="w-[17px] h-[17px]"
-            >
-              <circle cx="9" cy="21" r="1" />
-              <circle cx="20" cy="21" r="1" />
-              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-            </svg>
+            <span className="material-symbols-outlined text-[17px]">shopping_cart</span>
           </button>
         </div>
       </div>
