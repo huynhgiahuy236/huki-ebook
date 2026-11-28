@@ -10,6 +10,7 @@ import { useToast } from '@/ui/context/ToastContext';
 import { useChatSocket } from '@/ui/hooks/useChatSocket';
 import { chatService } from '@/ui/services/chatService';
 import { playChatChimeSound } from '@/ui/utils/chatSound';
+import { HukiLogo } from '@/components/brand/HukiLogo';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { catalogApi, BookData } from '@/ui/api/catalogApi';
 import { personalizationService } from '@/ui/services/personalizationService';
@@ -472,9 +473,7 @@ export default function StoreHeader({
           </button>
 
           <Link href="/" className="flex flex-col group select-none shrink-0 pl-1">
-            <span className="font-editorial text-sm sm:text-base md:text-xl font-black tracking-tight text-[var(--theme-primary,#003b2b)] leading-none">
-              HUKI EBOOK
-            </span>
+            <HukiLogo variant="dark" className="h-5 sm:h-6 w-auto" priority />
             <span className="text-[7px] sm:text-[8px] uppercase tracking-widest text-[#006953] font-bold mt-0.5">
               Sách Số &amp; Sách In
             </span>

@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { maintenanceService, SystemMaintenanceConfig, DEFAULT_MAINTENANCE_CONFIG } from '@/ui/services/maintenanceService';
+import { HukiLogo } from '@/components/brand/HukiLogo';
 
 export default function MaintenancePage() {
   const router = useRouter();
@@ -163,17 +164,14 @@ export default function MaintenancePage() {
       {/* Top Brand Bar */}
       <header className="relative z-10 w-full max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-lg shadow-emerald-900/50">
-            <span className="material-symbols-outlined text-white text-2xl">auto_stories</span>
-          </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="font-editorial text-xl font-black tracking-wider text-white">HUKI EBOOK</span>
+            <div className="flex items-center gap-2.5">
+              <HukiLogo variant="mint" className="h-6 sm:h-7 w-auto" priority />
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-widest">
                 SYSTEM UPGRADE
               </span>
             </div>
-            <p className="text-[11px] text-emerald-400/70 font-medium">Trung Tâm Vận Hành & Hạ Tầng Kỹ Thuật</p>
+            <p className="text-[11px] text-emerald-400/70 font-medium mt-1">Trung Tâm Vận Hành & Hạ Tầng Kỹ Thuật</p>
           </div>
         </div>
 

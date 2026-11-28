@@ -6,6 +6,7 @@ import { useAuth } from '@/ui/context/AuthContext';
 import { maintenanceService } from '@/ui/services/maintenanceService';
 import AppLayout from './AppLayout';
 import AccountPendingDeletionModal from '@/ui/components/common/AccountPendingDeletionModal';
+import { HukiLogo } from '@/components/brand/HukiLogo';
 
 interface AppRouteShellProps {
   children: ReactNode;
@@ -137,7 +138,7 @@ export default function AppRouteShell({ children }: AppRouteShellProps) {
           <span className="material-symbols-outlined text-[36px] text-amber-300 animate-pulse">admin_panel_settings</span>
         </div>
         <div className="flex items-center gap-2 mb-2">
-          <span className="font-editorial text-xl font-black tracking-tight text-white">HUKI EBOOK</span>
+          <HukiLogo variant="mint" className="h-6 w-auto" />
           <span className="bg-amber-400 text-zinc-950 text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider font-sans">
             SUPER ADMIN
           </span>
@@ -162,7 +163,7 @@ export default function AppRouteShell({ children }: AppRouteShellProps) {
           <span className="material-symbols-outlined text-[36px] text-emerald-300 animate-pulse">local_shipping</span>
         </div>
         <div className="flex items-center gap-2 mb-2">
-          <span className="font-editorial text-xl font-black tracking-tight text-white">HUKI EBOOK</span>
+          <HukiLogo variant="mint" className="h-6 w-auto" />
           <span className="bg-amber-400 text-zinc-950 text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider font-sans">
             EXPRESS 3PL
           </span>

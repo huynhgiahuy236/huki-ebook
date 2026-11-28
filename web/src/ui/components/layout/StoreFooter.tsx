@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { HukiLogo } from '@/components/brand/HukiLogo';
 
 export default function StoreFooter() {
   return (
@@ -10,14 +11,11 @@ export default function StoreFooter() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 pb-8 border-b border-white/15 text-xs">
           {/* Brand Info */}
           <div className="lg:col-span-2 space-y-3.5">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-white text-[var(--theme-primary,#003b2b)] flex items-center justify-center font-bold shadow-sm">
-                <span className="material-symbols-outlined text-xl">menu_book</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="font-editorial text-2xl font-bold tracking-tight leading-none text-white">HUKI EBOOK</span>
-                <span className="text-[10px] uppercase tracking-widest text-[var(--theme-header-top-accent,#94f5d6)] font-semibold mt-0.5">Sàn TMĐT Sách &amp; Bản Quyền Số</span>
-              </div>
+            <Link href="/" className="inline-flex flex-col items-start gap-1.5">
+              <HukiLogo variant="mint" className="h-7 w-auto" />
+              <span className="text-[10px] uppercase tracking-widest text-[var(--theme-header-top-accent,#94f5d6)] font-semibold">
+                Sàn TMĐT Sách &amp; Bản Quyền Số
+              </span>
             </Link>
             <p className="text-[var(--theme-header-top-accent,#94f5d6)] text-xs leading-relaxed max-w-sm">
               Hệ sinh thái đọc toàn diện kết hợp Sàn Thương Mại Sách chính hãng và Nền tảng Đọc Ebook bản quyền cao cấp. Nâng tầm tri thức và văn hóa đọc của người Việt.

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import SellerLayout from '@/ui/components/layout/SellerLayout';
 import SellerPortalLayout from '@/ui/components/layout/SellerPortalLayout';
 import { useAuth } from '@/ui/context/AuthContext';
+import { HukiLogo } from '@/components/brand/HukiLogo';
 
 function SellerRouteLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '';
@@ -96,7 +97,7 @@ function SellerRouteLayoutContent({ children }: { children: React.ReactNode }) {
           <span className="material-symbols-outlined text-[36px] text-amber-300 animate-pulse">admin_panel_settings</span>
         </div>
         <div className="flex items-center gap-2 mb-2">
-          <span className="font-editorial text-xl font-black tracking-tight text-white">HUKI EBOOK</span>
+          <HukiLogo variant="mint" className="h-6 w-auto" />
           <span className="bg-amber-400 text-zinc-950 text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider font-sans">
             SUPER ADMIN
           </span>

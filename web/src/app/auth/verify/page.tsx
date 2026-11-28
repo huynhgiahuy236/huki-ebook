@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
+import { AuthEditorialPanel } from '@/components/auth/AuthEditorialPanel';
 
 function VerifyOtpForm() {
   const router = useRouter();
@@ -356,58 +357,20 @@ function VerifyOtpForm() {
     <main id="main-content" tabIndex={-1} className="min-h-dvh w-full bg-white outline-none">
       <div className="grid min-h-dvh w-full grid-cols-1 overflow-hidden bg-white lg:grid-cols-12">
         {/* Left Column: Brand & Info (5 cols) */}
-        <section
-          className="relative hidden min-h-dvh flex-col justify-between overflow-hidden p-12 text-white lg:col-span-5 lg:flex xl:p-16 2xl:p-20"
-          style={{
-            background:
-              'linear-gradient(to bottom right, var(--theme-hero-from, #003B2B), var(--theme-hero-via, #002f22), var(--theme-hero-to, #001f17))',
-          }}
-        >
-          {/* Background Ambient Blur */}
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-[#94f5d6]/10 blur-3xl pointer-events-none"></div>
-          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-80 h-80 rounded-full bg-[#ac2c19]/15 blur-3xl pointer-events-none"></div>
-
-          {/* Center Brand Identity */}
-          <div className="relative z-10 my-auto py-8">
-            <Link href="/" className="inline-flex items-center gap-3.5 group mb-10">
-              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-white border border-white/20 group-hover:scale-105 transition-transform shadow-inner">
-                <span className="material-symbols-outlined text-2xl text-[#94f5d6]">menu_book</span>
-              </div>
-              <div>
-                <span className="font-editorial text-2xl font-bold tracking-tight text-white block">
-                  HUKI EBOOK
-                </span>
-                <span className="text-[10px] uppercase tracking-widest text-[#94f5d6] font-semibold">
-                  Bảo Mật 2 Lớp (2FA)
-                </span>
-              </div>
-            </Link>
-
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/15 text-[#94f5d6] text-xs font-semibold mb-6 backdrop-blur-xs">
-              <span className="material-symbols-outlined text-sm">mark_email_read</span>
-              <span>Xác Thực Email Chính Chủ</span>
+        <AuthEditorialPanel
+          eyebrow="Xác thực email chính chủ"
+          titleLine1="Xác thực danh tính"
+          titleAccent="an toàn tuyệt đối."
+          description="Mã OTP giúp ngăn chặn truy cập trái phép và bảo vệ toàn vẹn tài sản sách điện tử cũng như quyền lợi của bạn."
+          footerLeft="Thời hạn OTP: 15 phút"
+          footerRight="HUKI · 2FA"
+          extraContent={
+            <div className="rounded-xl border border-white/15 bg-white/[0.06] p-4 text-xs">
+              <div className="mb-1 font-medium text-[#A4BDB2]">Địa chỉ nhận mã OTP:</div>
+              <div className="font-mono text-sm font-semibold text-[#E6D8BE]">{maskTarget(targetEmail)}</div>
             </div>
-
-            <h1 className="font-editorial text-3xl xl:text-4xl font-bold leading-tight mb-4 text-white">
-              Xác thực danh tính <br />
-              <span className="text-[#94f5d6] italic">an toàn tuyệt đối</span>.
-            </h1>
-            <p className="text-white/80 text-sm leading-relaxed font-light max-w-md mb-8">
-              Mã OTP giúp ngăn chặn truy cập trái phép và bảo vệ toàn vẹn tài sản sách điện tử cũng như quyền lợi của bạn.
-            </p>
-
-            <div className="p-4 rounded-xl bg-white/10 border border-white/15 text-xs backdrop-blur-xs max-w-md">
-              <div className="font-semibold text-[#94f5d6] mb-1">Địa chỉ nhận mã OTP:</div>
-              <div className="font-mono text-sm text-white font-semibold">{maskTarget(targetEmail)}</div>
-            </div>
-          </div>
-
-          {/* Bottom: Stat & Version */}
-          <div className="relative z-10 pt-6 border-t border-white/15 text-xs text-white/70 flex items-center justify-between">
-            <span>Thời hạn OTP: 15 phút</span>
-            <span className="font-semibold text-white/90">HUKI 2FA</span>
-          </div>
-        </section>
+          }
+        />
 
         {/* Right Column: OTP Input Form (7 cols) */}
         <section className="flex min-h-dvh flex-col justify-between bg-white px-6 py-8 sm:px-12 sm:py-10 lg:col-span-7 lg:px-14 xl:px-20 2xl:px-28">

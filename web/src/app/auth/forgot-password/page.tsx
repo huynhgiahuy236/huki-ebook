@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/ui/context/ToastContext';
 import { authApi, formatAuthError } from '@/ui/api/authApi';
 import { forgotPasswordSchema } from '@/ui/utils/authValidation';
+import { AuthEditorialPanel } from '@/components/auth/AuthEditorialPanel';
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -200,68 +201,16 @@ export default function ForgotPasswordPage() {
     <main id="main-content" tabIndex={-1} className="min-h-dvh w-full bg-white outline-none">
       <div className="grid min-h-dvh w-full grid-cols-1 overflow-hidden bg-white lg:grid-cols-12">
         {/* Left Column: Brand & Security Guarantee (5 cols) */}
-        <section
-          className="relative hidden min-h-dvh flex-col justify-between overflow-hidden p-12 text-white lg:col-span-5 lg:flex xl:p-16 2xl:p-20"
-          style={{
-            background:
-              'linear-gradient(to bottom right, var(--theme-hero-from, #003B2B), var(--theme-hero-via, #002f22), var(--theme-hero-to, #001f17))',
-          }}
-        >
-          {/* Background Ambient Blur */}
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-[#94f5d6]/10 blur-3xl pointer-events-none"></div>
-          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-80 h-80 rounded-full bg-[#ac2c19]/15 blur-3xl pointer-events-none"></div>
-
-          {/* Center Brand Identity */}
-          <div className="relative z-10 my-auto py-8">
-            <Link href="/" className="inline-flex items-center gap-3.5 group mb-10">
-              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-white border border-white/20 group-hover:scale-105 transition-transform shadow-inner">
-                <span className="material-symbols-outlined text-2xl text-[#94f5d6]">menu_book</span>
-              </div>
-              <div>
-                <span className="font-editorial text-2xl font-bold tracking-tight text-white block">
-                  HUKI EBOOK
-                </span>
-                <span className="text-[10px] uppercase tracking-widest text-[#94f5d6] font-semibold">
-                  Khôi Phục Tài Khoản
-                </span>
-              </div>
-            </Link>
-
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/15 text-[#94f5d6] text-xs font-semibold mb-6 backdrop-blur-xs">
-              <span className="material-symbols-outlined text-sm">shield</span>
-              <span>Bảo Vệ Độc Quyền &amp; 2FA</span>
-            </div>
-
-            <h1 className="font-editorial text-3xl xl:text-4xl font-bold leading-tight mb-4 text-white">
-              Khôi phục quyền truy cập <br />
-              <span className="text-[#94f5d6] italic">an toàn &amp; nhanh chóng</span>.
-            </h1>
-            <p className="text-white/80 text-sm leading-relaxed font-light max-w-md mb-8">
-              Chỉ cần cung cấp email đã đăng ký, hệ thống sẽ gửi mã OTP bảo mật 6 số để bạn thiết lập mật khẩu mới ngay lập tức.
-            </p>
-
-            <div className="space-y-3.5 pt-1">
-              <div className="flex items-center gap-3 text-xs sm:text-sm text-white/90">
-                <div className="w-6 h-6 rounded-full bg-[#94f5d6]/20 flex items-center justify-center text-[#94f5d6] shrink-0">
-                  <span className="material-symbols-outlined text-sm">check</span>
-                </div>
-                <span>Mã xác thực OTP gửi trực tiếp tới hòm thư cá nhân</span>
-              </div>
-              <div className="flex items-center gap-3 text-xs sm:text-sm text-white/90">
-                <div className="w-6 h-6 rounded-full bg-[#94f5d6]/20 flex items-center justify-center text-[#94f5d6] shrink-0">
-                  <span className="material-symbols-outlined text-sm">check</span>
-                </div>
-                <span>Bảo toàn toàn bộ sách và tiến độ đọc sau khi đổi mật khẩu</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom: Stat & Version */}
-          <div className="relative z-10 pt-6 border-t border-white/15 text-xs text-white/70 flex items-center justify-between">
-            <span>Hơn 45.000+ độc giả tin dùng</span>
-            <span className="font-semibold text-white/90">HUKI v2.4</span>
-          </div>
-        </section>
+        <AuthEditorialPanel
+          eyebrow="Bảo vệ độc quyền & 2FA"
+          titleLine1="Khôi phục quyền truy cập"
+          titleAccent="an toàn & nhanh chóng."
+          description="Chỉ cần cung cấp email đã đăng ký, hệ thống sẽ gửi mã OTP bảo mật 6 số để bạn thiết lập mật khẩu mới ngay lập tức."
+          highlights={[
+            'Mã xác thực OTP gửi trực tiếp tới hòm thư cá nhân',
+            'Bảo toàn toàn bộ sách và tiến độ đọc sau khi đổi mật khẩu',
+          ]}
+        />
 
         {/* Right Column: Recovery Form (7 cols) */}
         <section className="flex min-h-dvh flex-col justify-between bg-white px-6 py-8 sm:px-12 sm:py-10 lg:col-span-7 lg:px-14 xl:px-20 2xl:px-28">

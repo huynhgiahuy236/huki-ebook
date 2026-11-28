@@ -9,6 +9,7 @@ import { chatService } from '@/ui/services/chatService';
 import { playChatChimeSound } from '@/ui/utils/chatSound';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import UniversalNotificationBell from '../common/UniversalNotificationBell';
+import { HukiLogo } from '@/components/brand/HukiLogo';
 
 export interface SellerHeaderProps {
   isSidebarCollapsed: boolean;
@@ -198,10 +199,8 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
 
         {/* Brand - Chuẩn nhận diện Home & Admin (Không icon thừa) */}
         <Link href="/seller/dashboard" className="flex flex-col group select-none pl-1 pr-2 sm:pr-3 shrink-0">
-          <div className="flex items-center gap-1 sm:gap-1.5">
-            <span className="font-editorial text-sm sm:text-lg font-black tracking-tight text-[#003B2B] leading-none whitespace-nowrap">
-              HUKI EBOOK
-            </span>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <HukiLogo variant="dark" className="h-5 sm:h-[22px] w-auto" priority />
             <span className="bg-[#003B2B] text-white text-[7px] sm:text-[8px] font-black uppercase px-1 sm:px-1.5 py-0.5 rounded tracking-wider">
               SELLER
             </span>

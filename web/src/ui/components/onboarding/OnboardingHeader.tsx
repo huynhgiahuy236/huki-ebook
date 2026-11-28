@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/navigation';
+import { HukiLogo } from '@/components/brand/HukiLogo';
 
 interface OnboardingHeaderProps {
   currentStep: number;
@@ -25,17 +26,14 @@ export const OnboardingHeader: React.FC<OnboardingHeaderProps> = ({
       <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
         {/* Brand Logo & Name */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#003b2b] to-[#006953] flex items-center justify-center text-white shadow-xs">
-            <span className="material-symbols-outlined text-xl text-[#94f5d6]">menu_book</span>
-          </div>
           <div>
-            <div className="font-bold text-sm tracking-tight text-[#17201f] flex items-center gap-1.5">
-              <span>HUKI EBOOK</span>
-              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-[#fea619]/15 text-[#9e5d00] uppercase tracking-wider">
+            <div className="flex items-center gap-2">
+              <HukiLogo variant="dark" className="h-5 sm:h-6 w-auto" priority />
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#fea619]/15 text-[#9e5d00] uppercase tracking-wider">
                 Khởi đầu
               </span>
             </div>
-            <div className="text-[11px] text-[#6b7280]">Cá nhân hóa trải nghiệm đọc</div>
+            <div className="text-[11px] text-[#6b7280] mt-0.5">Cá nhân hóa trải nghiệm đọc</div>
           </div>
         </div>
 
