@@ -149,7 +149,7 @@ export default function ProfileVouchersPage() {
                   </p>
                   <p className="text-[11px] text-slate-500">
                     Đơn từ {Number(v.minOrderAmount || 0).toLocaleString('vi-VN')}đ
-                    {v.endDate ? ` • HSD: ${new Date(v.endDate).toLocaleDateString('vi-VN')}` : ''}
+                    {v.expiresAt ? ` • HSD: ${new Date(v.expiresAt).toLocaleDateString('vi-VN')}` : ''}
                   </p>
                 </div>
 
