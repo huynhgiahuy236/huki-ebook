@@ -12,7 +12,7 @@ import { sanitizeImageUrl } from '@/ui/utils/imageUtils';
 
 // Số lượng phần tử mỗi trang
 const PUBLISHERS_PER_PAGE = 6;
-const AUTHORS_PER_PAGE = 8;
+const AUTHORS_PER_PAGE = 12;
 
 interface AuthorItem {
   id: string;
@@ -451,6 +451,7 @@ function StoresContent() {
       }
       try {
         localStorage.setItem('huki_followed_stores', JSON.stringify(updated));
+        window.dispatchEvent(new Event('huki_followed_stores_updated'));
       } catch { }
       return updated;
     });
@@ -541,7 +542,7 @@ function StoresContent() {
 
           {/* Search bar */}
           <form onSubmit={handleSearch} className="flex items-center gap-2 w-full md:w-auto min-w-0 flex-1 md:flex-initial">
-            <div className="relative flex-1 md:w-64">
+            <div className="relative flex-1 md:w-80 lg:w-96">
               <input
                 type="text"
                 value={searchInput}
@@ -755,22 +756,43 @@ function StoresContent() {
                         <span className="material-symbols-outlined text-sm">chevron_left</span>
                       </button>
 
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
-                        const isActive = p === validPage;
-                        return (
-                          <button
-                            key={p}
-                            type="button"
-                            onClick={() => handlePageChange(p)}
-                            className={`w-8 h-8 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${isActive
-                              ? 'bg-primary text-on-primary shadow-xs scale-105'
-                              : 'border border-outline-variant/40 text-on-surface hover:bg-surface-container-low'
-                              }`}
-                          >
-                            {p}
-                          </button>
-                        );
-                      })}
+                      {(() => {
+                        const pages: (number | 'ellipsis')[] = [];
+                        if (totalPages <= 7) {
+                          for (let i = 1; i <= totalPages; i++) pages.push(i);
+                        } else {
+                          pages.push(1);
+                          if (validPage > 3) pages.push('ellipsis');
+                          const start = Math.max(2, validPage - 1);
+                          const end = Math.min(totalPages - 1, validPage + 1);
+                          for (let i = start; i <= end; i++) pages.push(i);
+                          if (validPage < totalPages - 2) pages.push('ellipsis');
+                          pages.push(totalPages);
+                        }
+                        return pages.map((p, idx) => {
+                          if (p === 'ellipsis') {
+                            return (
+                              <span key={`e-${idx}`} className="w-8 h-8 flex items-center justify-center text-xs text-slate-400 select-none">
+                                ...
+                              </span>
+                            );
+                          }
+                          const isActive = p === validPage;
+                          return (
+                            <button
+                              key={p}
+                              type="button"
+                              onClick={() => handlePageChange(p)}
+                              className={`w-8 h-8 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${isActive
+                                ? 'bg-primary text-on-primary shadow-xs scale-105'
+                                : 'border border-outline-variant/40 text-on-surface hover:bg-surface-container-low'
+                                }`}
+                            >
+                              {p}
+                            </button>
+                          );
+                        });
+                      })()}
 
                       <button
                         type="button"
@@ -968,22 +990,43 @@ function StoresContent() {
                         <span className="material-symbols-outlined text-sm">chevron_left</span>
                       </button>
 
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
-                        const isActive = p === validPage;
-                        return (
-                          <button
-                            key={p}
-                            type="button"
-                            onClick={() => handlePageChange(p)}
-                            className={`w-8 h-8 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${isActive
-                              ? 'bg-primary text-on-primary shadow-xs scale-105'
-                              : 'border border-outline-variant/40 text-on-surface hover:bg-surface-container-low'
-                              }`}
-                          >
-                            {p}
-                          </button>
-                        );
-                      })}
+                      {(() => {
+                        const pages: (number | 'ellipsis')[] = [];
+                        if (totalPages <= 7) {
+                          for (let i = 1; i <= totalPages; i++) pages.push(i);
+                        } else {
+                          pages.push(1);
+                          if (validPage > 3) pages.push('ellipsis');
+                          const start = Math.max(2, validPage - 1);
+                          const end = Math.min(totalPages - 1, validPage + 1);
+                          for (let i = start; i <= end; i++) pages.push(i);
+                          if (validPage < totalPages - 2) pages.push('ellipsis');
+                          pages.push(totalPages);
+                        }
+                        return pages.map((p, idx) => {
+                          if (p === 'ellipsis') {
+                            return (
+                              <span key={`e-${idx}`} className="w-8 h-8 flex items-center justify-center text-xs text-slate-400 select-none">
+                                ...
+                              </span>
+                            );
+                          }
+                          const isActive = p === validPage;
+                          return (
+                            <button
+                              key={p}
+                              type="button"
+                              onClick={() => handlePageChange(p)}
+                              className={`w-8 h-8 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${isActive
+                                ? 'bg-primary text-on-primary shadow-xs scale-105'
+                                : 'border border-outline-variant/40 text-on-surface hover:bg-surface-container-low'
+                                }`}
+                            >
+                              {p}
+                            </button>
+                          );
+                        });
+                      })()}
 
                       <button
                         type="button"

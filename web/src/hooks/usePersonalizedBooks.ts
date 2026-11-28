@@ -112,11 +112,15 @@ export function useForYouBooks(options: UseForYouOptions = {}) {
 
     window.addEventListener('huki:search_updated', handleUpdate);
     window.addEventListener('huki:personalization_updated', handleUpdate);
+    window.addEventListener('huki_favorite_authors_updated', handleUpdate);
+    window.addEventListener('huki_followed_stores_updated', handleUpdate);
     window.addEventListener('storage', handleUpdate);
 
     return () => {
       window.removeEventListener('huki:search_updated', handleUpdate);
       window.removeEventListener('huki:personalization_updated', handleUpdate);
+      window.removeEventListener('huki_favorite_authors_updated', handleUpdate);
+      window.removeEventListener('huki_followed_stores_updated', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
     };
   }, [fetchBooks]);

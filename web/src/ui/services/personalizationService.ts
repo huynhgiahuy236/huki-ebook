@@ -261,6 +261,36 @@ export const personalizationService = {
       }
     }
 
+    // Lấy gian hàng đang theo dõi & tác giả yêu thích
+    let followedStoreIds = new Set<string>();
+    let favoriteAuthorIds = new Set<string>();
+    let favoriteAuthorNames: string[] = [];
+    if (typeof window !== 'undefined') {
+      try {
+        const rawStores = localStorage.getItem('huki_followed_stores');
+        if (rawStores) {
+          const parsedStores = JSON.parse(rawStores);
+          Object.entries(parsedStores).forEach(([k, v]) => {
+            if (v) followedStoreIds.add(k);
+          });
+        }
+      } catch {
+        // ignore
+      }
+      try {
+        const rawAuthors = localStorage.getItem('huki_favorite_authors');
+        if (rawAuthors) {
+          const parsedAuthors = JSON.parse(rawAuthors) as Record<string, { id?: string; name?: string }>;
+          Object.values(parsedAuthors).forEach((a) => {
+            if (a?.id) favoriteAuthorIds.add(a.id);
+            if (a?.name) favoriteAuthorNames.push(normalizeVietnameseText(a.name));
+          });
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     // Map chấm điểm từng sách
     const scoredBooks: Array<{ book: BookData; score: number; reason: string; publisherKey: string }> = [];
 
@@ -279,6 +309,32 @@ export const personalizationService = {
       const normDesc = normalizeVietnameseText(book.description || '');
       const rawPub = book.publisher?.name || (book as any).publisherName || (book as any).store?.name || 'HuKi Partner';
       const normPub = normalizeVietnameseText(rawPub);
+      const bookAuthorId = (book as any).authorId || book.author?.id || '';
+      const bookStoreIds = [
+        (book as any).businessId,
+        (book as any).business?.id,
+        (book as any).business?.slug,
+        (book as any).storeId,
+        (book as any).store?.id,
+        (book as any).store?.slug,
+      ].filter(Boolean) as string[];
+
+      // 0. Ưu tiên sách từ Tác giả yêu thích & Gian hàng đang theo dõi
+      const isFavoriteAuthor =
+        (bookAuthorId && favoriteAuthorIds.has(bookAuthorId)) ||
+        (normAuthor && favoriteAuthorNames.some((n) => n && (normAuthor.includes(n) || n.includes(normAuthor))));
+      if (isFavoriteAuthor) {
+        score += 130;
+        topReason = `Tác giả yêu thích: ${book.author?.name || (book as any).authorName}`;
+      }
+
+      const isFollowedStore = bookStoreIds.some((id) => followedStoreIds.has(id));
+      if (isFollowedStore) {
+        score += 115;
+        if (topReason === 'Gợi ý nổi bật') {
+          topReason = `Từ gian hàng bạn theo dõi: ${rawPub}`;
+        }
+      }
 
       // 1. So khớp với Thị Hiếu do Bé Cáo AI phân tích (TRỌNG SỐ CAO NHẤT: +120 ĐIỂM)
       if (aiInterests.length > 0) {

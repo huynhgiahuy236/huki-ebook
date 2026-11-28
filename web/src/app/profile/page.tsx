@@ -390,17 +390,18 @@ export default function ProfilePage() {
           </div>
         </form>
 
-        <FavoriteAuthorsSection />
+        <FollowedStoresAndAuthorsSection />
       </div>
     </AccountLayout>
   );
 }
 
-function FavoriteAuthorsSection() {
+function FollowedStoresAndAuthorsSection() {
   const [favorites, setFavorites] = useState<Array<{ id: string; name: string; title?: string; avatar?: string }>>([]);
+  const [followedStores, setFollowedStores] = useState<Array<{ id: string; name: string; slug?: string; logo?: string }>>([]);
 
   useEffect(() => {
-    const load = () => {
+    const loadAuthors = () => {
       try {
         const raw = localStorage.getItem('huki_favorite_authors');
         const map = raw ? JSON.parse(raw) : {};
@@ -409,16 +410,41 @@ function FavoriteAuthorsSection() {
         setFavorites([]);
       }
     };
-    load();
-    window.addEventListener('huki_favorite_authors_updated', load);
-    window.addEventListener('storage', load);
+
+    const loadStores = async () => {
+      try {
+        const { businessApi } = await import('@/ui/api/businessApi');
+        const res = await businessApi.getMyFollowedBusinesses();
+        if (res?.success && Array.isArray(res.data)) {
+          setFollowedStores(
+            res.data.map((b: any) => ({
+              id: b.id,
+              name: b.name || 'Gian hàng HuKi',
+              slug: b.slug,
+              logo: b.logo,
+            }))
+          );
+          return;
+        }
+      } catch {
+        // fallback below
+      }
+      setFollowedStores([]);
+    };
+
+    loadAuthors();
+    loadStores();
+    window.addEventListener('huki_favorite_authors_updated', loadAuthors);
+    window.addEventListener('huki_followed_stores_updated', loadStores);
+    window.addEventListener('storage', loadAuthors);
     return () => {
-      window.removeEventListener('huki_favorite_authors_updated', load);
-      window.removeEventListener('storage', load);
+      window.removeEventListener('huki_favorite_authors_updated', loadAuthors);
+      window.removeEventListener('huki_followed_stores_updated', loadStores);
+      window.removeEventListener('storage', loadAuthors);
     };
   }, []);
 
-  const removeFavorite = (id: string) => {
+  const removeFavoriteAuthor = (id: string) => {
     try {
       const raw = localStorage.getItem('huki_favorite_authors');
       const map = raw ? JSON.parse(raw) : {};
@@ -429,80 +455,171 @@ function FavoriteAuthorsSection() {
     } catch { }
   };
 
-  return (
-    <div className="pt-6 border-t border-gray-100 space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
-            <span className="material-symbols-outlined text-rose-500 text-[20px]">favorite</span>
-            <span>Tác Giả Yêu Thích ({favorites.length})</span>
-          </h2>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Bấm vào tác giả để lọc nhanh toàn bộ sách của họ trên sàn HuKi
-          </p>
-        </div>
-        <Link
-          href="/stores?tab=authors"
-          className="text-xs font-semibold text-[#006953] hover:underline whitespace-nowrap"
-        >
-          Khám phá tác giả →
-        </Link>
-      </div>
+  const unfollowStore = async (id: string, slug?: string) => {
+    setFollowedStores((prev) => prev.filter((s) => s.id !== id));
+    try {
+      const raw = localStorage.getItem('huki_followed_stores');
+      const map = raw ? JSON.parse(raw) : {};
+      delete map[id];
+      if (slug) delete map[slug];
+      localStorage.setItem('huki_followed_stores', JSON.stringify(map));
+      window.dispatchEvent(new Event('huki_followed_stores_updated'));
+    } catch { }
+    try {
+      const { businessApi } = await import('@/ui/api/businessApi');
+      await businessApi.unfollowBusiness(id);
+    } catch { }
+  };
 
-      {favorites.length === 0 ? (
-        <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200/80 text-center space-y-2">
-          <p className="text-xs text-gray-500">Bạn chưa lưu tác giả yêu thích nào.</p>
+  return (
+    <div className="pt-6 border-t border-gray-100 space-y-6">
+      {/* Gian hàng đang theo dõi */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#006953] text-[20px]">storefront</span>
+              <span>Gian Hàng Đang Theo Dõi ({followedStores.length})</span>
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Sách từ các gian hàng bạn theo dõi sẽ được ưu tiên hiển thị trong mục Gợi ý cho bạn
+            </p>
+          </div>
           <Link
-            href="/stores?tab=authors"
-            className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-[#003B2B] text-white text-xs font-semibold hover:bg-[#00281d] transition-colors"
+            href="/stores"
+            className="text-xs font-semibold text-[#006953] hover:underline whitespace-nowrap"
           >
-            <span>Tìm tác giả yêu thích</span>
+            Xem gian hàng →
           </Link>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {favorites.map((author) => (
-            <div
-              key={author.id}
-              className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200 bg-white hover:border-[#006953]/40 transition-colors"
+
+        {followedStores.length === 0 ? (
+          <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200/80 text-center space-y-2">
+            <p className="text-xs text-gray-500">Bạn chưa theo dõi gian hàng nào.</p>
+            <Link
+              href="/stores"
+              className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-[#003B2B] text-white text-xs font-semibold hover:bg-[#00281d] transition-colors"
             >
-              <Link
-                href={`/books?author=${encodeURIComponent(author.name)}`}
-                className="flex items-center gap-3 min-w-0 flex-1 group"
+              <span>Khám phá gian hàng</span>
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {followedStores.map((store) => (
+              <div
+                key={store.id}
+                className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200 bg-white hover:border-[#006953]/40 transition-colors"
               >
-                {author.avatar ? (
-                  <img
-                    src={author.avatar}
-                    alt={author.name}
-                    className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-200"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-[#003B2B] text-white font-bold text-sm flex items-center justify-center shrink-0">
-                    {author.name.charAt(0).toUpperCase()}
+                <Link
+                  href={`/shop/${store.slug || store.id}`}
+                  className="flex items-center gap-3 min-w-0 flex-1 group"
+                >
+                  {store.logo ? (
+                    <img
+                      src={store.logo}
+                      alt={store.name}
+                      className="w-10 h-10 rounded-xl object-cover shrink-0 border border-gray-200"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-xl bg-[#003B2B] text-white font-bold text-sm flex items-center justify-center shrink-0">
+                      {store.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-gray-900 group-hover:text-[#006953] truncate">
+                      {store.name}
+                    </div>
+                    <div className="text-[11px] text-gray-500 truncate">Xem gian hàng</div>
                   </div>
-                )}
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-gray-900 group-hover:text-[#006953] truncate">
-                    {author.name}
-                  </div>
-                  <div className="text-[11px] text-gray-500 truncate">
-                    {author.title || 'Xem sách của tác giả'}
-                  </div>
-                </div>
-              </Link>
-              <button
-                type="button"
-                onClick={() => removeFavorite(author.id)}
-                className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
-                title="Bỏ khỏi danh sách yêu thích"
-                aria-label={`Bỏ thích ${author.name}`}
-              >
-                <span className="material-symbols-outlined text-[18px]">heart_minus</span>
-              </button>
-            </div>
-          ))}
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => unfollowStore(store.id, store.slug)}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
+                >
+                  Bỏ theo dõi
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Tác giả yêu thích */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <span className="material-symbols-outlined text-rose-500 text-[20px]">favorite</span>
+              <span>Tác Giả Yêu Thích ({favorites.length})</span>
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Bấm vào tác giả để lọc nhanh toàn bộ sách của họ và ưu tiên hiện trong mục Gợi ý cho bạn
+            </p>
+          </div>
+          <Link
+            href="/stores?tab=authors"
+            className="text-xs font-semibold text-[#006953] hover:underline whitespace-nowrap"
+          >
+            Khám phá tác giả →
+          </Link>
         </div>
-      )}
+
+        {favorites.length === 0 ? (
+          <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200/80 text-center space-y-2">
+            <p className="text-xs text-gray-500">Bạn chưa lưu tác giả yêu thích nào.</p>
+            <Link
+              href="/stores?tab=authors"
+              className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-[#003B2B] text-white text-xs font-semibold hover:bg-[#00281d] transition-colors"
+            >
+              <span>Tìm tác giả yêu thích</span>
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {favorites.map((author) => (
+              <div
+                key={author.id}
+                className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200 bg-white hover:border-[#006953]/40 transition-colors"
+              >
+                <Link
+                  href={`/books?author=${encodeURIComponent(author.name)}`}
+                  className="flex items-center gap-3 min-w-0 flex-1 group"
+                >
+                  {author.avatar ? (
+                    <img
+                      src={author.avatar}
+                      alt={author.name}
+                      className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-200"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-[#003B2B] text-white font-bold text-sm flex items-center justify-center shrink-0">
+                      {author.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-gray-900 group-hover:text-[#006953] truncate">
+                      {author.name}
+                    </div>
+                    <div className="text-[11px] text-gray-500 truncate">
+                      {author.title || 'Xem sách của tác giả'}
+                    </div>
+                  </div>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => removeFavoriteAuthor(author.id)}
+                  className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
+                  title="Bỏ khỏi danh sách yêu thích"
+                  aria-label={`Bỏ thích ${author.name}`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">heart_minus</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
