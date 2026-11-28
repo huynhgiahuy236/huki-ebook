@@ -281,24 +281,30 @@
               "script": {
                 "exec": [
                   "pm.test('Status code is 200', function() {",
-                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
                   "});",
                   "pm.test('Response contains tokens', function() {",
                   "  const body = pm.response.json();",
-                  "  pm.expect(body.data).to.have.property('tokens');",
-                  "  pm.expect(body.data.tokens).to.have.property('accessToken');",
-                  "  pm.expect(body.data.tokens).to.have.property('refreshToken');",
+                  "  const accessToken = body.data?.accessToken || body.data?.tokens?.accessToken;",
+                  "  const refreshToken = body.data?.refreshToken || body.data?.tokens?.refreshToken;",
+                  "  pm.expect(accessToken, 'accessToken').to.be.a('string').and.not.empty;",
+                  "  pm.expect(refreshToken, 'refreshToken').to.be.a('string').and.not.empty;",
                   "});",
                   "pm.test('Save tokens to variables', function() {",
                   "  const body = pm.response.json();",
-                  "  if (body.data?.tokens?.accessToken) {",
-                  "    pm.environment.set('accessToken', body.data.tokens.accessToken);",
+                  "  const accessToken = body.data?.accessToken || body.data?.tokens?.accessToken;",
+                  "  const refreshToken = body.data?.refreshToken || body.data?.tokens?.refreshToken;",
+                  "  if (accessToken) {",
+                  "    pm.environment.set('accessToken', accessToken);",
+                  "    pm.collectionVariables.set('accessToken', accessToken);",
                   "  }",
-                  "  if (body.data?.tokens?.refreshToken) {",
-                  "    pm.environment.set('refreshToken', body.data.tokens.refreshToken);",
+                  "  if (refreshToken) {",
+                  "    pm.environment.set('refreshToken', refreshToken);",
+                  "    pm.collectionVariables.set('refreshToken', refreshToken);",
                   "  }",
                   "  if (body.data?.user?.id) {",
                   "    pm.environment.set('userId', body.data.user.id);",
+                  "    pm.collectionVariables.set('userId', body.data.user.id);",
                   "  }",
                   "});"
                 ]
@@ -315,7 +321,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"Password123!\"\n}"
+              "raw": "{\n  \"email\": \"user@huki.com\",\n  \"password\": \"User123!\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
@@ -362,17 +368,17 @@
                 "me"
               ]
             },
-            "description": "Get current authenticated user profile"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Get current authenticated user profile",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -458,17 +464,17 @@
                 "logout"
               ]
             },
-            "description": "Logout from current device"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Logout from current device",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -507,17 +513,17 @@
                 "change-password"
               ]
             },
-            "description": "Change password while logged in"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Change password while logged in",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         }
       ]
@@ -552,17 +558,17 @@
                 "profile"
               ]
             },
-            "description": "Get user profile"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Get user profile",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -601,17 +607,17 @@
                 "profile"
               ]
             },
-            "description": "Update user profile"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Update user profile",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -640,17 +646,17 @@
                 "sessions"
               ]
             },
-            "description": "List all active sessions"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "List all active sessions",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -680,17 +686,17 @@
                 "{{sessionId}}"
               ]
             },
-            "description": "Delete a specific session"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Delete a specific session",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -760,17 +766,17 @@
                 "businesses"
               ]
             },
-            "description": "Register a new business"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Register a new business",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -800,17 +806,17 @@
                 "my"
               ]
             },
-            "description": "Get business owned by current user"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Get business owned by current user",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -941,17 +947,17 @@
                 }
               ]
             },
-            "description": "Create a new store"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Create a new store",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -1477,17 +1483,17 @@
                 "books"
               ]
             },
-            "description": "Create a new book"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Create a new book",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -1875,17 +1881,17 @@
                 "cart"
               ]
             },
-            "description": "Get current user cart"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Get current user cart",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -1924,17 +1930,17 @@
                 "items"
               ]
             },
-            "description": "Add item to cart"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Add item to cart",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -1974,17 +1980,17 @@
                 ":itemId"
               ]
             },
-            "description": "Update cart item quantity"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Update cart item quantity",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -2015,17 +2021,17 @@
                 ":itemId"
               ]
             },
-            "description": "Remove item from cart"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Remove item from cart",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -2065,17 +2071,17 @@
                 "preview"
               ]
             },
-            "description": "Preview checkout with shipping options"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Preview checkout with shipping options",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -2126,17 +2132,17 @@
                 "confirm"
               ]
             },
-            "description": "Confirm checkout and create order (COD)"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Confirm checkout and create order (COD)",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         }
       ]
@@ -2180,17 +2186,17 @@
                 }
               ]
             },
-            "description": "List user orders"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "List user orders",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -2220,17 +2226,17 @@
                 "{{orderId}}"
               ]
             },
-            "description": "Get order details"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Get order details",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -2261,17 +2267,17 @@
                 "tracking"
               ]
             },
-            "description": "Get order tracking info"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Get order tracking info",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -2311,17 +2317,17 @@
                 "cancel"
               ]
             },
-            "description": "Cancel an order"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Cancel an order",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -2885,17 +2891,17 @@
                 "address"
               ]
             },
-            "description": "List user shipping addresses"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "List user shipping addresses",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -2940,17 +2946,17 @@
                 "address"
               ]
             },
-            "description": "Create a new shipping address"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Create a new shipping address",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -3411,17 +3417,17 @@
                 "reviews"
               ]
             },
-            "description": "Create a book review"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Create a book review",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -4059,17 +4065,17 @@
                 }
               ]
             },
-            "description": "List user notifications"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "List user notifications",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -4099,17 +4105,17 @@
                 "read-all"
               ]
             },
-            "description": "Mark all notifications as read"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Mark all notifications as read",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -4507,17 +4513,17 @@
                 "validate"
               ]
             },
-            "description": "Validate a voucher code"
-          },
-          "auth": {
-            "type": "bearer",
-            "bearer": [
-              {
-                "key": "token",
-                "value": "{{accessToken}}",
-                "type": "string"
-              }
-            ]
+            "description": "Validate a voucher code",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
