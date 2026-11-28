@@ -125,7 +125,7 @@ export default function BookCard({
     try {
       const saved = JSON.parse(localStorage.getItem('huki_wishlist_ids') || '[]');
       setIsWishlisted(Array.isArray(saved) && saved.includes(book.id));
-    } catch {}
+    } catch { }
 
     const handleWishlistEvent = (e: any) => {
       if (e?.detail?.bookId === book.id) {
@@ -244,7 +244,7 @@ export default function BookCard({
         publisher,
         book.title
       );
-    } catch {}
+    } catch { }
     router.push(`/book/${book.slug || book.id}`);
   };
 
@@ -396,77 +396,79 @@ export default function BookCard({
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
               </svg>
             </button>
-            {isFlashSale && (
-              <span className="absolute top-1 left-1 bg-rose-600 text-white font-bold text-[8.5px] px-1.5 py-0.5 rounded shadow-2xs">
-                Flash Sale
+          {isFlashSale && (
+            <span className="absolute top-1 left-1 bg-rose-600 text-white font-bold text-[8.5px] px-1.5 py-0.5 rounded shadow-2xs">
+              Flash Sale
+            </span>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <h3 className="font-semibold text-xs text-gray-900 group-hover:text-[#003b2b] transition-colors line-clamp-2 leading-snug">
+            {book.title}
+          </h3>
+          <p className="text-[11px] text-gray-400 mt-0.5 truncate">{authorName}</p>
+
+          {/* Rating & Sales (Luôn hiển thị rõ ràng, không hiển thị ★ 0) */}
+          <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px]">
+            {displayRating ? (
+              <div className="flex items-center gap-0.5 text-amber-500 font-bold">
+                <span className="material-symbols-outlined text-[12px] fill-current">star</span>
+                <span>{displayRating}</span>
+              </div>
+            ) : (
+              <span className="text-gray-400 text-[10px]">Chưa có đánh giá</span>
+            )}
+            <span className="text-gray-300 text-[9px]">•</span>
+            <span className="text-gray-500 text-[10px]">
+              Đã bán {displaySales}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-xs font-bold text-[#003b2b]">
+              {price.toLocaleString('vi-VN')} đ
+            </span>
+            {discountLabel && (
+              <span className="bg-[#e6f4f0] text-[#006953] text-[9px] font-bold px-1 py-0.2 rounded border border-[#006953]/30">
+                {discountLabel}
               </span>
             )}
           </div>
-
-          <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-xs text-gray-900 group-hover:text-[#003b2b] transition-colors line-clamp-2 leading-snug">
-              {book.title}
-            </h3>
-            <p className="text-[11px] text-gray-400 mt-0.5 truncate">{authorName}</p>
-
-            {/* Rating & Sales (Luôn hiển thị rõ ràng, không hiển thị ★ 0) */}
-            <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px]">
-              {displayRating ? (
-                <div className="flex items-center gap-0.5 text-amber-500 font-bold">
-                  <span className="material-symbols-outlined text-[12px] fill-current">star</span>
-                  <span>{displayRating}</span>
-                </div>
-              ) : (
-                <span className="text-gray-400 text-[10px]">Chưa có đánh giá</span>
-              )}
-              <span className="text-gray-300 text-[9px]">•</span>
-              <span className="text-gray-500 text-[10px]">
-                Đã bán {displaySales}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs font-bold text-[#003b2b]">
-                {price.toLocaleString('vi-VN')} đ
-              </span>
-              {discountLabel && (
-                <span className="bg-[#e6f4f0] text-[#006953] text-[9px] font-bold px-1 py-0.2 rounded border border-[#006953]/30">
-                  {discountLabel}
-                </span>
-              )}
-            </div>
-          </div>
         </div>
+      </div>
 
-        {isFlashSale ? (
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={handleDirectBuy}
-              className="px-3 py-1.5 rounded-lg bg-[#003b2b] hover:bg-[#00241a] text-white text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-[13px]">bolt</span>
-              <span>Mua Ngay</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleAddToCart}
-              title="Thêm vào giỏ"
-              className="p-1.5 rounded-lg bg-[#e6f4f0] hover:bg-[#d0ebe3] text-[#003b2b] border border-[#003b2b]/20 transition-colors flex items-center justify-center cursor-pointer shadow-2xs"
-            >
-              <span className="material-symbols-outlined text-[15px]">add_shopping_cart</span>
-            </button>
-          </div>
-        ) : (
+        {
+      isFlashSale ? (
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={handleDirectBuy}
+            className="px-3 py-1.5 rounded-lg bg-[#003b2b] hover:bg-[#00241a] text-white text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1"
+          >
+            <span className="material-symbols-outlined text-[13px]">bolt</span>
+            <span>Mua Ngay</span>
+          </button>
           <button
             type="button"
             onClick={handleAddToCart}
-            className="px-3 py-1.5 rounded-lg border border-[#003b2b] text-[#003b2b] hover:bg-[#003b2b] hover:text-white text-xs font-semibold transition-colors shrink-0 cursor-pointer"
+            title="Thêm vào giỏ"
+            className="p-1.5 rounded-lg bg-[#e6f4f0] hover:bg-[#d0ebe3] text-[#003b2b] border border-[#003b2b]/20 transition-colors flex items-center justify-center cursor-pointer shadow-2xs"
           >
-            Thêm giỏ hàng
+            <span className="material-symbols-outlined text-[15px]">add_shopping_cart</span>
           </button>
-        )}
-      </article>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={handleAddToCart}
+          className="px-3 py-1.5 rounded-lg border border-[#003b2b] text-[#003b2b] hover:bg-[#003b2b] hover:text-white text-xs font-semibold transition-colors shrink-0 cursor-pointer"
+        >
+          Thêm giỏ hàng
+        </button>
+      )
+    }
+      </article >
     );
   }
 
@@ -489,11 +491,10 @@ export default function BookCard({
         <button
           type="button"
           onClick={handleToggleWishlist}
-          className={`group/heart absolute top-2.5 right-2.5 z-20 w-8 h-8 p-1.5 rounded-full flex items-center justify-center transition-all duration-200 backdrop-blur-md cursor-pointer active:scale-90 ${
-            isWishlisted
-              ? 'bg-rose-500/95 text-white shadow-sm shadow-rose-500/25 ring-1 ring-white/80'
-              : 'bg-white/85 hover:bg-white text-slate-500 hover:text-rose-500 shadow-sm ring-1 ring-black/5'
-          }`}
+          className={`group/heart absolute top-2.5 right-2.5 z-20 w-8 h-8 p-1.5 rounded-full flex items-center justify-center transition-all duration-200 backdrop-blur-md cursor-pointer active:scale-90 ${isWishlisted
+            ? 'bg-rose-500/95 text-white shadow-sm shadow-rose-500/25 ring-1 ring-white/80'
+            : 'bg-white/85 hover:bg-white text-slate-500 hover:text-rose-500 shadow-sm ring-1 ring-black/5'
+            }`}
           title={isWishlisted ? 'Bỏ khỏi yêu thích' : 'Thêm vào yêu thích'}
           aria-label={isWishlisted ? 'Bỏ khỏi yêu thích' : 'Thêm vào yêu thích'}
         >
@@ -574,9 +575,10 @@ export default function BookCard({
             type="button"
             onClick={handleAddToCart}
             title="Thêm vào giỏ hàng"
-            className="w-8 h-8 rounded-lg bg-emerald-50 hover:bg-[#00875A] text-[#00875A] hover:text-white border border-emerald-200/90 hover:border-transparent transition-all duration-200 flex items-center justify-center cursor-pointer shadow-2xs hover:shadow-xs active:scale-95 shrink-0"
+            aria-label="Thêm vào giỏ hàng"
+            className="w-9 h-9 p-2 rounded-xl bg-emerald-50/85 hover:bg-[#00875A] text-[#00875A] hover:text-white border border-emerald-200/75 hover:border-transparent transition-all duration-200 flex items-center justify-center cursor-pointer shadow-2xs hover:shadow-sm active:scale-95 shrink-0"
           >
-            <span className="material-symbols-outlined text-[17px]">shopping_cart</span>
+            <span className="material-symbols-outlined text-[16px] leading-none">shopping_cart</span>
           </button>
         </div>
       </div>

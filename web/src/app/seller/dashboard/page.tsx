@@ -573,14 +573,14 @@ export default function SellerDashboardPage() {
           </div>
         )}
 
-        {/* 3. CHARTS ROW: TIẾN TRÌNH PHÁT HÀNH (CỘT ĐỨNG) & TĂNG TRƯỞNG ĐỘC GIẢ */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          {/* 3.1 TIẾN TRÌNH PHÁT HÀNH & ĐỊNH DẠNG (DẠNG CỘT ĐỨNG) */}
-          <div className="lg:col-span-5 bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="text-sm sm:text-base font-bold text-gray-900">Tiến Trình Phát Hành &amp; Định Dạng (Từ DB)</h2>
-                <p className="text-[11px] text-gray-500 mt-0.5">Số liệu thực tế các đầu sách đang quản lý trong kho ấn phẩm</p>
+        {/* 3. CHARTS ROW: TIẾN TRÌNH PHÁT HÀNH (40% NGANG) & DIỄN BIẾN GMV/ĐƠN HÀNG (60%) */}
+        <div className="grid grid-cols-1 lg:grid-cols-10 gap-5">
+          {/* 3.1 TIẾN TRÌNH PHÁT HÀNH & ĐỊNH DẠNG (DẠNG THANH NGANG 40%) */}
+          <div className="lg:col-span-4 bg-white rounded-xl p-4 sm:p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <div className="min-w-0">
+                <h2 className="text-sm sm:text-base font-bold text-gray-900 truncate">Tiến Trình Phát Hành &amp; Định Dạng</h2>
+                <p className="text-[11px] text-gray-500 mt-0.5 truncate">Số liệu thực tế các đầu sách trong kho ấn phẩm</p>
               </div>
               <select
                 value={pipelinePeriod}
@@ -593,45 +593,41 @@ export default function SellerDashboardPage() {
               </select>
             </div>
 
-            <div className="relative pt-2 pb-1">
-              <div className="grid grid-cols-6 gap-1.5 sm:gap-2 items-end h-44 border-b border-slate-200 px-1">
-                {[
-                  { stage: 'Tổng SP', fullLabel: 'Tổng sản phẩm', value: stats.totalBooks, color: 'bg-[#003B2B]' },
-                  { stage: 'Xuất bản', fullLabel: 'Đã xuất bản', value: stats.publishedBooks, color: 'bg-[#00875A]' },
-                  { stage: 'Nháp/Chờ', fullLabel: 'Bản nháp / Chờ duyệt', value: stats.draftBooks, color: 'bg-amber-400' },
-                  { stage: 'Sách giấy', fullLabel: 'Sách giấy (Physical)', value: stats.physicalBooks, color: 'bg-emerald-400' },
-                  { stage: 'Ebook', fullLabel: 'Ebook (Digital DRM)', value: stats.digitalBooks, color: 'bg-sky-400' },
-                  { stage: 'Combo', fullLabel: 'Combo Hybrid', value: stats.hybridBooks, color: 'bg-emerald-600' },
-                ].map((item, i) => {
-                  const maxVal = Math.max(stats.totalBooks, 1);
-                  const heightPx = item.value > 0 ? Math.max(8, Math.round((item.value / maxVal) * 136)) : 0;
-                  return (
-                    <div key={i} className="flex flex-col items-center justify-end h-full gap-1 group" title={`${item.fullLabel}: ${item.value}`}>
-                      <span className="text-[11px] font-bold font-mono text-slate-700 leading-none">
-                        {item.value.toLocaleString()}
-                      </span>
-                      {heightPx > 0 && (
+            <div className="space-y-3 my-auto">
+              {[
+                { stage: 'Tổng sản phẩm', value: stats.totalBooks, color: 'bg-[#003B2B]' },
+                { stage: 'Đã xuất bản', value: stats.publishedBooks, color: 'bg-[#00875A]' },
+                { stage: 'Bản nháp / Chờ duyệt', value: stats.draftBooks, color: 'bg-amber-400' },
+                { stage: 'Sách giấy (Physical)', value: stats.physicalBooks, color: 'bg-emerald-400' },
+                { stage: 'Ebook (Digital DRM)', value: stats.digitalBooks, color: 'bg-sky-400' },
+                { stage: 'Combo Hybrid', value: stats.hybridBooks, color: 'bg-emerald-600' },
+              ].map((item, i) => {
+                const maxVal = Math.max(stats.totalBooks, 1);
+                const pct = item.value > 0 ? Math.max(4, Math.round((item.value / maxVal) * 100)) : 0;
+                return (
+                  <div key={i} className="grid grid-cols-12 items-center gap-2.5">
+                    <span className="col-span-5 text-xs font-medium text-slate-600 truncate" title={item.stage}>
+                      {item.stage}
+                    </span>
+                    <div className="col-span-6 h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                      {pct > 0 && (
                         <div
-                          className={`w-5 sm:w-6 ${item.color} rounded-t-md transition-all duration-500 group-hover:opacity-85`}
-                          style={{ height: `${heightPx}px` }}
+                          className={`h-full rounded-full ${item.color} transition-all duration-500`}
+                          style={{ width: `${pct}%` }}
                         />
                       )}
                     </div>
-                  );
-                })}
-              </div>
-              <div className="grid grid-cols-6 gap-1.5 sm:gap-2 px-1 pt-2">
-                {['Tổng SP', 'Xuất bản', 'Nháp/Chờ', 'Sách giấy', 'Ebook', 'Combo'].map((label) => (
-                  <span key={label} className="text-[10.5px] font-medium text-slate-500 text-center truncate">
-                    {label}
-                  </span>
-                ))}
-              </div>
+                    <span className="col-span-1 text-right text-xs font-bold font-mono text-slate-800">
+                      {item.value.toLocaleString()}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* 3.2 BIỂU ĐỒ DIỄN BIẾN GMV & ĐƠN HÀNG (CHUẨN ADMIN - 7 CỘT) */}
-          <div className="lg:col-span-7">
+          {/* 3.2 BIỂU ĐỒ DIỄN BIẾN GMV & ĐƠN HÀNG (CHUẨN ADMIN - 60%) */}
+          <div className="lg:col-span-6">
             <GMVChart
               timeline={(() => {
                 const days = 25;
