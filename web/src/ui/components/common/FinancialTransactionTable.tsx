@@ -220,14 +220,34 @@ export default function FinancialTransactionTable({
     () => [
       {
         key: 'id',
-        title: 'Mã Giao Dịch',
+        title: 'Mã Tham Chiếu',
         width: 150,
         sortable: true,
-        render: (_val, row) => (
-          <div className="font-mono font-semibold text-theme-text text-[11px] truncate max-w-[140px]" title={row.referenceCode || row.id}>
-            {row.referenceCode || row.id}
-          </div>
-        ),
+        render: (_val, row) => {
+          const fullCode = row.orderCode || row.referenceId || row.referenceCode || row.id;
+          const shortCode = fullCode.length > 14 && !fullCode.startsWith('ORD-')
+            ? `#${fullCode.slice(0, 8)}`
+            : fullCode;
+          return (
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="font-mono font-semibold text-theme-text text-[11px]" title={fullCode}>
+                {shortCode}
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard?.writeText(fullCode);
+                }}
+                className="text-slate-400 hover:text-[#006953] p-0.5 rounded transition-colors cursor-pointer"
+                title={`Sao chép mã đầy đủ: ${fullCode}`}
+                aria-label="Sao chép mã"
+              >
+                <span className="material-symbols-outlined text-[13px] block">content_copy</span>
+              </button>
+            </div>
+          );
+        },
       },
       {
         key: 'timestamp',
@@ -294,34 +314,6 @@ export default function FinancialTransactionTable({
         width: 130,
         align: 'center',
         render: (val) => renderStatusBadge(val),
-      },
-      {
-        key: 'actorId',
-        title: 'Người Thực Hiện',
-        width: 140,
-        render: (_val, row) => (
-          <div className="text-[11px] truncate max-w-[130px]" title={row.actorId || '-'}>
-            <span className="font-mono text-theme-text block truncate">{row.actorId || '-'}</span>
-            {row.actorRole && (
-              <span className="text-[10px] text-theme-text-muted block font-medium">
-                {row.actorRole}
-              </span>
-            )}
-          </div>
-        ),
-      },
-      {
-        key: 'referenceId',
-        title: 'Mã Tham Chiếu / Đơn',
-        width: 140,
-        render: (_val, row) => {
-          const ref = row.referenceId || row.orderCode;
-          return (
-            <span className="font-mono text-[11px] text-theme-text-muted truncate block max-w-[130px]" title={ref || '-'}>
-              {ref || '-'}
-            </span>
-          );
-        },
       },
       {
         key: 'reason',

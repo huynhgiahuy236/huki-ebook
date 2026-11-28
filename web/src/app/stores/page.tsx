@@ -142,6 +142,15 @@ function StoresContent() {
     }
   });
 
+  const [favoriteAuthors, setFavoriteAuthors] = useState<Record<string, { id: string; name: string; title?: string; avatar?: string }>>(() => {
+    try {
+      const raw = localStorage.getItem('huki_favorite_authors');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
   // Đồng bộ searchInput khi URL q thay đổi từ bên ngoài
   useEffect(() => {
     setSearchInput(searchQuery);
@@ -311,7 +320,7 @@ function StoresContent() {
   const authorsList = useMemo(() => {
     let list = realAuthors;
     if (filterFollowing) {
-      list = list.filter(author => Boolean(followedIds[author.id]));
+      list = list.filter(author => Boolean(favoriteAuthors[author.id]));
     }
 
     return list.filter(author => {
@@ -321,11 +330,11 @@ function StoresContent() {
       const matchCat = selectedCategory === 'all' || author.category.toLowerCase().includes(selectedCategory.toLowerCase());
       return matchSearch && matchCat;
     });
-  }, [realAuthors, filterFollowing, followedIds, searchQuery, selectedCategory]);
+  }, [realAuthors, filterFollowing, favoriteAuthors, searchQuery, selectedCategory]);
 
   const followedAuthorsCount = useMemo(() => {
-    return realAuthors.filter(a => Boolean(followedIds[a.id])).length;
-  }, [realAuthors, followedIds]);
+    return realAuthors.filter(a => Boolean(favoriteAuthors[a.id])).length;
+  }, [realAuthors, favoriteAuthors]);
 
   // Phân trang dữ liệu
   const currentItems = activeTab === 'publishers' ? publishersList : authorsList;
@@ -388,6 +397,36 @@ function StoresContent() {
       }
       p.delete('page');
     });
+  };
+
+  const toggleFavoriteAuthor = (author: AuthorItem) => {
+    const isCurrentlyFav = Boolean(favoriteAuthors[author.id]);
+    const nextState = !isCurrentlyFav;
+
+    setFavoriteAuthors((prev) => {
+      const updated = { ...prev };
+      if (nextState) {
+        updated[author.id] = {
+          id: author.id,
+          name: author.name,
+          title: author.title,
+          avatar: author.avatar,
+        };
+      } else {
+        delete updated[author.id];
+      }
+      try {
+        localStorage.setItem('huki_favorite_authors', JSON.stringify(updated));
+        window.dispatchEvent(new Event('huki_favorite_authors_updated'));
+      } catch { }
+      return updated;
+    });
+
+    if (nextState) {
+      showToast(`Đã thêm ${author.name} vào Tác giả yêu thích.`, 'success');
+    } else {
+      showToast(`Đã bỏ ${author.name} khỏi danh sách yêu thích.`, 'info');
+    }
   };
 
   const toggleFollow = async (id: string, name: string, isMock = false, slug: string | null = null) => {
@@ -807,7 +846,7 @@ function StoresContent() {
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                   {paginatedAuthors.map((author) => {
-                    const isFollowed = Boolean(followedIds[author.id]);
+                    const isFavorited = Boolean(favoriteAuthors[author.id]);
 
                     return (
                       <article
@@ -867,23 +906,23 @@ function StoresContent() {
                         <div className="mt-4 pt-3 border-t border-outline-variant/20 space-y-2">
                           <button
                             type="button"
-                            onClick={() => toggleFollow(author.id, author.name, false)}
-                            className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${isFollowed
-                              ? 'bg-surface-container-high text-on-surface hover:bg-surface-container-highest'
+                            onClick={() => toggleFavoriteAuthor(author)}
+                            className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${isFavorited
+                              ? 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100'
                               : 'bg-primary/10 text-primary hover:bg-primary hover:text-on-primary'
                               }`}
                           >
                             <span className="material-symbols-outlined text-sm">
-                              {isFollowed ? 'check' : 'add'}
+                              {isFavorited ? 'favorite' : 'favorite_border'}
                             </span>
-                            {isFollowed ? 'Đang theo dõi' : 'Theo dõi tác giả'}
+                            {isFavorited ? 'Đã yêu thích' : 'Yêu thích'}
                           </button>
 
                           <Link
-                            href={`/author/${author.id}`}
+                            href={`/books?author=${encodeURIComponent(author.name)}`}
                             className="block text-center text-xs font-semibold text-on-surface-variant hover:text-primary py-1 transition-colors"
                           >
-                            Xem trang tác giả →
+                            Xem sách của tác giả →
                           </Link>
                         </div>
                       </article>
