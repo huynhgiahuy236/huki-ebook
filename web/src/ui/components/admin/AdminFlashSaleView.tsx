@@ -940,7 +940,7 @@ export function AdminFlashSaleView() {
       {
         key: 'actions',
         title: 'Trạng Thái & Thao Tác',
-        width: 310,
+        width: 365,
         align: 'right',
         render: (_val, slot) => {
           const isScheduled = slot.status === 'SCHEDULED';
@@ -948,22 +948,22 @@ export function AdminFlashSaleView() {
           const isStudioOpen = studioSlotId === slot.id;
 
           return (
-            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+            <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
               <SlotStatusBadge slot={slot} />
               {!isEndedOrCancelled && (
                 <button
                   type="button"
                   onClick={() => handleOpenStudio(slot)}
-                  className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs ${
+                  className={`px-2.5 py-1 rounded-lg font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors shadow-2xs shrink-0 ${
                     isStudioOpen
                       ? 'bg-emerald-700 text-white hover:bg-emerald-800'
                       : 'bg-gray-900 hover:bg-gray-800 text-white'
                   }`}
                 >
-                  <span className="material-symbols-outlined text-sm">
+                  <span className="material-symbols-outlined text-[14px]">
                     {isStudioOpen ? 'expand_less' : 'library_add'}
                   </span>
-                  <span>{isStudioOpen ? 'Đóng Studio' : `Studio Sách (${slot.items?.length || 0})`}</span>
+                  <span>{isStudioOpen ? 'Đóng' : `Gán Sách (${slot.items?.length || 0})`}</span>
                 </button>
               )}
               <SlotCountdownBadge slot={slot} onEndEarlyClick={setEndEarlyModalSlot} />
@@ -971,10 +971,10 @@ export function AdminFlashSaleView() {
                 <button
                   type="button"
                   onClick={() => handleCancelSlot(slot)}
-                  className="px-2.5 py-1.5 rounded-xl font-bold text-xs cursor-pointer border transition-colors bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 flex items-center gap-1 shadow-2xs"
+                  className="px-2.5 py-1 rounded-lg font-bold text-[11px] cursor-pointer border transition-colors bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 flex items-center gap-1 shadow-2xs shrink-0"
                   title="Hủy lịch mở bán khung giờ này"
                 >
-                  <span className="material-symbols-outlined text-[15px]">event_busy</span>
+                  <span className="material-symbols-outlined text-[14px]">event_busy</span>
                   <span>Hủy Lịch</span>
                 </button>
               )}
@@ -987,7 +987,7 @@ export function AdminFlashSaleView() {
   );
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto pb-16 animate-in fade-in duration-200">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto pb-4 animate-in fade-in duration-200">
       {/* 1. TOP HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-gray-200">
         <div>
