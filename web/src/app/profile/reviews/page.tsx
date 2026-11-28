@@ -229,82 +229,71 @@ export default function MyReviewsPage() {
           </div>
         </div>
 
-        {/* ================= 2. TABS & CONTROLS ================= */}
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-3.5 w-full max-w-full overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-2">
+        {/* ================= 2. 1-ROW TABS, CENTER SEARCH & CONTROLS ================= */}
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-2xs w-full max-w-full overflow-hidden">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+            {/* Left: Tabs */}
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={() => {
                   setActiveTab('REVIEWED');
                   setStarFilter('ALL');
+                  setCurrentReviewedPage(1);
                 }}
-                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                   activeTab === 'REVIEWED'
                     ? 'bg-[#003B2B] text-white font-bold'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
                 <span>Đã Đánh Giá</span>
-                <span className={`px-1.5 py-0.2 rounded-md text-[11px] font-bold ${activeTab === 'REVIEWED' ? 'bg-white/20 text-white' : 'bg-white text-slate-700'}`}>
+                <span className={`px-1.5 py-0.2 rounded-md text-[10.5px] font-bold ${activeTab === 'REVIEWED' ? 'bg-white/20 text-white' : 'bg-white text-slate-700'}`}>
                   {reviewedList.length}
                 </span>
               </button>
 
               <button
                 type="button"
-                onClick={() => setActiveTab('PENDING')}
-                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                onClick={() => {
+                  setActiveTab('PENDING');
+                  setCurrentPendingPage(1);
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                   activeTab === 'PENDING'
                     ? 'bg-[#003B2B] text-white font-bold'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
                 <span>Chưa Đánh Giá</span>
-                <span className={`px-1.5 py-0.2 rounded-md text-[11px] font-bold ${activeTab === 'PENDING' ? 'bg-white/20 text-white' : 'bg-white text-slate-700'}`}>
+                <span className={`px-1.5 py-0.2 rounded-md text-[10.5px] font-bold ${activeTab === 'PENDING' ? 'bg-white/20 text-white' : 'bg-white text-slate-700'}`}>
                   {pendingOrdersList.length}
                 </span>
               </button>
             </div>
 
-            {activeTab === 'REVIEWED' && (
-              <select
-                value={String(starFilter)}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setStarFilter(val === 'ALL' ? 'ALL' : Number(val));
-                }}
-                aria-label="Lọc theo số sao"
-                className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#003B2B] cursor-pointer"
-              >
-                <option value="ALL">Tất cả số sao ({reviewedList.length})</option>
-                {[5, 4, 3, 2, 1].map((star) => (
-                  <option key={star} value={star}>
-                    {star} Sao ({reviewedList.filter((r) => r.rating === star).length})
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          {/* Search Box & Controls Bar */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-100">
-            <div className="relative flex-1 max-w-md">
+            {/* Center: Search Box */}
+            <div className="relative flex-1 min-w-0">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">
                 search
               </span>
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentReviewedPage(1);
+                }}
                 placeholder="Tìm theo tên sách, tác giả, nội dung đánh giá..."
-                className="w-full pl-9 pr-9 py-2 bg-slate-50/80 border border-slate-200/80 focus:border-[#00875A] rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00875A]/15 transition-all"
+                className="w-full pl-9 pr-8 py-1.5 bg-slate-50/80 border border-slate-200/80 focus:border-[#00875A] rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00875A]/15 transition-all"
               />
               {searchQuery && (
                 <button
                   type="button"
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => {
+                    setSearchQuery('');
+                    setCurrentReviewedPage(1);
+                  }}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-sm">close</span>
@@ -312,8 +301,30 @@ export default function MyReviewsPage() {
               )}
             </div>
 
-            <div className="text-xs text-slate-500 font-medium self-end sm:self-center">
-              Hiển thị <strong className="text-slate-800">{activeTab === 'REVIEWED' ? filteredReviewed.length : pendingOrdersList.length}</strong> mục
+            {/* Right: Star Filter + Count */}
+            <div className="flex items-center justify-between lg:justify-end gap-2.5 shrink-0">
+              {activeTab === 'REVIEWED' && (
+                <select
+                  value={String(starFilter)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setStarFilter(val === 'ALL' ? 'ALL' : Number(val));
+                    setCurrentReviewedPage(1);
+                  }}
+                  aria-label="Lọc theo số sao"
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#003B2B] cursor-pointer"
+                >
+                  <option value="ALL">Tất cả số sao ({reviewedList.length})</option>
+                  {[5, 4, 3, 2, 1].map((star) => (
+                    <option key={star} value={star}>
+                      {star} Sao ({reviewedList.filter((r) => r.rating === star).length})
+                    </option>
+                  ))}
+                </select>
+              )}
+              <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
+                Hiển thị <strong className="text-slate-800">{activeTab === 'REVIEWED' ? filteredReviewed.length : pendingOrdersList.length}</strong> mục
+              </span>
             </div>
           </div>
         </div>
@@ -338,7 +349,7 @@ export default function MyReviewsPage() {
                   <p className="text-xs text-gray-500 leading-relaxed mb-4">
                     {searchQuery || starFilter !== 'ALL'
                       ? 'Không tìm thấy đánh giá nào phù hợp với bộ lọc.'
-                      : 'Bạn chưa gửi đánh giá nào cho sản phẩm đã mua. Hãy chuyển sang tab "Chưa Đánh Giá" để gửi nhận xét và nhận +50 Xu thưởng!'}
+                      : 'Bạn chưa gửi đánh giá nào cho sản phẩm đã mua. Hãy chuyển sang tab "Chưa Đánh Giá" để chia sẻ cảm nhận!'}
                   </p>
                   {pendingOrdersList.length > 0 && (
                     <button
@@ -359,72 +370,56 @@ export default function MyReviewsPage() {
                     >
                       {/* Top: Target Book Info + Actions */}
                       <div className="flex items-start justify-between gap-3 pb-3 border-b border-gray-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-16 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden shrink-0 shadow-2xs flex items-center justify-center text-gray-400">
-                            {rev.images?.[0]?.url ? (
-                              <img
-                                src={rev.images[0].url}
-                                alt="Book cover"
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <span className="material-symbols-outlined text-2xl text-gray-400">menu_book</span>
-                            )}
-                          </div>
-                          <div>
-                            <span className="font-bold text-xs sm:text-sm text-gray-900 line-clamp-1">
-                              {rev.title || 'Đánh giá sản phẩm sách HUKI'}
+                        <div className="min-w-0">
+                          <span className="font-bold text-xs sm:text-sm text-gray-900 line-clamp-1">
+                            {rev.title || 'Đánh giá sản phẩm sách HUKI'}
+                          </span>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <span className="text-[11px] text-gray-500">
+                              Định dạng: <strong>{rev.format === 'DIGITAL' ? 'Ebook' : 'Sách In'}</strong>
                             </span>
-                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                              <span className="text-[11px] text-gray-500">
-                                Định dạng: <strong>{rev.format === 'DIGITAL' ? 'Ebook' : 'Sách In'}</strong>
+                            <span className="text-gray-300">•</span>
+                            <VerifiedPurchaseBadge variant="compact" />
+                            {rev.status === 'HIDDEN' ? (
+                              <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[11px] font-semibold inline-flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                Đã bị ẩn
                               </span>
-                              <span className="text-gray-300">•</span>
-                              <VerifiedPurchaseBadge variant="compact" />
-                              {rev.status === 'HIDDEN' ? (
-                                <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[11px] font-semibold inline-flex items-center gap-1.5">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                                  Đã bị ẩn
-                                </span>
-                              ) : (rev.isReported || rev.status === 'FLAGGED') ? (
-                                <span
-                                  className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[11px] font-semibold inline-flex items-center gap-1.5"
-                                  title="Đánh giá vẫn hiển thị bình thường cho tới khi Admin quyết định"
-                                >
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                  Đang bị báo cáo
-                                </span>
-                              ) : null}
-                            </div>
+                            ) : (rev.isReported || rev.status === 'FLAGGED') ? (
+                              <span
+                                className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[11px] font-semibold inline-flex items-center gap-1.5"
+                                title="Đánh giá vẫn hiển thị bình thường cho tới khi Admin quyết định"
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                Đang bị báo cáo
+                              </span>
+                            ) : null}
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                        <div className="flex items-center gap-1.5 shrink-0">
                           <button
                             type="button"
                             onClick={() => setEditingReview(rev)}
-                            className="px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-[#006953] text-xs font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-[#006953] text-[#006953] text-[11px] font-semibold transition-colors cursor-pointer"
                             title="Chỉnh sửa đánh giá này"
                           >
-                            <span className="material-symbols-outlined text-sm">edit_note</span>
-                            <span>Sửa</span>
+                            Sửa
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDeleteReview(rev.id)}
-                            className="px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-rose-300 hover:text-rose-600 text-slate-600 text-[11px] font-semibold transition-colors cursor-pointer"
                             title="Xóa đánh giá này"
                           >
-                            <span className="material-symbols-outlined text-sm">delete</span>
-                            <span>Xóa</span>
+                            Xóa
                           </button>
                           {rev.targetId && (
                             <Link
                               href={`/book/${rev.targetId}`}
-                              className="px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-semibold inline-flex items-center gap-1 transition-colors shrink-0"
+                              className="px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 text-[11px] font-semibold transition-colors shrink-0"
                             >
-                              <span>Xem Sách</span>
-                              <span className="material-symbols-outlined text-xs">open_in_new</span>
+                              Xem sách
                             </Link>
                           )}
                         </div>
@@ -552,6 +547,18 @@ export default function MyReviewsPage() {
                       ) : null}
                     </div>
                   ))}
+
+                  {filteredReviewed.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-slate-100">
+                      <StandardPaginationBar
+                        currentPage={currentReviewedPage}
+                        totalItems={filteredReviewed.length}
+                        pageSize={pageSize}
+                        onPageChange={(p) => setCurrentReviewedPage(p)}
+                        itemLabel="đánh giá"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -560,12 +567,9 @@ export default function MyReviewsPage() {
           {/* ================= TAB 2: CHƯA ĐÁNH GIÁ (PENDING ORDERS) ================= */}
           {activeTab === 'PENDING' && (
             <div className="p-4 sm:p-6 space-y-4">
-              <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-xs text-amber-800 flex items-center gap-2">
-                <span className="material-symbols-outlined text-amber-600 text-base shrink-0">info</span>
-                <span>
-                  Đánh giá sản phẩm đã nhận để giúp cộng đồng độc giả HUKI có thêm góc nhìn thực tế và nhận ngay <strong>+50 HUKI Xu thưởng</strong> cho mỗi bài nhận xét!
-                </span>
-              </div>
+              <p className="text-xs text-slate-500">
+                Chia sẻ nhận xét thực tế về sách đã nhận để giúp cộng đồng độc giả HuKi lựa chọn phù hợp hơn.
+              </p>
 
               {isLoading ? (
                 <div className="py-12 text-center text-xs text-gray-400 flex flex-col items-center gap-2">

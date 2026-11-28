@@ -587,32 +587,40 @@ export default function SellerDashboardPage() {
               </select>
             </div>
 
-            <div className="grid grid-cols-5 gap-2.5 sm:gap-3 pt-2 pb-1 items-end">
-              {[
-                { stage: 'Tổng SP', fullLabel: 'Tổng sản phẩm', value: stats.totalBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#4ADE80]' },
-                { stage: 'Xuất bản', fullLabel: 'Đã xuất bản', value: stats.publishedBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#34D399]' },
-                { stage: 'Sách giấy', fullLabel: 'Sách giấy (Physical)', value: stats.physicalBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#A7F3D0]' },
-                { stage: 'Ebook', fullLabel: 'Ebook (Digital DRM)', value: stats.digitalBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#6EE7B7]' },
-                { stage: 'Combo', fullLabel: 'Combo Hybrid', value: stats.hybridBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#15803D]' },
-              ].map((item, i) => {
-                const heightPct = item.value > 0 ? Math.max(8, Math.round((item.value / item.max) * 100)) : 0;
-                return (
-                  <div key={i} className="flex flex-col items-center gap-1.5" title={`${item.fullLabel}: ${item.value}`}>
-                    <span className="text-xs font-bold font-mono text-gray-900">
-                      {item.value.toLocaleString()}
-                    </span>
-                    <div className="w-full max-w-[44px] h-36 bg-gray-100 rounded-xl flex items-end overflow-hidden p-0.5">
-                      <div
-                        className={`w-full ${item.color} rounded-lg transition-all duration-500`}
-                        style={{ height: `${heightPct}%` }}
-                      />
+            <div className="relative pt-3 pb-1">
+              <div className="grid grid-cols-6 gap-2 sm:gap-4 items-end h-48 border-b border-slate-200 px-1 sm:px-3">
+                {[
+                  { stage: 'Tổng SP', fullLabel: 'Tổng sản phẩm', value: stats.totalBooks, color: 'bg-[#003B2B]' },
+                  { stage: 'Xuất bản', fullLabel: 'Đã xuất bản', value: stats.publishedBooks, color: 'bg-[#00875A]' },
+                  { stage: 'Nháp/Chờ', fullLabel: 'Bản nháp / Chờ duyệt', value: stats.draftBooks, color: 'bg-amber-400' },
+                  { stage: 'Sách giấy', fullLabel: 'Sách giấy (Physical)', value: stats.physicalBooks, color: 'bg-emerald-400' },
+                  { stage: 'Ebook', fullLabel: 'Ebook (Digital DRM)', value: stats.digitalBooks, color: 'bg-sky-400' },
+                  { stage: 'Combo', fullLabel: 'Combo Hybrid', value: stats.hybridBooks, color: 'bg-emerald-600' },
+                ].map((item, i) => {
+                  const maxVal = Math.max(stats.totalBooks, 1);
+                  const heightPct = item.value > 0 ? Math.max(4, Math.round((item.value / maxVal) * 100)) : 0;
+                  return (
+                    <div key={i} className="flex flex-col items-center justify-end h-full gap-1.5 group" title={`${item.fullLabel}: ${item.value}`}>
+                      <span className="text-[11px] font-bold font-mono text-slate-700">
+                        {item.value.toLocaleString()}
+                      </span>
+                      <div className="w-full flex items-end justify-center flex-1">
+                        <div
+                          className={`w-5 sm:w-6 ${item.color} rounded-t-md transition-all duration-500 group-hover:opacity-85`}
+                          style={{ height: `${heightPct}%` }}
+                        />
+                      </div>
                     </div>
-                    <span className="text-[11px] font-semibold text-gray-600 text-center leading-tight">
-                      {item.stage}
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+              <div className="grid grid-cols-6 gap-2 sm:gap-4 px-1 sm:px-3 pt-2">
+                {['Tổng SP', 'Xuất bản', 'Nháp/Chờ', 'Sách giấy', 'Ebook', 'Combo'].map((label) => (
+                  <span key={label} className="text-[11px] font-medium text-slate-500 text-center truncate">
+                    {label}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
 

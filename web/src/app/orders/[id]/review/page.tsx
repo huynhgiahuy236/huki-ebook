@@ -345,16 +345,8 @@ export default function OrderReviewPage() {
               </h1>
             </div>
             <p className="text-xs sm:text-sm text-gray-500 font-medium">
-              Chia sẻ cảm nhận chân thực để nhận ngay HUKI Xu thưởng và giúp đỡ cộng đồng độc giả
+              Chia sẻ cảm nhận chân thực để giúp đỡ cộng đồng độc giả HuKi
             </p>
-          </div>
-
-          <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3.5 py-2 rounded-xl text-amber-800 shrink-0 self-start sm:self-auto">
-            <span className="material-symbols-outlined text-xl text-amber-600">monetization_on</span>
-            <div>
-              <span className="text-xs font-bold block leading-none">+50 HUKI Xu</span>
-              <span className="text-[10px] text-amber-700/80">Thưởng khi đánh giá</span>
-            </div>
           </div>
         </div>
 
@@ -721,7 +713,7 @@ export default function OrderReviewPage() {
                     ) : (
                       <>
                         <span className="material-symbols-outlined text-lg">send</span>
-                        <span>Hoàn Tất &amp; Nhận 50 HUKI Xu</span>
+                        <span>Gửi Đánh Giá</span>
                       </>
                     )}
                   </button>
