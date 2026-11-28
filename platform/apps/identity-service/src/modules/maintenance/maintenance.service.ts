@@ -64,10 +64,27 @@ export class MaintenanceService {
     const updatedBy = dto.updatedBy || operatorName || 'Admin System';
 
     let drainStartedAt = existing.drainStartedAt;
-    if (dto.isActive && !existing.isActive && dto.mode === 'GRACEFUL') {
-      drainStartedAt = new Date();
-    } else if (!dto.isActive) {
+    let scheduledStartTime =
+      dto.scheduledStartTime !== undefined
+        ? dto.scheduledStartTime
+          ? new Date(dto.scheduledStartTime)
+          : null
+        : existing.scheduledStartTime;
+    let scheduledEndTime =
+      dto.scheduledEndTime !== undefined
+        ? dto.scheduledEndTime
+          ? new Date(dto.scheduledEndTime)
+          : null
+        : existing.scheduledEndTime;
+
+    if (dto.isActive === false) {
       drainStartedAt = null;
+      scheduledStartTime = null;
+      scheduledEndTime = null;
+    } else if (dto.isActive && dto.mode === 'IMMEDIATE') {
+      drainStartedAt = null;
+    } else if (dto.isActive && !existing.isActive && dto.mode === 'GRACEFUL') {
+      drainStartedAt = new Date();
     }
 
     const updated = await this.prisma.systemMaintenanceConfig.upsert({
@@ -75,8 +92,8 @@ export class MaintenanceService {
       update: {
         isActive: dto.isActive !== undefined ? dto.isActive : existing.isActive,
         mode: dto.mode || existing.mode,
-        scheduledStartTime: dto.scheduledStartTime ? new Date(dto.scheduledStartTime) : existing.scheduledStartTime,
-        scheduledEndTime: dto.scheduledEndTime ? new Date(dto.scheduledEndTime) : existing.scheduledEndTime,
+        scheduledStartTime,
+        scheduledEndTime,
         drainDurationMinutes: dto.drainDurationMinutes !== undefined ? dto.drainDurationMinutes : existing.drainDurationMinutes,
         drainStartedAt,
         reason: dto.reason || existing.reason,

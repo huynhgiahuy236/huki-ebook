@@ -100,11 +100,21 @@ class MaintenanceService {
       }
     });
 
-    // Background interval check for scheduled auto-maintenance (every 10s, visible tab only)
+    // Background interval check for scheduled auto-maintenance & server sync (every 4s, visible tab only)
     setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       this.checkScheduledMaintenance();
-    }, 10000);
+      void this.syncFromServer();
+    }, 4000);
+
+    window.addEventListener('focus', () => {
+      void this.syncFromServer();
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        void this.syncFromServer();
+      }
+    });
   }
 
   public async syncFromServer(): Promise<SystemMaintenanceConfig> {
@@ -426,6 +436,9 @@ class MaintenanceService {
       {
         isActive: false,
         drainStartedAt: undefined,
+        scheduledStartTime: undefined,
+        scheduledEndTime: undefined,
+        scheduledMode: undefined,
       },
       updatedBy
     );

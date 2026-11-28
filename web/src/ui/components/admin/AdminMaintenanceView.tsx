@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { maintenanceService, SystemMaintenanceConfig } from '@/ui/services/maintenanceService';
 import CustomModal from '@/ui/components/common/CustomModal';
+import { useToast } from '@/ui/context/ToastContext';
 
 export default function AdminMaintenanceView() {
   const [config, setConfig] = useState<SystemMaintenanceConfig>(maintenanceService.getConfig());
@@ -32,7 +33,7 @@ export default function AdminMaintenanceView() {
   const [isDrainModalOpen, setIsDrainModalOpen] = useState(false);
   const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
   const [modalCooldownSec, setModalCooldownSec] = useState<number>(0);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (!isBlackoutModalOpen && !isDrainModalOpen) {
@@ -86,8 +87,11 @@ export default function AdminMaintenanceView() {
   }, []);
 
   const showNotification = (msg: string) => {
-    setSuccessToast(msg);
-    setTimeout(() => setSuccessToast(null), 3500);
+    showToast({
+      type: 'success',
+      title: 'Cập nhật hệ thống',
+      message: msg,
+    });
   };
 
   const handleSaveSettings = (e: React.FormEvent) => {
@@ -179,14 +183,6 @@ export default function AdminMaintenanceView() {
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto pb-12 font-sans animate-in fade-in duration-200">
-      {/* Toast Notification */}
-      {successToast && (
-        <div className="fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl bg-slate-900 text-white shadow-2xl border border-slate-700 animate-fade-in text-sm font-semibold">
-          <span className="material-symbols-outlined text-emerald-400">task_alt</span>
-          <span>{successToast}</span>
-        </div>
-      )}
-
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
@@ -510,167 +506,106 @@ export default function AdminMaintenanceView() {
         </div>
       ) : null}
 
-      {/* Grid: Risk Mitigation Status & Controls */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: 5 Vulnerabilities Protection Cards */}
-        <div className="lg:col-span-1 space-y-4">
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">
-              <span className="material-symbols-outlined text-base text-emerald-600">security</span>
-              <span>Trạng Thái 5 Điểm Yếu An Toàn</span>
-            </div>
+      {/* Settings Form (Clean, Plain Vietnamese + Collapsible Technical Details) */}
+      <form onSubmit={handleSaveSettings} className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <span className="material-symbols-outlined text-emerald-700">edit_notifications</span>
+              <span>Nội Dung Thông Báo Bảo Trì (Hiển Thị Cho Khách Hàng)</span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Thông điệp, thời gian mở lại dự kiến và kênh hỗ trợ sẽ hiển thị trực tiếp trên trang /maintenance khi sàn tạm ngưng.
+            </p>
+          </div>
+          <span className="text-[11px] text-slate-400 shrink-0" suppressHydrationWarning>
+            Cập nhật: {mounted && config.updatedAt ? new Date(config.updatedAt).toLocaleTimeString('vi-VN') : '--:--'} ({config.updatedBy})
+          </span>
+        </div>
 
-            <div className="space-y-3">
-              {/* Point 1 */}
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-2.5">
-                <span className="material-symbols-outlined text-emerald-600 text-lg mt-0.5">account_balance</span>
-                <div>
-                  <p className="text-xs font-bold text-slate-900">1. Buffer Webhook Thanh Toán</p>
-                  <p className="text-[11px] text-slate-500 leading-normal">
-                    Endpoint <code className="text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded">/api/payments/webhook/*</code> không bao giờ bị chặn để đảm bảo tiền thanh toán không bị thất lạc.
-                  </p>
-                </div>
-              </div>
+        {/* Maintenance Reason */}
+        <div>
+          <label className="block text-xs font-bold text-slate-700 mb-1.5">
+            Thông Điệp / Lý Do Bảo Trì
+          </label>
+          <textarea
+            value={reasonInput}
+            onChange={(e) => setReasonInput(e.target.value)}
+            rows={2}
+            className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-emerald-600 focus:bg-white transition-all leading-relaxed"
+            placeholder="Ví dụ: Hệ thống HuKi đang nâng cấp máy chủ định kỳ và sẽ sớm hoạt động trở lại..."
+            required
+          />
+        </div>
 
-              {/* Point 2 */}
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-2.5">
-                <span className="material-symbols-outlined text-teal-600 text-lg mt-0.5">local_shipping</span>
-                <div>
-                  <p className="text-xs font-bold text-slate-900">2. Bưu Tá Giao Offline COD</p>
-                  <p className="text-[11px] text-slate-500 leading-normal">
-                    Shipper đang ngoài đường tiếp tục giao hàng và lưu biên nhận COD cục bộ trên app, đồng bộ tự động khi mở lại sàn.
-                  </p>
-                </div>
-              </div>
+        {/* Scheduled End Time & Drain Duration & Hotline & Email */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              Dự Kiến Hoàn Tất Lúc
+            </label>
+            <input
+              type="datetime-local"
+              value={endTimeInput}
+              onChange={(e) => setEndTimeInput(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-emerald-600 focus:bg-white"
+            />
+          </div>
 
-              {/* Point 3 */}
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-2.5">
-                <span className="material-symbols-outlined text-blue-600 text-lg mt-0.5">menu_book</span>
-                <div>
-                  <p className="text-xs font-bold text-slate-900">3. Bộ Đệm DRM Đọc Sách</p>
-                  <p className="text-[11px] text-slate-500 leading-normal">
-                    Người đọc đang mở sách Ebook không bị văng phiên đọc đột ngột, tiếp tục đọc được các trang đã tải offline.
-                  </p>
-                </div>
-              </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              Thời Gian Xả Êm Dịu (Phút)
+            </label>
+            <select
+              value={drainMinutes}
+              onChange={(e) => setDrainMinutes(Number(e.target.value))}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-emerald-600 focus:bg-white"
+            >
+              <option value={3}>3 Phút (Cấp tốc)</option>
+              <option value={5}>5 Phút (Khuyến nghị chuẩn sàn)</option>
+              <option value={10}>10 Phút (Bảo trì quy mô lớn)</option>
+            </select>
+          </div>
 
-              {/* Point 4 */}
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-2.5">
-                <span className="material-symbols-outlined text-amber-600 text-lg mt-0.5">vpn_key</span>
-                <div>
-                  <p className="text-xs font-bold text-slate-900">4. Master Escape Hatch (Admin)</p>
-                  <p className="text-[11px] text-slate-500 leading-normal">
-                    Tránh kịch bản Admin tự nhốt chính mình. Luôn cho phép truy cập qua Master Bypass Key và IP Whitelist.
-                  </p>
-                </div>
-              </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              Hotline Hỗ Trợ Khẩn
+            </label>
+            <input
+              type="text"
+              value={hotlineInput}
+              onChange={(e) => setHotlineInput(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-emerald-600 focus:bg-white"
+              placeholder="1900 6868"
+            />
+          </div>
 
-              {/* Point 5 */}
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-2.5">
-                <span className="material-symbols-outlined text-purple-600 text-lg mt-0.5">travel_explore</span>
-                <div>
-                  <p className="text-xs font-bold text-slate-900">5. Bảo Toàn SEO (HTTP 503)</p>
-                  <p className="text-[11px] text-slate-500 leading-normal">
-                    Middleware gắn cờ 503 Service Unavailable kèm Retry-After, bảo vệ thứ hạng từ khóa Google không bị rớt.
-                  </p>
-                </div>
-              </div>
-            </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              Email CSKH Tiếp Nhận
+            </label>
+            <input
+              type="email"
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-emerald-600 focus:bg-white"
+              placeholder="hotro@huki.vn"
+            />
           </div>
         </div>
 
-        {/* Right Column: Settings Form */}
-        <div className="lg:col-span-2">
-          <form onSubmit={handleSaveSettings} className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                <span className="material-symbols-outlined text-slate-700">tune</span>
-                <span>Cấu Hình Thông Số & Cổng Thoát Hiểm</span>
-              </h3>
-              <span className="text-[11px] text-slate-400" suppressHydrationWarning>
-                Lần cập nhật cuối: {mounted && config.updatedAt ? new Date(config.updatedAt).toLocaleTimeString('vi-VN') : '--:--'} ({config.updatedBy})
-              </span>
-            </div>
+        {/* Collapsible Technical & Bypass Settings */}
+        <details className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+          <summary className="cursor-pointer text-xs font-bold text-slate-700 flex items-center gap-2 select-none">
+            <span className="material-symbols-outlined text-base text-slate-500">settings_applications</span>
+            <span>Cài Đặt Kỹ Thuật Nâng Cao (Master Bypass Key, IP Whitelist &amp; Bảo Vệ Offline)</span>
+          </summary>
 
-            {/* Maintenance Reason */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Thông Điệp / Lý Do Bảo Trì (Hiển thị cho Khách hàng & Đối tác)
-              </label>
-              <textarea
-                value={reasonInput}
-                onChange={(e) => setReasonInput(e.target.value)}
-                rows={3}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-emerald-600 focus:bg-white transition-all leading-relaxed"
-                placeholder="Nhập lý do bảo trì hệ thống..."
-                required
-              />
-            </div>
-
-            {/* Scheduled End Time & Drain Duration */}
+          <div className="mt-4 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Thời Gian Dự Kiến Hoàn Tất
-                </label>
-                <input
-                  type="datetime-local"
-                  value={endTimeInput}
-                  onChange={(e) => setEndTimeInput(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-emerald-600 focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Thời Gian Đếm Ngược Xả Êm Dịu (Phút)
-                </label>
-                <select
-                  value={drainMinutes}
-                  onChange={(e) => setDrainMinutes(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-emerald-600 focus:bg-white"
-                >
-                  <option value={3}>3 Phút (Cấp tốc)</option>
-                  <option value={5}>5 Phút (Khuyến nghị chuẩn sàn)</option>
-                  <option value={10}>10 Phút (Bảo trì quy mô lớn)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Support Hotline & Email */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Hotline Hỗ Trợ Khẩn
-                </label>
-                <input
-                  type="text"
-                  value={hotlineInput}
-                  onChange={(e) => setHotlineInput(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-emerald-600 focus:bg-white"
-                  placeholder="1900 6868"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Email CSKH Tiếp Nhận Khẩn
-                </label>
-                <input
-                  type="email"
-                  value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-emerald-600 focus:bg-white"
-                  placeholder="hotro@huki.vn"
-                />
-              </div>
-            </div>
-
-            {/* Master Bypass Key & IP Whitelist */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Master Bypass Key (Khóa Thoát Hiểm Admin)
+                  Master Bypass Key (Khóa Truy Cập Khẩn Cấp Cho Admin)
                 </label>
                 <input
                   type="text"
@@ -680,9 +615,6 @@ export default function AdminMaintenanceView() {
                   placeholder="HUKI_MASTER_ADMIN_2026"
                   required
                 />
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Dùng để vượt qua màn hình bảo trì khi Admin bị ngắt phiên làm việc.
-                </p>
               </div>
 
               <div>
@@ -693,18 +625,14 @@ export default function AdminMaintenanceView() {
                   type="text"
                   value={whitelistInput}
                   onChange={(e) => setWhitelistInput(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-emerald-600 focus:bg-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-900 font-mono text-xs focus:outline-none focus:border-emerald-600"
                   placeholder="127.0.0.1, 192.168.1.1"
                 />
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Các địa chỉ IP này sẽ không bị chuyển hướng sang trang bảo trì.
-                </p>
               </div>
             </div>
 
-            {/* Offline Toggles */}
-            <div className="pt-2 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <label className="flex items-center gap-3 p-3 rounded-xl bg-white border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
                 <input
                   type="checkbox"
                   checked={allowOfflineDrm}
@@ -717,7 +645,7 @@ export default function AdminMaintenanceView() {
                 </div>
               </label>
 
-              <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors">
+              <label className="flex items-center gap-3 p-3 rounded-xl bg-white border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
                 <input
                   type="checkbox"
                   checked={allowShipperCod}
@@ -730,20 +658,20 @@ export default function AdminMaintenanceView() {
                 </div>
               </label>
             </div>
+          </div>
+        </details>
 
-            {/* Submit */}
-            <div className="flex justify-end pt-3">
-              <button
-                type="submit"
-                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-sm flex items-center gap-1.5 transition-colors"
-              >
-                <span className="material-symbols-outlined text-sm">save</span>
-                <span>Lưu Thay Đổi Cấu Hình</span>
-              </button>
-            </div>
-          </form>
+        {/* Submit */}
+        <div className="flex justify-end pt-2">
+          <button
+            type="submit"
+            className="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#003B2B] hover:bg-[#00281D] text-white shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-sm">save</span>
+            <span>Lưu Cấu Hình Thông Báo</span>
+          </button>
         </div>
-      </div>
+      </form>
 
       {/* Confirmation Modal 1: Instant Blackout */}
       <CustomModal

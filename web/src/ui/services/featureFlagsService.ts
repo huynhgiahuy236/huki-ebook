@@ -309,11 +309,21 @@ class FeatureFlagsService {
         }
       });
 
-      // 3. Background interval checking scheduled disable & enable timers (every 10s, visible tab only)
+      // 3. Background interval checking scheduled timers & syncing server flags (every 4s, visible tab only)
       setInterval(() => {
         if (typeof document !== 'undefined' && document.hidden) return;
         this.checkScheduledTimers();
-      }, 10000);
+        void this.syncFromServer();
+      }, 4000);
+
+      window.addEventListener('focus', () => {
+        void this.syncFromServer();
+      });
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          void this.syncFromServer();
+        }
+      });
 
       // Initial async sync from server
       this.syncFromServer();
@@ -338,23 +348,14 @@ class FeatureFlagsService {
         const json = await res.json().catch(() => ({}));
         if (json && (json.status === 'success' || json.success) && Array.isArray(json.data)) {
           const serverFeatures = json.data as SellerFeature[];
-          const current = this.getStoredFeatures();
-          const localMap = new Map(current.map(f => [f.id, f]));
-
-          const merged = serverFeatures.map(serverItem => {
-            const localItem = localMap.get(serverItem.id);
-            if (localItem) {
-              const localTime = new Date(localItem.updatedAt || 0).getTime();
-              const serverTime = new Date(serverItem.updatedAt || 0).getTime();
-              if (localTime > serverTime) {
-                return localItem;
-              }
-            }
-            return serverItem;
-          });
-
-          this.saveFeatures(merged);
-          return merged;
+          const prevJson = JSON.stringify(this.cache || []);
+          const nextJson = JSON.stringify(serverFeatures);
+          if (prevJson !== nextJson) {
+            this.saveFeatures(serverFeatures);
+          } else if (!this.cache) {
+            this.cache = serverFeatures;
+          }
+          return serverFeatures;
         }
       }
     } catch {

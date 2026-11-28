@@ -23,15 +23,22 @@ const ROUTE_FEATURE_MAP: Record<string, string> = {
   '/seller/vouchers': 'VOUCHERS',
   '/seller/promotions/discounts': 'DISCOUNTS',
   '/seller/discounts': 'DISCOUNTS',
+  '/seller/affiliate': 'AFFILIATE',
   '/seller/product/create-ebook': 'DIGITAL_PUBLISHING',
   '/seller/product/edit-ebook': 'DIGITAL_PUBLISHING',
+  '/seller/product/create': 'AUDIOBOOKS',
   '/seller/products/bulk': 'BULK_UPLOAD',
+  '/seller/inventory': 'BULK_UPLOAD',
   '/seller/finance': 'WITHDRAWALS',
   '/seller/wallet': 'WITHDRAWALS',
   '/seller/returns': 'RETURNS_MANAGEMENT',
   '/seller/replacement-orders': 'RETURNS_MANAGEMENT',
+  '/seller/orders': 'EXPRESS_SHIPPING',
   '/seller/staff': 'STAFF_MANAGEMENT',
   '/seller/chat': 'CUSTOMER_CHAT',
+  '/seller/reviews': 'REVIEWS_FEEDBACK',
+  '/seller/products': 'AI_ASSISTANT',
+  '/seller/stores': 'CUSTOM_STOREFRONT',
 };
 
 export default function SellerLayout({ children }: SellerLayoutProps = {}) {
@@ -238,11 +245,13 @@ export default function SellerLayout({ children }: SellerLayoutProps = {}) {
     };
 
     evaluateAccess();
+    void featureFlagsService.syncFromServer(currentBizId);
 
     window.addEventListener('huki_feature_flags_updated', evaluateAccess);
     const unsubscribe = realtimeSyncBus.subscribe((msg) => {
       if (msg.type === 'FEATURE_FLAGS_UPDATED') {
         evaluateAccess();
+    void featureFlagsService.syncFromServer(currentBizId);
       }
     });
 
