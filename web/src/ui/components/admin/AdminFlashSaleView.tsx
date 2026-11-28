@@ -827,9 +827,8 @@ export function AdminFlashSaleView() {
       {
         key: 'name',
         title: 'Đợt Flash Sale & Khung Giờ',
-        width: 310,
+        width: 300,
         render: (_val, slot) => {
-          const isStudioOpen = studioSlotId === slot.id;
           const startTimeStr = new Date(slot.startsAt).toLocaleTimeString('vi-VN', {
             hour: '2-digit',
             minute: '2-digit',
@@ -845,27 +844,15 @@ export function AdminFlashSaleView() {
           });
           return (
             <div className="py-1 space-y-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-bold text-slate-900 line-clamp-1">{slot.name}</span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
-                  Sàn HUKI
-                </span>
-                {isStudioOpen && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                    Đang mở Studio
-                  </span>
-                )}
+              <div className="font-bold text-sm text-slate-900 line-clamp-1" title={slot.name}>
+                {slot.name}
               </div>
-              <div className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">
-                <span className="material-symbols-outlined text-[13px] text-slate-400">schedule</span>
-                <span className="font-mono font-medium text-slate-700">
-                  {startTimeStr} – {endTimeStr}
-                </span>
-                <span className="text-slate-400">({dateStr})</span>
+              <div className="text-xs text-slate-500 font-mono">
+                {startTimeStr} – {endTimeStr} <span className="text-slate-400 font-sans">({dateStr})</span>
               </div>
               {slot.registrationStartsAt && slot.registrationEndsAt && (
-                <div className="text-[10.5px] text-amber-800 bg-amber-50/80 px-1.5 py-0.5 rounded border border-amber-200/60 inline-block font-mono">
-                  ĐK: {new Date(slot.registrationStartsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} –{' '}
+                <div className="text-[11px] text-amber-700 font-mono">
+                  Mở ĐK: {new Date(slot.registrationStartsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} –{' '}
                   {new Date(slot.registrationEndsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
                 </div>
               )}
@@ -876,22 +863,16 @@ export function AdminFlashSaleView() {
       {
         key: 'policy',
         title: 'Shop & Chính Sách',
-        width: 190,
+        width: 210,
         render: (_val, slot) => (
           <div className="py-1 space-y-1 text-xs">
-            <div className="flex items-center gap-1.5 font-mono font-bold text-slate-800">
-              <span className="material-symbols-outlined text-[14px] text-emerald-600">storefront</span>
-              <span>
-                {slot.participatingStoresCount || 0}/{slot.maxStores || 10} Shop
-              </span>
+            <div className="font-semibold text-slate-900">
+              {slot.participatingStoresCount || 0}/{slot.maxStores || 10} Gian hàng
             </div>
-            <div className="flex items-center gap-1.5 flex-wrap text-[10.5px]">
-              <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold">
-                Trợ giá -{slot.discountPercent ?? 30}%
-              </span>
-              <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-bold">
-                Max {slot.maxPerUser ?? 1}/khách
-              </span>
+            <div className="text-[11px] text-slate-500">
+              <span className="font-semibold text-rose-600">Giảm {slot.discountPercent ?? 30}%</span>
+              <span className="mx-1.5 text-slate-300">•</span>
+              <span>Tối đa {slot.maxPerUser ?? 1}/khách</span>
             </div>
           </div>
         ),
@@ -954,7 +935,7 @@ export function AdminFlashSaleView() {
       {
         key: 'actions',
         title: 'Trạng Thái & Thao Tác',
-        width: 365,
+        width: 240,
         align: 'right',
         render: (_val, slot) => {
           const isScheduled = slot.status === 'SCHEDULED';
