@@ -2279,4 +2279,32 @@ Nhằm ngăn ngừa xung đột lợi ích, tự trục lợi hoa hồng và cá
   - Các nút `toggleStatus` và `handleExecuteBulkAction` (dòng 102–153) chỉ `setShippers` trên client state mà **không gọi API cập nhật DB**.
 - **Ma trận Rủi ro Domino:** Cần tuân thủ ranh giới Microservice (`commerce-service` gọi `identity-service` qua Internal HTTP API để lấy danh sách `DELIVERY_STAFF`, tuyệt đối không truy cập chéo DB `huki_identity`).
 
-- **Trạng thái Bước 2 — Giai đoạn 2:** Hoàn tất phân tích 3 bug (`BUG-42`, `BUG-43`, `BUG-44`). **DỪNG LẠI** theo quy chế phân chặng để báo cáo Người dùng trước khi sang Giai đoạn 3 (`BUG-45`, `BUG-46`, `BUG-47`).
+- **Trạng thái Bước 2 — Giai đoạn 2:** Hoàn tất phân tích 3 bug (`BUG-42`, `BUG-43`, `BUG-44`).
+
+---
+
+### Bước 2 — Giai đoạn 3 (`BUG-45`, `BUG-46`, `BUG-47`): Phân tích Nguyên nhân Gốc rễ & Ma trận Domino (28/11/2026)
+
+> **Phạm vi kiểm chứng môi trường:** Cả **3 lỗi (`BUG-45`, `BUG-46`, `BUG-47`)** đều bắt nguồn trực tiếp từ mã nguồn hiện tại trong `web/` và `platform/`, nên **xảy ra trên cả Local lẫn UAT**.
+
+#### 1. `BUG-45` — `/admin/return-requests` & `/admin/disputes` (Số đếm bộ lọc ăn theo tab đang chọn)
+- **Tầng 4 (Frontend Client):**
+  - Tại [`AdminReturnRequestsView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminReturnRequestsView.tsx#L94-L112), `fetchReturnRequests` truyền `status` theo `activeTab` lên API, rồi `tabCounts` (dòng 266–280) lại `.filter()` trên chính mảng `items` đã bị lọc theo `activeTab`.
+  - Tại [`AdminDisputesView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminDisputesView.tsx#L92-L112), `fetchDisputes` truyền `status: filterStatus === 'ALL' ? undefined : filterStatus` lên API, rồi `totalCount`, `pendingCount`, `buyerWinsCount`, `sellerWinsCount` (dòng 213–216) lại `.filter()` trên chính mảng `filteredDisputes` đã bị lọc theo `filterStatus`.
+- **Ma trận Rủi ro Domino:** Cùng mẫu lỗi với `BUG-40` (`/seller/returns`). Khi bấm vào một tab có ít hoặc 0 bản ghi, toàn bộ badge count trên các tab khác bị kéo về `0` hoặc sai lệch.
+
+#### 2. `BUG-46` — `/admin/moderation` (Tách Sách và Bình luận)
+- **Tầng 4 (Frontend Client) & Điều hướng Admin:**
+  - Hệ thống đã tách riêng trang kiểm duyệt sách tại `/admin/book-moderation` (`AdminBookModerationView.tsx`), nhưng [`AdminModerationView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminModerationView.tsx#L66-L130) (`/admin/moderation`) vẫn lấy tất cả báo cáo từ `moderationApi.listReports` mà không lọc tách biệt theo đối tượng (`REVIEW`/`COMMENT` vs `BOOK`), đồng thời hiển thị cột `Đối Tượng` trộn lẫn kèm link `Xem trang sách` (`AdminModerationView.tsx:346-365`).
+- **Ma trận Rủi ro Domino:** Cần tách rạch ròi vai trò giữa `/admin/book-moderation` (kiểm duyệt sách) và `/admin/moderation` (kiểm duyệt bình luận/đánh giá hoặc tách rõ đối tượng) để Admin không bị nhầm lẫn khi thao tác.
+
+#### 3. `BUG-47` — `/admin/marketing` (Bỏ nút thử nghiệm click, Thống kê click thật, Chuẩn hóa UI nút)
+- **Tầng 4 (Frontend Client):**
+  - Nút thử nghiệm click (icon `touch_app`) nằm tại [`AdminMarketingView.tsx`](file:///e:/HuKi/web/src/ui/components/admin/AdminMarketingView.tsx#L1162-L1172).
+  - Hàm `recordBannerClick(bannerId)` (dòng 167–182) được gọi từ trang chủ [`web/src/app/page.tsx`](file:///e:/HuKi/web/src/app/page.tsx#L1296) **chỉ ghi `localStorage` và bắn `CustomEvent` cục bộ**, hoàn toàn không gọi API Backend nên trên UAT/máy khác luôn hiển thị `0 click`.
+  - Cụm nút thao tác (dòng 1175–1200) dùng style rời rạc: `Sửa` nền vàng (`bg-amber-50 border-amber-300`), `Ẩn` trắng không icon, `Xóa` hồng chỉ có icon `delete` không nhãn chữ.
+- **Tầng 2 (Backend Promotion Service):**
+  - [`banners.controller.ts`](file:///e:/HuKi/platform/apps/promotion-service/src/modules/banners/banners.controller.ts) hiện có `POST`, `GET`, `GET active`, `GET :id`, `PATCH :id`, `DELETE :id` — **chưa có endpoint công khai `POST /banners/:id/click`** để tăng bộ đếm click thật trong PostgreSQL.
+- **Ma trận Rủi ro Domino:** Endpoint `POST /banners/:id/click` là public endpoint cho Buyer click banner, cần đảm bảo atomic increment trong DB (`clicks: { increment: 1 }`) và có kiểm soát chống spam/lỗi.
+
+- **Trạng thái Bước 2 — Giai đoạn 3:** Hoàn tất phân tích 3 bug (`BUG-45`, `BUG-46`, `BUG-47`). **DỪNG LẠI** theo quy chế phân chặng để báo cáo Người dùng trước khi sang Giai đoạn 4 (`BUG-48`, `BUG-49`, `BUG-50`).
