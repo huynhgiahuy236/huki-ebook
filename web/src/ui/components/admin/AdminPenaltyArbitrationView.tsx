@@ -10,6 +10,7 @@ import {
 } from '../../services/sellerPenaltyService';
 import { realtimeSyncBus } from '../../services/realtimeSyncBus';
 import { useToast } from '../../context/ToastContext';
+import { adminApi } from '../../api/adminApi';
 
 export function AdminPenaltyArbitrationView() {
   const { showToast } = useToast();
@@ -39,6 +40,23 @@ export function AdminPenaltyArbitrationView() {
 
   useEffect(() => {
     loadData();
+    adminApi.getBusinesses({ limit: 100 }).then((res) => {
+      if (res.success && Array.isArray(res.data)) {
+        const realStores: Array<{ id: string; name: string }> = [];
+        res.data.forEach((b: any) => {
+          if (Array.isArray(b.stores)) {
+            b.stores.forEach((s: any) => {
+              if (s.id) realStores.push({ id: s.id, name: s.name || b.name || 'Gian hàng HuKi' });
+            });
+          }
+        });
+        sellerPenaltyService.registerRealStores(realStores);
+        if (realStores.length > 0) {
+          setTargetStoreId((prev) => (prev === 'default-store' || !prev ? realStores[0].id : prev));
+        }
+        loadData();
+      }
+    }).catch(() => {});
 
     const unsubscribe = realtimeSyncBus.subscribe((msg) => {
       if (msg.type === 'SELLER_PENALTY_UPDATED') {
@@ -218,26 +236,26 @@ export function AdminPenaltyArbitrationView() {
             onClick={() => setActiveTab('PROFILES')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'PROFILES'
-                ? 'bg-purple-700 text-white shadow-xs'
+                ? 'bg-[#003B2B] text-white shadow-xs'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
             <span className="material-symbols-outlined text-[16px]">health_and_safety</span>
-            <span>Sức Khỏe & Ma Trận Gian Hàng ({profiles.length})</span>
+            <span>Sức Khỏe &amp; Ma Trận Gian Hàng ({profiles.length})</span>
           </button>
 
           <button
             onClick={() => setActiveTab('APPEALS')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'APPEALS'
-                ? 'bg-purple-700 text-white shadow-xs'
+                ? 'bg-[#003B2B] text-white shadow-xs'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
             <span className="material-symbols-outlined text-[16px]">gavel</span>
-            <span>Hàng Đợi Kháng Nghị & Trọng Tài ({appeals.length})</span>
+            <span>Hàng Đợi Kháng Nghị &amp; Trọng Tài ({appeals.length})</span>
             {stats.pendingAppeals > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-400 text-gray-900 animate-pulse">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-400 text-gray-900">
                 {stats.pendingAppeals} chờ duyệt
               </span>
             )}
@@ -256,14 +274,14 @@ export function AdminPenaltyArbitrationView() {
           </button>
         </div>
 
-        <div className="relative w-full sm:w-64 shrink-0">
-          <span className="material-symbols-outlined text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px]">search</span>
+        <div className="flex items-center gap-2 w-full sm:w-64 shrink-0 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1.5 focus-within:border-[#00875A] focus-within:bg-white transition-all">
+          <span className="material-symbols-outlined text-gray-400 text-[16px] shrink-0">search</span>
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Tìm theo tên shop, ID, vi phạm..."
-            className="w-full text-xs rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] pl-8 pr-3 py-1.5 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-purple-600 transition-all"
+            className="w-full text-xs bg-transparent text-gray-800 placeholder:text-gray-400 focus:outline-none"
           />
         </div>
       </div>
@@ -327,8 +345,11 @@ export function AdminPenaltyArbitrationView() {
 
                       {/* Hạng chế tài */}
                       <td className="py-3.5 px-4 text-center">
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold bg-gray-100 text-gray-800 border border-gray-200">
-                          {p.tierLabel}
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold whitespace-nowrap ${
+                          isGood ? 'bg-emerald-50 text-emerald-700' : isWarning ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isGood ? 'bg-emerald-500' : isWarning ? 'bg-amber-500' : 'bg-rose-500'}`} />
+                          <span>{p.tierLabel}</span>
                         </span>
                       </td>
 
@@ -356,34 +377,34 @@ export function AdminPenaltyArbitrationView() {
                       {/* Quyền Flash Sale Sàn */}
                       <td className="py-3.5 px-4 text-center">
                         {p.canJoinPlatformFlashSale ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">
-                            <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md whitespace-nowrap">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                             <span>Đủ điều kiện (Tối đa {p.maxBooksPerPlatformSlot} sách)</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-xl border border-rose-200">
-                            <span className="material-symbols-outlined text-[14px]">block</span>
-                            <span>BỊ KHÓA 28 NGÀY</span>
+                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-md whitespace-nowrap">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                            <span>Bị khóa 28 ngày</span>
                           </span>
                         )}
                       </td>
 
                       {/* Thao tác */}
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5 flex-nowrap">
                           <button
                             onClick={() => {
                               setTargetStoreId(p.storeId);
                               setActiveTab('ISSUE_PENALTY');
                             }}
-                            className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+                            className="px-2.5 py-1 rounded-md text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer whitespace-nowrap"
                           >
                             + Phạt
                           </button>
 
                           <button
                             onClick={() => handleResetStoreQuarter(p.storeId, p.storeName || p.storeId)}
-                            className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                            className="px-2.5 py-1 rounded-md text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer whitespace-nowrap"
                             title="Làm mới điểm phạt về 0 theo chu kỳ quý"
                           >
                             Reset 0
@@ -391,7 +412,7 @@ export function AdminPenaltyArbitrationView() {
 
                           <button
                             onClick={() => setSelectedProfileForHistory(p)}
-                            className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-colors cursor-pointer"
+                            className="px-2.5 py-1 rounded-md text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors cursor-pointer whitespace-nowrap"
                           >
                             Lịch Sử ({p.history.length})
                           </button>
@@ -539,7 +560,7 @@ export function AdminPenaltyArbitrationView() {
 
       {/* 5. TAB 3: ISSUE PENALTY FORM */}
       {activeTab === 'ISSUE_PENALTY' && (
-        <div className="bg-white rounded-3xl p-6 border-2 border-rose-500/30 shadow-xl max-w-2xl mx-auto space-y-5 animate-in fade-in duration-200">
+        <div className="bg-white rounded-3xl p-6 border border-[#E2E8F0] shadow-2xs w-full space-y-5 animate-in fade-in duration-200">
           <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
             <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-700 flex items-center justify-center border border-rose-200 shrink-0">
               <span className="material-symbols-outlined text-xl">add_alert</span>
