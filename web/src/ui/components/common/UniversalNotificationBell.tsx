@@ -377,6 +377,27 @@ export default function UniversalNotificationBell({
         lowerTitle.includes('giao hàng') ||
         lowerMsg.includes('giao hàng');
 
+      // Kiểm tra Tin nhắn Chat mới TRƯỚC khi bắt từ khóa Vận chuyển / Đơn hàng
+      if (n.type === 'NEW_MESSAGE') {
+        const convId = payload.conversationId ? String(payload.conversationId) : '';
+        const defaultChatAction = isSeller
+          ? (convId ? `/seller/chat?conversationId=${encodeURIComponent(convId)}` : '/seller/chat')
+          : (convId ? `/account/messages?conversationId=${encodeURIComponent(convId)}` : '/account/messages');
+        list.push({
+          id: n.id,
+          notifId: n.id,
+          category: 'SYSTEM',
+          title: n.title || 'Tin nhắn mới từ khách hàng',
+          message: n.message,
+          content: n.message,
+          actionUrl: n.actionUrl || defaultChatAction,
+          actionLabel: 'Trả lời ngay',
+          createdAt: n.createdAt,
+          isRead: n.isRead,
+        });
+        return;
+      }
+
       if (isShippingNotif) {
         list.push({
           id: n.id,
@@ -394,14 +415,24 @@ export default function UniversalNotificationBell({
         return;
       }
 
-      // Kiểm tra có phải thông báo Đơn hàng
+      // Kiểm tra có phải thông báo Đơn hàng thật (theo type hoặc mã ORD-, tránh bắt nhầm thông báo Flash Sale / Hệ thống)
+      const hasOrderCodeInText = Boolean(
+        payload.orderCode ||
+        n.title?.match(/(ORD-[A-Za-z0-9-]+)/i) ||
+        n.message?.match(/(ORD-[A-Za-z0-9-]+)/i)
+      );
+      const isFlashSaleOrSystemText =
+        lowerTitle.includes('flash sale') ||
+        lowerMsg.includes('flash sale') ||
+        lowerTitle.includes('bảo trì') ||
+        lowerTitle.includes('sao quả tạ');
+
       const isOrderNotif =
-        n.type === 'ORDER_STATUS' ||
-        n.type === 'ORDER_CREATED' ||
-        n.type === 'ORDER_MESSAGE' ||
-        lowerTitle.includes('đơn hàng') ||
-        lowerMsg.includes('đơn hàng') ||
-        Boolean(payload.orderCode);
+        !isFlashSaleOrSystemText &&
+        (n.type === 'ORDER_STATUS' ||
+          n.type === 'ORDER_CREATED' ||
+          n.type === 'ORDER_MESSAGE' ||
+          hasOrderCodeInText);
 
       if (isOrderNotif) {
         const rawCode =
@@ -502,7 +533,7 @@ export default function UniversalNotificationBell({
 
           const isPending = cached
             ? cached.status === 'PENDING_CONFIRMATION'
-            : !payload.status || payload.status === 'PENDING_CONFIRMATION';
+            : payload.status === 'PENDING_CONFIRMATION';
 
           const sellerOrderId =
             cached?.id ||
@@ -1238,22 +1269,6 @@ export default function UniversalNotificationBell({
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  {/* Nút mở sang chế độ lưới chỉ cho Seller */}
-                  {isSeller && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsDrawerOpen(false);
-                        setIsGridOpen(true);
-                      }}
-                      className="px-2.5 py-1.5 rounded-xl bg-[#003B2B] hover:bg-[#00281D] text-white text-xs font-bold flex items-center gap-1 cursor-pointer transition-all shadow-xs"
-                      title="Mở chế độ Lưới để lên đơn nhanh"
-                    >
-                      <span className="material-symbols-outlined text-sm">grid_view</span>
-                      <span>Lưới lên đơn</span>
-                    </button>
-                  )}
-
                   {isAdmin && (
                     <Link
                       href="/admin/notifications"
