@@ -63,6 +63,7 @@ function CatalogPageContent() {
   const [maxPriceInput, setMaxPriceInput] = useState(maxPriceParam);
   const [realBooks, setRealBooks] = useState<BookData[]>([]);
   const [realBusinesses, setRealBusinesses] = useState<BusinessData[]>([]);
+  const [realAuthors, setRealAuthors] = useState<string[]>([]);
   const [realCategories, setRealCategories] = useState<{ id: string; name: string; slug: string }[]>([]);
   const [, setIsLoadingRealBooks] = useState(true);
   const [reviewsTick, setReviewsTick] = useState(0);
@@ -77,6 +78,14 @@ function CatalogPageContent() {
     businessApi.getPublicBusinesses({ limit: 50 }).then((res) => {
       if (isMounted && res.success && Array.isArray(res.data)) {
         setRealBusinesses(res.data);
+      }
+    }).catch(() => {});
+    catalogApi.getAuthors().then((res) => {
+      if (isMounted && res.success && Array.isArray(res.data)) {
+        const names = res.data
+          .map((a: any) => (a?.name || '').trim())
+          .filter((n: string) => n.length > 0);
+        setRealAuthors(names);
       }
     }).catch(() => {});
     async function loadBooks() {
@@ -445,29 +454,52 @@ function CatalogPageContent() {
   }, [allBooks]);
 
   const popularAuthors = useMemo(() => {
-    const authorMap: Record<string, number> = {};
-    allBooks.forEach((b) => {
-      const a = (b.author || '').trim();
-      if (a && a !== 'Tác giả HUKI' && a.length > 2) {
-        authorMap[a] = (authorMap[a] || 0) + 1;
+    const seen = new Map<string, string>();
+    const addAuthor = (name: string) => {
+      const trimmed = (name || '').trim();
+      if (!trimmed || trimmed === 'Tác giả HUKI' || trimmed.length <= 1) return;
+      const norm = normalizeVietnameseText(trimmed);
+      if (norm && !seen.has(norm)) {
+        seen.set(norm, trimmed);
       }
+    };
+    realAuthors.forEach(addAuthor);
+    allBooks.forEach((b) => addAuthor(b.author || ''));
+    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [realAuthors, allBooks]);
+
+  const resolvedAuthorValue = useMemo(() => {
+    if (selectedAuthor === 'all') return 'all';
+    const normSel = normalizeVietnameseText(selectedAuthor.replace(/-/g, ' '));
+    const exact = popularAuthors.find((a) => normalizeVietnameseText(a) === normSel);
+    if (exact) return exact;
+    const partial = popularAuthors.find((a) => {
+      const n = normalizeVietnameseText(a);
+      return n.includes(normSel) || normSel.includes(n);
     });
-    const sorted = Object.entries(authorMap).sort((a, b) => b[1] - a[1]);
-    const defaultList = ['Dale Carnegie', 'James Clear', 'Yuval Noah Harari', 'Haruki Murakami', 'Rosie Nguyễn'];
-    const extracted = sorted.slice(0, 5).map(([name]) => name);
-    return Array.from(new Set([...extracted, ...defaultList])).slice(0, 5);
-  }, [allBooks]);
+    return partial || selectedAuthor;
+  }, [selectedAuthor, popularAuthors]);
+
+  const resolvedStoreValue = useMemo(() => {
+    if (selectedStore === 'all') return 'all';
+    const match = availableStores.find(
+      (st) => st.id === selectedStore || st.aliases.has(selectedStore.toLowerCase())
+    );
+    return match ? match.id : 'all';
+  }, [selectedStore, availableStores]);
 
   const popularPublishers = useMemo(() => {
-    const pubMap: Record<string, number> = {};
+    const seen = new Map<string, string>();
     allBooks.forEach((b) => {
       const p = (b.publisher || '').trim();
-      if (p && p !== 'HUKI Publisher' && p.length > 2) {
-        pubMap[p] = (pubMap[p] || 0) + 1;
+      if (p && p !== 'HUKI Publisher' && p.length > 1) {
+        const norm = normalizeVietnameseText(p);
+        if (norm && !seen.has(norm)) {
+          seen.set(norm, p);
+        }
       }
     });
-    const sorted = Object.entries(pubMap).sort((a, b) => b[1] - a[1]);
-    return sorted.slice(0, 8).map(([name]) => name);
+    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, 'vi'));
   }, [allBooks]);
 
   const quickPriceRanges = [
@@ -638,128 +670,59 @@ function CatalogPageContent() {
             </div>
           </div>
 
-          {/* 3. Tác Giả */}
+          {/* 3. Tác Giả (Select dropdown - toàn bộ tác giả thực tế) */}
           <div className="py-3 border-b border-gray-100">
             <h4 className="font-bold text-xs text-gray-900 mb-2">Tác Giả</h4>
-            <div className="space-y-1.5 text-xs text-gray-700">
-              <label
-                onClick={() => updateParam('author', 'all')}
-                className={`flex items-center gap-2 cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
-                  selectedAuthor === 'all' ? 'text-[#003b2b] font-bold' : ''
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="author_filter"
-                  checked={selectedAuthor === 'all'}
-                  onChange={() => {}}
-                  className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
-                />
-                <span>Tất cả tác giả</span>
-              </label>
+            <select
+              value={resolvedAuthorValue}
+              onChange={(e) => updateParam('author', e.target.value)}
+              aria-label="Lọc theo tác giả"
+              className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs text-gray-800 font-medium focus:outline-none focus:border-[#003b2b] cursor-pointer"
+            >
+              <option value="all">Tất cả tác giả ({popularAuthors.length})</option>
               {popularAuthors.map((authorName) => (
-                <label
-                  key={authorName}
-                  onClick={() => updateParam('author', authorName)}
-                  className={`flex items-center gap-2 cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
-                    selectedAuthor === authorName ? 'text-[#003b2b] font-bold' : ''
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="author_filter"
-                    checked={selectedAuthor === authorName}
-                    onChange={() => {}}
-                    className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
-                  />
-                  <span className="truncate">{authorName}</span>
-                </label>
+                <option key={authorName} value={authorName}>
+                  {authorName}
+                </option>
               ))}
-            </div>
+            </select>
           </div>
 
-          {/* 3.5. Nhà Sách / Gian Hàng Bán (Dữ liệu thật từ /businesses - BUG-049) */}
+          {/* 3.5. Nhà Sách / Gian Hàng Bán (Select dropdown) */}
           <div className="py-3 border-b border-gray-100">
             <h4 className="font-bold text-xs text-gray-900 mb-2">Nhà Sách / Gian Hàng</h4>
-            <div className="space-y-1.5 text-xs text-gray-700">
-              <label
-                onClick={() => updateParam('storeId', 'all')}
-                className={`flex items-center gap-2 cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
-                  selectedStore === 'all' ? 'text-[#003b2b] font-bold' : ''
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="store_filter"
-                  checked={selectedStore === 'all'}
-                  onChange={() => {}}
-                  className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
-                />
-                <span>Tất cả nhà sách ({availableStores.length})</span>
-              </label>
-              {availableStores.map((st) => {
-                const isSelected = selectedStore === st.id || st.aliases.has(selectedStore.toLowerCase());
-                return (
-                  <label
-                    key={st.id}
-                    onClick={() => updateParam('storeId', st.id)}
-                    className={`flex items-center gap-2 cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
-                      isSelected ? 'text-[#003b2b] font-bold' : ''
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="store_filter"
-                      checked={isSelected}
-                      onChange={() => {}}
-                      className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
-                    />
-                    <span className="truncate">{st.name}</span>
-                  </label>
-                );
-              })}
-            </div>
+            <select
+              value={resolvedStoreValue}
+              onChange={(e) => updateParam('storeId', e.target.value)}
+              aria-label="Lọc theo nhà sách / gian hàng"
+              className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs text-gray-800 font-medium focus:outline-none focus:border-[#003b2b] cursor-pointer"
+            >
+              <option value="all">Tất cả nhà sách ({availableStores.length})</option>
+              {availableStores.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {st.name}
+                </option>
+              ))}
+            </select>
           </div>
 
-          {/* 4. Nhà Xuất Bản (Chỉ NXB có sách thực tế) */}
+          {/* 4. Nhà Xuất Bản (Ấn Hành) (Select dropdown) */}
           {popularPublishers.length > 0 && (
             <div className="py-3 border-b border-gray-100">
               <h4 className="font-bold text-xs text-gray-900 mb-2">Nhà Xuất Bản (Ấn Hành)</h4>
-              <div className="space-y-1.5 text-xs text-gray-700">
-                <label
-                  onClick={() => updateParam('publisher', 'all')}
-                  className={`flex items-center gap-2 cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
-                    selectedPublisher === 'all' ? 'text-[#003b2b] font-bold' : ''
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="publisher_filter"
-                    checked={selectedPublisher === 'all'}
-                    onChange={() => {}}
-                    className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
-                  />
-                  <span>Tất cả NXB</span>
-                </label>
+              <select
+                value={selectedPublisher}
+                onChange={(e) => updateParam('publisher', e.target.value)}
+                aria-label="Lọc theo nhà xuất bản"
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs text-gray-800 font-medium focus:outline-none focus:border-[#003b2b] cursor-pointer"
+              >
+                <option value="all">Tất cả NXB ({popularPublishers.length})</option>
                 {popularPublishers.map((pubName) => (
-                  <label
-                    key={pubName}
-                    onClick={() => updateParam('publisher', pubName)}
-                    className={`flex items-center gap-2 cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
-                      selectedPublisher === pubName ? 'text-[#003b2b] font-bold' : ''
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="publisher_filter"
-                      checked={selectedPublisher === pubName}
-                      onChange={() => {}}
-                      className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
-                    />
-                    <span className="truncate">{pubName}</span>
-                  </label>
+                  <option key={pubName} value={pubName}>
+                    {pubName}
+                  </option>
                 ))}
-              </div>
+              </select>
             </div>
           )}
 

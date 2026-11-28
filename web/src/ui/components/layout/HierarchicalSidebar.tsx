@@ -157,12 +157,6 @@ export default function HierarchicalSidebar({
           to: '/stores',
           icon: 'apartment',
         },
-        {
-          id: 'following',
-          title: 'Đang Theo Dõi',
-          to: '/following',
-          icon: 'favorite_border',
-        },
       ],
     },
     {
