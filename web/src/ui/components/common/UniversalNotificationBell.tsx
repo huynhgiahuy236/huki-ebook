@@ -746,7 +746,33 @@ export default function UniversalNotificationBell({
       });
     }
 
-    return list;
+    // Deduplicate repetitive SYSTEM notifications by title & prioritize actionable Seller tasks first
+    const seenSystemTitles = new Set<string>();
+    const deduped = list.filter((item) => {
+      if (item.category === 'SYSTEM') {
+        const key = (item.title || '').trim().toLowerCase();
+        if (seenSystemTitles.has(key)) return false;
+        seenSystemTitles.add(key);
+      }
+      return true;
+    });
+
+    const priorityRank: Record<string, number> = {
+      ORDER_PENDING: 0,
+      ORDER_OTHER: 1,
+      SHIPPING: 2,
+      REVIEW: 3,
+      AFFILIATE: 4,
+      FINANCE: 5,
+      SYSTEM: 6,
+    };
+
+    return deduped.sort((a, b) => {
+      const ra = priorityRank[a.category] ?? 9;
+      const rb = priorityRank[b.category] ?? 9;
+      if (ra !== rb) return ra - rb;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
   }, [notifications, orderCache, adminNotifs, user, normalizeItemsList]);
 
   // -------------------------------------------------------------------------
@@ -1475,69 +1501,21 @@ export default function UniversalNotificationBell({
               </span>
               <div>
                 <h2 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                  <span>Trung Tâm Xử Lý Thông Báo &amp; Đơn Hàng</span>
+                  <span>Trung Tâm Xử Lý Đơn Hàng &amp; Việc Cần Làm</span>
                   {counts.pending > 0 && (
-                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-white text-xs font-bold animate-pulse">
+                    <span className="px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-xs font-bold">
                       {counts.pending} đơn chờ xác nhận
                     </span>
                   )}
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
-                  Hiển thị đầy đủ thông báo gian hàng, tựa sách cần đóng gói và xác nhận đơn tốc độ cao
+                  Ưu tiên hiển thị đơn hàng chờ xác nhận, vận chuyển và đánh giá trước thông báo hệ thống
                 </p>
               </div>
             </div>
 
             {/* Các công cụ điều khiển bên phải */}
             <div className="flex items-center gap-2">
-              {/* Tùy chọn cột responsive (8 - 4 - 2) */}
-              <div className="hidden md:flex items-center bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300">
-                <span className="px-2 text-[11px] text-slate-400">Lưới:</span>
-                <button
-                  type="button"
-                  onClick={() => setColsMode('auto')}
-                  className={`px-2 py-1 rounded-lg transition-all cursor-pointer ${
-                    colsMode === 'auto'
-                      ? 'bg-white dark:bg-zinc-900 text-[#003B2B] dark:text-emerald-400 font-bold shadow-2xs'
-                      : 'hover:text-slate-900'
-                  }`}
-                >
-                  Tự động (8-4-2)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setColsMode('2')}
-                  className={`px-2 py-1 rounded-lg transition-all cursor-pointer ${
-                    colsMode === '2'
-                      ? 'bg-white dark:bg-zinc-900 text-[#003B2B] dark:text-emerald-400 font-bold shadow-2xs'
-                      : 'hover:text-slate-900'
-                  }`}
-                >
-                  2 cột
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setColsMode('4')}
-                  className={`px-2 py-1 rounded-lg transition-all cursor-pointer ${
-                    colsMode === '4'
-                      ? 'bg-white dark:bg-zinc-900 text-[#003B2B] dark:text-emerald-400 font-bold shadow-2xs'
-                      : 'hover:text-slate-900'
-                  }`}
-                >
-                  4 cột
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setColsMode('6')}
-                  className={`px-2 py-1 rounded-lg transition-all cursor-pointer ${
-                    colsMode === '6'
-                      ? 'bg-white dark:bg-zinc-900 text-[#003B2B] dark:text-emerald-400 font-bold shadow-2xs'
-                      : 'hover:text-slate-900'
-                  }`}
-                >
-                  6 cột
-                </button>
-              </div>
 
               {/* Nút Chọn nhiều (Facebook-style) */}
               <button
