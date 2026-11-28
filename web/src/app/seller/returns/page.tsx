@@ -405,10 +405,10 @@ export default function SellerReturnsPage() {
       {
         key: 'actions',
         title: 'Thao Tác',
-        width: 170,
+        width: 235,
         align: 'right',
         render: (_val, item) => (
-          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+          <div className="flex items-center justify-end gap-1.5 flex-nowrap whitespace-nowrap">
             {item.replacementStatus === 'RETURNED_TO_STORE' && item.status !== 'REFUNDED' && item.status !== 'REPLACED' && (
               <SellerActionButton
                 variant="primary"
