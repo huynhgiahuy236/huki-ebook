@@ -70,7 +70,7 @@ export function AdminModerationView() {
 
       if (res?.success && res.data) {
         // Tách riêng bình luận/đánh giá khỏi kiểm duyệt sách (sách đã có /admin/book-moderation)
-        const onlyReviews = (res.data.data || []).filter((r: ModerationReportItem) => (r.targetType as string) !== 'BOOK');
+        const onlyReviews = (res.data.data || []).filter((r: ModerationReportItem) => String(r.targetType) !== 'BOOK');
         setReports(onlyReviews);
       } else if (!silent) {
         setReports([]);

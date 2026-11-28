@@ -538,14 +538,14 @@ export function AdminAffiliatesView() {
                   const targets = applications.filter((a) => selectedIds.includes(a.id) && (a.status === 'PENDING_REVIEW' || a.status === 'REQUEST_CHANGES'));
                   let ok = 0;
                   for (const t of targets) {
-                    const r = await affiliateApi.adminApproveApplication(t.id);
+                    const r = await affiliateApi.adminApprove(t.id);
                     if (r.success) ok++;
                   }
                   showToast(`Đã duyệt kích hoạt ${ok}/${targets.length} hồ sơ CTV.`, ok > 0 ? 'success' : 'info');
                   setSelectedIds([]);
                   await fetchApplications();
                 } else if (actionVal === 'EXPORT_CSV') {
-                  const rows = applications.filter((a) => selectedIds.includes(a.id)).map((a) => `${a.affiliateCode},${a.displayName},${a.email},${a.status}`);
+                  const rows = applications.filter((a) => selectedIds.includes(a.id)).map((a) => `${a.affiliateCode},${a.displayName},${(a as any).user?.email || (a as any).email || ''},${a.status}`);
                   const blob = new Blob(['\uFEFFMa CTV,Ten,Email,Trang thai\n' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
                   const url = URL.createObjectURL(blob);
                   const link = document.createElement('a');
